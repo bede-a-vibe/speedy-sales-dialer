@@ -12,8 +12,21 @@ export default {
         "2xl": "1400px",
       },
     },
+    fontFamily: {
+      sans: ['Inter', 'system-ui', 'sans-serif'],
+      mono: ['JetBrains Mono', 'monospace'],
+    },
     extend: {
       colors: {
+        outcome: {
+          "no-answer": "hsl(var(--outcome-no-answer))",
+          voicemail: "hsl(var(--outcome-voicemail))",
+          "not-interested": "hsl(var(--outcome-not-interested))",
+          dnc: "hsl(var(--outcome-dnc))",
+          "follow-up": "hsl(var(--outcome-follow-up))",
+          booked: "hsl(var(--outcome-booked))",
+          "wrong-number": "hsl(var(--outcome-wrong-number))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
