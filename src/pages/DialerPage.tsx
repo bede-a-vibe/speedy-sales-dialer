@@ -134,7 +134,7 @@ export default function DialerPage() {
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
+  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact, myDialpadSettings, dialpadLogCall]);
 
   // Keyboard shortcuts
   useEffect(() => {
