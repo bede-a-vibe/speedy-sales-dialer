@@ -41,11 +41,11 @@ export function useCreateCallLog() {
     mutationFn: async (log: {
       contact_id: string;
       user_id: string;
-      outcome: string;
+      outcome: "no_answer" | "voicemail" | "not_interested" | "dnc" | "follow_up" | "booked" | "wrong_number";
       notes?: string;
       follow_up_date?: string | null;
     }) => {
-      const { error } = await supabase.from("call_logs").insert(log);
+      const { error } = await supabase.from("call_logs").insert([log]);
       if (error) throw error;
     },
     onSuccess: () => {
