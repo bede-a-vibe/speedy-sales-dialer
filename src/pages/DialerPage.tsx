@@ -207,6 +207,7 @@ export default function DialerPage() {
               </div>
             </DialogContent>
           </Dialog>
+        </div>
 
         {/* Main dialer area */}
         {isDialing && currentContact ? (
