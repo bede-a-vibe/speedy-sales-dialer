@@ -14,16 +14,169 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      call_logs: {
+        Row: {
+          contact_id: string
+          created_at: string
+          follow_up_date: string | null
+          id: string
+          notes: string | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          notes?: string | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["call_outcome"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          business_name: string
+          city: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          gmb_link: string | null
+          id: string
+          industry: string
+          is_dnc: boolean
+          last_outcome: Database["public"]["Enums"]["call_outcome"] | null
+          phone: string
+          state: string | null
+          status: string
+          updated_at: string
+          uploaded_by: string | null
+          website: string | null
+        }
+        Insert: {
+          business_name: string
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          gmb_link?: string | null
+          id?: string
+          industry: string
+          is_dnc?: boolean
+          last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          phone: string
+          state?: string | null
+          status?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          website?: string | null
+        }
+        Update: {
+          business_name?: string
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          gmb_link?: string | null
+          id?: string
+          industry?: string
+          is_dnc?: boolean
+          last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          phone?: string
+          state?: string | null
+          status?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "sales_rep"
+      call_outcome:
+        | "no_answer"
+        | "voicemail"
+        | "not_interested"
+        | "dnc"
+        | "follow_up"
+        | "booked"
+        | "wrong_number"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +303,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "sales_rep"],
+      call_outcome: [
+        "no_answer",
+        "voicemail",
+        "not_interested",
+        "dnc",
+        "follow_up",
+        "booked",
+        "wrong_number",
+      ],
+    },
   },
 } as const
