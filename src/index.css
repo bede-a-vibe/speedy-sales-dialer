@@ -6,54 +6,54 @@
 
 @layer base {
   :root {
-    --background: 220 20% 7%;
-    --foreground: 210 20% 92%;
+    --background: 0 0% 98%;
+    --foreground: 220 20% 14%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
 
-    --primary: 142 72% 50%;
-    --primary-foreground: 220 20% 7%;
+    --primary: 220 65% 48%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 16% 16%;
-    --secondary-foreground: 210 20% 85%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 220 20% 30%;
 
-    --muted: 220 14% 14%;
-    --muted-foreground: 215 12% 52%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
 
-    --accent: 220 16% 18%;
-    --accent-foreground: 210 20% 92%;
+    --accent: 220 14% 93%;
+    --accent-foreground: 220 20% 14%;
 
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 68% 52%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 18%;
-    --input: 220 14% 18%;
-    --ring: 142 72% 50%;
+    --border: 220 14% 89%;
+    --input: 220 14% 89%;
+    --ring: 220 65% 48%;
 
     --radius: 0.5rem;
 
-    /* Outcome colors */
-    --outcome-no-answer: 220 14% 45%;
-    --outcome-voicemail: 35 90% 55%;
-    --outcome-not-interested: 0 60% 50%;
-    --outcome-dnc: 0 80% 40%;
-    --outcome-follow-up: 200 85% 55%;
-    --outcome-booked: 142 72% 50%;
-    --outcome-wrong-number: 280 50% 55%;
+    /* Outcome colors — muted, professional */
+    --outcome-no-answer: 220 12% 62%;
+    --outcome-voicemail: 35 65% 52%;
+    --outcome-not-interested: 0 55% 55%;
+    --outcome-dnc: 0 65% 45%;
+    --outcome-follow-up: 205 70% 48%;
+    --outcome-booked: 152 55% 42%;
+    --outcome-wrong-number: 270 40% 55%;
 
     /* Sidebar */
-    --sidebar-background: 220 20% 5%;
-    --sidebar-foreground: 215 12% 65%;
-    --sidebar-primary: 142 72% 50%;
-    --sidebar-primary-foreground: 220 20% 7%;
-    --sidebar-accent: 220 16% 12%;
-    --sidebar-accent-foreground: 210 20% 92%;
-    --sidebar-border: 220 14% 14%;
-    --sidebar-ring: 142 72% 50%;
+    --sidebar-background: 220 20% 16%;
+    --sidebar-foreground: 220 10% 70%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 220 20% 16%;
+    --sidebar-accent: 220 16% 22%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 220 14% 22%;
+    --sidebar-ring: 220 65% 48%;
 
     --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'Inter', system-ui, sans-serif;
