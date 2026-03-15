@@ -3,11 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, Loader2 } from "lucide-react";
+import { Phone, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AuthPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -17,7 +17,21 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (isSignUp) {
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Check your email for a password reset link!");
+        setMode("login");
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (mode === "signup") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -47,12 +61,22 @@ export default function AuthPage() {
           </div>
           <h1 className="text-xl font-bold text-foreground tracking-tight">SalesDialer</h1>
           <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">
-            {isSignUp ? "Create Account" : "Sign In"}
+            {mode === "signup" ? "Create Account" : mode === "forgot" ? "Reset Password" : "Sign In"}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
+          {mode === "forgot" && (
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-3 w-3" /> Back to sign in
+            </button>
+          )}
+
+          {mode === "signup" && (
             <div className="space-y-2">
               <Label htmlFor="name" className="text-xs text-muted-foreground">Display Name</Label>
               <Input
@@ -76,35 +100,50 @@ export default function AuthPage() {
               className="bg-card border-border"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-xs text-muted-foreground">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-              className="bg-card border-border"
-            />
-          </div>
+          {mode !== "forgot" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs text-muted-foreground">Password</Label>
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                className="bg-card border-border"
+              />
+            </div>
+          )}
 
           <Button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground font-semibold">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isSignUp ? "Create Account" : "Sign In"}
+            {mode === "signup" ? "Create Account" : mode === "forgot" ? "Send Reset Link" : "Sign In"}
           </Button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-primary hover:underline font-medium"
-          >
-            {isSignUp ? "Sign in" : "Sign up"}
-          </button>
-        </p>
+        {mode !== "forgot" && (
+          <p className="text-center text-xs text-muted-foreground">
+            {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
+            <button
+              onClick={() => setMode(mode === "signup" ? "login" : "signup")}
+              className="text-primary hover:underline font-medium"
+            >
+              {mode === "signup" ? "Sign in" : "Sign up"}
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

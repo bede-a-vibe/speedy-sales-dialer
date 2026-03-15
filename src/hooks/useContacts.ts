@@ -25,6 +25,26 @@ export function useContacts(industry?: string) {
   });
 }
 
+export function useAllContacts(industry?: string) {
+  return useQuery({
+    queryKey: ["all-contacts", industry],
+    queryFn: async () => {
+      let query = supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (industry && industry !== "all") {
+        query = query.eq("industry", industry);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Contact[];
+    },
+  });
+}
+
 export function useUncalledContacts(industry?: string) {
   return useQuery({
     queryKey: ["uncalled-contacts", industry],
@@ -56,6 +76,22 @@ export function useUpdateContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+    },
+  });
+}
+
+export function useDeleteContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("contacts").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
     },
   });
