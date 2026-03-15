@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import DashboardPage from "./pages/DashboardPage";
 import DialerPage from "./pages/DialerPage";
+import ContactsPage from "./pages/ContactsPage";
 import FollowUpsPage from "./pages/FollowUpsPage";
 import UploadPage from "./pages/UploadPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -31,6 +32,7 @@ function ProtectedRoutes() {
     <Routes>
       <Route path="/" element={<DashboardPage />} />
       <Route path="/dialer" element={<DialerPage />} />
+      <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/follow-ups" element={<FollowUpsPage />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
