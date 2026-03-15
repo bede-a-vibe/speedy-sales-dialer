@@ -7,6 +7,7 @@ import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
 import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
+import { useMyDialpadSettings, useDialpadLogCall } from "@/hooks/useDialpadSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export default function DialerPage() {
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
+  const dialpadLogCall = useDialpadLogCall();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
     ? uncalledContacts[currentIndex]
@@ -109,15 +112,29 @@ export default function DialerPage() {
         ...prev,
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
+
+      // Initiate Dialpad call logging
+      if (myDialpadSettings?.dialpad_user_id) {
+        try {
+          await dialpadLogCall.mutateAsync({
+            phone: currentContact.phone,
+            dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          });
+          toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call initiated`);
+        } catch {
+          toast.warning(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call failed`);
+        }
+      } else {
+        toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+      }
+
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
-
-      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
+  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact, myDialpadSettings, dialpadLogCall]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -229,6 +246,16 @@ export default function DialerPage() {
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
             </span>
+            {myDialpadSettings ? (
+              <span className="text-xs font-mono text-primary">
+                <Phone className="h-3 w-3 inline mr-1" />
+                {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-muted-foreground/60">
+                No Dialpad number assigned
+              </span>
+            )}
             {isDialing && (
               <span className="text-xs font-mono text-primary">
                 {callCount} calls · {skippedCount} skipped

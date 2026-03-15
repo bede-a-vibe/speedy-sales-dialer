@@ -1,4 +1,4 @@
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useIsAdmin } from "@/hooks/useUserRole";
@@ -26,6 +26,7 @@ const mainItems = [
 const adminItems = [
   { title: "Upload Lists", url: "/upload", icon: Upload },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },
 ];
 
 export function AppSidebar() {

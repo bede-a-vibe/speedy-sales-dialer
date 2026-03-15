@@ -109,6 +109,36 @@ export type Database = {
         }
         Relationships: []
       }
+      dialpad_settings: {
+        Row: {
+          created_at: string
+          dialpad_phone_number: string | null
+          dialpad_user_id: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dialpad_phone_number?: string | null
+          dialpad_user_id: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dialpad_phone_number?: string | null
+          dialpad_user_id?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
