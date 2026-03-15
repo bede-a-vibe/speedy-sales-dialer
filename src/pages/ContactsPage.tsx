@@ -178,7 +178,7 @@ export default function ContactsPage() {
                   const logs = getContactLogs(contact.id);
                   const isExpanded = expandedId === contact.id;
                   return (
-                    <tbody key={contact.id}>
+                    <React.Fragment key={contact.id}>
                       <tr
                         className="border-b border-border hover:bg-muted/30 cursor-pointer transition-colors"
                         onClick={() => setExpandedId(isExpanded ? null : contact.id)}
