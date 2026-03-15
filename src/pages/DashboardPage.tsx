@@ -1,5 +1,8 @@
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
+import { DailyTarget } from "@/components/DailyTarget";
+import { LiveActivityFeed } from "@/components/LiveActivityFeed";
+import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { useContacts } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
@@ -22,6 +25,10 @@ export default function DashboardPage() {
   return (
     <AppLayout title="Dashboard">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Daily target */}
+        <DailyTarget />
+
+        {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard label="Calls Made" value={calledContacts} subtext="total dials" />
           <StatCard label="Booked" value={booked} subtext="appointments" />
@@ -30,6 +37,7 @@ export default function DashboardPage() {
           <StatCard label="Penetration" value={`${penetration}%`} subtext="lists called" />
         </div>
 
+        {/* Outcome breakdown */}
         <div className="bg-card border border-border rounded-lg p-5">
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
             Outcome Breakdown
@@ -48,30 +56,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-5">
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
-            Recent Activity
-          </h3>
-          <div className="space-y-2">
-            {callLogs.slice(0, 10).map((log: any) => {
-              const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
-              return (
-                <div key={log.id} className="flex items-center gap-3 px-3 py-2 rounded-md bg-secondary/50 border border-border">
-                  <div className={`w-2 h-2 rounded-full ${config?.bgClass || 'bg-muted-foreground'}`} />
-                  <span className="text-sm font-medium text-foreground flex-1">
-                    {log.contacts?.business_name || "Unknown"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{config?.label}</span>
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    {new Date(log.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              );
-            })}
-            {callLogs.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">No calls logged yet.</p>
-            )}
-          </div>
+        {/* Two column: Leaderboard + Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TeamLeaderboard />
+          <LiveActivityFeed />
         </div>
       </div>
     </AppLayout>

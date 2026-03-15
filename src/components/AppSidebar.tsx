@@ -1,4 +1,4 @@
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useIsAdmin } from "@/hooks/useUserRole";
@@ -19,6 +19,7 @@ import {
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Dialer", url: "/dialer", icon: Phone },
+  { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Follow-ups", url: "/follow-ups", icon: CalendarClock },
 ];
 
@@ -42,8 +43,8 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h1 className="text-sm font-bold text-foreground tracking-tight">SalesDialer</h1>
-              <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">CRM</p>
+              <h1 className="text-sm font-bold text-sidebar-primary tracking-tight">SalesDialer</h1>
+              <p className="text-[10px] text-sidebar-foreground font-mono uppercase tracking-widest">CRM</p>
             </div>
           )}
         </div>
@@ -51,7 +52,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">
             Main
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -62,8 +63,8 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="hover:bg-accent/50 transition-colors"
-                      activeClassName="bg-accent text-primary font-medium"
+                      className="hover:bg-sidebar-accent/50 transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -77,7 +78,7 @@ export function AppSidebar() {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">
               Admin
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -88,8 +89,8 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className="hover:bg-accent/50 transition-colors"
-                        activeClassName="bg-accent text-primary font-medium"
+                        className="hover:bg-sidebar-accent/50 transition-colors"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       >
                         <item.icon className="mr-2 h-4 w-4" />
                         {!collapsed && <span>{item.title}</span>}
@@ -105,7 +106,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4">
         {!collapsed && (
-          <div className="text-[10px] text-muted-foreground font-mono">
+          <div className="text-[10px] text-sidebar-foreground/40 font-mono">
             v1.0 · Desktop Mode
           </div>
         )}

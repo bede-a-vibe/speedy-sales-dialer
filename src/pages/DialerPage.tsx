@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
+import { DailyTarget } from "@/components/DailyTarget";
 import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
 import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
@@ -126,6 +127,9 @@ export default function DialerPage() {
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Daily target */}
+        <DailyTarget />
+
         {/* Controls bar */}
         <div className="flex items-center gap-4">
           <Select value={industry} onValueChange={setIndustry}>

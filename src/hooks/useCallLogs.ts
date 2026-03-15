@@ -12,10 +12,30 @@ export function useCallLogs() {
         .from("call_logs")
         .select("*, contacts(*)")
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(500);
       if (error) throw error;
       return data;
     },
+  });
+}
+
+export function useCallLogsByDateRange(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ["call-logs-range", from, to],
+    queryFn: async () => {
+      let query = supabase
+        .from("call_logs")
+        .select("*, contacts(business_name, industry)")
+        .order("created_at", { ascending: false });
+
+      if (from) query = query.gte("created_at", from);
+      if (to) query = query.lte("created_at", `${to}T23:59:59`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: true,
   });
 }
 
@@ -50,6 +70,7 @@ export function useCreateCallLog() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["call-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["call-logs-range"] });
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
