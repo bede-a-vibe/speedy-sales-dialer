@@ -10,6 +10,7 @@ import ContactsPage from "./pages/ContactsPage";
 import FollowUpsPage from "./pages/FollowUpsPage";
 import UploadPage from "./pages/UploadPage";
 import ReportsPage from "./pages/ReportsPage";
+import DialpadSettingsPage from "./pages/DialpadSettingsPage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
