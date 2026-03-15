@@ -1,10 +1,10 @@
 import { AppLayout } from "@/components/AppLayout";
-import { MOCK_CALL_LOGS, MOCK_CONTACTS, OUTCOME_CONFIG } from "@/data/mockData";
+import { useFollowUps } from "@/hooks/useCallLogs";
 import { CalendarClock, Phone } from "lucide-react";
 import { format } from "date-fns";
 
 export default function FollowUpsPage() {
-  const followUps = MOCK_CALL_LOGS.filter((l) => l.outcome === "follow_up" && l.follow_up_date);
+  const { data: followUps = [], isLoading } = useFollowUps();
 
   return (
     <AppLayout title="Follow-ups">
@@ -16,15 +16,17 @@ export default function FollowUpsPage() {
           </h3>
         </div>
 
-        {followUps.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-20 text-sm text-muted-foreground font-mono animate-pulse">Loading...</div>
+        ) : followUps.length === 0 ? (
           <div className="text-center py-20">
             <CalendarClock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-sm text-muted-foreground">No follow-ups scheduled yet.</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {followUps.map((log) => {
-              const contact = MOCK_CONTACTS.find((c) => c.id === log.contact_id);
+            {followUps.map((log: any) => {
+              const contact = log.contacts;
               const isOverdue = log.follow_up_date && new Date(log.follow_up_date) < new Date();
               const isToday = log.follow_up_date &&
                 format(new Date(log.follow_up_date), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
@@ -54,7 +56,7 @@ export default function FollowUpsPage() {
                     <p className="text-xs font-mono text-foreground">
                       {log.follow_up_date && format(new Date(log.follow_up_date), "MMM d, yyyy")}
                     </p>
-                    {isOverdue && (
+                    {isOverdue && !isToday && (
                       <span className="text-[10px] uppercase tracking-widest text-destructive font-semibold">
                         Overdue
                       </span>

@@ -2,7 +2,10 @@ import { useState, useCallback, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
-import { MOCK_CONTACTS, INDUSTRIES, CallOutcome, Contact, OUTCOME_CONFIG } from "@/data/mockData";
+import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
+import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useCreateCallLog } from "@/hooks/useCallLogs";
+import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,11 +13,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, SkipForward, CheckCircle2 } from "lucide-react";
+import { CalendarIcon, Phone, CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function DialerPage() {
+  const { user } = useAuth();
   const [industry, setIndustry] = useState<string>("all");
-  const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null);
   const [notes, setNotes] = useState("");
@@ -22,52 +26,66 @@ export default function DialerPage() {
   const [isDialing, setIsDialing] = useState(false);
   const [callCount, setCallCount] = useState(0);
 
-  const filteredContacts = contacts.filter(
-    (c) => c.status === "uncalled" && (industry === "all" || c.industry === industry)
-  );
+  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
+  const updateContact = useUpdateContact();
+  const createCallLog = useCreateCallLog();
 
-  const currentContact = currentIndex !== null ? filteredContacts[currentIndex] : null;
+  const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
+    ? uncalledContacts[currentIndex]
+    : null;
 
   const startDialing = useCallback(() => {
-    if (filteredContacts.length === 0) return;
+    if (uncalledContacts.length === 0) return;
     setCurrentIndex(0);
     setIsDialing(true);
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
-  }, [filteredContacts]);
+  }, [uncalledContacts]);
 
-  const logAndNext = useCallback(() => {
-    if (!selectedOutcome || !currentContact) return;
+  const logAndNext = useCallback(async () => {
+    if (!selectedOutcome || !currentContact || !user) return;
 
-    setContacts((prev) =>
-      prev.map((c) =>
-        c.id === currentContact.id
-          ? { ...c, status: "called" as const, last_outcome: selectedOutcome }
-          : c
-      )
-    );
+    try {
+      // Log the call
+      await createCallLog.mutateAsync({
+        contact_id: currentContact.id,
+        user_id: user.id,
+        outcome: selectedOutcome,
+        notes: notes || undefined,
+        follow_up_date: selectedOutcome === "follow_up" && followUpDate
+          ? followUpDate.toISOString()
+          : null,
+      });
 
-    setCallCount((prev) => prev + 1);
-    setSelectedOutcome(null);
-    setNotes("");
-    setFollowUpDate(undefined);
+      // Update contact status
+      await updateContact.mutateAsync({
+        id: currentContact.id,
+        status: "called",
+        last_outcome: selectedOutcome,
+        is_dnc: selectedOutcome === "dnc",
+      });
 
-    // Move to next
-    const nextIndex = (currentIndex ?? 0) + 1;
-    if (nextIndex < filteredContacts.length) {
-      setCurrentIndex(nextIndex);
-    } else {
-      setCurrentIndex(null);
-      setIsDialing(false);
+      setCallCount((prev) => prev + 1);
+      setSelectedOutcome(null);
+      setNotes("");
+      setFollowUpDate(undefined);
+
+      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+
+      // Move to next (index stays same since current was removed from uncalled query)
+      // After invalidation, the list refreshes without the called contact
+    } catch (err) {
+      toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, currentIndex, filteredContacts.length]);
+  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
 
   // Keyboard shortcuts
   useEffect(() => {
     if (!isDialing || !currentContact) return;
 
     const handler = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
       const outcomes: CallOutcome[] = [
         "no_answer", "voicemail", "not_interested", "dnc",
         "follow_up", "booked", "wrong_number",
@@ -91,6 +109,17 @@ export default function DialerPage() {
     "follow_up", "booked", "wrong_number",
   ];
 
+  // When uncalled contacts refresh and current contact was removed, stay at same index or end session
+  useEffect(() => {
+    if (isDialing && currentIndex !== null && uncalledContacts.length === 0) {
+      setIsDialing(false);
+      setCurrentIndex(null);
+    } else if (isDialing && currentIndex !== null && currentIndex >= uncalledContacts.length) {
+      setCurrentIndex(uncalledContacts.length > 0 ? uncalledContacts.length - 1 : null);
+      if (uncalledContacts.length === 0) setIsDialing(false);
+    }
+  }, [uncalledContacts.length, isDialing, currentIndex]);
+
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -110,17 +139,17 @@ export default function DialerPage() {
 
           <div className="flex-1 flex items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
-              {filteredContacts.length} leads in queue
+              {isLoading ? "..." : uncalledContacts.length} leads in queue
             </span>
             <span className="text-xs font-mono text-primary">
-              {callCount} calls today
+              {callCount} calls this session
             </span>
           </div>
 
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={filteredContacts.length === 0}
+              disabled={uncalledContacts.length === 0 || isLoading}
               className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
             >
               <Phone className="h-4 w-4 mr-2" />
@@ -212,10 +241,14 @@ export default function DialerPage() {
               {/* Submit */}
               <Button
                 onClick={logAndNext}
-                disabled={!selectedOutcome}
+                disabled={!selectedOutcome || createCallLog.isPending}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {createCallLog.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
                 Log & Next Lead
                 <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-primary-foreground/20 px-1.5 py-0.5 rounded">
                   Enter
@@ -230,10 +263,10 @@ export default function DialerPage() {
               <Phone className="h-8 w-8 text-primary" />
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">
-              {filteredContacts.length === 0 ? "No Leads Available" : "Ready to Dial"}
+              {uncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-md">
-              {filteredContacts.length === 0
+              {uncalledContacts.length === 0 && !isLoading
                 ? "All contacts in this queue have been called. Try a different industry filter or upload new lists."
                 : "Select an industry filter and hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes."
               }
