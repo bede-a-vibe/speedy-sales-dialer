@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useCallLogs } from "@/hooks/useCallLogs";
+import { supabase } from "@/integrations/supabase/client";
 import { Trophy } from "lucide-react";
 
 interface RepStats {
