@@ -11,16 +11,26 @@ interface RepStats {
 
 export function TeamLeaderboard() {
   const { data: callLogs = [] } = useCallLogs();
+  const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const fetchNames = async () => {
+      const userIds = [...new Set((callLogs as any[]).map((l) => l.user_id))];
+      if (userIds.length === 0) return;
+      const { data } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
+      if (data) setProfileNames(new Map(data.map((p) => [p.user_id, p.display_name || "Unknown"])));
+    };
+    fetchNames();
+  }, [callLogs]);
 
   // Group by user
   const repMap = new Map<string, { calls: number; booked: number; name: string }>();
   for (const log of callLogs as any[]) {
     const uid = log.user_id;
-    const existing = repMap.get(uid) || { calls: 0, booked: 0, name: "Unknown" };
+    const existing = repMap.get(uid) || { calls: 0, booked: 0, name: profileNames.get(uid) || "Unknown" };
     existing.calls++;
     if (log.outcome === "booked") existing.booked++;
-    // Try to get name from the profiles join if available
-    if (log.profiles?.display_name) existing.name = log.profiles.display_name;
+    if (profileNames.has(uid)) existing.name = profileNames.get(uid)!;
     repMap.set(uid, existing);
   }
 

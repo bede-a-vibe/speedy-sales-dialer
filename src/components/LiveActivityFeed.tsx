@@ -21,11 +21,19 @@ export function LiveActivityFeed() {
     const fetchRecent = async () => {
       const { data } = await supabase
         .from("call_logs")
-        .select("id, outcome, created_at, contact_id, user_id, contacts(business_name), profiles:user_id(display_name)")
+        .select("id, outcome, created_at, contact_id, user_id, contacts(business_name)")
         .order("created_at", { ascending: false })
         .limit(8);
 
       if (data) {
+        // Fetch profile names for unique user_ids
+        const userIds = [...new Set(data.map((d: any) => d.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name")
+          .in("user_id", userIds);
+        const nameMap = new Map(profiles?.map((p) => [p.user_id, p.display_name]) || []);
+
         setItems(
           data.map((d: any) => ({
             id: d.id,
@@ -34,7 +42,7 @@ export function LiveActivityFeed() {
             contact_id: d.contact_id,
             user_id: d.user_id,
             contactName: d.contacts?.business_name || "Unknown",
-            userName: d.profiles?.display_name || "Rep",
+            userName: nameMap.get(d.user_id) || "Rep",
           }))
         );
       }
