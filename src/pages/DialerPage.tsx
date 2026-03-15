@@ -9,11 +9,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, CheckCircle2, Loader2 } from "lucide-react";
+import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DialerPage() {
@@ -25,7 +27,8 @@ export default function DialerPage() {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [isDialing, setIsDialing] = useState(false);
   const [callCount, setCallCount] = useState(0);
-
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -164,6 +167,46 @@ export default function DialerPage() {
               Stop Session
             </Button>
           )}
+
+          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-border">
+                <PhoneCall className="h-4 w-4 mr-2" />
+                Manual Dial
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Manual Dial</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <Input
+                  type="tel"
+                  placeholder="Enter phone number..."
+                  value={manualPhone}
+                  onChange={(e) => setManualPhone(e.target.value)}
+                  className="font-mono text-lg tracking-wider"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && manualPhone.trim()) {
+                      window.open(`tel:${manualPhone.trim()}`, "_self");
+                      toast.success(`Dialing ${manualPhone.trim()}`);
+                    }
+                  }}
+                />
+                <Button
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  disabled={!manualPhone.trim()}
+                  onClick={() => {
+                    window.open(`tel:${manualPhone.trim()}`, "_self");
+                    toast.success(`Dialing ${manualPhone.trim()}`);
+                  }}
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Dial {manualPhone.trim() || "..."}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Main dialer area */}
