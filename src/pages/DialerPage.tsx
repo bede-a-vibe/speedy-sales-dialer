@@ -112,11 +112,25 @@ export default function DialerPage() {
         ...prev,
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
+
+      // Initiate Dialpad call logging
+      if (myDialpadSettings?.dialpad_user_id) {
+        try {
+          await dialpadLogCall.mutateAsync({
+            phone: currentContact.phone,
+            dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          });
+          toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call initiated`);
+        } catch {
+          toast.warning(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call failed`);
+        }
+      } else {
+        toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+      }
+
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
-
-      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
