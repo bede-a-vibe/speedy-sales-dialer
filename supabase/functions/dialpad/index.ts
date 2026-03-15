@@ -50,7 +50,6 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "initiate_call": {
-        // Initiate a call via Dialpad API
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
@@ -60,6 +59,48 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             phone: params.phone,
             user_id: params.dialpad_user_id,
+          }),
+        });
+        break;
+      }
+
+      case "log_call": {
+        // Look up user's dialpad_user_id from dialpad_settings
+        const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
+        const { data: settings, error: settingsError } = await adminClient
+          .from("dialpad_settings")
+          .select("dialpad_user_id")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (settingsError) {
+          return new Response(
+            JSON.stringify({ error: "Failed to fetch Dialpad settings", details: settingsError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const dialpadUserId = params.dialpad_user_id || settings?.dialpad_user_id;
+        if (!dialpadUserId) {
+          return new Response(
+            JSON.stringify({ error: "No Dialpad user ID configured. Ask an admin to assign one." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Initiate call via Dialpad
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            phone: params.phone,
+            user_id: dialpadUserId,
           }),
         });
         break;
