@@ -43,6 +43,8 @@ export default function DialerPage() {
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
+  const dialpadLogCall = useDialpadLogCall();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
     ? uncalledContacts[currentIndex]
