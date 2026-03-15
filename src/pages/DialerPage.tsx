@@ -246,6 +246,16 @@ export default function DialerPage() {
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
             </span>
+            {myDialpadSettings ? (
+              <span className="text-xs font-mono text-primary">
+                <Phone className="h-3 w-3 inline mr-1" />
+                {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-muted-foreground/60">
+                No Dialpad number assigned
+              </span>
+            )}
             {isDialing && (
               <span className="text-xs font-mono text-primary">
                 {callCount} calls · {skippedCount} skipped

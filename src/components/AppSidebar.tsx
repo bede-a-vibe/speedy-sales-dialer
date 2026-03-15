@@ -26,6 +26,7 @@ const mainItems = [
 const adminItems = [
   { title: "Upload Lists", url: "/upload", icon: Upload },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },
 ];
 
 export function AppSidebar() {

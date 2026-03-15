@@ -38,6 +38,7 @@ function ProtectedRoutes() {
       <Route path="/follow-ups" element={<FollowUpsPage />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/dialpad-settings" element={<DialpadSettingsPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
