@@ -7,6 +7,7 @@ import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
 import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
+import { useMyDialpadSettings, useDialpadLogCall } from "@/hooks/useDialpadSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
