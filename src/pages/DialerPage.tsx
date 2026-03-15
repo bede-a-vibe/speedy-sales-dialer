@@ -127,6 +127,9 @@ export default function DialerPage() {
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Daily target */}
+        <DailyTarget />
+
         {/* Controls bar */}
         <div className="flex items-center gap-4">
           <Select value={industry} onValueChange={setIndustry}>
