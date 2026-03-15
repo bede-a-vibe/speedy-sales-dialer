@@ -1,8 +1,17 @@
-import { Contact } from "@/data/mockData";
 import { Phone, Mail, Globe, MapPin, ExternalLink, User } from "lucide-react";
 
 interface ContactCardProps {
-  contact: Contact;
+  contact: {
+    business_name: string;
+    contact_person: string | null;
+    phone: string;
+    email: string | null;
+    website: string | null;
+    gmb_link: string | null;
+    industry: string;
+    city: string | null;
+    state: string | null;
+  };
 }
 
 export function ContactCard({ contact }: ContactCardProps) {
