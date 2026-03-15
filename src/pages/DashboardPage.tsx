@@ -57,7 +57,7 @@ export default function DashboardPage() {
               const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
               return (
                 <div key={log.id} className="flex items-center gap-3 px-3 py-2 rounded-md bg-secondary/50 border border-border">
-                  <div className={`w-2 h-2 rounded-full ${config?.color || ''}`} />
+                  <div className={`w-2 h-2 rounded-full ${config?.bgClass || 'bg-muted-foreground'}`} />
                   <span className="text-sm font-medium text-foreground flex-1">
                     {log.contacts?.business_name || "Unknown"}
                   </span>
