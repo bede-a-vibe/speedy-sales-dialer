@@ -48,15 +48,15 @@ export const INDUSTRIES = [
 
 export const OUTCOME_CONFIG: Record<
   CallOutcome,
-  { label: string; color: string; icon: string; shortcut: string }
+  { label: string; color: string; bgClass: string; icon: string; shortcut: string }
 > = {
-  no_answer: { label: "No Answer", color: "outcome-no-answer", icon: "PhoneMissed", shortcut: "1" },
-  voicemail: { label: "Voicemail Left", color: "outcome-voicemail", icon: "Voicemail", shortcut: "2" },
-  not_interested: { label: "Not Interested", color: "outcome-not-interested", icon: "ThumbsDown", shortcut: "3" },
-  dnc: { label: "Do Not Call", color: "outcome-dnc", icon: "PhoneOff", shortcut: "4" },
-  follow_up: { label: "Follow Up", color: "outcome-follow-up", icon: "CalendarClock", shortcut: "5" },
-  booked: { label: "Booked", color: "outcome-booked", icon: "CalendarCheck", shortcut: "6" },
-  wrong_number: { label: "Wrong Number", color: "outcome-wrong-number", icon: "CircleX", shortcut: "7" },
+  no_answer: { label: "No Answer", color: "outcome-no-answer", bgClass: "bg-[hsl(var(--outcome-no-answer))]", icon: "PhoneMissed", shortcut: "1" },
+  voicemail: { label: "Voicemail Left", color: "outcome-voicemail", bgClass: "bg-[hsl(var(--outcome-voicemail))]", icon: "Voicemail", shortcut: "2" },
+  not_interested: { label: "Not Interested", color: "outcome-not-interested", bgClass: "bg-[hsl(var(--outcome-not-interested))]", icon: "ThumbsDown", shortcut: "3" },
+  dnc: { label: "Do Not Call", color: "outcome-dnc", bgClass: "bg-[hsl(var(--outcome-dnc))]", icon: "PhoneOff", shortcut: "4" },
+  follow_up: { label: "Follow Up", color: "outcome-follow-up", bgClass: "bg-[hsl(var(--outcome-follow-up))]", icon: "CalendarClock", shortcut: "5" },
+  booked: { label: "Booked", color: "outcome-booked", bgClass: "bg-[hsl(var(--outcome-booked))]", icon: "CalendarCheck", shortcut: "6" },
+  wrong_number: { label: "Wrong Number", color: "outcome-wrong-number", bgClass: "bg-[hsl(var(--outcome-wrong-number))]", icon: "CircleX", shortcut: "7" },
 };
 
 const names = [
