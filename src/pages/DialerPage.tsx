@@ -27,7 +27,8 @@ export default function DialerPage() {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [isDialing, setIsDialing] = useState(false);
   const [callCount, setCallCount] = useState(0);
-
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
