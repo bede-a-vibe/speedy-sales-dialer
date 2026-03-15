@@ -167,7 +167,46 @@ export default function DialerPage() {
               Stop Session
             </Button>
           )}
-        </div>
+
+          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-border">
+                <PhoneCall className="h-4 w-4 mr-2" />
+                Manual Dial
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Manual Dial</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <Input
+                  type="tel"
+                  placeholder="Enter phone number..."
+                  value={manualPhone}
+                  onChange={(e) => setManualPhone(e.target.value)}
+                  className="font-mono text-lg tracking-wider"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && manualPhone.trim()) {
+                      window.open(`tel:${manualPhone.trim()}`, "_self");
+                      toast.success(`Dialing ${manualPhone.trim()}`);
+                    }
+                  }}
+                />
+                <Button
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  disabled={!manualPhone.trim()}
+                  onClick={() => {
+                    window.open(`tel:${manualPhone.trim()}`, "_self");
+                    toast.success(`Dialing ${manualPhone.trim()}`);
+                  }}
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Dial {manualPhone.trim() || "..."}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
         {/* Main dialer area */}
         {isDialing && currentContact ? (
