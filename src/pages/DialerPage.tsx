@@ -16,8 +16,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall } from "lucide-react";
+import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
+
+interface SessionStats {
+  calls: number;
+  outcomes: Partial<Record<CallOutcome, number>>;
+}
 
 export default function DialerPage() {
   const { user } = useAuth();
@@ -28,8 +33,12 @@ export default function DialerPage() {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [isDialing, setIsDialing] = useState(false);
   const [callCount, setCallCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [sessionOutcomes, setSessionOutcomes] = useState<Partial<Record<CallOutcome, number>>>({});
+  const [showSummary, setShowSummary] = useState(false);
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -45,13 +54,39 @@ export default function DialerPage() {
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
+    setCallCount(0);
+    setSkippedCount(0);
+    setSessionOutcomes({});
+    setShowSummary(false);
   }, [uncalledContacts]);
+
+  const stopSession = useCallback(() => {
+    if (callCount > 0) {
+      setShowSummary(true);
+    }
+    setIsDialing(false);
+    setCurrentIndex(null);
+  }, [callCount]);
+
+  const skipLead = useCallback(() => {
+    if (currentIndex === null) return;
+    setSkippedCount((prev) => prev + 1);
+    setSelectedOutcome(null);
+    setNotes("");
+    setFollowUpDate(undefined);
+    const nextIdx = currentIndex + 1;
+    if (nextIdx < uncalledContacts.length) {
+      setCurrentIndex(nextIdx);
+    } else {
+      toast.info("No more leads in queue.");
+      stopSession();
+    }
+  }, [currentIndex, uncalledContacts.length, stopSession]);
 
   const logAndNext = useCallback(async () => {
     if (!selectedOutcome || !currentContact || !user) return;
 
     try {
-      // Log the call
       await createCallLog.mutateAsync({
         contact_id: currentContact.id,
         user_id: user.id,
@@ -62,7 +97,6 @@ export default function DialerPage() {
           : null,
       });
 
-      // Update contact status
       await updateContact.mutateAsync({
         id: currentContact.id,
         status: "called",
@@ -71,14 +105,15 @@ export default function DialerPage() {
       });
 
       setCallCount((prev) => prev + 1);
+      setSessionOutcomes((prev) => ({
+        ...prev,
+        [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
+      }));
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
 
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
-
-      // Move to next (index stays same since current was removed from uncalled query)
-      // After invalidation, the list refreshes without the called contact
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
@@ -89,7 +124,7 @@ export default function DialerPage() {
     if (!isDialing || !currentContact) return;
 
     const handler = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
+      if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "INPUT") return;
       const outcomes: CallOutcome[] = [
         "no_answer", "voicemail", "not_interested", "dnc",
         "follow_up", "booked", "wrong_number",
@@ -102,36 +137,82 @@ export default function DialerPage() {
         e.preventDefault();
         logAndNext();
       }
+      // S key to skip
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        skipLead();
+      }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isDialing, currentContact, selectedOutcome, logAndNext]);
+  }, [isDialing, currentContact, selectedOutcome, logAndNext, skipLead]);
 
   const outcomes: CallOutcome[] = [
     "no_answer", "voicemail", "not_interested", "dnc",
     "follow_up", "booked", "wrong_number",
   ];
 
-  // When uncalled contacts refresh and current contact was removed, stay at same index or end session
+  // When uncalled contacts refresh
   useEffect(() => {
     if (isDialing && currentIndex !== null && uncalledContacts.length === 0) {
-      setIsDialing(false);
-      setCurrentIndex(null);
+      stopSession();
     } else if (isDialing && currentIndex !== null && currentIndex >= uncalledContacts.length) {
       setCurrentIndex(uncalledContacts.length > 0 ? uncalledContacts.length - 1 : null);
-      if (uncalledContacts.length === 0) setIsDialing(false);
+      if (uncalledContacts.length === 0) stopSession();
     }
-  }, [uncalledContacts.length, isDialing, currentIndex]);
+  }, [uncalledContacts.length, isDialing, currentIndex, stopSession]);
 
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Daily target */}
         <DailyTarget />
 
+        {/* Session Summary Dialog */}
+        <Dialog open={showSummary} onOpenChange={setShowSummary}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Session Summary
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
+                  <p className="text-2xl font-bold font-mono text-foreground">{callCount}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Calls</p>
+                </div>
+                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
+                  <p className="text-2xl font-bold font-mono text-foreground">{sessionOutcomes.booked || 0}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Booked</p>
+                </div>
+                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
+                  <p className="text-2xl font-bold font-mono text-foreground">{skippedCount}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Skipped</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {(Object.entries(sessionOutcomes) as [CallOutcome, number][]).map(([outcome, count]) => {
+                  const config = OUTCOME_CONFIG[outcome];
+                  return (
+                    <div key={outcome} className="flex items-center gap-3 text-sm">
+                      <div className={`w-2 h-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                      <span className="text-foreground flex-1">{config?.label || outcome}</span>
+                      <span className="font-mono text-muted-foreground">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <Button onClick={() => setShowSummary(false)} className="w-full">
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Controls bar */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <Select value={industry} onValueChange={setIndustry}>
             <SelectTrigger className="w-[200px] bg-card border-border">
               <SelectValue placeholder="Filter by industry" />
@@ -148,9 +229,11 @@ export default function DialerPage() {
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
             </span>
-            <span className="text-xs font-mono text-primary">
-              {callCount} calls this session
-            </span>
+            {isDialing && (
+              <span className="text-xs font-mono text-primary">
+                {callCount} calls · {skippedCount} skipped
+              </span>
+            )}
           </div>
 
           {!isDialing ? (
@@ -165,7 +248,7 @@ export default function DialerPage() {
           ) : (
             <Button
               variant="outline"
-              onClick={() => { setIsDialing(false); setCurrentIndex(null); }}
+              onClick={stopSession}
               className="border-destructive text-destructive hover:bg-destructive/10"
             >
               Stop Session
@@ -285,22 +368,35 @@ export default function DialerPage() {
                 </div>
               )}
 
-              {/* Submit */}
-              <Button
-                onClick={logAndNext}
-                disabled={!selectedOutcome || createCallLog.isPending}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
-              >
-                {createCallLog.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                )}
-                Log & Next Lead
-                <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-primary-foreground/20 px-1.5 py-0.5 rounded">
-                  Enter
-                </kbd>
-              </Button>
+              {/* Submit + Skip */}
+              <div className="space-y-2">
+                <Button
+                  onClick={logAndNext}
+                  disabled={!selectedOutcome || createCallLog.isPending}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
+                >
+                  {createCallLog.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                  )}
+                  Log & Next Lead
+                  <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-primary-foreground/20 px-1.5 py-0.5 rounded">
+                    Enter
+                  </kbd>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={skipLead}
+                  className="w-full border-border text-muted-foreground hover:text-foreground"
+                >
+                  <SkipForward className="h-4 w-4 mr-2" />
+                  Skip Lead
+                  <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-muted px-1.5 py-0.5 rounded">
+                    S
+                  </kbd>
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -315,7 +411,7 @@ export default function DialerPage() {
             <p className="text-sm text-muted-foreground max-w-md">
               {uncalledContacts.length === 0 && !isLoading
                 ? "All contacts in this queue have been called. Try a different industry filter or upload new lists."
-                : "Select an industry filter and hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes."
+                : "Select an industry filter and hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
               }
             </p>
           </div>
