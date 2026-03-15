@@ -290,7 +290,7 @@ export default function ContactsPage() {
                           </td>
                         </tr>
                       )}
-                    </tbody>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
