@@ -768,12 +768,13 @@ Deno.serve(async (req) => {
           }),
         });
 
-        if (!initiateResponse.ok) {
+         if (!initiateResponse.ok) {
           const initiateData = await initiateResponse.json().catch(() => null);
           const initiateMessage = extractDialpadErrorMessage(initiateData) ?? "";
+          const lowerMessage = initiateMessage.toLowerCase();
 
           // If user has no active Dialpad app, fall back to the ring-based POST /call endpoint
-          const isNoAppsError = initiateMessage.toLowerCase().includes("no apps available");
+          const isNoAppsError = lowerMessage.includes("no apps available");
           if (isNoAppsError) {
             const fallbackBody: Record<string, unknown> = {
               phone_number: normalizedPhone,
@@ -795,12 +796,19 @@ Deno.serve(async (req) => {
             break;
           }
 
-          // Reconstruct a failed Response so the downstream error handler works
-          dialpadResponse = new Response(JSON.stringify(initiateData), {
-            status: initiateResponse.status,
-            headers: { "Content-Type": "application/json" },
-          });
-          break;
+          // "User is currently on a call" means the call was already placed — try to discover it
+          const isAlreadyOnCall = lowerMessage.includes("currently on a call");
+          if (isAlreadyOnCall) {
+            console.log(`[initiate_call] User already on a call — running call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
+            // Fall through to the call discovery loop below
+          } else {
+            // Reconstruct a failed Response so the downstream error handler works
+            dialpadResponse = new Response(JSON.stringify(initiateData), {
+              status: initiateResponse.status,
+              headers: { "Content-Type": "application/json" },
+            });
+            break;
+          }
         }
 
         const initiateData = await initiateResponse.json().catch(() => ({}));
