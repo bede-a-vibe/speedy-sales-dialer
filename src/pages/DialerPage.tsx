@@ -588,6 +588,8 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     setIsEndingCall(true);
+    setActiveDialpadCallState((current) => (current === "hangup" ? current : "ending"));
+    setRapidStatusPollingUntil(Date.now() + 10000);
 
     try {
       const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
@@ -597,6 +599,7 @@ export default function DialerPage() {
         setActiveDialpadCallId(null);
         setActiveDialpadCallState("hangup");
         setDialpadPollingBackoffUntil(null);
+        setRapidStatusPollingUntil(null);
         toast.info("This call has already ended.");
         return;
       }
@@ -604,9 +607,17 @@ export default function DialerPage() {
       toast.success(result.message || "Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
-      if (message.toLowerCase().includes("rate limit")) {
-        setDialpadPollingBackoffUntil(Date.now() + 30000);
+      const normalized = message.toLowerCase();
+
+      if (normalized.includes("rate limit")) {
+        setDialpadPollingBackoffUntil(Date.now() + 10000);
       }
+
+      if (normalized.includes("no endpoint found")) {
+        toast.info("Ending call… waiting for Dialpad to release it.");
+        return;
+      }
+
       toast.error(message);
     } finally {
       setIsEndingCall(false);
