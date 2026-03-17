@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            phone_number: params.phone,
+            phone_number: normalizePhoneNumberToE164(params.phone),
             user_id: dialpadUserId,
           }),
         });
