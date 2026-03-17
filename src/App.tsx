@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import DashboardPage from "./pages/DashboardPage";
 import DialerPage from "./pages/DialerPage";
 import ContactsPage from "./pages/ContactsPage";
-import FollowUpsPage from "./pages/FollowUpsPage";
+import PipelinesPage from "./pages/PipelinesPage";
 import UploadPage from "./pages/UploadPage";
 import ReportsPage from "./pages/ReportsPage";
 import DialpadSettingsPage from "./pages/DialpadSettingsPage";
