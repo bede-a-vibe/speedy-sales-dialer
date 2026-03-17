@@ -152,15 +152,15 @@ export default function ReportsPage() {
           <TabsContent value="appointments-scheduled" className="space-y-6">
             <ReportSection
               title="Appointments Scheduled"
-              description={`Calendar view based on who is assigned to the appointment${activeRepId ? ` (${selectedRepLabel})` : ""} and the appointment date inside the selected range.`}
+              description={`Setter performance view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} and whether those appointments showed.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-                <StatCard label="Appointments Scheduled" value={metrics.appointmentsScheduled.appointmentsScheduled} />
+                <StatCard label="Appointments Set" value={metrics.appointmentsScheduled.appointmentsScheduled} />
                 <StatCard label="No Shows" value={metrics.appointmentsScheduled.noShows} />
-                <StatCard label="Rescheduled" value={metrics.appointmentsScheduled.rescheduled} />
+                <StatCard label="Showed" value={metrics.appointmentsScheduled.showed} />
+                <StatCard label="Show-Up Rate" value={`${metrics.appointmentsScheduled.showUpRate}%`} subtext="showed / appointments set" />
                 <StatCard label="Showed Closed" value={metrics.appointmentsScheduled.showedClosed} />
-                <StatCard label="Showed No Close" value={metrics.appointmentsScheduled.showedNoClose} />
-                <StatCard label="Appointment Close Rate" value={`${metrics.appointmentsScheduled.appointmentCloseRate}%`} subtext="closed / resolved" />
+                <StatCard label="Close Rate" value={`${metrics.appointmentsScheduled.closeRate}%`} subtext="closed / showed" />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-border bg-background p-4">
