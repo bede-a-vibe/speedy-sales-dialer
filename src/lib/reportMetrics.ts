@@ -1,6 +1,9 @@
 import type { Tables } from "@/integrations/supabase/types";
 
-export type ReportCallLog = Pick<Tables<"call_logs">, "id" | "contact_id" | "outcome" | "created_at" | "user_id">;
+export type ReportCallLog = Pick<
+  Tables<"call_logs">,
+  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds"
+>;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome"
@@ -30,8 +33,17 @@ export interface AppointmentPerformanceMetrics {
   resolvedAppointments: number;
 }
 
+export interface RepDialerMetrics {
+  dials: number;
+  pickUps: number;
+  totalTalkTimeSeconds: number;
+  averageTalkTimePerDialSeconds: number;
+  averageTalkTimePerPickupSeconds: number;
+}
+
 export interface RepComparisonRow {
   repUserId: string;
+  dialer: RepDialerMetrics;
   setter: AppointmentPerformanceMetrics;
   closer: AppointmentPerformanceMetrics;
 }
