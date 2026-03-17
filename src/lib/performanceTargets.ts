@@ -231,10 +231,11 @@ export const CLOSER_INPUT_METRICS = INPUT_METRICS.filter(
 
 export function formatTargetMetricValue(metricKey: PerformanceTargetMetricKey, value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
-  const rounded = Math.round(value);
-  return PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate
-    ? `${rounded}%`
-    : rounded.toLocaleString();
+  if (PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate) {
+    return `${Math.round(value)}%`;
+  }
+  // Show 1 decimal place for non-whole numbers, whole numbers stay clean
+  return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1);
 }
 
 // ── Derivation logic ──────────────────────────────────────────────
