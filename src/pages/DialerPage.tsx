@@ -99,11 +99,11 @@ export default function DialerPage() {
     if (!requiresPipelineAssignment && user?.id) {
       setAssignedRepId(user.id);
     }
-    if (!requiresFollowUpSchedule) {
+    if (!requiresAnySchedule) {
       setFollowUpDate(undefined);
-      setFollowUpTime("09:00");
+      setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     }
-  }, [requiresPipelineAssignment, requiresFollowUpSchedule, user?.id]);
+  }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
   const startDialing = useCallback(() => {
     if (uncalledContacts.length === 0) return;
