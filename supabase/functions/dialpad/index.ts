@@ -19,6 +19,30 @@ Deno.serve(async (req) => {
     );
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) {
+    return new Response(
+      JSON.stringify({ error: "SUPABASE_URL is not configured" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+  if (!supabaseAnonKey) {
+    return new Response(
+      JSON.stringify({ error: "SUPABASE_ANON_KEY is not configured" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceRoleKey) {
+    return new Response(
+      JSON.stringify({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   // Verify auth
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
@@ -28,13 +52,14 @@ Deno.serve(async (req) => {
     );
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
   if (authError || !user) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
