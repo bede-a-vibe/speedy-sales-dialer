@@ -927,7 +927,7 @@ export default function DialerPage() {
                   Resume Dialing
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={pauseSession} disabled={!isCallTerminal} className="px-6 font-semibold">
+                <Button variant="secondary" onClick={pauseSession} disabled={isEndingCall} className="px-6 font-semibold">
                   <Pause className="mr-2 h-4 w-4" />
                   Pause Dialing
                 </Button>
