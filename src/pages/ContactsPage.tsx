@@ -161,6 +161,16 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={stateFilter} onValueChange={setStateFilter}>
+            <SelectTrigger className="w-[220px] bg-card border-border">
+              <SelectValue placeholder="Australian state" />
+            </SelectTrigger>
+            <SelectContent>
+              {AUSTRALIAN_STATE_OPTIONS.map((state) => (
+                <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[140px] bg-card border-border">
               <SelectValue placeholder="Status" />
