@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
