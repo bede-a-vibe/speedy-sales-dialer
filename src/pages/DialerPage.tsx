@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, SkipForward, UserRound } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateCallLog, prefetchContactCallLogs } from "@/hooks/useCallLogs";
-import { useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
+import { useClearOwnDialerLeadLocks, useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -118,6 +118,7 @@ export default function DialerPage() {
   const [isDialing, setIsDialing] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
+  const [isRecoveringQueue, setIsRecoveringQueue] = useState(false);
   const [isBootstrappingSession, setIsBootstrappingSession] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
@@ -149,9 +150,11 @@ export default function DialerPage() {
     stopSession: stopQueueSession,
     ensureBuffer,
     discardContact,
+    refreshPreviewCount,
   } = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
+  const clearOwnDialerLeadLocks = useClearOwnDialerLeadLocks();
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
@@ -401,6 +404,39 @@ export default function DialerPage() {
     resetSessionTimers();
     void stopQueueSession();
   }, [callCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
+
+  const recoverQueue = useCallback(async () => {
+    if (!user?.id || isRecoveringQueue) return;
+
+    setIsRecoveringQueue(true);
+    setIsStartingSession(false);
+    setIsBootstrappingSession(false);
+    setIsDialing(false);
+    setIsSessionPaused(false);
+    setCurrentIndex(null);
+    setShowSummary(false);
+    setCallCount(0);
+    setSkippedCount(0);
+    setSessionOutcomes({});
+    resetLeadState(user.id);
+    resetSessionTimers();
+
+    try {
+      await stopQueueSession();
+      const clearedCount = await clearOwnDialerLeadLocks.mutateAsync(user.id);
+      await refreshPreviewCount();
+      toast.success(
+        clearedCount > 0
+          ? `Recovered queue and cleared ${clearedCount} stuck lead lock${clearedCount === 1 ? "" : "s"}.`
+          : "Queue checked — no stuck lead locks were found for your user.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to recover your queue right now.";
+      toast.error(message);
+    } finally {
+      setIsRecoveringQueue(false);
+    }
+  }, [clearOwnDialerLeadLocks, isRecoveringQueue, refreshPreviewCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
 
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
@@ -803,18 +839,33 @@ export default function DialerPage() {
           </div>
 
           {!isSessionActive ? (
-            <Button
-              onClick={startDialing}
-              disabled={isLoading || isStartingSession || !hasDialpadAssignment}
-              className="px-6 font-semibold"
-            >
-              {isStartingSession ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Phone className="mr-2 h-4 w-4" />
-              )}
-              {isStartingSession ? "Starting..." : "Start Dialing"}
-            </Button>
+            <>
+              <Button
+                onClick={startDialing}
+                disabled={isLoading || isStartingSession || isRecoveringQueue || !hasDialpadAssignment}
+                className="px-6 font-semibold"
+              >
+                {isStartingSession ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Phone className="mr-2 h-4 w-4" />
+                )}
+                {isStartingSession ? "Starting..." : "Start Dialing"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void recoverQueue()}
+                disabled={isLoading || isStartingSession || isRecoveringQueue}
+                className="px-6 font-semibold"
+              >
+                {isRecoveringQueue ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                {isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+              </Button>
+            </>
           ) : (
             <>
               {isSessionPaused ? (
@@ -834,6 +885,19 @@ export default function DialerPage() {
                 className="border-destructive text-destructive hover:bg-destructive/10"
               >
                 Stop Session
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void recoverQueue()}
+                disabled={isRecoveringQueue || isStartingSession}
+                className="px-6 font-semibold"
+              >
+                {isRecoveringQueue ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                {isRecoveringQueue ? "Recovering..." : "Recover Queue"}
               </Button>
             </>
           )}

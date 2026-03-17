@@ -169,6 +169,16 @@ async function releaseDialerLeadLocks(sessionId: string, contactIds?: string[]) 
   });
 }
 
+async function clearDialerLeadLocksForUser(userId: string) {
+  const { count, error } = await supabase
+    .from("dialer_lead_locks")
+    .delete({ count: "exact" })
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 async function getDialerQueueCount({
   sessionId,
   industry,
@@ -437,40 +447,43 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     return () => window.clearInterval(intervalId);
   }, [contacts.length, sessionId]);
 
-  useEffect(() => {
+  const refreshPreviewCount = useCallback(async () => {
     if (sessionRef.current) return;
 
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      setIsLoading(true);
+    setIsLoading(true);
 
-      getDialerQueueCount({
+    try {
+      const count = await getDialerQueueCount({
         sessionId: previewSessionIdRef.current,
         industry,
         state,
-      })
-        .then((count) => {
-          if (!cancelled && !sessionRef.current) {
-            setPreviewCount(count ?? 0);
-          }
-        })
-        .catch(() => {
-          if (!cancelled && !sessionRef.current) {
-            setPreviewCount(0);
-          }
-        })
-        .finally(() => {
-          if (!cancelled && !sessionRef.current) {
-            setIsLoading(false);
-          }
-        });
+      });
+
+      if (!sessionRef.current) {
+        setPreviewCount(count ?? 0);
+      }
+    } catch {
+      if (!sessionRef.current) {
+        setPreviewCount(0);
+      }
+    } finally {
+      if (!sessionRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [industry, state]);
+
+  useEffect(() => {
+    if (sessionRef.current) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void refreshPreviewCount();
     }, DIALER_PREVIEW_DEBOUNCE_MS);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [industry, sessionId, state]);
+  }, [refreshPreviewCount, sessionId]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -501,6 +514,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     stopSession,
     ensureBuffer,
     discardContact,
+    refreshPreviewCount,
   };
 }
 
@@ -532,6 +546,20 @@ export function useDeleteContact() {
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
+    },
+  });
+}
+
+export function useClearOwnDialerLeadLocks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => clearDialerLeadLocksForUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
     },
   });
 }
