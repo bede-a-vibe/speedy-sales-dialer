@@ -387,6 +387,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    setPendingAutoOutcome(null);
 
     dialpadCall
       .mutateAsync({
@@ -450,6 +451,29 @@ export default function DialerPage() {
       window.clearInterval(intervalId);
     };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
+
+  useEffect(() => {
+    if (!isDialing || !currentContact || selectedOutcome || pendingAutoOutcome) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setPendingAutoOutcome("no_answer");
+    }, 30000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentContact, isDialing, pendingAutoOutcome, selectedOutcome]);
+
+  useEffect(() => {
+    if (!pendingAutoOutcome || !currentContact) return;
+
+    if (!isCallTerminal && activeDialpadCallId && !isEndingCall) {
+      void cancelActiveCall();
+      return;
+    }
+
+    if (isCallTerminal) {
+      void logAndNext(pendingAutoOutcome);
+    }
+  }, [activeDialpadCallId, cancelActiveCall, currentContact, isCallTerminal, isEndingCall, logAndNext, pendingAutoOutcome]);
 
   return (
     <AppLayout title="Dialer">
