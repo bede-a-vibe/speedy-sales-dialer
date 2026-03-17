@@ -262,8 +262,6 @@ export default function DialerPage() {
     setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
     setIsCallResolving(false);
-    setPendingAutoOutcome(null);
-    setCooldownSecondsLeft(null);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
   }, []);
