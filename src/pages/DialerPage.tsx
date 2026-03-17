@@ -230,11 +230,8 @@ export default function DialerPage() {
 
   useEffect(() => {
     if (!isSessionActive || !nextContact?.id) return;
-
-    void prefetchContactNotes(queryClient, nextContact.id);
-    void prefetchContactCallLogs(queryClient, nextContact.id);
     void ensureBuffer();
-  }, [ensureBuffer, isSessionActive, nextContact?.id, queryClient]);
+  }, [ensureBuffer, isSessionActive, nextContact?.id]);
 
   useEffect(() => {
     if (!isSessionActive) return;
