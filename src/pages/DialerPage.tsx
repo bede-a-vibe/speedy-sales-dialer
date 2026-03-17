@@ -707,14 +707,15 @@ export default function DialerPage() {
     setPendingAutoOutcome(null);
     setCooldownSecondsLeft(null);
 
-    dialpadCall
-      .mutateAsync({
-        phone: currentContact.phone,
-        dialpad_user_id: myDialpadSettings.dialpad_user_id,
-        contact_id: currentContact.id,
-        caller_id: selectedCallerId || undefined,
-      })
-      .then((response) => {
+    const attemptDial = async (retriesLeft: number): Promise<void> => {
+      try {
+        const response = await dialpadCall.mutateAsync({
+          phone: currentContact.phone,
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          contact_id: currentContact.id,
+          caller_id: selectedCallerId || undefined,
+        });
+
         setActiveDialpadCallId(response.dialpad_call_id);
         setActiveDialpadCallState(response.state);
         toast.success(
@@ -726,15 +727,25 @@ export default function DialerPage() {
         if (response.tracking_warning) {
           toast.warning("Call placed, but transcript tracking needs attention.");
         }
-      })
-      .catch((error) => {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+        const is409 = message.includes("409") || message.toLowerCase().includes("already being created") || message.toLowerCase().includes("still active");
+
+        if (is409 && retriesLeft > 0) {
+          // Previous call hasn't fully released yet — wait and retry
+          await new Promise((r) => setTimeout(r, 3000));
+          return attemptDial(retriesLeft - 1);
+        }
+
         clearActiveDialRequestLock(requestKey);
         activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
         setActiveDialpadCallState(null);
-        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         toast.error(message);
-      });
+      }
+    };
+
+    void attemptDial(3);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
