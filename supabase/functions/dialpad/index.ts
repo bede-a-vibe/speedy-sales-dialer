@@ -753,7 +753,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+        // Use the user-scoped initiate_call endpoint instead of POST /call
+        // This initiates a direct outbound call and works even when the user is in DND mode
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/initiate_call`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -761,7 +763,6 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             phone_number: normalizedPhone,
-            user_id: params.dialpad_user_id,
             custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
           }),
         });
