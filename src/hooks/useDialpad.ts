@@ -1,10 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DialpadCallParams {
   phone: string;
   dialpad_user_id?: string;
   contact_id?: string;
+  caller_id?: string;
 }
 
 interface LinkDialpadCallLogParams {
