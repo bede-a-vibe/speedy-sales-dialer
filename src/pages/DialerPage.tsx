@@ -89,16 +89,18 @@ function formatDuration(durationMs: number) {
     .join(":");
 }
 
-function PanelSkeleton({ height = "h-40" }: { height?: string }) {
+const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div ref={ref} className="rounded-lg border border-border bg-card p-4">
       <div className="space-y-3">
         <Skeleton className="h-3 w-32" />
         <Skeleton className={cn("w-full", height)} />
       </div>
     </div>
   );
-}
+});
+
+PanelSkeleton.displayName = "PanelSkeleton";
 
 export default function DialerPage() {
   const queryClient = useQueryClient();
