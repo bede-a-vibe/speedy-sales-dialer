@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy } from "lucide-react";
 
 interface RepStats {
@@ -12,7 +13,7 @@ interface RepStats {
 }
 
 export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
-  const { data: callLogs = [] } = useCallLogs();
+  const { data: callLogs = [], isLoading } = useCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -45,7 +46,44 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
     }))
     .sort((a, b) => b.booked - a.booked || b.calls - a.calls);
 
-  if (reps.length === 0) return null;
+  if (isLoading) {
+    return (
+      <div ref={ref} className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="h-4 w-4 text-primary" />
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/40 border border-border">
+              <Skeleton className="h-5 w-6 rounded" />
+              <Skeleton className="h-4 flex-1" />
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-8" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (reps.length === 0) {
+    return (
+      <div ref={ref} className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="h-4 w-4 text-primary" />
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+        </div>
+        <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">No team activity yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Completed calls will populate rankings automatically.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={ref} className="bg-card border border-border rounded-lg p-5">
