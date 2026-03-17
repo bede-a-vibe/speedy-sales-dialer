@@ -159,6 +159,7 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
+    setSessionHiddenContactIds([]);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
