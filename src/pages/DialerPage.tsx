@@ -504,9 +504,16 @@ export default function DialerPage() {
     if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
 
     const requestKey = `${currentContact.id}:${currentContact.phone}`;
-    if (activeDialRequestRef.current === requestKey || dialpadCall.isPending) return;
+    if (
+      activeDialRequestRef.current === requestKey
+      || hasActiveDialRequestLock(requestKey)
+      || dialpadCall.isPending
+    ) {
+      return;
+    }
 
     activeDialRequestRef.current = requestKey;
+    setActiveDialRequestLock(requestKey);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
@@ -523,13 +530,19 @@ export default function DialerPage() {
       .then((response) => {
         setActiveDialpadCallId(response.dialpad_call_id);
         setActiveDialpadCallState(response.state);
-        toast.success(`Calling ${currentContact.phone} through Dialpad`);
+        toast.success(
+          response.message === "Existing Dialpad call is already active for this lead."
+            ? response.message
+            : `Calling ${currentContact.phone} through Dialpad`,
+        );
 
         if (response.tracking_warning) {
           toast.warning("Call placed, but transcript tracking needs attention.");
         }
       })
       .catch((error) => {
+        clearActiveDialRequestLock(requestKey);
+        activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
         setActiveDialpadCallState(null);
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";

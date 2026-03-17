@@ -983,8 +983,36 @@ Deno.serve(async (req) => {
 
     const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
+      if (action === "initiate_call" && params.contact_id && isDialpadCreateCallConflict(dialpadResponse.status, data)) {
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        const reusableCall = await findReusableTrackedCall({
+          adminClient,
+          apiKey: DIALPAD_API_KEY,
+          contactId: params.contact_id,
+          userId: user.id,
+        });
+
+        if (reusableCall) {
+          return jsonResponse(buildDialpadClientPayload({
+            action,
+            data: reusableCall.data,
+            dialpadCallId: reusableCall.dialpadCallId,
+            message: "Existing Dialpad call is already active for this lead.",
+          }), 200);
+        }
+      }
+
       const errorPayload = buildDialpadErrorPayload(dialpadResponse.status, data);
-      return jsonResponse(errorPayload, errorPayload.status_code);
+      return jsonResponse(
+        isDialpadCreateCallConflict(dialpadResponse.status, data)
+          ? {
+              ...errorPayload,
+              message:
+                "A Dialpad call is already being created or is still active for this rep. Wait a moment and use the active call.",
+            }
+          : errorPayload,
+        errorPayload.status_code,
+      );
     }
 
     if (action === "initiate_call" && params.contact_id) {
