@@ -4,8 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
-import { useCallLogs } from "@/hooks/useCallLogs";
-import { useContactNotes } from "@/hooks/useContactNotes";
+import { useContactCallLogs } from "@/hooks/useCallLogs";
+import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel } from "@/lib/appointments";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,135 @@ function getContactStage(contact: Contact) {
   return "—";
 }
 
+function TimelineSectionSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-20 w-full rounded border border-border" />
+      <Skeleton className="h-20 w-full rounded border border-border" />
+    </div>
+  );
+}
+
+function ExpandedContactDetails({ contact }: { contact: Contact }) {
+  const {
+    data: callLogPages,
+    isLoading: isLoadingCallLogs,
+    hasNextPage: hasMoreCallLogs,
+    fetchNextPage: fetchMoreCallLogs,
+    isFetchingNextPage: isFetchingMoreCallLogs,
+  } = useContactCallLogs(contact.id);
+  const {
+    data: notePages,
+    isLoading: isLoadingNotes,
+    hasNextPage: hasMoreNotes,
+    fetchNextPage: fetchMoreNotes,
+    isFetchingNextPage: isFetchingMoreNotes,
+  } = usePaginatedContactNotes(contact.id);
+
+  const callLogs = callLogPages?.pages.flatMap((page) => page.items) ?? [];
+  const callLogTotal = callLogPages?.pages[0]?.totalCount ?? 0;
+  const notes = notePages?.pages.flatMap((page) => page.items) ?? [];
+  const noteTotal = notePages?.pages[0]?.totalCount ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
+        {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
+        {(contact.city || contact.state) && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}</span>}
+        <a href={`tel:${contact.phone}`} className="ml-auto flex items-center gap-1 transition-colors hover:text-foreground"><Phone className="h-3 w-3" /> Call Now</a>
+      </div>
+
+      {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
+        <div className="rounded border border-border bg-card px-3 py-3">
+          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+            <CalendarClock className="h-3 w-3" /> Appointment Status
+          </div>
+          <div className="space-y-1 text-sm">
+            {contact.latest_appointment_scheduled_for && (
+              <p className="text-foreground">Day: <span className="font-mono">{format(new Date(contact.latest_appointment_scheduled_for), "MMM d, yyyy")}</span></p>
+            )}
+            {contact.latest_appointment_outcome && (
+              <p className="text-foreground">Outcome: <span className="text-muted-foreground">{getAppointmentOutcomeLabel(contact.latest_appointment_outcome)}</span></p>
+            )}
+            {contact.latest_appointment_recorded_at && (
+              <p className="text-xs text-muted-foreground">Updated {format(new Date(contact.latest_appointment_recorded_at), "MMM d, h:mm a")}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Call History ({callLogTotal > callLogs.length ? `${callLogs.length} of ${callLogTotal}` : callLogTotal})
+          </p>
+        </div>
+        {isLoadingCallLogs ? (
+          <TimelineSectionSkeleton />
+        ) : callLogs.length > 0 ? (
+          <div className="space-y-2">
+            {callLogs.map((log) => {
+              const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
+              const hasSyncedSummary = Boolean(log.dialpad_summary);
+              const hasSyncedTranscript = Boolean(log.dialpad_transcript);
+              const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
+
+              return (
+                <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                    <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
+                    {syncPending && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sync pending</span>}
+                    {hasSyncedSummary && <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">Summary</span>}
+                    {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
+                    <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
+                  </div>
+                  {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
+                  {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
+                </div>
+              );
+            })}
+            {hasMoreCallLogs && (
+              <Button variant="outline" size="sm" onClick={() => fetchMoreCallLogs()} disabled={isFetchingMoreCallLogs}>
+                {isFetchingMoreCallLogs ? "Loading…" : "Load more call history"}
+              </Button>
+            )}
+          </div>
+        ) : <p className="text-xs text-muted-foreground">No call history.</p>}
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Contact Notes ({noteTotal > notes.length ? `${notes.length} of ${noteTotal}` : noteTotal})
+          </p>
+        </div>
+        {isLoadingNotes ? (
+          <TimelineSectionSkeleton />
+        ) : notes.length > 0 ? (
+          <div className="space-y-2">
+            {notes.map((note) => (
+              <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
+                <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">{NOTE_SOURCE_LABELS[note.source]}</span>
+                  <span className="font-mono">{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
+                </div>
+                <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.content}</p>
+              </div>
+            ))}
+            {hasMoreNotes && (
+              <Button variant="outline" size="sm" onClick={() => fetchMoreNotes()} disabled={isFetchingMoreNotes}>
+                {isFetchingMoreNotes ? "Loading…" : "Load more notes"}
+              </Button>
+            )}
+          </div>
+        ) : <p className="text-xs text-muted-foreground">No contact notes yet.</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
@@ -68,8 +198,6 @@ export default function ContactsPage() {
   const [page, setPage] = useState(1);
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
-  const { data: callLogs = [] } = useCallLogs();
-  const { data: currentContactNotes = [] } = useContactNotes(expandedId ?? undefined);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const queryClient = useQueryClient();
@@ -106,9 +234,6 @@ export default function ContactsPage() {
       setPage(totalPages);
     }
   }, [page, totalPages]);
-
-  const getContactLogs = (contactId: string) => callLogs.filter((l: any) => l.contact_id === contactId);
-  const getContactNotes = (contactId: string) => (expandedId === contactId ? currentContactNotes : []);
 
   const openEdit = (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -228,8 +353,6 @@ export default function ContactsPage() {
                 </thead>
                 <tbody>
                   {paginatedContacts.map((contact) => {
-                    const logs = getContactLogs(contact.id);
-                    const notesForContact = getContactNotes(contact.id);
                     const isExpanded = expandedId === contact.id;
 
                     return (
@@ -264,78 +387,7 @@ export default function ContactsPage() {
                         {isExpanded && (
                           <tr>
                             <td colSpan={6} className="bg-muted/20 px-4 py-3">
-                              <div className="space-y-4">
-                                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                                  {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
-                                  {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
-                                  {(contact.city || contact.state) && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}</span>}
-                                  <a href={`tel:${contact.phone}`} className="ml-auto flex items-center gap-1 transition-colors hover:text-foreground"><Phone className="h-3 w-3" /> Call Now</a>
-                                </div>
-
-                                {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
-                                  <div className="rounded border border-border bg-card px-3 py-3">
-                                    <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                      <CalendarClock className="h-3 w-3" /> Appointment Status
-                                    </div>
-                                    <div className="space-y-1 text-sm">
-                                      {contact.latest_appointment_scheduled_for && (
-                                        <p className="text-foreground">Day: <span className="font-mono">{format(new Date(contact.latest_appointment_scheduled_for), "MMM d, yyyy")}</span></p>
-                                      )}
-                                      {contact.latest_appointment_outcome && (
-                                        <p className="text-foreground">Outcome: <span className="text-muted-foreground">{getAppointmentOutcomeLabel(contact.latest_appointment_outcome)}</span></p>
-                                      )}
-                                      {contact.latest_appointment_recorded_at && (
-                                        <p className="text-xs text-muted-foreground">Updated {format(new Date(contact.latest_appointment_recorded_at), "MMM d, h:mm a")}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {logs.length > 0 ? (
-                                  <div>
-                                    <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Call History ({logs.length})</p>
-                                    <div className="space-y-2">
-                                      {logs.map((log: any) => {
-                                        const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
-                                        const hasSyncedSummary = Boolean(log.dialpad_summary);
-                                        const hasSyncedTranscript = Boolean(log.dialpad_transcript);
-                                        const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
-                                        return (
-                                          <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
-                                            <div className="flex items-center gap-3 text-xs">
-                                              <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
-                                              <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
-                                              {syncPending && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sync pending</span>}
-                                              {hasSyncedSummary && <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">Summary</span>}
-                                              {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
-                                              <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
-                                            </div>
-                                            {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
-                                            {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : <p className="text-xs text-muted-foreground">No call history.</p>}
-
-                                <div>
-                                  <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Contact Notes ({notesForContact.length})</p>
-                                  {notesForContact.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {notesForContact.map((note) => (
-                                        <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
-                                          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                            <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">{NOTE_SOURCE_LABELS[note.source]}</span>
-                                            <span className="font-mono">{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
-                                          </div>
-                                          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.content}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : <p className="text-xs text-muted-foreground">No contact notes yet.</p>}
-                                </div>
-                              </div>
+                              <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
                         )}
