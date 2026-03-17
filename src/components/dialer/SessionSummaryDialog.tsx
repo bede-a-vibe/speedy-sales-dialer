@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import * as React from "react";
 import { BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,22 +6,25 @@ import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 
 interface SessionSummaryDialogProps {
   open: boolean;
-  onOpenChange: Dispatch<SetStateAction<boolean>> | ((open: boolean) => void);
+  onOpenChange: (open: boolean) => void;
   callCount: number;
   skippedCount: number;
   sessionOutcomes: Partial<Record<CallOutcome, number>>;
 }
 
-export function SessionSummaryDialog({
-  open,
-  onOpenChange,
-  callCount,
-  skippedCount,
-  sessionOutcomes,
-}: SessionSummaryDialogProps) {
+export const SessionSummaryDialog = React.forwardRef<HTMLDivElement, SessionSummaryDialogProps>(function SessionSummaryDialog(
+  {
+    open,
+    onOpenChange,
+    callCount,
+    skippedCount,
+    sessionOutcomes,
+  },
+  ref,
+) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent ref={ref} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
@@ -58,13 +61,11 @@ export function SessionSummaryDialog({
               );
             })}
           </div>
-          <Button onClick={() => onOpenChange(false)} className="w-full">
-            Close
-          </Button>
+          <Button onClick={() => onOpenChange(false)} className="w-full">Close</Button>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 export default SessionSummaryDialog;

@@ -609,11 +609,15 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={queueLeadCount === 0 || isLoading || !hasDialpadAssignment}
+              disabled={queueLeadCount === 0 || isLoading || isStartingSession || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
-              <Phone className="mr-2 h-4 w-4" />
-              Start Dialing
+              {isStartingSession ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Phone className="mr-2 h-4 w-4" />
+              )}
+              {isStartingSession ? "Starting..." : "Start Dialing"}
             </Button>
           ) : (
             <Button
