@@ -282,8 +282,8 @@ export function deriveCloserValues(inputs: {
   const closeRate = inputs.closer_close_rate ?? 0;
 
   return {
-    closer_verbal_commitments: verbalRate > 0 ? Math.round(meetings * (verbalRate / 100)) : 0,
-    closer_closed_deals: closeRate > 0 ? Math.round(meetings * (closeRate / 100)) : 0,
+    closer_verbal_commitments: verbalRate > 0 ? meetings * (verbalRate / 100) : 0,
+    closer_closed_deals: closeRate > 0 ? meetings * (closeRate / 100) : 0,
   };
 }
 
