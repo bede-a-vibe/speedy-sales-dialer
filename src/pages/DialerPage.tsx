@@ -446,7 +446,7 @@ export default function DialerPage() {
               <div className="space-y-2">
                 <Button
                   onClick={logAndNext}
-                  disabled={!selectedOutcome || createCallLog.isPending}
+                  disabled={!selectedOutcome || createCallLog.isPending || dialpadCall.isPending}
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
                 >
                   {createCallLog.isPending ? (

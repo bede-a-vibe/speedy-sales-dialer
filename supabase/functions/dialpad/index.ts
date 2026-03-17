@@ -90,10 +90,8 @@ Deno.serve(async (req) => {
       }
 
       case "log_call": {
-        // Look up user's dialpad_user_id from dialpad_settings
-        const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
-        
+
         const { data: settings, error: settingsError } = await adminClient
           .from("dialpad_settings")
           .select("dialpad_user_id")
@@ -116,7 +114,6 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Initiate call via Dialpad
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
