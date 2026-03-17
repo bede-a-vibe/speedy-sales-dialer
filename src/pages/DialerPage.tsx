@@ -260,13 +260,30 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     try {
-      await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+      const currentState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
+      setActiveDialpadCallState(currentState);
+
+      if (currentState === "hangup") {
+        setActiveDialpadCallId(null);
+        toast.info("This call has already ended.");
+        return;
+      }
+
+      const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      if (result?.already_ended) {
+        setActiveDialpadCallId(null);
+        setActiveDialpadCallState("hangup");
+        toast.info("This call has already ended.");
+        return;
+      }
+
       toast.success("Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
       toast.error(message);
     }
-  }, [activeDialpadCallId, cancelDialpadCall]);
+  }, [activeDialpadCallId, cancelDialpadCall, dialpadCallStatus]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
