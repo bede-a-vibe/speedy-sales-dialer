@@ -139,6 +139,66 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_items: {
+        Row: {
+          assigned_user_id: string
+          completed_at: string | null
+          contact_id: string
+          created_at: string
+          created_by: string
+          id: string
+          notes: string
+          pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          scheduled_for: string | null
+          source_call_log_id: string | null
+          status: Database["public"]["Enums"]["pipeline_status"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id: string
+          completed_at?: string | null
+          contact_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string
+          pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          scheduled_for?: string | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string
+          completed_at?: string | null
+          contact_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
+          scheduled_for?: string | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_items_source_call_log_id_fkey"
+            columns: ["source_call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -207,6 +267,8 @@ export type Database = {
         | "follow_up"
         | "booked"
         | "wrong_number"
+      pipeline_status: "open" | "completed" | "canceled"
+      pipeline_type: "follow_up" | "booked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -344,6 +406,8 @@ export const Constants = {
         "booked",
         "wrong_number",
       ],
+      pipeline_status: ["open", "completed", "canceled"],
+      pipeline_type: ["follow_up", "booked"],
     },
   },
 } as const
