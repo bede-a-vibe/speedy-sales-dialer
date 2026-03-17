@@ -20,6 +20,93 @@ function getRepLabel(displayName: string | null, email: string | null) {
 
 type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close";
 
+type RepHistoryStat = {
+  repId: string;
+  repName: string;
+  total: number;
+  noShow: number;
+  closed: number;
+  noClose: number;
+};
+
+function buildRepStats(
+  items: PipelineItemWithRelations[],
+  getRepId: (item: PipelineItemWithRelations) => string,
+  repMap: Map<string, string>,
+) {
+  const stats = new Map<string, RepHistoryStat>();
+
+  items.forEach((item) => {
+    const repId = getRepId(item);
+    const current = stats.get(repId) ?? {
+      repId,
+      repName: repMap.get(repId) || "Unknown rep",
+      total: 0,
+      noShow: 0,
+      closed: 0,
+      noClose: 0,
+    };
+
+    current.total += 1;
+
+    if (item.appointment_outcome === "no_show") current.noShow += 1;
+    if (item.appointment_outcome === "showed_closed") current.closed += 1;
+    if (item.appointment_outcome === "showed_no_close") current.noClose += 1;
+
+    stats.set(repId, current);
+  });
+
+  return Array.from(stats.values()).sort((a, b) => b.total - a.total || b.closed - a.closed || a.repName.localeCompare(b.repName));
+}
+
+function RepStatsTable({
+  title,
+  description,
+  stats,
+}: {
+  title: string;
+  description: string;
+  stats: RepHistoryStat[];
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-4 space-y-1">
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+
+      {stats.length === 0 ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">No completed appointments yet.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Rep</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Total</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-show</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Closed</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-close</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((stat) => (
+                <tr key={`${title}-${stat.repId}`} className="border-b border-border last:border-b-0">
+                  <td className="py-3 font-medium text-foreground">{stat.repName}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.total}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.noShow}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.closed}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.noClose}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
@@ -40,6 +127,16 @@ export default function PipelinesPage() {
     if (historyFilter === "all") return completedBooked;
     return completedBooked.filter((item) => item.appointment_outcome === historyFilter);
   }, [completedBooked, historyFilter]);
+
+  const setterStats = useMemo(
+    () => buildRepStats(filteredHistory, (item) => item.created_by, repMap),
+    [filteredHistory, repMap],
+  );
+
+  const closerStats = useMemo(
+    () => buildRepStats(filteredHistory, (item) => item.assigned_user_id, repMap),
+    [filteredHistory, repMap],
+  );
 
   const handleComplete = async (id: string) => {
     try {
@@ -161,7 +258,7 @@ export default function PipelinesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Completed appointments</h3>
-            <p className="text-xs text-muted-foreground">Review past booked outcomes and filter the closed appointment history.</p>
+            <p className="text-xs text-muted-foreground">Review past booked outcomes and compare setter vs closer performance.</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">{filteredHistory.length} results</span>
@@ -177,6 +274,19 @@ export default function PipelinesPage() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <RepStatsTable
+            title="Appointment setters"
+            description="Uses the rep who originally created the booked appointment."
+            stats={setterStats}
+          />
+          <RepStatsTable
+            title="Closers"
+            description="Uses the rep currently assigned to the appointment when it was completed."
+            stats={closerStats}
+          />
         </div>
 
         {filteredHistory.length === 0 ? (
