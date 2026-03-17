@@ -953,6 +953,7 @@ export default function DialerPage() {
                         await dialpadCall.mutateAsync({
                           phone: manualPhone.trim(),
                           dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                          caller_id: selectedCallerId || undefined,
                         });
                         toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                         setManualOpen(false);
