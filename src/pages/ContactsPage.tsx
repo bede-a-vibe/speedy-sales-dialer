@@ -108,7 +108,7 @@ export default function ContactsPage() {
   }, [page, totalPages]);
 
   const getContactLogs = (contactId: string) => callLogs.filter((l: any) => l.contact_id === contactId);
-  const getContactNotes = (contactId: string) => contactNotes.filter((note) => note.contact_id === contactId);
+  const getContactNotes = (contactId: string) => (expandedId === contactId ? currentContactNotes : []);
 
   const openEdit = (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation();
