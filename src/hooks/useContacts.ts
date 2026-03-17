@@ -337,20 +337,21 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
       const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
         activeSessionId,
         [],
-        DIALER_TARGET_BUFFER,
+        DIALER_INITIAL_CLAIM_SIZE,
       );
 
       if (sessionRef.current === activeSessionId) {
         contactsRef.current = claimedContacts;
         setContacts(claimedContacts);
         setTotalCount(claimedTotalCount);
+        void ensureBuffer(DIALER_TARGET_BUFFER);
       }
 
       return claimedContacts.length;
     } finally {
       setIsLoading(false);
     }
-  }, [claimIntoBuffer, stopSession, userId]);
+  }, [claimIntoBuffer, ensureBuffer, stopSession, userId]);
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
