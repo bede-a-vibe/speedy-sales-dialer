@@ -213,6 +213,7 @@ export default function DialerPage() {
     void stopQueueSession();
   }, [industry, isDialing, isStartingSession, resetLeadState, stateFilter, stopQueueSession, user?.id]);
 
+  const startDialing = useCallback(async () => {
     if (!hasDialpadAssignment || isStartingSession) return;
 
     setIsStartingSession(true);
