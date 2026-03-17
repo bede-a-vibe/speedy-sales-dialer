@@ -799,10 +799,10 @@ export default function DialerPage() {
               {uncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
-              {uncalledContacts.length === 0 && !isLoading
-                ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
-                : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
-              }
+               {visibleUncalledContacts.length === 0 && !isLoading
+                 ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
+                 : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
+               }
             </p>
           </div>
         )}
