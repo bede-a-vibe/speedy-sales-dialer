@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            phone: params.phone,
+            phone_number: params.phone,
             user_id: dialpadUserId,
           }),
         });
