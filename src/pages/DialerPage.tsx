@@ -371,8 +371,20 @@ export default function DialerPage() {
     }
   }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, resetSessionTimers, startQueueSession, stopQueueSession, user?.id]);
 
-  const pauseSession = useCallback(() => {
+  const pauseSession = useCallback(async () => {
     if (!isDialing) return;
+
+    // Cancel any active Dialpad call when pausing
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+      setIsEndingCall(true);
+      try {
+        await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      } catch {
+        // Continue pausing even if cancel fails
+      } finally {
+        setIsEndingCall(false);
+      }
+    }
 
     const now = Date.now();
     setAccumulatedDialingMs((current) => current + (sessionPhaseStartedAt ? Math.max(0, now - sessionPhaseStartedAt) : 0));
@@ -382,7 +394,7 @@ export default function DialerPage() {
     setIsSessionPaused(true);
     setPendingAutoOutcome(null);
     toast.info("Dialing paused. Resume when you're ready for the next call.");
-  }, [isDialing, sessionPhaseStartedAt]);
+  }, [isDialing, sessionPhaseStartedAt, activeDialpadCallId, activeDialpadCallState, cancelDialpadCall]);
 
   const resumeSession = useCallback(() => {
     if (!isSessionPaused) return;
@@ -915,7 +927,7 @@ export default function DialerPage() {
                   Resume Dialing
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={pauseSession} disabled={!isCallTerminal} className="px-6 font-semibold">
+                <Button variant="secondary" onClick={pauseSession} disabled={isEndingCall} className="px-6 font-semibold">
                   <Pause className="mr-2 h-4 w-4" />
                   Pause Dialing
                 </Button>
