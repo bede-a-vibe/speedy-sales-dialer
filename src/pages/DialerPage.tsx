@@ -134,9 +134,9 @@ export default function DialerPage() {
     }
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
-  const startDialing = useCallback(() => {
-    if (visibleUncalledContacts.length === 0 || !hasDialpadAssignment) return;
-    setSessionHiddenContactIds([]);
+  const startDialing = useCallback(async () => {
+    if (queueLeadCount === 0 || !hasDialpadAssignment) return;
+
     setCurrentIndex(0);
     setIsDialing(true);
     setSelectedOutcome(null);
@@ -153,7 +153,14 @@ export default function DialerPage() {
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
-  }, [hasDialpadAssignment, visibleUncalledContacts.length, user?.id]);
+
+    const claimedCount = await startQueueSession();
+    if (claimedCount <= 0) {
+      setIsDialing(false);
+      setCurrentIndex(null);
+      toast.info("No more leads in queue.");
+    }
+  }, [hasDialpadAssignment, queueLeadCount, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -161,20 +168,20 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
-    setSessionHiddenContactIds([]);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
-  }, [callCount]);
+    void stopQueueSession();
+  }, [callCount, stopQueueSession]);
 
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
 
     const nextLength = visibleUncalledContacts.length - 1;
-    setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
+    void discardContact(currentContact.id);
     setSkippedCount((prev) => prev + 1);
     setSelectedOutcome(null);
     setNotes("");
@@ -187,6 +194,7 @@ export default function DialerPage() {
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
+    void ensureBuffer();
 
     if (nextLength <= 0) {
       toast.info("No more leads in queue.");
@@ -197,7 +205,7 @@ export default function DialerPage() {
     if (currentIndex >= nextLength) {
       setCurrentIndex(nextLength - 1);
     }
-  }, [currentContact, currentIndex, stopSession, user?.id, visibleUncalledContacts.length]);
+  }, [currentContact, currentIndex, discardContact, ensureBuffer, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
