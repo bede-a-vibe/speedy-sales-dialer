@@ -154,13 +154,6 @@ export default function DialerPage() {
     }
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
-  useEffect(() => {
-    if (isDialing || isStartingSession) return;
-
-    setCurrentIndex(null);
-    resetLeadState(user?.id || "");
-    void stopQueueSession();
-  }, [industry, isDialing, isStartingSession, resetLeadState, stateFilter, stopQueueSession, user?.id]);
 
   useEffect(() => {
     setNotesPanelEnabled(false);
