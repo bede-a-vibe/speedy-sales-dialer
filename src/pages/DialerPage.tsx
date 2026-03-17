@@ -725,15 +725,14 @@ export default function DialerPage() {
           setActiveDialpadCallState("connecting");
           toast.info("Call placed — waiting for Dialpad to confirm...");
 
-          // Retry resolution: poll the backend a few times to find the call ID
+          // Retry resolution: poll the backend to find the call ID without re-initiating
           for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
             await new Promise((r) => setTimeout(r, 2000));
             try {
-              const retryResponse = await dialpadCall.mutateAsync({
+              const retryResponse = await resolveDialpadCall.mutateAsync({
                 phone: currentContact.phone,
                 dialpad_user_id: myDialpadSettings.dialpad_user_id,
                 contact_id: currentContact.id,
-                caller_id: selectedCallerId || undefined,
               });
               if (retryResponse.dialpad_call_id) {
                 setActiveDialpadCallId(retryResponse.dialpad_call_id);
