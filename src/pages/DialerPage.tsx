@@ -228,10 +228,15 @@ export default function DialerPage() {
       void loadContactNotesPanel();
       void loadSessionSummaryDialog();
       void ensureBuffer();
+    } catch (error) {
+      setIsDialing(false);
+      setCurrentIndex(null);
+      const message = error instanceof Error ? error.message : "Unable to start dialing session.";
+      toast.error(message);
     } finally {
       setIsStartingSession(false);
     }
-  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
