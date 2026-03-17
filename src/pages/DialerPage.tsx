@@ -59,6 +59,7 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
+  const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
@@ -73,8 +74,13 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
-  const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
-    ? uncalledContacts[currentIndex]
+  const visibleUncalledContacts = useMemo(
+    () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
+    [sessionHiddenContactIds, uncalledContacts],
+  );
+
+  const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
+    ? visibleUncalledContacts[currentIndex]
     : null;
 
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
