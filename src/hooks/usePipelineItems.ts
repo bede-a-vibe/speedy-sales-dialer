@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
@@ -22,6 +23,9 @@ export interface PipelineItemUpdate {
   status?: PipelineStatus;
   notes?: string;
   completed_at?: string | null;
+  appointment_outcome?: AppointmentOutcomeValue | null;
+  outcome_recorded_at?: string | null;
+  outcome_notes?: string;
 }
 
 export interface PipelineItemWithRelations {
@@ -35,6 +39,9 @@ export interface PipelineItemWithRelations {
   notes: string;
   status: PipelineStatus;
   completed_at: string | null;
+  appointment_outcome: AppointmentOutcomeValue | null;
+  outcome_recorded_at: string | null;
+  outcome_notes: string;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -51,6 +58,14 @@ export interface SalesRepOption {
   user_id: string;
   display_name: string | null;
   email: string | null;
+}
+
+export interface BookedAppointmentReportItem {
+  id: string;
+  scheduled_for: string | null;
+  appointment_outcome: AppointmentOutcomeValue | null;
+  outcome_recorded_at: string | null;
+  status: PipelineStatus;
 }
 
 export function usePipelineItems(type: PipelineType) {
@@ -70,6 +85,9 @@ export function usePipelineItems(type: PipelineType) {
           notes,
           status,
           completed_at,
+          appointment_outcome,
+          outcome_recorded_at,
+          outcome_notes,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -86,7 +104,7 @@ export function usePipelineItems(type: PipelineType) {
 
       query = type === "follow_up"
         ? query.order("scheduled_for", { ascending: true, nullsFirst: false })
-        : query.order("created_at", { ascending: false });
+        : query.order("scheduled_for", { ascending: true, nullsFirst: false });
 
       const { data, error } = await query;
       if (error) throw error;
@@ -110,6 +128,26 @@ export function useSalesReps() {
   });
 }
 
+export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ["booked-appointments-range", from, to],
+    queryFn: async () => {
+      let query = supabase
+        .from("pipeline_items")
+        .select("id, scheduled_for, appointment_outcome, outcome_recorded_at, status")
+        .eq("pipeline_type", "booked")
+        .order("scheduled_for", { ascending: false });
+
+      if (from) query = query.gte("scheduled_for", from);
+      if (to) query = query.lte("scheduled_for", `${to}T23:59:59`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as BookedAppointmentReportItem[];
+    },
+  });
+}
+
 export function useCreatePipelineItem() {
   const queryClient = useQueryClient();
 
@@ -125,6 +163,7 @@ export function useCreatePipelineItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+      queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
     },
   });
 }
@@ -139,6 +178,7 @@ export function useUpdatePipelineItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+      queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
     },
   });
 }
