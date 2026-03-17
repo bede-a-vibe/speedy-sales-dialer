@@ -20,6 +20,7 @@ export interface PreparedContactImport {
 
 type ContactImportInsert = Pick<
   TablesInsert<"contacts">,
+  | "id"
   | "business_name"
   | "phone"
   | "industry"
@@ -32,11 +33,21 @@ type ContactImportInsert = Pick<
   | "uploaded_by"
 >;
 
+type ContactNoteImportInsert = Pick<
+  TablesInsert<"contact_notes">,
+  "contact_id" | "content" | "created_by" | "source"
+>;
+
 const REQUIRED_FIELDS = ["business_name", "phone", "industry"] as const;
 const OPTIONAL_FIELDS = ["contact_person", "email", "website", "gmb_link", "city", "state"] as const;
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS] as const;
+const EXTRA_NOTE_FIELDS = ["subtype", "full_address", "rating"] as const;
 
-const FIELD_ALIASES: Record<(typeof ALL_FIELDS)[number], string[]> = {
+type ContactField = (typeof ALL_FIELDS)[number];
+type ExtraNoteField = (typeof EXTRA_NOTE_FIELDS)[number];
+type MappableField = ContactField | ExtraNoteField;
+
+const FIELD_ALIASES: Record<MappableField, string[]> = {
   business_name: ["business name", "business", "company", "company name", "name"],
   phone: ["phone", "phone number", "telephone", "tel", "mobile"],
   industry: ["industry", "category", "type", "sector", "subtypes"],
@@ -46,6 +57,9 @@ const FIELD_ALIASES: Record<(typeof ALL_FIELDS)[number], string[]> = {
   gmb_link: ["gmb link", "gmb", "google my business", "google business", "gmb url", "google maps", "location link", "location_link"],
   city: ["city", "town"],
   state: ["state", "province", "region"],
+  subtype: ["subtype", "sub type"],
+  full_address: ["full address", "full_address", "address", "street address"],
+  rating: ["rating", "review rating", "stars", "star rating"],
 };
 
 const SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
