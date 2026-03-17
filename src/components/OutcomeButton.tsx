@@ -14,11 +14,12 @@ const ICONS: Record<string, React.ElementType> = {
 interface OutcomeButtonProps {
   outcome: CallOutcome;
   selected?: boolean;
+  label?: string;
   onClick: (outcome: CallOutcome) => void;
 }
 
 export const OutcomeButton = React.forwardRef<HTMLButtonElement, OutcomeButtonProps>(
-  ({ outcome, selected, onClick }, ref) => {
+  ({ outcome, selected, label, onClick }, ref) => {
     const config = OUTCOME_CONFIG[outcome];
     const Icon = ICONS[config.icon];
 
@@ -36,7 +37,7 @@ export const OutcomeButton = React.forwardRef<HTMLButtonElement, OutcomeButtonPr
         )}
       >
         {Icon && <Icon className="h-4 w-4 shrink-0" />}
-        <span>{config.label}</span>
+        <span>{label || config.label}</span>
         <kbd className="ml-auto rounded bg-background/30 px-1.5 py-0.5 text-[10px] font-mono opacity-50">
           {config.shortcut}
         </kbd>

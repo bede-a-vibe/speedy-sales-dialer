@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
+import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -113,6 +114,7 @@ export default function DialerPage() {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [followUpTime, setFollowUpTime] = useState("09:00");
   const [assignedRepId, setAssignedRepId] = useState("");
+  const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
@@ -190,6 +192,9 @@ export default function DialerPage() {
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
+  const primaryActionLabel = requiresBookedSchedule
+    ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
+    : (isCallTerminal ? (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead") : "End or wait for call to finish before logging");
 
   useEffect(() => {
     if (user?.id) {
@@ -205,7 +210,10 @@ export default function DialerPage() {
       setFollowUpDate(undefined);
       setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     }
-  }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
+    if (!requiresBookedSchedule) {
+      setIsBookedDateAutoDetected(false);
+    }
+  }, [requiresAnySchedule, requiresBookedSchedule, requiresPipelineAssignment, user?.id]);
 
   useEffect(() => {
     setNotesPanelEnabled(false);
@@ -260,6 +268,7 @@ export default function DialerPage() {
     setFollowUpDate(undefined);
     setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(assignedUserId || "");
+    setIsBookedDateAutoDetected(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
@@ -275,6 +284,21 @@ export default function DialerPage() {
     setAccumulatedDialingMs(0);
     setAccumulatedPausedMs(0);
   }, []);
+
+  const handleBookedDateDetected = useCallback((date: Date) => {
+    setFollowUpDate((current) => {
+      const currentKey = current ? format(current, "yyyy-MM-dd") : null;
+      const nextKey = format(date, "yyyy-MM-dd");
+
+      if (currentKey === nextKey && isBookedDateAutoDetected) {
+        return current;
+      }
+
+      toast.success(`Booked date detected: ${format(date, "PPP")}`);
+      return date;
+    });
+    setIsBookedDateAutoDetected(true);
+  }, [isBookedDateAutoDetected]);
 
   useEffect(() => {
     if (isStartingSession || sessionId) return;
@@ -926,6 +950,7 @@ export default function DialerPage() {
                     <OutcomeButton
                       key={outcome}
                       outcome={outcome}
+                      label={outcome === "booked" ? "Book" : undefined}
                       selected={selectedOutcome === outcome}
                       onClick={setSelectedOutcome}
                     />
@@ -934,72 +959,125 @@ export default function DialerPage() {
               </div>
 
               {requiresPipelineAssignment && (
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Assigned Sales Rep
-                  </label>
-                  <Select value={assignedRepId} onValueChange={setAssignedRepId}>
-                    <SelectTrigger className="w-full border-border bg-background">
-                      <SelectValue placeholder="Choose a sales rep" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salesReps.map((rep) => (
-                        <SelectItem key={rep.user_id} value={rep.user_id}>
-                          {getRepLabel(rep.display_name, rep.email)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <UserRound className="h-3 w-3" />
-                    {assignedRepId
-                      ? getRepLabel(salesReps.find((rep) => rep.user_id === assignedRepId)?.display_name || null, salesReps.find((rep) => rep.user_id === assignedRepId)?.email || null)
-                      : "No rep selected"}
+                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Assigned Sales Rep
+                    </label>
+                    <Select value={assignedRepId} onValueChange={setAssignedRepId}>
+                      <SelectTrigger className="w-full border-border bg-background">
+                        <SelectValue placeholder="Choose a sales rep" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {salesReps.map((rep) => (
+                          <SelectItem key={rep.user_id} value={rep.user_id}>
+                            {getRepLabel(rep.display_name, rep.email)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <UserRound className="h-3 w-3" />
+                      {assignedRepId
+                        ? getRepLabel(salesReps.find((rep) => rep.user_id === assignedRepId)?.display_name || null, salesReps.find((rep) => rep.user_id === assignedRepId)?.email || null)
+                        : "No rep selected"}
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {requiresAnySchedule && (
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {requiresBookedSchedule ? "Appointment Day" : "Follow-up Schedule"}
-                  </label>
-                  <div className="space-y-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start border-border bg-background text-left font-normal",
-                            !followUpDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {followUpDate ? format(followUpDate, "PPP") : requiresBookedSchedule ? "Pick appointment day" : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={followUpDate}
-                          onSelect={setFollowUpDate}
-                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                          initialFocus
-                          className="pointer-events-auto p-3"
+                  {requiresFollowUpSchedule && (
+                    <div>
+                      <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Follow-up Schedule
+                      </label>
+                      <div className="space-y-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start border-border bg-background text-left font-normal",
+                                !followUpDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {followUpDate ? format(followUpDate, "PPP") : "Pick a date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={followUpDate}
+                              onSelect={setFollowUpDate}
+                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                              initialFocus
+                              className="pointer-events-auto p-3"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <Input
+                          type="time"
+                          value={followUpTime}
+                          onChange={(e) => setFollowUpTime(e.target.value)}
+                          className="border-border bg-background"
                         />
-                      </PopoverContent>
-                    </Popover>
-                    {requiresFollowUpSchedule ? (
-                      <Input
-                        type="time"
-                        value={followUpTime}
-                        onChange={(e) => setFollowUpTime(e.target.value)}
-                        className="border-border bg-background"
-                      />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Booked appointments only need a day right now.</p>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {requiresBookedSchedule && (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-border bg-background p-3">
+                        <p className="text-sm font-medium text-foreground">Book appointment below</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          The calendar opens inline so reps can book fast and stay in the dialer.
+                        </p>
+                      </div>
+
+                      <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />
+
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Confirm Booked Date
+                        </label>
+                        <div className="space-y-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start border-border bg-background text-left font-normal",
+                                  !followUpDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {followUpDate ? format(followUpDate, "PPP") : "Confirm appointment date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={followUpDate}
+                                onSelect={(date) => {
+                                  setFollowUpDate(date);
+                                  setIsBookedDateAutoDetected(false);
+                                }}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                initialFocus
+                                className="pointer-events-auto p-3"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">
+                            {followUpDate
+                              ? isBookedDateAutoDetected
+                                ? "Date auto-detected from the booking widget — adjust it if needed."
+                                : "Date confirmed manually for reporting and pipeline accuracy."
+                              : "Choose the booked appointment day before moving to the next call."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1014,7 +1092,7 @@ export default function DialerPage() {
                   ) : (
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                   )}
-                  {isCallTerminal ? (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead") : "End or wait for call to finish before logging"}
+                  {primaryActionLabel}
                   <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-mono opacity-70">
                     Enter
                   </kbd>
