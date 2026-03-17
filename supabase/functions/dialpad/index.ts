@@ -219,6 +219,58 @@ function isAlreadyEndedDialpadError(status: number, data: unknown) {
     || message.includes("cannot be hung up");
 }
 
+function isDialpadCreateCallConflict(status: number, data: unknown) {
+  if (status !== 409) return false;
+  const message = (extractDialpadErrorMessage(data) ?? "").toLowerCase();
+  return message.includes("unable to create call") || message.includes("conflict");
+}
+
+async function findReusableTrackedCall(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  contactId: string;
+  userId: string;
+}) {
+  const recentWindowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data, error } = await params.adminClient
+    .from("dialpad_calls")
+    .select("dialpad_call_id, created_at")
+    .eq("contact_id", params.contactId)
+    .eq("user_id", params.userId)
+    .gte("created_at", recentWindowStart)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  for (const candidate of data ?? []) {
+    if (!candidate.dialpad_call_id) continue;
+
+    const response = await fetch(`${DIALPAD_BASE}/call/${candidate.dialpad_call_id}`, {
+      headers: {
+        Authorization: `Bearer ${params.apiKey}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) continue;
+
+    const payload = await response.json().catch(() => null);
+    const state = normalizeDialpadState(isRecord(payload) ? payload.state : null);
+
+    if (!isTerminalDialpadState(state)) {
+      return {
+        dialpadCallId: candidate.dialpad_call_id,
+        data: payload,
+      };
+    }
+  }
+
+  return null;
+}
+
 function buildDialpadClientPayload(params: {
   action: string;
   data: unknown;

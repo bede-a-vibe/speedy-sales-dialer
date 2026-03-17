@@ -49,6 +49,35 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
 }
 
+function getDialRequestStorageKey(requestKey: string) {
+  return `dialpad-request:${requestKey}`;
+}
+
+function hasActiveDialRequestLock(requestKey: string, maxAgeMs = 45000) {
+  if (typeof window === "undefined") return false;
+
+  const rawValue = window.sessionStorage.getItem(getDialRequestStorageKey(requestKey));
+  if (!rawValue) return false;
+
+  const timestamp = Number(rawValue);
+  if (!Number.isFinite(timestamp) || Date.now() - timestamp > maxAgeMs) {
+    window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+    return false;
+  }
+
+  return true;
+}
+
+function setActiveDialRequestLock(requestKey: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(getDialRequestStorageKey(requestKey), String(Date.now()));
+}
+
+function clearActiveDialRequestLock(requestKey: string | null) {
+  if (typeof window === "undefined" || !requestKey) return;
+  window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+}
+
 function PanelSkeleton({ height = "h-40" }: { height?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
