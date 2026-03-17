@@ -132,6 +132,7 @@ export default function DialerPage() {
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
+  const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [sessionTick, setSessionTick] = useState(() => Date.now());
   const [sessionPhaseStartedAt, setSessionPhaseStartedAt] = useState<number | null>(null);
   const [accumulatedDialingMs, setAccumulatedDialingMs] = useState(0);
