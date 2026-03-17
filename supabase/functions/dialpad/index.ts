@@ -32,37 +32,55 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+class PhoneValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PhoneValidationError";
+  }
+}
+
 function normalizePhoneNumberToE164(phoneNumber: string, defaultCountryCode = "61") {
   const trimmed = phoneNumber.trim();
 
   if (!trimmed) {
-    throw new Error("Phone number is required");
+    throw new PhoneValidationError("Phone number is required");
   }
 
-  if (trimmed.startsWith("+")) {
-    const digits = trimmed.slice(1).replace(/\D/g, "");
-    if (!digits) throw new Error("Phone number is invalid");
-    return `+${digits}`;
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digitsOnly = trimmed.replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    throw new PhoneValidationError("Phone number is invalid");
   }
 
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) {
-    throw new Error("Phone number is invalid");
+  let normalized: string | null = null;
+
+  if (hasLeadingPlus) {
+    normalized = `+${trimmed.slice(1).replace(/\D/g, "")}`;
+  } else if (digitsOnly.startsWith("00")) {
+    normalized = `+${digitsOnly.slice(2)}`;
+  } else if (defaultCountryCode === "61") {
+    if (/^0[2378]\d{8}$/.test(digitsOnly) || /^04\d{8}$/.test(digitsOnly)) {
+      normalized = `+61${digitsOnly.slice(1)}`;
+    } else if (/^[2378]\d{8}$/.test(digitsOnly) || /^4\d{8}$/.test(digitsOnly)) {
+      normalized = `+61${digitsOnly}`;
+    } else if (/^61\d{8,10}$/.test(digitsOnly)) {
+      normalized = `+${digitsOnly}`;
+    }
   }
 
-  if (digits.startsWith("00")) {
-    return `+${digits.slice(2)}`;
+  if (!normalized) {
+    throw new PhoneValidationError(
+      "Phone number must include a valid country code or be a valid Australian number, e.g. +61412345678 or 0412345678.",
+    );
   }
 
-  if (digits.startsWith("0")) {
-    return `+${defaultCountryCode}${digits.slice(1)}`;
+  const e164Digits = normalized.slice(1);
+  if (e164Digits.length < 8 || e164Digits.length > 15 || !/^\+\d+$/.test(normalized)) {
+    throw new PhoneValidationError("Phone number must be in valid E.164 format, e.g. +61412345678.");
   }
 
-  if (digits.startsWith(defaultCountryCode)) {
-    return `+${digits}`;
-  }
-
-  return `+${digits}`;
+  return normalized;
 }
 
 function decodeBase64Url(input: string) {
