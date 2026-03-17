@@ -158,6 +158,30 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function extractDialpadErrorMessage(data: unknown) {
+  const payload = isRecord(data) && isRecord(data.error) ? data.error : data;
+  if (!isRecord(payload)) return null;
+
+  if (typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message.trim();
+  }
+
+  if (Array.isArray(payload.errors)) {
+    for (const item of payload.errors) {
+      if (isRecord(item) && typeof item.message === "string" && item.message.trim()) {
+        return item.message.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+function isDialpadRateLimitError(data: unknown) {
+  const message = extractDialpadErrorMessage(data);
+  return typeof message === "string" && message.toLowerCase().includes("rate_limit_exceeded");
+}
+
 function getDialpadCallId(data: unknown) {
   if (!isRecord(data)) return null;
 
