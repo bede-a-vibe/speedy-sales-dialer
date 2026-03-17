@@ -2,7 +2,7 @@ import type { ReportMetrics } from "@/lib/reportMetrics";
 
 export type PerformanceTargetScopeType = "individual" | "team";
 export type PerformanceTargetPeriodType = "daily" | "weekly";
-export type PerformanceTargetMetricKey = "bookings_made" | "show_up_rate" | "closed_deals";
+export type PerformanceTargetMetricKey = "dials" | "pickups" | "pickup_to_booking_rate" | "bookings_made" | "show_up_rate" | "closed_deals";
 
 export interface PerformanceTargetRecord {
   id: string;
