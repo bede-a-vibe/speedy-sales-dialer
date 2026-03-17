@@ -234,6 +234,7 @@ export default function DialerPage() {
     if (callCount > 0) {
       setShowSummary(true);
     }
+    setIsStartingSession(false);
     setIsDialing(false);
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
