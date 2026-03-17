@@ -13,6 +13,7 @@ import PipelinesPage from "./pages/PipelinesPage";
 import UploadPage from "./pages/UploadPage";
 import ReportsPage from "./pages/ReportsPage";
 import DialpadSettingsPage from "./pages/DialpadSettingsPage";
+import TargetsPage from "./pages/TargetsPage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import FollowUpsPage from "./pages/FollowUpsPage";
@@ -61,6 +62,14 @@ function ProtectedRoutes() {
       <Route path="/follow-ups" element={<FollowUpsPage />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route
+        path="/targets"
+        element={(
+          <AdminRoute>
+            <TargetsPage />
+          </AdminRoute>
+        )}
+      />
       <Route
         path="/dialpad-settings"
         element={(

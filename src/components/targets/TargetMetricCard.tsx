@@ -8,10 +8,11 @@ interface TargetMetricCardProps {
 }
 
 export function TargetMetricCard({ item, className }: TargetMetricCardProps) {
+  const remainingValue = Math.max((item.targetValue ?? 0) - item.actualValue, 0);
   const progressLabel = item.hasTarget
     ? item.actualValue >= (item.targetValue ?? 0)
       ? "Target reached"
-      : `${Math.max((item.targetValue ?? 0) - item.actualValue, 0).toFixed(item.isRate ? 0 : 0)} left to goal`
+      : `${item.isRate ? `${Math.round(remainingValue)}%` : Math.round(remainingValue).toLocaleString()} left to goal`
     : "No target configured";
 
   return (
