@@ -27,9 +27,12 @@ import { toast } from "sonner";
 
 const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
-const loadDialpadSyncPanel = () => import("@/components/dialer/DialpadSyncPanel");
-const loadContactNotesPanel = () => import("@/components/dialer/ContactNotesPanel");
-const loadSessionSummaryDialog = () => import("@/components/dialer/SessionSummaryDialog");
+const loadDialpadSyncPanel = () =>
+  import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
+const loadContactNotesPanel = () =>
+  import("@/components/dialer/ContactNotesPanel").then((module) => ({ default: module.default ?? module.ContactNotesPanel }));
+const loadSessionSummaryDialog = () =>
+  import("@/components/dialer/SessionSummaryDialog").then((module) => ({ default: module.default ?? module.SessionSummaryDialog }));
 
 const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
 const ContactNotesPanel = lazy(loadContactNotesPanel);
