@@ -68,6 +68,7 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
+  const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
