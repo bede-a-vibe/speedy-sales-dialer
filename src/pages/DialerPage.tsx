@@ -161,6 +161,7 @@ export default function DialerPage() {
   const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const resolveDialpadCall = useResolveDialpadCall();
+  const forceHangupCall = useForceHangupCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
   const isSessionActive = isDialing || isSessionPaused;
