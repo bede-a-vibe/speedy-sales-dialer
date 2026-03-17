@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
+
+const CONTACTS_BATCH_SIZE = 1000;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -9,70 +11,74 @@ export type Contact = Tables<"contacts"> & {
   latest_appointment_recorded_at: string | null;
 };
 
+type ContactQueryFilters = {
+  industry?: string;
+  state?: string;
+  status?: string;
+  includeDnc?: boolean;
+};
+
+async function fetchContactsInBatches({ industry, state, status, includeDnc = false }: ContactQueryFilters = {}) {
+  const contacts: Contact[] = [];
+  let from = 0;
+
+  while (true) {
+    let query = supabase
+      .from("contacts")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + CONTACTS_BATCH_SIZE - 1);
+
+    if (!includeDnc) {
+      query = query.eq("is_dnc", false);
+    }
+
+    if (industry && industry !== "all") {
+      query = query.eq("industry", industry);
+    }
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    if (state && state !== "all") {
+      query = query.eq("state", state);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const batch = (data ?? []) as Contact[];
+    contacts.push(...batch);
+
+    if (batch.length < CONTACTS_BATCH_SIZE) {
+      break;
+    }
+
+    from += CONTACTS_BATCH_SIZE;
+  }
+
+  return contacts;
+}
+
 export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
-    queryFn: async () => {
-      let query = supabase
-        .from("contacts")
-        .select("*")
-        .eq("is_dnc", false)
-        .order("created_at", { ascending: true });
-
-      if (industry && industry !== "all") {
-        query = query.eq("industry", industry);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Contact[];
-    },
+    queryFn: () => fetchContactsInBatches({ industry }),
   });
 }
 
 export function useAllContacts(industry?: string) {
   return useQuery({
     queryKey: ["all-contacts", industry],
-    queryFn: async () => {
-      let query = supabase
-        .from("contacts")
-        .select("*")
-        .order("created_at", { ascending: true });
-
-      if (industry && industry !== "all") {
-        query = query.eq("industry", industry);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Contact[];
-    },
+    queryFn: () => fetchContactsInBatches({ industry, includeDnc: true }),
   });
 }
 
 export function useUncalledContacts(industry?: string, state?: string) {
   return useQuery({
     queryKey: ["uncalled-contacts", industry, state],
-    queryFn: async () => {
-      let query = supabase
-        .from("contacts")
-        .select("*")
-        .eq("status", "uncalled")
-        .eq("is_dnc", false)
-        .order("created_at", { ascending: true });
-
-      if (industry && industry !== "all") {
-        query = query.eq("industry", industry);
-      }
-
-      if (state && state !== "all") {
-        query = query.eq("state", state);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Contact[];
-    },
+    queryFn: () => fetchContactsInBatches({ industry, state, status: "uncalled" }),
   });
 }
 
