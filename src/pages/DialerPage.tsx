@@ -10,8 +10,9 @@ import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall } from "@/hooks/useDialpad";
+import { useDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
+import { useContactNotes } from "@/hooks/useContactNotes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ export default function DialerPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
@@ -63,10 +65,15 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
+  const linkDialpadCallLog = useLinkDialpadCallLog();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
     ? uncalledContacts[currentIndex]
     : null;
+
+  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
+  const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
+  const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
 
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
@@ -75,7 +82,8 @@ export default function DialerPage() {
     && (!requiresFollowUpSchedule || (!!followUpDate && !!followUpTime))
     && !createCallLog.isPending
     && !createPipelineItem.isPending
-    && !dialpadCall.isPending;
+    && !dialpadCall.isPending
+    && !linkDialpadCallLog.isPending;
 
   useEffect(() => {
     if (user?.id) {
@@ -106,6 +114,7 @@ export default function DialerPage() {
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
+    setActiveDialpadCallId(null);
   }, [uncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
@@ -114,6 +123,8 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
+    setActiveDialpadCallId(null);
+    activeDialRequestRef.current = null;
   }, [callCount]);
 
   const skipLead = useCallback(() => {
@@ -124,6 +135,8 @@ export default function DialerPage() {
     setFollowUpDate(undefined);
     setFollowUpTime("09:00");
     setAssignedRepId(user?.id || "");
+    setActiveDialpadCallId(null);
+    activeDialRequestRef.current = null;
     const nextIdx = currentIndex + 1;
     if (nextIdx < uncalledContacts.length) {
       setCurrentIndex(nextIdx);
@@ -157,7 +170,15 @@ export default function DialerPage() {
         outcome: selectedOutcome,
         notes: notes || undefined,
         follow_up_date: scheduledFor,
+        dialpad_call_id: activeDialpadCallId,
       });
+
+      if (activeDialpadCallId) {
+        await linkDialpadCallLog.mutateAsync({
+          dialpad_call_id: activeDialpadCallId,
+          call_log_id: insertedLog.id,
+        });
+      }
 
       if (requiresPipelineAssignment) {
         await createPipelineItem.mutateAsync({
@@ -186,6 +207,7 @@ export default function DialerPage() {
 
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
       activeDialRequestRef.current = null;
+      setActiveDialpadCallId(null);
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
@@ -195,12 +217,14 @@ export default function DialerPage() {
       toast.error("Failed to log call. Try again.");
     }
   }, [
+    activeDialpadCallId,
     assignedRepId,
     createCallLog,
     createPipelineItem,
     currentContact,
     followUpDate,
     followUpTime,
+    linkDialpadCallLog,
     notes,
     requiresFollowUpSchedule,
     requiresPipelineAssignment,
@@ -257,17 +281,29 @@ export default function DialerPage() {
     if (activeDialRequestRef.current === requestKey || dialpadCall.isPending) return;
 
     activeDialRequestRef.current = requestKey;
+    setActiveDialpadCallId(null);
 
     dialpadCall
       .mutateAsync({
         phone: currentContact.phone,
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        contact_id: currentContact.id,
       })
-      .then(() => {
+      .then((response) => {
+        const dialpadCallId = typeof response?.dialpad_call_id === "string"
+          ? response.dialpad_call_id
+          : null;
+
+        setActiveDialpadCallId(dialpadCallId);
         toast.success(`Calling ${currentContact.phone} through Dialpad`);
+
+        if (response?.tracking_warning) {
+          toast.warning("Call placed, but transcript tracking needs attention.");
+        }
       })
       .catch((error) => {
         activeDialRequestRef.current = null;
+        setActiveDialpadCallId(null);
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         toast.error(message);
       });
@@ -456,6 +492,36 @@ export default function DialerPage() {
 
               <div className="rounded-lg border border-border bg-card p-4">
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Dialpad Sync
+                </label>
+                <div className="space-y-3 text-sm">
+                  {activeDialpadCallId ? (
+                    <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                      Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Waiting for a tracked Dialpad call to start.
+                    </p>
+                  )}
+
+                  {latestDialpadSummary && (
+                    <div className="rounded-md border border-border bg-background px-3 py-3">
+                      <p className="mb-2 text-[10px] uppercase tracking-widest text-primary">Latest synced summary</p>
+                      <p className="whitespace-pre-wrap text-sm text-foreground">{latestDialpadSummary.content}</p>
+                    </div>
+                  )}
+
+                  {latestDialpadTranscript && (
+                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                      Transcript synced · {format(new Date(latestDialpadTranscript.created_at), "MMM d, h:mm a")}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Notes
                 </label>
                 <Textarea
@@ -556,7 +622,7 @@ export default function DialerPage() {
                   disabled={!canSubmit}
                   className="w-full py-3 font-semibold"
                 >
-                  {createCallLog.isPending || createPipelineItem.isPending ? (
+                  {createCallLog.isPending || createPipelineItem.isPending || linkDialpadCallLog.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="mr-2 h-4 w-4" />
