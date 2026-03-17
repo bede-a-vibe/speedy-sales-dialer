@@ -129,6 +129,7 @@ export default function DialerPage() {
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
+  const [rapidStatusPollingUntil, setRapidStatusPollingUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number | null>(null);
@@ -279,6 +280,7 @@ export default function DialerPage() {
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
+    setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
     setPendingAutoOutcome(null);
     setCooldownSecondsLeft(null);
@@ -586,6 +588,8 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     setIsEndingCall(true);
+    setActiveDialpadCallState((current) => (current === "hangup" ? current : "ending"));
+    setRapidStatusPollingUntil(Date.now() + 10000);
 
     try {
       const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
@@ -595,6 +599,7 @@ export default function DialerPage() {
         setActiveDialpadCallId(null);
         setActiveDialpadCallState("hangup");
         setDialpadPollingBackoffUntil(null);
+        setRapidStatusPollingUntil(null);
         toast.info("This call has already ended.");
         return;
       }
@@ -602,9 +607,17 @@ export default function DialerPage() {
       toast.success(result.message || "Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
-      if (message.toLowerCase().includes("rate limit")) {
-        setDialpadPollingBackoffUntil(Date.now() + 30000);
+      const normalized = message.toLowerCase();
+
+      if (normalized.includes("rate limit")) {
+        setDialpadPollingBackoffUntil(Date.now() + 10000);
       }
+
+      if (normalized.includes("no endpoint found")) {
+        toast.info("Ending call… waiting for Dialpad to release it.");
+        return;
+      }
+
       toast.error(message);
     } finally {
       setIsEndingCall(false);
@@ -719,9 +732,8 @@ export default function DialerPage() {
     setCooldownSecondsLeft(null);
 
     const attemptDial = async (retriesLeft: number, isFirstAttempt: boolean): Promise<void> => {
-      // On first attempt after a previous call, give Dialpad time to release
       if (isFirstAttempt) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 500));
       }
 
       try {
@@ -750,7 +762,7 @@ export default function DialerPage() {
         const isRetryable = is409 || is429;
 
         if (isRetryable && retriesLeft > 0) {
-          const delay = is429 ? 5000 : 4000;
+          const delay = is429 ? 2500 : 1500;
           console.warn(`[Dialer] ${is429 ? "Rate limited" : "409 conflict"}, retrying in ${delay}ms (${retriesLeft} left)`);
           await new Promise((r) => setTimeout(r, delay));
           return attemptDial(retriesLeft - 1, false);
@@ -764,7 +776,7 @@ export default function DialerPage() {
       }
     };
 
-    void attemptDial(3, true);
+    void attemptDial(2, true);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
@@ -787,11 +799,12 @@ export default function DialerPage() {
         if (status.terminal) {
           setActiveDialpadCallId(null);
           setDialpadPollingBackoffUntil(null);
+          setRapidStatusPollingUntil(null);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         if (message.includes("rate limit")) {
-          setDialpadPollingBackoffUntil(Date.now() + 30000);
+          setDialpadPollingBackoffUntil(Date.now() + 10000);
         }
       } finally {
         isRequestInFlight = false;
@@ -799,13 +812,14 @@ export default function DialerPage() {
     };
 
     void pollStatus();
-    const intervalId = window.setInterval(pollStatus, 15000);
+    const intervalMs = rapidStatusPollingUntil && rapidStatusPollingUntil > Date.now() ? 2000 : 6000;
+    const intervalId = window.setInterval(pollStatus, intervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, rapidStatusPollingUntil]);
 
   // Start 30-second countdown when call ends (terminal state) and no outcome selected
   useEffect(() => {

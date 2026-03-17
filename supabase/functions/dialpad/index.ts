@@ -806,12 +806,11 @@ Deno.serve(async (req) => {
         const initiateData = await initiateResponse.json().catch(() => ({}));
 
         // The initiate_call endpoint doesn't return a call_id directly.
-        // Poll the stats/calls endpoint briefly to find the new call by matching
-        // the target phone number and a non-terminal state.
+        // Poll briefly to find the new call by matching the target phone number.
         let foundCallId: string | null = null;
         for (let attempt = 0; attempt < 4; attempt++) {
           if (attempt > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
           }
 
           const callsResponse = await fetch(
@@ -836,7 +835,6 @@ Deno.serve(async (req) => {
               const callUserId = call.user_id ?? call.operator_id ?? null;
               const isMatchingUser = String(callUserId) === String(params.dialpad_user_id);
 
-              // Match by phone number, user, and non-terminal state
               if (
                 callId
                 && !isTerminalDialpadState(state)
