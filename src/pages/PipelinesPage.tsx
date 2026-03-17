@@ -27,6 +27,9 @@ type RepHistoryStat = {
   noShow: number;
   closed: number;
   noClose: number;
+  showed: number;
+  showUpRate: number;
+  closeRate: number;
 };
 
 function buildRepStats(
@@ -34,7 +37,7 @@ function buildRepStats(
   getRepId: (item: PipelineItemWithRelations) => string,
   repMap: Map<string, string>,
 ) {
-  const stats = new Map<string, RepHistoryStat>();
+  const stats = new Map<string, Omit<RepHistoryStat, "showUpRate" | "closeRate">>();
 
   items.forEach((item) => {
     const repId = getRepId(item);
@@ -45,18 +48,31 @@ function buildRepStats(
       noShow: 0,
       closed: 0,
       noClose: 0,
+      showed: 0,
     };
 
     current.total += 1;
 
     if (item.appointment_outcome === "no_show") current.noShow += 1;
-    if (item.appointment_outcome === "showed_closed") current.closed += 1;
-    if (item.appointment_outcome === "showed_no_close") current.noClose += 1;
+    if (item.appointment_outcome === "showed_closed") {
+      current.closed += 1;
+      current.showed += 1;
+    }
+    if (item.appointment_outcome === "showed_no_close") {
+      current.noClose += 1;
+      current.showed += 1;
+    }
 
     stats.set(repId, current);
   });
 
-  return Array.from(stats.values()).sort((a, b) => b.total - a.total || b.closed - a.closed || a.repName.localeCompare(b.repName));
+  return Array.from(stats.values())
+    .map((stat) => ({
+      ...stat,
+      showUpRate: stat.total > 0 ? Math.round((stat.showed / stat.total) * 100) : 0,
+      closeRate: stat.showed > 0 ? Math.round((stat.closed / stat.showed) * 100) : 0,
+    }))
+    .sort((a, b) => b.total - a.total || b.closed - a.closed || a.repName.localeCompare(b.repName));
 }
 
 function RepStatsTable({
@@ -79,14 +95,17 @@ function RepStatsTable({
         <div className="py-8 text-center text-sm text-muted-foreground">No completed appointments yet.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm">
+          <table className="w-full min-w-[620px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Rep</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Total</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-show</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Showed</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Show-up %</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Closed</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-close</th>
+                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Close %</th>
               </tr>
             </thead>
             <tbody>
@@ -95,8 +114,11 @@ function RepStatsTable({
                   <td className="py-3 font-medium text-foreground">{stat.repName}</td>
                   <td className="py-3 font-mono text-muted-foreground">{stat.total}</td>
                   <td className="py-3 font-mono text-muted-foreground">{stat.noShow}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.showed}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.showUpRate}%</td>
                   <td className="py-3 font-mono text-muted-foreground">{stat.closed}</td>
                   <td className="py-3 font-mono text-muted-foreground">{stat.noClose}</td>
+                  <td className="py-3 font-mono text-muted-foreground">{stat.closeRate}%</td>
                 </tr>
               ))}
             </tbody>
