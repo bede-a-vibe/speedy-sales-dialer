@@ -809,7 +809,7 @@ export default function DialerPage() {
                   ) : (
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                   )}
-                  Log & Next Lead
+                  {isCallTerminal ? "Log & Next Lead" : "End or wait for call to finish before logging"}
                   <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-mono opacity-70">
                     Enter
                   </kbd>
