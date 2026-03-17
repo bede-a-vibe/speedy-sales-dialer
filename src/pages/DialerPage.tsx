@@ -443,25 +443,6 @@ export default function DialerPage() {
     }
   }, [clearOwnDialerLeadLocks, isRecoveringQueue, refreshPreviewCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
 
-  const skipLead = useCallback(() => {
-    if (currentIndex === null || !currentContact) return;
-
-    const nextLength = visibleUncalledContacts.length - 1;
-    void discardContact(currentContact.id);
-    setSkippedCount((prev) => prev + 1);
-    resetLeadState(user?.id || "");
-    void ensureBuffer();
-
-    if (nextLength <= 0) {
-      toast.info("No more leads in queue.");
-      stopSession();
-      return;
-    }
-
-    if (currentIndex >= nextLength) {
-      setCurrentIndex(nextLength - 1);
-    }
-  }, [currentContact, currentIndex, discardContact, ensureBuffer, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
@@ -603,6 +584,35 @@ export default function DialerPage() {
       setIsEndingCall(false);
     }
   }, [activeDialpadCallId, cancelDialpadCall]);
+
+  const skipLead = useCallback(async () => {
+    if (currentIndex === null || !currentContact) return;
+
+    // Cancel any active Dialpad call before skipping
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+      try {
+        await cancelActiveCall();
+      } catch {
+        // Continue with skip even if cancel fails
+      }
+    }
+
+    const nextLength = visibleUncalledContacts.length - 1;
+    void discardContact(currentContact.id);
+    setSkippedCount((prev) => prev + 1);
+    resetLeadState(user?.id || "");
+    void ensureBuffer();
+
+    if (nextLength <= 0) {
+      toast.info("No more leads in queue.");
+      stopSession();
+      return;
+    }
+
+    if (currentIndex >= nextLength) {
+      setCurrentIndex(nextLength - 1);
+    }
+  }, [activeDialpadCallId, activeDialpadCallState, cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
 
   useEffect(() => {
     if (!isSessionActive || !currentContact) return;
