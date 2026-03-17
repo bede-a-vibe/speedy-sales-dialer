@@ -395,6 +395,7 @@ export default function DialerPage() {
     setIsDialing(false);
     setIsSessionPaused(true);
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
     toast.info("Dialing paused. Resume when you're ready for the next call.");
   }, [isDialing, sessionPhaseStartedAt, activeDialpadCallId, activeDialpadCallState, cancelDialpadCall]);
 
