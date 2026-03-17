@@ -2,14 +2,38 @@ import type { ReportMetrics } from "@/lib/reportMetrics";
 
 export type PerformanceTargetScopeType = "individual" | "team";
 export type PerformanceTargetPeriodType = "daily" | "weekly";
+
+/**
+ * Setter metrics chain:
+ *   bookings_made → (÷ pickup_to_booking_rate) → pickups → (÷ dial_to_pickup_rate) → dials
+ *   bookings_made → (× setter_show_up_rate) → setter_showed → (× setter_close_rate) → setter_closed_deals
+ *
+ * Closer metrics chain:
+ *   closer_meetings_booked (input)
+ *   closer_meetings_booked × closer_verbal_commitment_rate → closer_verbal_commitments
+ *   closer_meetings_booked × closer_close_rate → closer_closed_deals
+ */
 export type PerformanceTargetMetricKey =
+  // Setter inputs
   | "bookings_made"
   | "pickup_to_booking_rate"
   | "dial_to_pickup_rate"
+  | "setter_show_up_rate"
+  | "setter_close_rate"
+  // Setter derived
   | "pickups"
   | "dials"
-  | "show_up_rate"
-  | "closed_deals";
+  | "setter_showed"
+  | "setter_closed_deals"
+  // Closer inputs
+  | "closer_meetings_booked"
+  | "closer_verbal_commitment_rate"
+  | "closer_close_rate"
+  // Closer derived
+  | "closer_verbal_commitments"
+  | "closer_closed_deals";
+
+export type MetricGroup = "setter" | "closer";
 
 export interface PerformanceTargetRecord {
   id: string;
@@ -23,13 +47,22 @@ export interface PerformanceTargetRecord {
 }
 
 export interface PerformanceActualMetrics {
-  dials: number;
-  pickups: number;
-  dial_to_pickup_rate: number;
-  pickup_to_booking_rate: number;
+  // Setter
   bookings_made: number;
-  show_up_rate: number;
-  closed_deals: number;
+  pickup_to_booking_rate: number;
+  dial_to_pickup_rate: number;
+  setter_show_up_rate: number;
+  setter_close_rate: number;
+  pickups: number;
+  dials: number;
+  setter_showed: number;
+  setter_closed_deals: number;
+  // Closer
+  closer_meetings_booked: number;
+  closer_verbal_commitment_rate: number;
+  closer_close_rate: number;
+  closer_verbal_commitments: number;
+  closer_closed_deals: number;
 }
 
 export interface TargetProgressItem {
@@ -55,167 +88,287 @@ export const PERFORMANCE_TARGET_PERIOD_LABELS: Record<PerformanceTargetPeriodTyp
   weekly: "Weekly",
 };
 
-export const PERFORMANCE_TARGET_METRIC_DEFINITIONS: Record<
-  PerformanceTargetMetricKey,
-  { label: string; description: string; isRate: boolean; isDerived: boolean }
-> = {
+export interface MetricDefinition {
+  label: string;
+  description: string;
+  isRate: boolean;
+  isDerived: boolean;
+  group: MetricGroup;
+}
+
+export const PERFORMANCE_TARGET_METRIC_DEFINITIONS: Record<PerformanceTargetMetricKey, MetricDefinition> = {
+  // Setter inputs
   bookings_made: {
     label: "Bookings Made",
     description: "Setter-created bookings",
     isRate: false,
     isDerived: false,
+    group: "setter",
   },
   pickup_to_booking_rate: {
     label: "Pickup → Booking %",
     description: "Bookings made / pickups",
     isRate: true,
     isDerived: false,
+    group: "setter",
   },
   dial_to_pickup_rate: {
     label: "Dial → Pickup %",
     description: "Pickups / dials (phone number health)",
     isRate: true,
     isDerived: false,
+    group: "setter",
   },
+  setter_show_up_rate: {
+    label: "Show-Up Rate",
+    description: "% of booked meetings that show up",
+    isRate: true,
+    isDerived: false,
+    group: "setter",
+  },
+  setter_close_rate: {
+    label: "Close Rate",
+    description: "% of showed meetings that close",
+    isRate: true,
+    isDerived: false,
+    group: "setter",
+  },
+  // Setter derived
   pickups: {
     label: "Pickups",
-    description: "Auto: bookings ÷ pickup-to-booking rate",
+    description: "Auto: bookings ÷ pickup-to-booking %",
     isRate: false,
     isDerived: true,
+    group: "setter",
   },
   dials: {
     label: "Dials",
-    description: "Auto: pickups ÷ dial-to-pickup rate",
+    description: "Auto: pickups ÷ dial-to-pickup %",
     isRate: false,
     isDerived: true,
+    group: "setter",
   },
-  show_up_rate: {
-    label: "Show-Up Rate",
-    description: "Setter show-ups / appointments set",
-    isRate: true,
-    isDerived: false,
+  setter_showed: {
+    label: "Showed",
+    description: "Auto: bookings × show-up rate",
+    isRate: false,
+    isDerived: true,
+    group: "setter",
   },
-  closed_deals: {
+  setter_closed_deals: {
     label: "Closed Deals",
-    description: "Closer showed-closed outcomes",
+    description: "Auto: showed × close rate",
+    isRate: false,
+    isDerived: true,
+    group: "setter",
+  },
+  // Closer inputs
+  closer_meetings_booked: {
+    label: "Meetings Booked",
+    description: "Appointments assigned to closer",
     isRate: false,
     isDerived: false,
+    group: "closer",
+  },
+  closer_verbal_commitment_rate: {
+    label: "Verbal Commitment %",
+    description: "% of meetings with verbal commitment",
+    isRate: true,
+    isDerived: false,
+    group: "closer",
+  },
+  closer_close_rate: {
+    label: "Close Rate",
+    description: "% of meetings closed (payment on call)",
+    isRate: true,
+    isDerived: false,
+    group: "closer",
+  },
+  // Closer derived
+  closer_verbal_commitments: {
+    label: "Verbal Commitments",
+    description: "Auto: meetings × verbal commitment %",
+    isRate: false,
+    isDerived: true,
+    group: "closer",
+  },
+  closer_closed_deals: {
+    label: "Closed Deals",
+    description: "Auto: meetings × close rate",
+    isRate: false,
+    isDerived: true,
+    group: "closer",
   },
 };
 
-/** All metric keys in display order */
+/** All metric keys */
 export const PERFORMANCE_TARGET_METRICS = Object.keys(
   PERFORMANCE_TARGET_METRIC_DEFINITIONS,
 ) as PerformanceTargetMetricKey[];
+
+/** Setter metrics in display order */
+export const SETTER_METRICS = PERFORMANCE_TARGET_METRICS.filter(
+  (k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].group === "setter",
+);
+
+/** Closer metrics in display order */
+export const CLOSER_METRICS = PERFORMANCE_TARGET_METRICS.filter(
+  (k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].group === "closer",
+);
 
 /** Only the metrics an admin manually enters */
 export const INPUT_METRICS = PERFORMANCE_TARGET_METRICS.filter(
   (k) => !PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].isDerived,
 );
 
-/** Metrics that are auto-calculated from inputs */
-export const DERIVED_METRICS = PERFORMANCE_TARGET_METRICS.filter(
-  (k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].isDerived,
+export const SETTER_INPUT_METRICS = INPUT_METRICS.filter(
+  (k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].group === "setter",
+);
+
+export const CLOSER_INPUT_METRICS = INPUT_METRICS.filter(
+  (k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].group === "closer",
 );
 
 export function formatTargetMetricValue(metricKey: PerformanceTargetMetricKey, value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
-
   const rounded = Math.round(value);
   return PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate
     ? `${rounded}%`
     : rounded.toLocaleString();
 }
 
-/**
- * From bookings + rates, derive the required pickups and dials.
- *   pickups = bookings / (pickup_to_booking_rate / 100)
- *   dials   = pickups / (dial_to_pickup_rate / 100)
- */
-export function deriveDialsAndPickups(inputs: {
+// ── Derivation logic ──────────────────────────────────────────────
+
+export interface SetterDerivedValues {
+  pickups: number;
+  dials: number;
+  setter_showed: number;
+  setter_closed_deals: number;
+}
+
+export function deriveSetterValues(inputs: {
   bookings_made?: number;
   pickup_to_booking_rate?: number;
   dial_to_pickup_rate?: number;
-}): { pickups: number; dials: number } {
+  setter_show_up_rate?: number;
+  setter_close_rate?: number;
+}): SetterDerivedValues {
   const bookings = inputs.bookings_made ?? 0;
   const pickupToBooking = inputs.pickup_to_booking_rate ?? 0;
   const dialToPickup = inputs.dial_to_pickup_rate ?? 0;
+  const showUpRate = inputs.setter_show_up_rate ?? 0;
+  const closeRate = inputs.setter_close_rate ?? 0;
 
   const pickups = pickupToBooking > 0 ? Math.ceil(bookings / (pickupToBooking / 100)) : 0;
   const dials = dialToPickup > 0 ? Math.ceil(pickups / (dialToPickup / 100)) : 0;
+  const showed = showUpRate > 0 ? Math.round(bookings * (showUpRate / 100)) : 0;
+  const closedDeals = closeRate > 0 ? Math.round(showed * (closeRate / 100)) : 0;
 
-  return { pickups, dials };
+  return { pickups, dials, setter_showed: showed, setter_closed_deals: closedDeals };
+}
+
+export interface CloserDerivedValues {
+  closer_verbal_commitments: number;
+  closer_closed_deals: number;
+}
+
+export function deriveCloserValues(inputs: {
+  closer_meetings_booked?: number;
+  closer_verbal_commitment_rate?: number;
+  closer_close_rate?: number;
+}): CloserDerivedValues {
+  const meetings = inputs.closer_meetings_booked ?? 0;
+  const verbalRate = inputs.closer_verbal_commitment_rate ?? 0;
+  const closeRate = inputs.closer_close_rate ?? 0;
+
+  return {
+    closer_verbal_commitments: verbalRate > 0 ? Math.round(meetings * (verbalRate / 100)) : 0,
+    closer_closed_deals: closeRate > 0 ? Math.round(meetings * (closeRate / 100)) : 0,
+  };
 }
 
 /**
- * Given stored input targets for a user/scope, produce the full set
- * including derived pickups and dials.
+ * Given stored input targets for one user, produce the full set
+ * including derived setter and closer values.
  */
 function addDerivedTargets(inputTargets: PerformanceTargetRecord[]): PerformanceTargetRecord[] {
-  const byMetric = new Map(inputTargets.map((t) => [t.metric_key, t]));
-  const bookingsTarget = byMetric.get("bookings_made");
-  const pickupRateTarget = byMetric.get("pickup_to_booking_rate");
-  const dialRateTarget = byMetric.get("dial_to_pickup_rate");
-
-  const { pickups, dials } = deriveDialsAndPickups({
-    bookings_made: bookingsTarget ? Number(bookingsTarget.target_value) : undefined,
-    pickup_to_booking_rate: pickupRateTarget ? Number(pickupRateTarget.target_value) : undefined,
-    dial_to_pickup_rate: dialRateTarget ? Number(dialRateTarget.target_value) : undefined,
-  });
-
+  const byMetric = new Map(inputTargets.map((t) => [t.metric_key, Number(t.target_value)]));
   const template = inputTargets[0];
   if (!template) return inputTargets;
 
+  // Setter derivation
+  const setterDerived = deriveSetterValues({
+    bookings_made: byMetric.get("bookings_made"),
+    pickup_to_booking_rate: byMetric.get("pickup_to_booking_rate"),
+    dial_to_pickup_rate: byMetric.get("dial_to_pickup_rate"),
+    setter_show_up_rate: byMetric.get("setter_show_up_rate"),
+    setter_close_rate: byMetric.get("setter_close_rate"),
+  });
+
+  // Closer derivation
+  const closerDerived = deriveCloserValues({
+    closer_meetings_booked: byMetric.get("closer_meetings_booked"),
+    closer_verbal_commitment_rate: byMetric.get("closer_verbal_commitment_rate"),
+    closer_close_rate: byMetric.get("closer_close_rate"),
+  });
+
+  const allDerived = { ...setterDerived, ...closerDerived } as Record<string, number>;
   const derivedRecords: PerformanceTargetRecord[] = [];
 
-  if (pickups > 0) {
-    derivedRecords.push({
-      id: `derived-pickups-${template.user_id}-${template.period_type}`,
-      scope_type: template.scope_type,
-      period_type: template.period_type,
-      metric_key: "pickups",
-      user_id: template.user_id,
-      target_value: pickups,
-      created_at: "",
-      updated_at: "",
-    });
-  }
-
-  if (dials > 0) {
-    derivedRecords.push({
-      id: `derived-dials-${template.user_id}-${template.period_type}`,
-      scope_type: template.scope_type,
-      period_type: template.period_type,
-      metric_key: "dials",
-      user_id: template.user_id,
-      target_value: dials,
-      created_at: "",
-      updated_at: "",
-    });
+  for (const [key, value] of Object.entries(allDerived)) {
+    if (value > 0) {
+      derivedRecords.push({
+        id: `derived-${key}-${template.user_id}-${template.period_type}`,
+        scope_type: template.scope_type,
+        period_type: template.period_type,
+        metric_key: key as PerformanceTargetMetricKey,
+        user_id: template.user_id,
+        target_value: value,
+        created_at: "",
+        updated_at: "",
+      });
+    }
   }
 
   return [...inputTargets, ...derivedRecords];
 }
 
+// ── Actual metrics mapping ──────────────────────────────────────────
+
 export function getPerformanceActualMetrics(metrics: ReportMetrics): PerformanceActualMetrics {
   return {
-    dials: metrics.dialer.dials,
-    pickups: metrics.dialer.pickUps,
-    dial_to_pickup_rate: metrics.dialer.pickUpRate,
-    pickup_to_booking_rate: metrics.bookingsMade.pickUpsToBookingRate,
+    // Setter
     bookings_made: metrics.bookingsMade.totalBookingsMade,
-    show_up_rate: metrics.appointmentPerformance.setter.showUpRate,
-    closed_deals: metrics.appointmentPerformance.closer.showedClosed,
+    pickup_to_booking_rate: metrics.bookingsMade.pickUpsToBookingRate,
+    dial_to_pickup_rate: metrics.dialer.pickUpRate,
+    setter_show_up_rate: metrics.appointmentPerformance.setter.showUpRate,
+    setter_close_rate: metrics.appointmentPerformance.setter.closeRate,
+    pickups: metrics.dialer.pickUps,
+    dials: metrics.dialer.dials,
+    setter_showed: metrics.appointmentPerformance.setter.showed,
+    setter_closed_deals: metrics.appointmentPerformance.setter.showedClosed,
+    // Closer
+    closer_meetings_booked: metrics.appointmentPerformance.closer.appointmentsScheduled,
+    closer_verbal_commitment_rate: metrics.appointmentPerformance.closer.verbalCommitmentRate,
+    closer_close_rate: metrics.appointmentPerformance.closer.closeRate,
+    closer_verbal_commitments: metrics.appointmentPerformance.closer.showedVerbalCommitment,
+    closer_closed_deals: metrics.appointmentPerformance.closer.showedClosed,
   };
 }
+
+// ── Target progress items builder ──────────────────────────────────
 
 export function buildTargetProgressItems(
   targets: PerformanceTargetRecord[],
   actualMetrics: PerformanceActualMetrics,
+  filterGroup?: MetricGroup,
 ): TargetProgressItem[] {
   const targetMap = new Map(targets.map((target) => [target.metric_key, Number(target.target_value)]));
+  const metricsToShow = filterGroup
+    ? PERFORMANCE_TARGET_METRICS.filter((k) => PERFORMANCE_TARGET_METRIC_DEFINITIONS[k].group === filterGroup)
+    : PERFORMANCE_TARGET_METRICS;
 
-  return PERFORMANCE_TARGET_METRICS.map((metricKey) => {
+  return metricsToShow.map((metricKey) => {
     const definition = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
     const actualValue = actualMetrics[metricKey];
     const targetValue = targetMap.get(metricKey) ?? null;
@@ -237,12 +390,10 @@ export function buildTargetProgressItems(
   });
 }
 
-const WEEKLY_MULTIPLIER = 5;
+// ── Roll-up and derivation ──────────────────────────────────────────
 
-/**
- * Derive weekly targets from daily targets.
- * Count metrics are multiplied by 5 (work days). Rate metrics stay the same.
- */
+export const WEEKLY_MULTIPLIER = 5;
+
 export function deriveWeeklyTargets(
   dailyTargets: PerformanceTargetRecord[],
 ): PerformanceTargetRecord[] {
@@ -256,10 +407,6 @@ export function deriveWeeklyTargets(
   }));
 }
 
-/**
- * Roll up individual targets into team targets.
- * Count metrics are summed. Rate metrics are averaged.
- */
 export function rollUpToTeamTargets(
   individualTargets: PerformanceTargetRecord[],
 ): PerformanceTargetRecord[] {
@@ -287,20 +434,12 @@ export function rollUpToTeamTargets(
   });
 }
 
-/**
- * From individual daily targets stored in the DB, derive all 4 target sets
- * including auto-calculated dials & pickups:
- * - individual daily (stored inputs + derived dials/pickups)
- * - individual weekly (daily × 5 for counts, same for rates)
- * - team daily (sum counts, average rates)
- * - team weekly (team daily × 5 for counts, same for rates)
- */
 export function deriveAllTargets(storedTargets: PerformanceTargetRecord[]) {
   const storedDaily = storedTargets.filter(
     (t) => t.scope_type === "individual" && t.period_type === "daily",
   );
 
-  // Group by user, add derived dials/pickups per user, then flatten
+  // Group by user, add derived targets per user, then flatten
   const byUser = new Map<string, PerformanceTargetRecord[]>();
   for (const t of storedDaily) {
     if (!t.user_id) continue;
@@ -317,16 +456,7 @@ export function deriveAllTargets(storedTargets: PerformanceTargetRecord[]) {
   return { individualDaily, individualWeekly, teamDaily, teamWeekly };
 }
 
-/** @deprecated Use rollUpToTeamTargets instead */
-export function buildRolledUpIndividualTargets(
-  targets: PerformanceTargetRecord[],
-  periodType: PerformanceTargetPeriodType,
-): PerformanceTargetRecord[] {
-  const relevantTargets = targets.filter(
-    (target) => target.scope_type === "individual" && target.period_type === periodType,
-  );
-  return rollUpToTeamTargets(relevantTargets);
-}
+// ── Period helpers ──────────────────────────────────────────
 
 export function getTargetPeriodForDateRange(
   from?: string,
@@ -341,4 +471,13 @@ export function getTargetPeriodDescription(periodType: PerformanceTargetPeriodTy
     : "Using weekly goals because the report spans multiple days.";
 }
 
-export { WEEKLY_MULTIPLIER };
+/** @deprecated Use rollUpToTeamTargets instead */
+export function buildRolledUpIndividualTargets(
+  targets: PerformanceTargetRecord[],
+  periodType: PerformanceTargetPeriodType,
+): PerformanceTargetRecord[] {
+  const relevantTargets = targets.filter(
+    (target) => target.scope_type === "individual" && target.period_type === periodType,
+  );
+  return rollUpToTeamTargets(relevantTargets);
+}

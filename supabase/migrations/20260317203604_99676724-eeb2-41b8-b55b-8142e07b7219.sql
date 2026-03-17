@@ -1,0 +1,1 @@
+ALTER TYPE public.appointment_outcome ADD VALUE IF NOT EXISTS 'showed_verbal_commitment';

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Target, Trash2, Users, User, Calculator, Zap } from "lucide-react";
+import { Loader2, Pencil, Plus, Target, Trash2, Users, User, Calculator, Zap, Phone, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +11,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeletePerformanceTarget, usePerformanceTargets, useUpsertPerformanceTarget } from "@/hooks/usePerformanceTargets";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import {
   deriveAllTargets,
-  deriveDialsAndPickups,
+  deriveSetterValues,
+  deriveCloserValues,
   formatTargetMetricValue,
   INPUT_METRICS,
+  SETTER_INPUT_METRICS,
+  CLOSER_INPUT_METRICS,
+  SETTER_METRICS,
+  CLOSER_METRICS,
   PERFORMANCE_TARGET_METRICS,
   PERFORMANCE_TARGET_METRIC_DEFINITIONS,
   WEEKLY_MULTIPLIER,
@@ -29,6 +35,11 @@ type BulkFormValues = Record<PerformanceTargetMetricKey, string>;
 
 function emptyBulkForm(): BulkFormValues {
   return Object.fromEntries(PERFORMANCE_TARGET_METRICS.map((k) => [k, ""])) as BulkFormValues;
+}
+
+function getFormNumericValue(val: string): number | undefined {
+  if (val === "" || Number.isNaN(Number(val))) return undefined;
+  return Number(val);
 }
 
 export default function TargetsPage() {
@@ -47,7 +58,6 @@ export default function TargetsPage() {
     [reps],
   );
 
-  // Only individual daily input targets are stored (not dials/pickups)
   const storedDailyTargets = useMemo(
     () => targets.filter((t) => t.scope_type === "individual" && t.period_type === "daily"),
     [targets],
@@ -55,7 +65,6 @@ export default function TargetsPage() {
 
   const derived = useMemo(() => deriveAllTargets(targets), [targets]);
 
-  // Group stored targets by rep
   const targetsByRep = useMemo(() => {
     const map = new Map<string, PerformanceTargetRecord[]>();
     for (const t of storedDailyTargets) {
@@ -67,17 +76,23 @@ export default function TargetsPage() {
     return map;
   }, [storedDailyTargets]);
 
-  // Live-calculate dials/pickups from current form values
-  const derivedPreview = useMemo(() => {
-    const bookings = bulkValues.bookings_made ? Number(bulkValues.bookings_made) : 0;
-    const pickupRate = bulkValues.pickup_to_booking_rate ? Number(bulkValues.pickup_to_booking_rate) : 0;
-    const dialRate = bulkValues.dial_to_pickup_rate ? Number(bulkValues.dial_to_pickup_rate) : 0;
-    return deriveDialsAndPickups({
-      bookings_made: bookings,
-      pickup_to_booking_rate: pickupRate,
-      dial_to_pickup_rate: dialRate,
-    });
-  }, [bulkValues.bookings_made, bulkValues.pickup_to_booking_rate, bulkValues.dial_to_pickup_rate]);
+  // Live-calculate derived values from current form
+  const setterPreview = useMemo(() => deriveSetterValues({
+    bookings_made: getFormNumericValue(bulkValues.bookings_made),
+    pickup_to_booking_rate: getFormNumericValue(bulkValues.pickup_to_booking_rate),
+    dial_to_pickup_rate: getFormNumericValue(bulkValues.dial_to_pickup_rate),
+    setter_show_up_rate: getFormNumericValue(bulkValues.setter_show_up_rate),
+    setter_close_rate: getFormNumericValue(bulkValues.setter_close_rate),
+  }), [bulkValues.bookings_made, bulkValues.pickup_to_booking_rate, bulkValues.dial_to_pickup_rate, bulkValues.setter_show_up_rate, bulkValues.setter_close_rate]);
+
+  const closerPreview = useMemo(() => deriveCloserValues({
+    closer_meetings_booked: getFormNumericValue(bulkValues.closer_meetings_booked),
+    closer_verbal_commitment_rate: getFormNumericValue(bulkValues.closer_verbal_commitment_rate),
+    closer_close_rate: getFormNumericValue(bulkValues.closer_close_rate),
+  }), [bulkValues.closer_meetings_booked, bulkValues.closer_verbal_commitment_rate, bulkValues.closer_close_rate]);
+
+  const hasSetterDerived = setterPreview.pickups > 0 || setterPreview.dials > 0 || setterPreview.setter_showed > 0;
+  const hasCloserDerived = closerPreview.closer_verbal_commitments > 0 || closerPreview.closer_closed_deals > 0;
 
   const openNewForRep = () => {
     setSelectedRepId("");
@@ -90,7 +105,9 @@ export default function TargetsPage() {
     const repTargets = targetsByRep.get(repUserId) || [];
     const values = emptyBulkForm();
     for (const t of repTargets) {
-      values[t.metric_key] = String(t.target_value);
+      if (t.metric_key in values) {
+        values[t.metric_key] = String(t.target_value);
+      }
     }
     setBulkValues(values);
     setDialogOpen(true);
@@ -102,7 +119,6 @@ export default function TargetsPage() {
       return;
     }
 
-    // Only save input metrics (not derived ones)
     const entries = INPUT_METRICS
       .filter((key) => bulkValues[key] !== "" && !Number.isNaN(Number(bulkValues[key])))
       .map((key) => ({ metric_key: key, target_value: Number(bulkValues[key]) }));
@@ -129,7 +145,6 @@ export default function TargetsPage() {
         });
       }
 
-      // Delete targets for input metrics that were cleared
       const clearedMetrics = INPUT_METRICS.filter(
         (key) => bulkValues[key] === "" && existingByMetric.has(key),
       );
@@ -164,7 +179,6 @@ export default function TargetsPage() {
 
   const repsWithTargets = useMemo(() => Array.from(targetsByRep.keys()), [targetsByRep]);
 
-  // Build full target list per rep (stored + derived) for display
   const fullTargetsByRep = useMemo(() => {
     const map = new Map<string, PerformanceTargetRecord[]>();
     for (const t of derived.individualDaily) {
@@ -176,6 +190,79 @@ export default function TargetsPage() {
     return map;
   }, [derived.individualDaily]);
 
+  // ── Render helpers ──
+
+  function renderInputMetricRow(metricKey: PerformanceTargetMetricKey) {
+    const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
+    return (
+      <div key={metricKey} className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">{def.label}</p>
+          <p className="text-xs text-muted-foreground">{def.description}</p>
+        </div>
+        <Input
+          type="number"
+          step="1"
+          min="0"
+          value={bulkValues[metricKey]}
+          onChange={(e) => setBulkValues((prev) => ({ ...prev, [metricKey]: e.target.value }))}
+          placeholder={def.isRate ? "e.g. 30" : "e.g. 5"}
+          className="w-28 font-mono text-right"
+        />
+        {def.isRate ? <span className="text-xs text-muted-foreground w-4">%</span> : <span className="w-4" />}
+      </div>
+    );
+  }
+
+  function renderDerivedPreview(
+    title: string,
+    items: Array<{ label: string; value: number }>,
+    formula: string,
+  ) {
+    const hasValues = items.some((i) => i.value > 0);
+    if (!hasValues) return null;
+
+    return (
+      <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <Zap className="h-3.5 w-3.5 text-primary" />
+          {title}
+        </div>
+        <div className={`grid gap-3 ${items.length <= 2 ? "grid-cols-2" : "grid-cols-4"}`}>
+          {items.map((item) => (
+            <div key={item.label} className="text-center rounded-md bg-background p-2">
+              <p className="text-xl font-bold font-mono text-foreground">{item.value.toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground">{item.label}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground">{formula}</p>
+      </div>
+    );
+  }
+
+  function renderRepCardMetrics(repTargets: PerformanceTargetRecord[], groupMetrics: PerformanceTargetMetricKey[]) {
+    const relevantTargets = repTargets.filter((t) => groupMetrics.includes(t.metric_key));
+    if (relevantTargets.length === 0) return null;
+
+    return (
+      <div className="space-y-1">
+        {relevantTargets.map((t) => {
+          const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key];
+          return (
+            <div key={t.metric_key} className="flex justify-between text-sm">
+              <span className={def.isDerived ? "text-muted-foreground/70 italic text-xs" : "text-muted-foreground text-xs"}>
+                {def.label}
+                {def.isDerived && <Badge variant="outline" className="ml-1 text-[9px] px-1 py-0 align-middle">auto</Badge>}
+              </span>
+              <span className="font-mono font-medium text-xs">{formatTargetMetricValue(t.metric_key, t.target_value)}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <AppLayout title="Targets">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -183,7 +270,7 @@ export default function TargetsPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Performance Targets</h2>
             <p className="text-sm text-muted-foreground">
-              Set bookings & rates per rep — dials, pickups, weekly, and team totals are calculated automatically.
+              Set setter & closer targets per rep — dials, pickups, showed, closed, weekly, and team totals are all auto-calculated.
             </p>
           </div>
 
@@ -194,10 +281,10 @@ export default function TargetsPage() {
                 Set Rep Targets
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {selectedRepId ? `Edit daily targets — ${repNameMap.get(selectedRepId) || "Rep"}` : "Set daily targets for a rep"}
+                  {selectedRepId ? `Edit targets — ${repNameMap.get(selectedRepId) || "Rep"}` : "Set daily targets for a rep"}
                 </DialogTitle>
               </DialogHeader>
 
@@ -220,57 +307,53 @@ export default function TargetsPage() {
 
                 <Separator />
 
-                {/* Input metrics */}
-                <div className="grid gap-3">
-                  {INPUT_METRICS.map((metricKey) => {
-                    const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
-                    return (
-                      <div key={metricKey} className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{def.label}</p>
-                          <p className="text-xs text-muted-foreground">{def.description}</p>
-                        </div>
-                        <Input
-                          type="number"
-                          step="1"
-                          min="0"
-                          value={bulkValues[metricKey]}
-                          onChange={(e) => setBulkValues((prev) => ({ ...prev, [metricKey]: e.target.value }))}
-                          placeholder={def.isRate ? "e.g. 30" : "e.g. 5"}
-                          className="w-28 font-mono text-right"
-                        />
-                        {def.isRate && <span className="text-xs text-muted-foreground w-4">%</span>}
-                        {!def.isRate && <span className="w-4" />}
-                      </div>
-                    );
-                  })}
+                {/* Setter Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">Setter Targets</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Bookings, rates, and calling activity for the person setting appointments.</p>
+                  <div className="grid gap-3">
+                    {SETTER_INPUT_METRICS.map(renderInputMetricRow)}
+                  </div>
+
+                  {hasSetterDerived && renderDerivedPreview(
+                    "Auto-calculated setter targets",
+                    [
+                      { label: "Pickups needed", value: setterPreview.pickups },
+                      { label: "Dials needed", value: setterPreview.dials },
+                      { label: "Expected showed", value: setterPreview.setter_showed },
+                      { label: "Expected closed", value: setterPreview.setter_closed_deals },
+                    ],
+                    `${bulkValues.bookings_made || 0} bookings ÷ ${bulkValues.pickup_to_booking_rate || 0}% = ${setterPreview.pickups} pickups ÷ ${bulkValues.dial_to_pickup_rate || 0}% = ${setterPreview.dials} dials | ${bulkValues.bookings_made || 0} × ${bulkValues.setter_show_up_rate || 0}% = ${setterPreview.setter_showed} showed × ${bulkValues.setter_close_rate || 0}% = ${setterPreview.setter_closed_deals} closed`,
+                  )}
                 </div>
 
-                {/* Derived preview */}
-                {(derivedPreview.pickups > 0 || derivedPreview.dials > 0) && (
-                  <>
-                    <Separator />
-                    <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                        <Zap className="h-3.5 w-3.5 text-primary" />
-                        Auto-calculated daily targets
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="text-center rounded-md bg-background p-2">
-                          <p className="text-2xl font-bold font-mono text-foreground">{derivedPreview.pickups.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">Pickups needed</p>
-                        </div>
-                        <div className="text-center rounded-md bg-background p-2">
-                          <p className="text-2xl font-bold font-mono text-foreground">{derivedPreview.dials.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">Dials needed</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {bulkValues.bookings_made || 0} bookings ÷ {bulkValues.pickup_to_booking_rate || 0}% = {derivedPreview.pickups} pickups ÷ {bulkValues.dial_to_pickup_rate || 0}% = {derivedPreview.dials} dials
-                      </p>
-                    </div>
-                  </>
-                )}
+                <Separator />
+
+                {/* Closer Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Handshake className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">Closer Targets</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Meetings taken, verbal commitments, and closed deals for the person closing.</p>
+                  <div className="grid gap-3">
+                    {CLOSER_INPUT_METRICS.map(renderInputMetricRow)}
+                  </div>
+
+                  {hasCloserDerived && renderDerivedPreview(
+                    "Auto-calculated closer targets",
+                    [
+                      { label: "Verbal commitments", value: closerPreview.closer_verbal_commitments },
+                      { label: "Closed deals", value: closerPreview.closer_closed_deals },
+                    ],
+                    `${bulkValues.closer_meetings_booked || 0} meetings × ${bulkValues.closer_verbal_commitment_rate || 0}% = ${closerPreview.closer_verbal_commitments} verbal | × ${bulkValues.closer_close_rate || 0}% = ${closerPreview.closer_closed_deals} closed`,
+                  )}
+                </div>
+
+                <Separator />
 
                 <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
                   <div className="flex items-center gap-1.5 font-medium text-foreground">
@@ -310,6 +393,9 @@ export default function TargetsPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {repsWithTargets.map((repId) => {
                 const allRepTargets = fullTargetsByRep.get(repId) || [];
+                const hasSetterTargets = allRepTargets.some((t) => SETTER_METRICS.includes(t.metric_key));
+                const hasCloserTargets = allRepTargets.some((t) => CLOSER_METRICS.includes(t.metric_key));
+
                 return (
                   <Card key={repId}>
                     <CardHeader className="pb-3">
@@ -326,23 +412,23 @@ export default function TargetsPage() {
                       </div>
                       <CardDescription>Daily targets</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="space-y-1.5">
-                        {allRepTargets.map((t) => {
-                          const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key];
-                          return (
-                            <div key={t.metric_key} className="flex justify-between text-sm">
-                              <span className={def.isDerived ? "text-muted-foreground italic" : "text-muted-foreground"}>
-                                {def.label}
-                                {def.isDerived && (
-                                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 align-middle">auto</Badge>
-                                )}
-                              </span>
-                              <span className="font-mono font-medium">{formatTargetMetricValue(t.metric_key, t.target_value)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                    <CardContent className="pt-0 space-y-3">
+                      {hasSetterTargets && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> Setter
+                          </p>
+                          {renderRepCardMetrics(allRepTargets, SETTER_METRICS)}
+                        </div>
+                      )}
+                      {hasCloserTargets && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5 flex items-center gap-1">
+                            <Handshake className="h-3 w-3" /> Closer
+                          </p>
+                          {renderRepCardMetrics(allRepTargets, CLOSER_METRICS)}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -359,55 +445,71 @@ export default function TargetsPage() {
               Auto-Calculated Team Targets
             </h3>
 
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Metric</TableHead>
-                    <TableHead className="text-right">Team Daily</TableHead>
-                    <TableHead className="text-right">Team Weekly</TableHead>
-                    <TableHead className="text-right">How</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {PERFORMANCE_TARGET_METRICS.map((metricKey) => {
-                    const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
-                    const teamDailyTarget = derived.teamDaily.find((t) => t.metric_key === metricKey);
-                    const teamWeeklyTarget = derived.teamWeekly.find((t) => t.metric_key === metricKey);
+            <Tabs defaultValue="setter" className="w-full">
+              <TabsList>
+                <TabsTrigger value="setter" className="gap-1.5">
+                  <Phone className="h-3.5 w-3.5" /> Setter
+                </TabsTrigger>
+                <TabsTrigger value="closer" className="gap-1.5">
+                  <Handshake className="h-3.5 w-3.5" /> Closer
+                </TabsTrigger>
+              </TabsList>
 
-                    if (!teamDailyTarget && !teamWeeklyTarget) return null;
+              {(["setter", "closer"] as const).map((group) => {
+                const groupMetrics = group === "setter" ? SETTER_METRICS : CLOSER_METRICS;
+                return (
+                  <TabsContent key={group} value={group}>
+                    <div className="rounded-lg border border-border bg-card overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Metric</TableHead>
+                            <TableHead className="text-right">Team Daily</TableHead>
+                            <TableHead className="text-right">Team Weekly</TableHead>
+                            <TableHead className="text-right">How</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {groupMetrics.map((metricKey) => {
+                            const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
+                            const teamDailyTarget = derived.teamDaily.find((t) => t.metric_key === metricKey);
+                            const teamWeeklyTarget = derived.teamWeekly.find((t) => t.metric_key === metricKey);
 
-                    return (
-                      <TableRow key={metricKey}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
-                              {def.label}
-                              {def.isDerived && (
-                                <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 align-middle">auto</Badge>
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{def.description}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {teamDailyTarget ? formatTargetMetricValue(metricKey, teamDailyTarget.target_value) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {teamWeeklyTarget ? formatTargetMetricValue(metricKey, teamWeeklyTarget.target_value) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="secondary" className="text-xs">
-                            {def.isDerived ? "derived" : def.isRate ? "avg" : "sum"}
-                            {!def.isRate ? ` × ${WEEKLY_MULTIPLIER}` : ""}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                            if (!teamDailyTarget && !teamWeeklyTarget) return null;
+
+                            return (
+                              <TableRow key={metricKey}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">
+                                      {def.label}
+                                      {def.isDerived && <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 align-middle">auto</Badge>}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{def.description}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {teamDailyTarget ? formatTargetMetricValue(metricKey, teamDailyTarget.target_value) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {teamWeeklyTarget ? formatTargetMetricValue(metricKey, teamWeeklyTarget.target_value) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {def.isDerived ? "derived" : def.isRate ? "avg" : "sum"}
+                                    {!def.isRate ? ` × ${WEEKLY_MULTIPLIER}` : ""}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           </div>
         )}
       </div>

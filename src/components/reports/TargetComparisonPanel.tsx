@@ -30,7 +30,6 @@ export function TargetComparisonPanel({
 }: TargetComparisonPanelProps) {
   const { data: targets = [], isLoading } = usePerformanceTargets();
   const periodType = getTargetPeriodForDateRange(dateFrom, dateTo);
-
   const derived = useMemo(() => deriveAllTargets(targets), [targets]);
 
   const individualTargets = useMemo(
@@ -56,6 +55,9 @@ export function TargetComparisonPanel({
     );
   }
 
+  const repActuals = getPerformanceActualMetrics(metrics);
+  const teamActuals = getPerformanceActualMetrics(teamMetrics);
+
   return (
     <ReportSection
       title="Target Comparison"
@@ -65,22 +67,39 @@ export function TargetComparisonPanel({
         {activeRepId ? (
           <>
             <TargetSection
-              title={`${selectedRepLabel} Targets`}
-              description="Individual goal progress for the selected rep in this report range."
-              items={buildTargetProgressItems(individualTargets, getPerformanceActualMetrics(metrics))}
+              title={`${selectedRepLabel} — Setter Targets`}
+              description="Setter goal progress for the selected rep."
+              items={buildTargetProgressItems(individualTargets, repActuals, "setter")}
             />
             <TargetSection
-              title="Team Context"
-              description="Auto-calculated team goals (sum of all reps, rates averaged)."
-              items={buildTargetProgressItems(teamTargets, getPerformanceActualMetrics(teamMetrics))}
+              title={`${selectedRepLabel} — Closer Targets`}
+              description="Closer goal progress for the selected rep."
+              items={buildTargetProgressItems(individualTargets, repActuals, "closer")}
+            />
+            <TargetSection
+              title="Team Context — Setter"
+              description="Auto-calculated team setter goals."
+              items={buildTargetProgressItems(teamTargets, teamActuals, "setter")}
+            />
+            <TargetSection
+              title="Team Context — Closer"
+              description="Auto-calculated team closer goals."
+              items={buildTargetProgressItems(teamTargets, teamActuals, "closer")}
             />
           </>
         ) : (
-          <TargetSection
-            title="Team Targets"
-            description="Auto-calculated from all individual targets (sum for counts, average for rates)."
-            items={buildTargetProgressItems(teamTargets, getPerformanceActualMetrics(teamMetrics))}
-          />
+          <>
+            <TargetSection
+              title="Team Targets — Setter"
+              description="Auto-calculated from all individual setter targets."
+              items={buildTargetProgressItems(teamTargets, teamActuals, "setter")}
+            />
+            <TargetSection
+              title="Team Targets — Closer"
+              description="Auto-calculated from all individual closer targets."
+              items={buildTargetProgressItems(teamTargets, teamActuals, "closer")}
+            />
+          </>
         )}
       </div>
     </ReportSection>
