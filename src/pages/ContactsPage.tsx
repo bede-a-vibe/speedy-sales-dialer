@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
+import { useAllContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,12 @@ const AUSTRALIAN_STATE_ALIASES: Record<string, string[]> = {
   NT: ["nt", "northern territory"],
 };
 
+const NOTE_SOURCE_LABELS = {
+  manual: "Manual note",
+  dialpad_summary: "Dialpad summary",
+  dialpad_transcript: "Dialpad transcript",
+} as const;
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
@@ -50,6 +57,7 @@ export default function ContactsPage() {
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const { data: callLogs = [] } = useCallLogs();
+  const { data: contactNotes = [] } = useAllContactNotes();
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const queryClient = useQueryClient();
@@ -71,6 +79,9 @@ export default function ContactsPage() {
 
   const getContactLogs = (contactId: string) =>
     callLogs.filter((l: any) => l.contact_id === contactId);
+
+  const getContactNotes = (contactId: string) =>
+    contactNotes.filter((note) => note.contact_id === contactId);
 
   const openEdit = (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -139,7 +150,6 @@ export default function ContactsPage() {
   return (
     <AppLayout title="Contacts">
       <div className="max-w-6xl mx-auto space-y-4">
-        {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -192,7 +202,6 @@ export default function ContactsPage() {
           </div>
         </div>
 
-        {/* Table */}
         {isLoading ? (
           <div className="text-center py-20 text-sm text-muted-foreground animate-pulse">Loading...</div>
         ) : filtered.length === 0 ? (
@@ -213,7 +222,9 @@ export default function ContactsPage() {
               <tbody>
                 {filtered.slice(0, 200).map((contact) => {
                   const logs = getContactLogs(contact.id);
+                  const notesForContact = getContactNotes(contact.id);
                   const isExpanded = expandedId === contact.id;
+
                   return (
                     <React.Fragment key={contact.id}>
                       <tr
@@ -266,16 +277,14 @@ export default function ContactsPage() {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
-                            {logs.length > 0 && (
-                              isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
+                            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                           </div>
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr>
                           <td colSpan={6} className="bg-muted/20 px-4 py-3">
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                               <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                                 {contact.email && (
                                   <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -302,19 +311,47 @@ export default function ContactsPage() {
                                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
                                     Call History ({logs.length})
                                   </p>
-                                  <div className="space-y-1">
+                                  <div className="space-y-2">
                                     {logs.map((log: any) => {
                                       const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
+                                      const hasSyncedSummary = Boolean(log.dialpad_summary);
+                                      const hasSyncedTranscript = Boolean(log.dialpad_transcript);
+                                      const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
+
                                       return (
-                                        <div key={log.id} className="flex items-center gap-3 text-xs bg-card border border-border rounded px-3 py-2">
-                                          <div className={`w-2 h-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
-                                          <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
+                                        <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
+                                          <div className="flex items-center gap-3 text-xs">
+                                            <div className={`w-2 h-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                                            <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
+                                            {syncPending && (
+                                              <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                                                Sync pending
+                                              </span>
+                                            )}
+                                            {hasSyncedSummary && (
+                                              <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
+                                                Summary
+                                              </span>
+                                            )}
+                                            {hasSyncedTranscript && (
+                                              <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">
+                                                Transcript
+                                              </span>
+                                            )}
+                                            <span className="font-mono text-muted-foreground ml-auto shrink-0">
+                                              {format(new Date(log.created_at), "MMM d, h:mm a")}
+                                            </span>
+                                          </div>
+
                                           {log.notes && (
-                                            <span className="text-muted-foreground italic truncate flex-1">"{log.notes}"</span>
+                                            <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>
                                           )}
-                                          <span className="font-mono text-muted-foreground ml-auto shrink-0">
-                                            {format(new Date(log.created_at), "MMM d, h:mm a")}
-                                          </span>
+
+                                          {hasSyncedSummary && (
+                                            <div className="rounded-md bg-background px-3 py-2 text-xs text-foreground whitespace-pre-wrap">
+                                              {log.dialpad_summary}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -323,6 +360,33 @@ export default function ContactsPage() {
                               ) : (
                                 <p className="text-xs text-muted-foreground">No call history.</p>
                               )}
+
+                              <div>
+                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+                                  Contact Notes ({notesForContact.length})
+                                </p>
+                                {notesForContact.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {notesForContact.map((note) => (
+                                      <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
+                                        <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                          <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">
+                                            {NOTE_SOURCE_LABELS[note.source]}
+                                          </span>
+                                          <span className="font-mono">
+                                            {format(new Date(note.created_at), "MMM d, h:mm a")}
+                                          </span>
+                                        </div>
+                                        <p className="whitespace-pre-wrap break-words text-sm text-foreground">
+                                          {note.content}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">No contact notes yet.</p>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -335,7 +399,6 @@ export default function ContactsPage() {
           </div>
         )}
 
-        {/* Edit Dialog */}
         <Dialog open={!!editContact} onOpenChange={(open) => !open && setEditContact(null)}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
