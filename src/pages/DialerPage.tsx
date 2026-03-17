@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import { DailyTarget } from "@/components/DailyTarget";
 import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
-import { useDialerContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
