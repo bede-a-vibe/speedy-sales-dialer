@@ -763,6 +763,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             phone_number: normalizedPhone,
+            ...(params.caller_id ? { caller_id: params.caller_id } : {}),
             custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
           }),
         });
