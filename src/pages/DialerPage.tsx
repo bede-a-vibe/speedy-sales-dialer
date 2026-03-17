@@ -431,11 +431,12 @@ export default function DialerPage() {
   ];
 
   useEffect(() => {
-    if (isDialing && currentIndex !== null && visibleUncalledContacts.length === 0) {
+    if (!isDialing || currentIndex === null) return;
+
+    if (visibleUncalledContacts.length === 0) {
       stopSession();
-    } else if (isDialing && currentIndex !== null && currentIndex >= visibleUncalledContacts.length) {
-      setCurrentIndex(visibleUncalledContacts.length > 0 ? visibleUncalledContacts.length - 1 : null);
-      if (visibleUncalledContacts.length === 0) stopSession();
+    } else if (currentIndex >= visibleUncalledContacts.length) {
+      setCurrentIndex(visibleUncalledContacts.length - 1);
     }
   }, [visibleUncalledContacts.length, isDialing, currentIndex, stopSession]);
 
