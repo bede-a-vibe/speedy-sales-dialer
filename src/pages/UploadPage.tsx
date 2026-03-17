@@ -41,7 +41,7 @@ export default function UploadPage() {
         return;
       }
 
-      const { contacts, headers, missingRequired } = prepareContactImport(rows, user.id);
+      const { contacts, contactNotes, headers, missingRequired } = prepareContactImport(rows, user.id);
 
       if (missingRequired.length > 0) {
         toast.error(`Missing required columns: ${missingRequired.join(", ")}`);
@@ -57,8 +57,11 @@ export default function UploadPage() {
         return;
       }
 
+      const notesByContactId = new Map(contactNotes.map((note) => [note.contact_id, note]));
       let success = 0;
       let errors = 0;
+      let metadataNotes = 0;
+      let metadataNoteSaveFailed = false;
       const chunkSize = 100;
 
       for (let i = 0; i < contacts.length; i += chunkSize) {
@@ -68,15 +71,40 @@ export default function UploadPage() {
         if (error) {
           errors += chunk.length;
           console.error("Insert error:", error);
-        } else {
-          success += chunk.length;
+          continue;
         }
+
+        success += chunk.length;
+
+        const chunkNotes = chunk
+          .map((contact) => contact.id)
+          .flatMap((contactId) => {
+            const note = contactId ? notesByContactId.get(contactId) : undefined;
+            return note ? [note] : [];
+          });
+
+        if (chunkNotes.length === 0) {
+          continue;
+        }
+
+        const { error: notesError } = await supabase.from("contact_notes").insert(chunkNotes);
+
+        if (notesError) {
+          metadataNoteSaveFailed = true;
+          console.error("Contact note insert error:", notesError);
+          continue;
+        }
+
+        metadataNotes += chunkNotes.length;
       }
 
-      setResult({ success, errors, total: rows.length });
+      setResult({ success, errors, total: rows.length, metadataNotes });
 
       if (success > 0) {
         toast.success(`${success} contacts imported successfully!`);
+      }
+      if (metadataNoteSaveFailed) {
+        toast.error("Contacts imported, but some builder metadata notes could not be saved.");
       }
       if (errors > 0) {
         toast.error(`${errors} contacts failed to import.`);
