@@ -950,6 +950,7 @@ export default function DialerPage() {
                     <OutcomeButton
                       key={outcome}
                       outcome={outcome}
+                      label={outcome === "booked" ? "Book" : undefined}
                       selected={selectedOutcome === outcome}
                       onClick={setSelectedOutcome}
                     />
