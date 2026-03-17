@@ -268,6 +268,7 @@ export default function DialerPage() {
     setFollowUpDate(undefined);
     setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(assignedUserId || "");
+    setIsBookedDateAutoDetected(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
