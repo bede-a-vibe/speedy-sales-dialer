@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "./pages/DashboardPage";
 import DialerPage from "./pages/DialerPage";
 import ContactsPage from "./pages/ContactsPage";
@@ -18,15 +20,34 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function FullPageLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-sm text-muted-foreground font-mono animate-pulse">Loading...</div>
+    </div>
+  );
+}
+
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { loading: authLoading } = useAuth();
+  const { isAdmin, isLoading } = useAdminAccess();
+
+  if (authLoading || isLoading) {
+    return <FullPageLoading />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-sm text-muted-foreground font-mono animate-pulse">Loading...</div>
-      </div>
-    );
+    return <FullPageLoading />;
   }
 
   if (!user) return <Navigate to="/auth" replace />;
@@ -40,7 +61,14 @@ function ProtectedRoutes() {
       <Route path="/follow-ups" element={<FollowUpsPage />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
-      <Route path="/dialpad-settings" element={<DialpadSettingsPage />} />
+      <Route
+        path="/dialpad-settings"
+        element={(
+          <AdminRoute>
+            <DialpadSettingsPage />
+          </AdminRoute>
+        )}
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -8,7 +8,7 @@ export function useUserRole() {
   return useQuery({
     queryKey: ["user-role", user?.id],
     queryFn: async () => {
-      if (!user) return null;
+      if (!user) return [] as string[];
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -20,7 +20,17 @@ export function useUserRole() {
   });
 }
 
+export function useAdminAccess() {
+  const roleQuery = useUserRole();
+  const roles = roleQuery.data ?? [];
+
+  return {
+    ...roleQuery,
+    roles,
+    isAdmin: roles.includes("admin"),
+  };
+}
+
 export function useIsAdmin() {
-  const { data: roles = [] } = useUserRole();
-  return roles.includes("admin");
+  return useAdminAccess().isAdmin;
 }
