@@ -281,6 +281,7 @@ export default function DialerPage() {
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
   }, []);
