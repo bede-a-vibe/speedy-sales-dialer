@@ -326,7 +326,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   }, [cleanupSessionLocks]);
 
   const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
-    if (!sessionRef.current) return 0;
+    if (!sessionRef.current || startingRef.current) return 0;
 
     if (claimInFlightRef.current) {
       return claimInFlightRef.current;
