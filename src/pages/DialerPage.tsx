@@ -796,7 +796,7 @@ export default function DialerPage() {
               <Phone className="h-8 w-8 text-primary" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-foreground">
-              {uncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
+               {visibleUncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
                {visibleUncalledContacts.length === 0 && !isLoading
