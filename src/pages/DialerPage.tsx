@@ -1,35 +1,39 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, PhoneOff, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Loader2, Phone, PhoneCall, SkipForward, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
-import { OutcomeButton } from "@/components/OutcomeButton";
 import { DailyTarget } from "@/components/DailyTarget";
-import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
-import { useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
-import { useCreateCallLog } from "@/hooks/useCallLogs";
-import { useAuth } from "@/hooks/useAuth";
-import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
-import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
-import { useContactNotes } from "@/hooks/useContactNotes";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { OutcomeButton } from "@/components/OutcomeButton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCreateCallLog, prefetchContactCallLogs } from "@/hooks/useCallLogs";
+import { useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
+import { useAuth } from "@/hooks/useAuth";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
+import { prefetchContactNotes } from "@/hooks/useContactNotes";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
+import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import { toast } from "sonner";
 
 const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
-interface SessionStats {
-  calls: number;
-  outcomes: Partial<Record<CallOutcome, number>>;
-}
+const loadDialpadSyncPanel = () => import("@/components/dialer/DialpadSyncPanel");
+const loadContactNotesPanel = () => import("@/components/dialer/ContactNotesPanel");
+const loadSessionSummaryDialog = () => import("@/components/dialer/SessionSummaryDialog");
+
+const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
+const ContactNotesPanel = lazy(loadContactNotesPanel);
+const SessionSummaryDialog = lazy(loadSessionSummaryDialog);
 
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -42,7 +46,19 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
 }
 
+function PanelSkeleton({ height = "h-40" }: { height?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className={cn("w-full", height)} />
+      </div>
+    </div>
+  );
+}
+
 export default function DialerPage() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [industry, setIndustry] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
@@ -64,7 +80,7 @@ export default function DialerPage() {
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
-  const [notesFetchEnabled, setNotesFetchEnabled] = useState(false);
+  const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
@@ -96,26 +112,9 @@ export default function DialerPage() {
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
     ? visibleUncalledContacts[currentIndex]
     : null;
-
-  useEffect(() => {
-    setNotesFetchEnabled(false);
-
-    if (!currentContact?.id) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setNotesFetchEnabled(true);
-    }, 350);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [currentContact?.id]);
-
-  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id, {
-    enabled: notesFetchEnabled,
-    refetchInterval: notesFetchEnabled ? 15000 : false,
-  });
-  const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
-  const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
-  const stateOptions = AUSTRALIAN_STATE_OPTIONS;
+  const nextContact = currentIndex !== null && currentIndex + 1 < visibleUncalledContacts.length
+    ? visibleUncalledContacts[currentIndex + 1]
+    : null;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
   const isCallTerminal = !activeDialpadCallId || activeDialpadCallState === "hangup";
@@ -150,25 +149,66 @@ export default function DialerPage() {
     }
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
+  useEffect(() => {
+    setNotesPanelEnabled(false);
+
+    if (!currentContact?.id) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotesPanelEnabled(true);
+    }, 150);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentContact?.id]);
+
+  useEffect(() => {
+    if (!currentContact?.id) return;
+
+    void prefetchContactNotes(queryClient, currentContact.id);
+    void prefetchContactCallLogs(queryClient, currentContact.id);
+  }, [currentContact?.id, queryClient]);
+
+  useEffect(() => {
+    if (!isDialing) return;
+
+    void loadDialpadSyncPanel();
+    void loadContactNotesPanel();
+    void loadSessionSummaryDialog();
+  }, [isDialing]);
+
+  useEffect(() => {
+    if (!isDialing || !nextContact?.id) return;
+
+    void prefetchContactNotes(queryClient, nextContact.id);
+    void prefetchContactCallLogs(queryClient, nextContact.id);
+    void ensureBuffer();
+  }, [ensureBuffer, isDialing, nextContact?.id, queryClient]);
+
+  const resetLeadState = useCallback((assignedUserId?: string) => {
+    setSelectedOutcome(null);
+    setNotes("");
+    setFollowUpDate(undefined);
+    setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
+    setAssignedRepId(assignedUserId || "");
+    setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
+    setPendingAutoOutcome(null);
+    leadAdvanceInFlightRef.current = false;
+    activeDialRequestRef.current = null;
+  }, []);
+
   const startDialing = useCallback(async () => {
     if (queueLeadCount === 0 || !hasDialpadAssignment) return;
 
     setCurrentIndex(0);
     setIsDialing(true);
-    setSelectedOutcome(null);
-    setNotes("");
-    setFollowUpDate(undefined);
-    setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
-    setAssignedRepId(user?.id || "");
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
-    setActiveDialpadCallId(null);
-    setActiveDialpadCallState(null);
-    setDialpadPollingBackoffUntil(null);
-    setIsEndingCall(false);
-    leadAdvanceInFlightRef.current = false;
+    resetLeadState(user?.id || "");
 
     const claimedCount = await startQueueSession();
     if (claimedCount <= 0) {
@@ -178,8 +218,11 @@ export default function DialerPage() {
       return;
     }
 
+    void loadDialpadSyncPanel();
+    void loadContactNotesPanel();
+    void loadSessionSummaryDialog();
     void ensureBuffer();
-  }, [hasDialpadAssignment, queueLeadCount, startQueueSession, user?.id]);
+  }, [ensureBuffer, hasDialpadAssignment, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -187,14 +230,9 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
-    setActiveDialpadCallId(null);
-    setActiveDialpadCallState(null);
-    setDialpadPollingBackoffUntil(null);
-    setIsEndingCall(false);
-    leadAdvanceInFlightRef.current = false;
-    activeDialRequestRef.current = null;
+    resetLeadState(user?.id || "");
     void stopQueueSession();
-  }, [callCount, stopQueueSession]);
+  }, [callCount, resetLeadState, stopQueueSession, user?.id]);
 
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
@@ -202,17 +240,7 @@ export default function DialerPage() {
     const nextLength = visibleUncalledContacts.length - 1;
     void discardContact(currentContact.id);
     setSkippedCount((prev) => prev + 1);
-    setSelectedOutcome(null);
-    setNotes("");
-    setFollowUpDate(undefined);
-    setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
-    setAssignedRepId(user?.id || "");
-    setActiveDialpadCallId(null);
-    setActiveDialpadCallState(null);
-    setDialpadPollingBackoffUntil(null);
-    setIsEndingCall(false);
-    leadAdvanceInFlightRef.current = false;
-    activeDialRequestRef.current = null;
+    resetLeadState(user?.id || "");
     void ensureBuffer();
 
     if (nextLength <= 0) {
@@ -224,7 +252,7 @@ export default function DialerPage() {
     if (currentIndex >= nextLength) {
       setCurrentIndex(nextLength - 1);
     }
-  }, [currentContact, currentIndex, discardContact, ensureBuffer, stopSession, user?.id, visibleUncalledContacts.length]);
+  }, [currentContact, currentIndex, discardContact, ensureBuffer, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
@@ -262,6 +290,16 @@ export default function DialerPage() {
         dialpad_call_id: activeDialpadCallId,
       });
 
+      const nextLength = visibleUncalledContacts.length - 1;
+      void discardContact(currentContact.id, { releaseLock: true });
+      if (nextLength <= 0) {
+        setCurrentIndex(null);
+      } else if (currentIndex !== null && currentIndex >= nextLength) {
+        setCurrentIndex(nextLength - 1);
+      }
+      resetLeadState(user.id);
+      void ensureBuffer();
+
       await Promise.all([
         activeDialpadCallId
           ? linkDialpadCallLog.mutateAsync({
@@ -293,41 +331,25 @@ export default function DialerPage() {
         ...prev,
         [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
-      void discardContact(currentContact.id, { releaseLock: true });
-      void ensureBuffer();
 
-      toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
-      activeDialRequestRef.current = null;
-      setActiveDialpadCallId(null);
-      setActiveDialpadCallState(null);
-      setDialpadPollingBackoffUntil(null);
-      setIsEndingCall(false);
-      setPendingAutoOutcome(null);
-      setSelectedOutcome(null);
-      setNotes("");
-      setFollowUpDate(undefined);
-      setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
-      setAssignedRepId(user.id);
+      toast.success(`Logged: ${outcomeToLog.replace(/_/g, " ")}`);
 
-      const nextLength = visibleUncalledContacts.length - 1;
       if (nextLength <= 0) {
         stopSession();
-      } else if (currentIndex !== null && currentIndex >= nextLength) {
-        setCurrentIndex(nextLength - 1);
       }
-
-      leadAdvanceInFlightRef.current = false;
     } catch {
       leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
     }
   }, [
-    currentIndex,
     activeDialpadCallId,
     assignedRepId,
     createCallLog,
     createPipelineItem,
     currentContact,
+    currentIndex,
+    discardContact,
+    ensureBuffer,
     followUpDate,
     followUpTime,
     linkDialpadCallLog,
@@ -337,6 +359,7 @@ export default function DialerPage() {
     updateContact,
     user,
     visibleUncalledContacts.length,
+    resetLeadState,
   ]);
 
   const cancelActiveCall = useCallback(async () => {
@@ -383,7 +406,7 @@ export default function DialerPage() {
       }
       if (e.key === "Enter" && canSubmit) {
         e.preventDefault();
-        logAndNext();
+        void logAndNext();
       }
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
@@ -514,50 +537,15 @@ export default function DialerPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <DailyTarget />
 
-        <Dialog open={showSummary} onOpenChange={setShowSummary}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Session Summary
-              </DialogTitle>
-              <DialogDescription>
-                Review this calling session before closing the summary.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
-                  <p className="font-mono text-2xl font-bold text-foreground">{callCount}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Calls</p>
-                </div>
-                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
-                  <p className="font-mono text-2xl font-bold text-foreground">{sessionOutcomes.booked || 0}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked</p>
-                </div>
-                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
-                  <p className="font-mono text-2xl font-bold text-foreground">{skippedCount}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Skipped</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {(Object.entries(sessionOutcomes) as [CallOutcome, number][]).map(([outcome, count]) => {
-                  const config = OUTCOME_CONFIG[outcome];
-                  return (
-                    <div key={outcome} className="flex items-center gap-3 text-sm">
-                      <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
-                      <span className="flex-1 text-foreground">{config?.label || outcome}</span>
-                      <span className="font-mono text-muted-foreground">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <Button onClick={() => setShowSummary(false)} className="w-full">
-                Close
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Suspense fallback={<Dialog open={showSummary}><DialogContent className="sm:max-w-md"><PanelSkeleton height="h-56" /></DialogContent></Dialog>}>
+          <SessionSummaryDialog
+            open={showSummary}
+            onOpenChange={setShowSummary}
+            callCount={callCount}
+            skippedCount={skippedCount}
+            sessionOutcomes={sessionOutcomes}
+          />
+        </Suspense>
 
         <div className="flex flex-wrap items-center gap-4">
           <Select value={industry} onValueChange={setIndustry} disabled={isDialing}>
@@ -578,7 +566,7 @@ export default function DialerPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All States</SelectItem>
-              {stateOptions.map((state) => (
+              {AUSTRALIAN_STATE_OPTIONS.map((state) => (
                 <SelectItem key={state} value={state}>{state}</SelectItem>
               ))}
             </SelectContent>
@@ -605,7 +593,7 @@ export default function DialerPage() {
             )}
             {isDialing && (
               <span className="text-xs font-mono text-primary">
-                {callCount} calls · {skippedCount} skipped
+                {callCount} calls · {skippedCount} skipped{isPrefetching ? " · loading next leads" : ""}
               </span>
             )}
           </div>
@@ -707,67 +695,27 @@ export default function DialerPage() {
             <div className="space-y-4 lg:col-span-3">
               <ContactCard contact={currentContact} />
 
-              <div className="rounded-lg border border-border bg-card p-4">
-                <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Dialpad Sync
-                </label>
-                <div className="space-y-3 text-sm">
-                  {activeDialpadCallId ? (
-                    <div className="space-y-3">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-                        Call linked · transcript and AI summary will sync after Dialpad finishes processing.
-                        {activeDialpadCallState ? ` Current state: ${activeDialpadCallState}.` : ""}
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={cancelActiveCall}
-                        disabled={cancelDialpadCall.isPending || isDialpadCallStatusPending || isEndingCall || activeDialpadCallState === "hangup"}
-                        className="w-full border-destructive text-destructive hover:bg-destructive/10"
-                      >
-                        {cancelDialpadCall.isPending || isDialpadCallStatusPending || isEndingCall ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <PhoneOff className="mr-2 h-4 w-4" />
-                        )}
-                        {activeDialpadCallState === "hangup"
-                          ? "Call Already Ended"
-                          : isEndingCall
-                            ? "Ending Call..."
-                            : "Cancel Active Call"}
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      Waiting for a tracked Dialpad call to reach a loggable state.
-                    </p>
-                  )}
-
-                  {latestDialpadSummary && (
-                    <div className="rounded-md border border-border bg-background px-3 py-3">
-                      <p className="mb-2 text-[10px] uppercase tracking-widest text-primary">Latest synced summary</p>
-                      <p className="whitespace-pre-wrap text-sm text-foreground">{latestDialpadSummary.content}</p>
-                    </div>
-                  )}
-
-                  {latestDialpadTranscript && (
-                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-                      Transcript synced · {format(new Date(latestDialpadTranscript.created_at), "MMM d, h:mm a")}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border bg-card p-4">
-                <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Call Notes
-                </label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Type notes during or after the call..."
-                  className="min-h-[100px] resize-none border-border bg-background font-mono text-sm"
+              <Suspense fallback={<PanelSkeleton height="h-36" />}>
+                <DialpadSyncPanel
+                  contactId={currentContact.id}
+                  activeDialpadCallId={activeDialpadCallId}
+                  activeDialpadCallState={activeDialpadCallState}
+                  onCancelCall={cancelActiveCall}
+                  isCancelling={cancelDialpadCall.isPending}
+                  isStatusPending={isDialpadCallStatusPending}
+                  isEndingCall={isEndingCall}
+                  enabled
                 />
-              </div>
+              </Suspense>
+
+              <Suspense fallback={<PanelSkeleton height="h-[320px]" />}>
+                <ContactNotesPanel
+                  contactId={currentContact.id}
+                  notes={notes}
+                  onNotesChange={setNotes}
+                  enabled={notesPanelEnabled}
+                />
+              </Suspense>
             </div>
 
             <div className="space-y-4 lg:col-span-2">
@@ -839,7 +787,7 @@ export default function DialerPage() {
                           onSelect={setFollowUpDate}
                           disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                           initialFocus
-                          className="p-3 pointer-events-auto"
+                          className="pointer-events-auto p-3"
                         />
                       </PopoverContent>
                     </Popover>
@@ -893,13 +841,13 @@ export default function DialerPage() {
               <Phone className="h-8 w-8 text-primary" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-foreground">
-               {visibleUncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
+              {visibleUncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
-               {visibleUncalledContacts.length === 0 && !isLoading
-                 ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
-                 : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
-               }
+              {visibleUncalledContacts.length === 0 && !isLoading
+                ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
+                : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
+              }
             </p>
           </div>
         )}

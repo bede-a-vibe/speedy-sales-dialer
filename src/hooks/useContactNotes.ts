@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -19,23 +19,38 @@ type UseContactNotesOptions = {
   refetchInterval?: number | false;
 };
 
+export const getContactNotesQueryKey = (contactId?: string) => ["contact-notes", contactId] as const;
+export const getPaginatedContactNotesQueryKey = (contactId?: string, pageSize = CONTACT_NOTES_PAGE_SIZE) => ["contact-notes-paginated", contactId, pageSize] as const;
+
+export async function fetchContactNotes(contactId?: string) {
+  if (!contactId) return [] as ContactNote[];
+
+  const { data, error } = await supabase
+    .from("contact_notes")
+    .select("*")
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as ContactNote[];
+}
+
+export async function prefetchContactNotes(queryClient: QueryClient, contactId?: string) {
+  if (!contactId) return;
+
+  await queryClient.prefetchQuery({
+    queryKey: getContactNotesQueryKey(contactId),
+    queryFn: () => fetchContactNotes(contactId),
+    staleTime: 15_000,
+  });
+}
+
 export function useContactNotes(contactId?: string, options: UseContactNotesOptions = {}) {
   const isEnabled = Boolean(contactId) && (options.enabled ?? true);
 
   return useQuery({
-    queryKey: ["contact-notes", contactId],
-    queryFn: async () => {
-      if (!contactId) return [] as ContactNote[];
-
-      const { data, error } = await supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return (data ?? []) as ContactNote[];
-    },
+    queryKey: getContactNotesQueryKey(contactId),
+    queryFn: () => fetchContactNotes(contactId),
     enabled: isEnabled,
     refetchInterval: isEnabled ? options.refetchInterval ?? SYNC_REFRESH_INTERVAL_MS : false,
   });
@@ -43,7 +58,7 @@ export function useContactNotes(contactId?: string, options: UseContactNotesOpti
 
 export function usePaginatedContactNotes(contactId?: string, pageSize = CONTACT_NOTES_PAGE_SIZE) {
   return useInfiniteQuery({
-    queryKey: ["contact-notes-paginated", contactId, pageSize],
+    queryKey: getPaginatedContactNotesQueryKey(contactId, pageSize),
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (!contactId) {
