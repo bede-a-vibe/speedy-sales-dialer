@@ -78,6 +78,17 @@ function clearActiveDialRequestLock(requestKey: string | null) {
   window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
 }
 
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
 function PanelSkeleton({ height = "h-40" }: { height?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -116,6 +127,10 @@ export default function DialerPage() {
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
+  const [sessionTick, setSessionTick] = useState(() => Date.now());
+  const [sessionPhaseStartedAt, setSessionPhaseStartedAt] = useState<number | null>(null);
+  const [accumulatedDialingMs, setAccumulatedDialingMs] = useState(0);
+  const [accumulatedPausedMs, setAccumulatedPausedMs] = useState(0);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
@@ -159,6 +174,10 @@ export default function DialerPage() {
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
   const requiresBookedSchedule = selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
+  const liveDialingMs = isDialing && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
+  const livePausedMs = isSessionPaused && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
+  const totalDialingMs = accumulatedDialingMs + liveDialingMs;
+  const totalPausedMs = accumulatedPausedMs + livePausedMs;
   const canSubmit = !!selectedOutcome
     && isCallTerminal
     && (!requiresPipelineAssignment || !!assignedRepId)
@@ -221,6 +240,17 @@ export default function DialerPage() {
     void ensureBuffer();
   }, [ensureBuffer, isSessionActive, nextContact?.id, queryClient]);
 
+  useEffect(() => {
+    if (!isSessionActive) return;
+
+    setSessionTick(Date.now());
+    const intervalId = window.setInterval(() => {
+      setSessionTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isSessionActive]);
+
   const resetLeadState = useCallback((assignedUserId?: string) => {
     clearActiveDialRequestLock(activeDialRequestRef.current);
     setSelectedOutcome(null);
@@ -237,18 +267,27 @@ export default function DialerPage() {
     activeDialRequestRef.current = null;
   }, []);
 
+  const resetSessionTimers = useCallback(() => {
+    setSessionTick(Date.now());
+    setSessionPhaseStartedAt(null);
+    setAccumulatedDialingMs(0);
+    setAccumulatedPausedMs(0);
+  }, []);
+
   useEffect(() => {
     if (isStartingSession || sessionId) return;
 
     setCurrentIndex(null);
     setIsSessionPaused(false);
     resetLeadState(user?.id || "");
+    resetSessionTimers();
     void stopQueueSession();
-  }, [industry, isStartingSession, resetLeadState, sessionId, stateFilter, stopQueueSession, user?.id]);
+  }, [industry, isStartingSession, resetLeadState, resetSessionTimers, sessionId, stateFilter, stopQueueSession, user?.id]);
 
   const startDialing = useCallback(async () => {
     if (!hasDialpadAssignment || isStartingSession) return;
 
+    const now = Date.now();
     setIsStartingSession(true);
     setIsBootstrappingSession(true);
     setIsSessionPaused(false);
@@ -256,6 +295,10 @@ export default function DialerPage() {
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
+    setSessionTick(now);
+    setSessionPhaseStartedAt(now);
+    setAccumulatedDialingMs(0);
+    setAccumulatedPausedMs(0);
     resetLeadState(user?.id || "");
 
     try {
@@ -264,6 +307,7 @@ export default function DialerPage() {
         setIsDialing(false);
         setCurrentIndex(null);
         setIsBootstrappingSession(false);
+        resetSessionTimers();
         await stopQueueSession();
         toast.info("No more leads in queue.");
         return;
@@ -279,28 +323,39 @@ export default function DialerPage() {
       setIsDialing(false);
       setCurrentIndex(null);
       setIsBootstrappingSession(false);
+      resetSessionTimers();
       await stopQueueSession();
       const message = error instanceof Error ? error.message : "Unable to start dialing session.";
       toast.error(message);
     } finally {
       setIsStartingSession(false);
     }
-  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, stopQueueSession, user?.id]);
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, resetSessionTimers, startQueueSession, stopQueueSession, user?.id]);
 
   const pauseSession = useCallback(() => {
     if (!isDialing) return;
+
+    const now = Date.now();
+    setAccumulatedDialingMs((current) => current + (sessionPhaseStartedAt ? Math.max(0, now - sessionPhaseStartedAt) : 0));
+    setSessionTick(now);
+    setSessionPhaseStartedAt(now);
     setIsDialing(false);
     setIsSessionPaused(true);
     setPendingAutoOutcome(null);
     toast.info("Dialing paused. Resume when you're ready for the next call.");
-  }, [isDialing]);
+  }, [isDialing, sessionPhaseStartedAt]);
 
   const resumeSession = useCallback(() => {
     if (!isSessionPaused) return;
+
+    const now = Date.now();
+    setAccumulatedPausedMs((current) => current + (sessionPhaseStartedAt ? Math.max(0, now - sessionPhaseStartedAt) : 0));
+    setSessionTick(now);
+    setSessionPhaseStartedAt(now);
     setIsSessionPaused(false);
     setIsDialing(true);
     toast.success("Dialing resumed.");
-  }, [isSessionPaused]);
+  }, [isSessionPaused, sessionPhaseStartedAt]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -312,8 +367,9 @@ export default function DialerPage() {
     setIsSessionPaused(false);
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
+    resetSessionTimers();
     void stopQueueSession();
-  }, [callCount, resetLeadState, stopQueueSession, user?.id]);
+  }, [callCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
 
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
@@ -681,7 +737,7 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex flex-1 items-center gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : queueLeadCount} leads in queue
             </span>
@@ -701,9 +757,17 @@ export default function DialerPage() {
               </span>
             )}
             {isSessionActive && (
-              <span className="text-xs font-mono text-primary">
-                {callCount} calls · {skippedCount} skipped{isPrefetching ? " · loading next leads" : ""}{isSessionPaused ? " · paused" : ""}
-              </span>
+              <>
+                <span className="text-xs font-mono text-primary">
+                  {callCount} calls · {skippedCount} skipped{isPrefetching ? " · loading next leads" : ""}{isSessionPaused ? " · paused" : ""}
+                </span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  Active {formatDuration(totalDialingMs)}
+                </span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  Paused {formatDuration(totalPausedMs)}
+                </span>
+              </>
             )}
           </div>
 
