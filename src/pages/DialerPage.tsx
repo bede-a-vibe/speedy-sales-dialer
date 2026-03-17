@@ -78,9 +78,12 @@ export default function DialerPage() {
 
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
+  const requiresBookedSchedule = selectedOutcome === "booked";
+  const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
   const canSubmit = !!selectedOutcome
     && (!requiresPipelineAssignment || !!assignedRepId)
-    && (!requiresFollowUpSchedule || (!!followUpDate && !!followUpTime))
+    && (!requiresAnySchedule || !!followUpDate)
+    && (!requiresFollowUpSchedule || !!followUpTime)
     && !createCallLog.isPending
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
