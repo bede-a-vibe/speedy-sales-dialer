@@ -536,8 +536,23 @@ export default function DialerPage() {
                 </label>
                 <div className="space-y-3 text-sm">
                   {activeDialpadCallId ? (
-                    <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-                      Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                        Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={cancelActiveCall}
+                        disabled={cancelDialpadCall.isPending}
+                        className="w-full border-destructive text-destructive hover:bg-destructive/10"
+                      >
+                        {cancelDialpadCall.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <PhoneOff className="mr-2 h-4 w-4" />
+                        )}
+                        Cancel Active Call
+                      </Button>
                     </div>
                   ) : (
                     <p className="text-muted-foreground">
