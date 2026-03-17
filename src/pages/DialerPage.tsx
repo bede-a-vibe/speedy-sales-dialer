@@ -763,9 +763,43 @@ export default function DialerPage() {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
-        const is409 = message.includes("409") || message.toLowerCase().includes("already being created") || message.toLowerCase().includes("still active");
-        const is429 = message.includes("429") || message.toLowerCase().includes("rate_limit") || message.toLowerCase().includes("rate limit");
+        const normalized = message.toLowerCase();
+        const is409 = message.includes("409") || normalized.includes("already being created") || normalized.includes("still active");
+        const is429 = message.includes("429") || normalized.includes("rate_limit") || normalized.includes("rate limit");
+        const isAlreadyOnCall = normalized.includes("currently on a call");
         const isRetryable = is409 || is429;
+
+        // If user is already on a call, skip retry and go straight to resolution
+        if (isAlreadyOnCall) {
+          console.log("[Dialer] User already on a call — entering resolution mode");
+          setIsCallResolving(true);
+          setActiveDialpadCallState("connecting");
+          toast.info("Dialpad reports an active call — locating it...");
+
+          for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            try {
+              const retryResponse = await resolveDialpadCall.mutateAsync({
+                phone: currentContact.phone,
+                dialpad_user_id: myDialpadSettings!.dialpad_user_id,
+                contact_id: currentContact.id,
+              });
+              if (retryResponse.dialpad_call_id) {
+                setActiveDialpadCallId(retryResponse.dialpad_call_id);
+                setActiveDialpadCallState(retryResponse.state);
+                setIsCallResolving(false);
+                toast.success("Active call found and linked.");
+                return;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          setIsCallResolving(false);
+          toast.warning("Couldn't locate the active call. You can still log the outcome.");
+          return;
+        }
 
         if (isRetryable && retriesLeft > 0) {
           const delay = is429 ? 2500 : 1500;
