@@ -69,6 +69,7 @@ export default function DialerPage() {
   const [followUpTime, setFollowUpTime] = useState("09:00");
   const [assignedRepId, setAssignedRepId] = useState("");
   const [isDialing, setIsDialing] = useState(false);
+  const [isStartingSession, setIsStartingSession] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
   const [sessionOutcomes, setSessionOutcomes] = useState<Partial<Record<CallOutcome, number>>>({});
@@ -200,34 +201,40 @@ export default function DialerPage() {
   }, []);
 
   const startDialing = useCallback(async () => {
-    if (queueLeadCount === 0 || !hasDialpadAssignment) return;
+    if (queueLeadCount === 0 || !hasDialpadAssignment || isStartingSession) return;
 
-    setCurrentIndex(0);
-    setIsDialing(true);
+    setIsStartingSession(true);
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
     resetLeadState(user?.id || "");
 
-    const claimedCount = await startQueueSession();
-    if (claimedCount <= 0) {
-      setIsDialing(false);
-      setCurrentIndex(null);
-      toast.info("No more leads in queue.");
-      return;
-    }
+    try {
+      const claimedCount = await startQueueSession();
+      if (claimedCount <= 0) {
+        setIsDialing(false);
+        setCurrentIndex(null);
+        toast.info("No more leads in queue.");
+        return;
+      }
 
-    void loadDialpadSyncPanel();
-    void loadContactNotesPanel();
-    void loadSessionSummaryDialog();
-    void ensureBuffer();
-  }, [ensureBuffer, hasDialpadAssignment, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
+      setIsDialing(true);
+      setCurrentIndex(0);
+      void loadDialpadSyncPanel();
+      void loadContactNotesPanel();
+      void loadSessionSummaryDialog();
+      void ensureBuffer();
+    } finally {
+      setIsStartingSession(false);
+    }
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
       setShowSummary(true);
     }
+    setIsStartingSession(false);
     setIsDialing(false);
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
@@ -424,11 +431,12 @@ export default function DialerPage() {
   ];
 
   useEffect(() => {
-    if (isDialing && currentIndex !== null && visibleUncalledContacts.length === 0) {
+    if (!isDialing || currentIndex === null) return;
+
+    if (visibleUncalledContacts.length === 0) {
       stopSession();
-    } else if (isDialing && currentIndex !== null && currentIndex >= visibleUncalledContacts.length) {
-      setCurrentIndex(visibleUncalledContacts.length > 0 ? visibleUncalledContacts.length - 1 : null);
-      if (visibleUncalledContacts.length === 0) stopSession();
+    } else if (currentIndex >= visibleUncalledContacts.length) {
+      setCurrentIndex(visibleUncalledContacts.length - 1);
     }
   }, [visibleUncalledContacts.length, isDialing, currentIndex, stopSession]);
 
@@ -601,11 +609,15 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={queueLeadCount === 0 || isLoading || !hasDialpadAssignment}
+              disabled={queueLeadCount === 0 || isLoading || isStartingSession || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
-              <Phone className="mr-2 h-4 w-4" />
-              Start Dialing
+              {isStartingSession ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Phone className="mr-2 h-4 w-4" />
+              )}
+              {isStartingSession ? "Starting..." : "Start Dialing"}
             </Button>
           ) : (
             <Button
