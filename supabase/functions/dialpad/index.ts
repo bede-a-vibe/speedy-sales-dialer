@@ -797,7 +797,7 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: message }, 400);
         }
 
-        dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/initiate_call`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -805,7 +805,6 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             phone_number: normalizedPhone,
-            user_id: dialpadUserId,
           }),
         });
         break;
