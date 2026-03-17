@@ -825,7 +825,7 @@ export default function DialerPage() {
 
               <div className="space-y-2">
                 <Button
-                  onClick={logAndNext}
+                  onClick={() => void logAndNext()}
                   disabled={!canSubmit}
                   className="w-full py-3 font-semibold"
                 >
