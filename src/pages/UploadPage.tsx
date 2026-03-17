@@ -171,6 +171,7 @@ export default function UploadPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {result.success} of {result.total} contacts imported.
                 {result.errors > 0 && ` ${result.errors} failed.`}
+                {result.metadataNotes > 0 && ` ${result.metadataNotes} metadata notes added.`}
               </p>
               <Button
                 variant="outline"
