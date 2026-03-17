@@ -8,6 +8,7 @@ import { MetricBarList } from "@/components/reports/MetricBarList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
@@ -47,6 +48,14 @@ export default function ReportsPage() {
     reps.find((rep) => rep.user_id === activeRepId)?.display_name ||
     reps.find((rep) => rep.user_id === activeRepId)?.email ||
     "Selected rep";
+
+  const repNameMap = useMemo(
+    () =>
+      new Map(
+        reps.map((rep) => [rep.user_id, rep.display_name || rep.email || "Unnamed rep"]),
+      ),
+    [reps],
+  );
 
   const metrics = useMemo(
     () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo, repUserId: activeRepId }),
@@ -126,6 +135,7 @@ export default function ReportsPage() {
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
             <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
+            <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings-made" className="space-y-6">
@@ -220,6 +230,56 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </div>
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="rep-comparison" className="space-y-6">
+            <ReportSection
+              title="Rep Comparison"
+              description="One table comparing setter and closer outcomes side by side for every rep in the selected date range."
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
+                    <TableHead colSpan={4} className="text-center">Setter</TableHead>
+                    <TableHead colSpan={4} className="text-center">Closer</TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>Set</TableHead>
+                    <TableHead>Showed</TableHead>
+                    <TableHead>Show %</TableHead>
+                    <TableHead>Close %</TableHead>
+                    <TableHead>Assigned</TableHead>
+                    <TableHead>Showed</TableHead>
+                    <TableHead>Show %</TableHead>
+                    <TableHead>Close %</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {metrics.repComparison.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
+                        No rep comparison data in this date range.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    metrics.repComparison.map((row) => (
+                      <TableRow key={row.repUserId}>
+                        <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                        <TableCell className="font-mono text-muted-foreground">{row.setter.appointmentsScheduled}</TableCell>
+                        <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
+                        <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
+                        <TableCell className="font-mono text-foreground">{row.setter.closeRate}%</TableCell>
+                        <TableCell className="font-mono text-muted-foreground">{row.closer.appointmentsScheduled}</TableCell>
+                        <TableCell className="font-mono text-muted-foreground">{row.closer.showed}</TableCell>
+                        <TableCell className="font-mono text-foreground">{row.closer.showUpRate}%</TableCell>
+                        <TableCell className="font-mono text-foreground">{row.closer.closeRate}%</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </ReportSection>
           </TabsContent>
         </Tabs>
