@@ -47,6 +47,20 @@ function makeKey(businessName: string, phone: string) {
   return `${businessName.toLowerCase()}::${phone.replace(/\s+/g, "")}`;
 }
 
+function buildImportedMetadataNote(subtype: string | null, fullAddress: string | null, rating: string | null) {
+  const entries = [
+    ["Subtype", subtype],
+    ["Full address", fullAddress],
+    ["Rating", rating],
+  ].filter(([, value]) => value);
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return ["Imported builder metadata", ...entries.map(([label, value]) => `${label}: ${value}`)].join("\n");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
