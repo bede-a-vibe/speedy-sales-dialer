@@ -408,6 +408,77 @@ async function fetchDialpadAiRecap(callId: string, apiKey: string) {
   return bullets.length > 0 ? bullets.join("\n") : null;
 }
 
+async function fetchDialpadCallInfo(callId: string, apiKey: string) {
+  const response = await fetch(`${DIALPAD_BASE}/call/${callId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return await response.json();
+}
+
+function toDurationSeconds(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (value < 0) return 0;
+
+  return value > 100000 ? Math.round(value / 1000) : Math.round(value);
+}
+
+function extractDurationFromRecord(record: JsonRecord | null | undefined, candidates: string[]) {
+  if (!record) return null;
+
+  for (const key of candidates) {
+    const directValue = toDurationSeconds(record[key]);
+    if (directValue !== null) {
+      return directValue;
+    }
+  }
+
+  return null;
+}
+
+function extractDialpadDurations(payload: DialpadWebhookPayload, callInfo: unknown) {
+  const callInfoRecord = isRecord(callInfo) ? callInfo : null;
+  const talkTimeSeconds = extractDurationFromRecord(callInfoRecord, [
+    "talk_duration",
+    "talk_duration_seconds",
+    "talk_time",
+    "talk_time_seconds",
+    "connected_duration",
+    "connected_duration_seconds",
+    "duration_connected",
+    "duration_connected_seconds",
+  ]) ?? (
+    typeof payload.date_connected === "number" && typeof payload.date_ended === "number"
+      ? Math.max(0, Math.round((payload.date_ended - payload.date_connected) / 1000))
+      : null
+  );
+
+  const totalDurationSeconds = extractDurationFromRecord(callInfoRecord, [
+    "duration",
+    "duration_seconds",
+    "call_duration",
+    "call_duration_seconds",
+    "total_duration",
+    "total_duration_seconds",
+  ]) ?? (
+    typeof payload.date_started === "number" && typeof payload.date_ended === "number"
+      ? Math.max(0, Math.round((payload.date_ended - payload.date_started) / 1000))
+      : null
+  );
+
+  return {
+    talkTimeSeconds,
+    totalDurationSeconds,
+  };
+}
+
 async function upsertContactNote(adminClient: ReturnType<typeof createClient>, params: {
   contactId: string;
   createdBy: string;
