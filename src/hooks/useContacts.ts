@@ -250,6 +250,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     let latestTotalCount = mergedContacts.length;
 
     while (mergedContacts.length < desiredMinimum) {
+      console.log("[DialerQueue] Claiming leads: session=", activeSessionId, "industry=", industry, "state=", state, "claimSize=", DIALER_CLAIM_SIZE, "buffer=", mergedContacts.length, "/", desiredMinimum);
       const response = await claimDialerLeads({
         sessionId: activeSessionId,
         industry,
@@ -257,10 +258,12 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         claimSize: DIALER_CLAIM_SIZE,
       });
 
+      console.log("[DialerQueue] Claim response: total_available=", response.total_available_count, "claimed=", response.claimed_contacts?.length);
       latestTotalCount = Math.max(response.total_available_count ?? 0, mergedContacts.length);
       const newlyClaimed = (response.claimed_contacts ?? []).filter((contact) => !seenIds.has(contact.id));
 
       if (newlyClaimed.length === 0) {
+        console.warn("[DialerQueue] No new contacts claimed, breaking.");
         break;
       }
 
