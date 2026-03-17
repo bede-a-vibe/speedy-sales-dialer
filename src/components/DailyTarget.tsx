@@ -1,4 +1,4 @@
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { Target } from "lucide-react";
 
@@ -6,13 +6,7 @@ const DAILY_TARGET = 50;
 
 export function DailyTarget() {
   const { user } = useAuth();
-  const { data: callLogs = [] } = useCallLogs();
-
-  const today = new Date().toISOString().split("T")[0];
-  const todaysCalls = callLogs.filter((l: any) => {
-    if (user && l.user_id !== user.id) return false;
-    return l.created_at?.startsWith(today);
-  }).length;
+  const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
 
   const pct = Math.min(Math.round((todaysCalls / DAILY_TARGET) * 100), 100);
   const isComplete = todaysCalls >= DAILY_TARGET;

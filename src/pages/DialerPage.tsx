@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import { DailyTarget } from "@/components/DailyTarget";
 import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
-import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useDialerContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
 interface SessionStats {
   calls: number;
@@ -66,8 +68,7 @@ export default function DialerPage() {
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
-  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
-  const { data: queueContacts = [] } = useUncalledContacts();
+  const { data: dialerQueue, isLoading } = useDialerContacts(industry, stateFilter, sessionHiddenContactIds.length);
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -78,9 +79,15 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
+  const uncalledContacts = dialerQueue?.contacts ?? [];
+  const totalQueueCount = dialerQueue?.totalCount ?? 0;
   const visibleUncalledContacts = useMemo(
     () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
     [sessionHiddenContactIds, uncalledContacts],
+  );
+  const queueLeadCount = useMemo(
+    () => Math.max(totalQueueCount - sessionHiddenContactIds.length, visibleUncalledContacts.length),
+    [sessionHiddenContactIds.length, totalQueueCount, visibleUncalledContacts.length],
   );
 
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
@@ -90,10 +97,7 @@ export default function DialerPage() {
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
-  const stateOptions = useMemo(
-    () => Array.from(new Set(queueContacts.map((contact) => contact.state?.trim()).filter((state): state is string => !!state))).sort((a, b) => a.localeCompare(b)),
-    [queueContacts],
-  );
+  const stateOptions = AUSTRALIAN_STATE_OPTIONS;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
   const isCallTerminal = !activeDialpadCallId || activeDialpadCallState === "hangup";
@@ -155,6 +159,7 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
+    setSessionHiddenContactIds([]);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
@@ -560,7 +565,7 @@ export default function DialerPage() {
 
           <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
-              {isLoading ? "..." : visibleUncalledContacts.length} leads in queue
+              {isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {myDialpadSettings ? (
               <span className="text-xs font-mono text-primary">

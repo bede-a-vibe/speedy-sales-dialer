@@ -4,6 +4,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 const CONTACTS_BATCH_SIZE = 1000;
+const DIALER_QUEUE_PAGE_SIZE = 100;
+const DIALER_QUEUE_MAX_SIZE = 500;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -16,6 +18,11 @@ type ContactQueryFilters = {
   state?: string;
   status?: string;
   includeDnc?: boolean;
+};
+
+type DialerContactsResult = {
+  contacts: Contact[];
+  totalCount: number;
 };
 
 async function fetchContactsInBatches({ industry, state, status, includeDnc = false }: ContactQueryFilters = {}) {
@@ -61,6 +68,38 @@ async function fetchContactsInBatches({ industry, state, status, includeDnc = fa
   return contacts;
 }
 
+async function fetchDialerContacts({ industry, state, status = "uncalled", includeDnc = false, limit = DIALER_QUEUE_PAGE_SIZE }: ContactQueryFilters & { limit?: number } = {}): Promise<DialerContactsResult> {
+  let query = supabase
+    .from("contacts")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: true })
+    .limit(Math.min(limit, DIALER_QUEUE_MAX_SIZE));
+
+  if (!includeDnc) {
+    query = query.eq("is_dnc", false);
+  }
+
+  if (industry && industry !== "all") {
+    query = query.eq("industry", industry);
+  }
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  if (state && state !== "all") {
+    query = query.eq("state", state);
+  }
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+
+  return {
+    contacts: (data ?? []) as Contact[],
+    totalCount: count ?? 0,
+  };
+}
+
 export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
@@ -82,6 +121,16 @@ export function useUncalledContacts(industry?: string, state?: string) {
   });
 }
 
+export function useDialerContacts(industry?: string, state?: string, hiddenCount = 0) {
+  const limit = Math.min(DIALER_QUEUE_PAGE_SIZE + Math.max(hiddenCount, 0), DIALER_QUEUE_MAX_SIZE);
+
+  return useQuery({
+    queryKey: ["dialer-contacts", industry, state, limit],
+    queryFn: () => fetchDialerContacts({ industry, state, status: "uncalled", limit }),
+    staleTime: 15_000,
+  });
+}
+
 export function useUpdateContact() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -93,6 +142,7 @@ export function useUpdateContact() {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
     },
   });
 }
@@ -108,6 +158,7 @@ export function useDeleteContact() {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
     },
   });
 }
