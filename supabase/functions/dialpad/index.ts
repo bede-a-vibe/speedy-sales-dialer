@@ -657,6 +657,25 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: message }, 400);
         }
 
+        if (params.contact_id) {
+          const adminClient = createClient(supabaseUrl, serviceRoleKey);
+          const reusableCall = await findReusableTrackedCall({
+            adminClient,
+            apiKey: DIALPAD_API_KEY,
+            contactId: params.contact_id,
+            userId: user.id,
+          });
+
+          if (reusableCall) {
+            return jsonResponse(buildDialpadClientPayload({
+              action,
+              data: reusableCall.data,
+              dialpadCallId: reusableCall.dialpadCallId,
+              message: "Existing Dialpad call is already active for this lead.",
+            }), 200);
+          }
+        }
+
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
