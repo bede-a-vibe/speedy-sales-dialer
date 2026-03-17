@@ -157,7 +157,7 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   }
 
   const resolvedAppointments = items.filter((item) => !!item.appointment_outcome).length;
-  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close;
+  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close + appointmentOutcomeCounts.showed_verbal_commitment;
 
   return {
     metrics: {
@@ -166,9 +166,11 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       rescheduled: appointmentOutcomeCounts.rescheduled,
       showedClosed: appointmentOutcomeCounts.showed_closed,
       showedNoClose: appointmentOutcomeCounts.showed_no_close,
+      showedVerbalCommitment: appointmentOutcomeCounts.showed_verbal_commitment,
       showed,
       showUpRate: toPercent(showed, items.length),
       closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
+      verbalCommitmentRate: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, showed),
       resolvedAppointments,
     } satisfies AppointmentPerformanceMetrics,
     outcomeCounts: appointmentOutcomeCounts,
