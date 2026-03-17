@@ -16,10 +16,34 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Contact } from "@/hooks/useContacts";
 
+const AUSTRALIAN_STATE_OPTIONS = [
+  { value: "all", label: "All States" },
+  { value: "NSW", label: "New South Wales" },
+  { value: "VIC", label: "Victoria" },
+  { value: "QLD", label: "Queensland" },
+  { value: "WA", label: "Western Australia" },
+  { value: "SA", label: "South Australia" },
+  { value: "TAS", label: "Tasmania" },
+  { value: "ACT", label: "Australian Capital Territory" },
+  { value: "NT", label: "Northern Territory" },
+] as const;
+
+const AUSTRALIAN_STATE_ALIASES: Record<string, string[]> = {
+  NSW: ["nsw", "new south wales"],
+  VIC: ["vic", "victoria"],
+  QLD: ["qld", "queensland"],
+  WA: ["wa", "western australia"],
+  SA: ["sa", "south australia"],
+  TAS: ["tas", "tasmania"],
+  ACT: ["act", "australian capital territory"],
+  NT: ["nt", "northern territory"],
+};
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [stateFilter, setStateFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
@@ -31,6 +55,7 @@ export default function ContactsPage() {
   const queryClient = useQueryClient();
 
   const filtered = contacts.filter((c) => {
+    const normalizedState = c.state?.trim().toLowerCase() ?? "";
     const matchesSearch =
       !search ||
       c.business_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -39,7 +64,9 @@ export default function ContactsPage() {
       c.email?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
       statusFilter === "all" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesState =
+      stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
+    return matchesSearch && matchesStatus && matchesState;
   });
 
   const getContactLogs = (contactId: string) =>
