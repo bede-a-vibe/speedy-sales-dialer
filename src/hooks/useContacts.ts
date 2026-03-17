@@ -264,6 +264,12 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
       const newlyClaimed = (response.claimed_contacts ?? []).filter((contact) => !seenIds.has(contact.id));
 
       if (newlyClaimed.length === 0) {
+        // Retry once after a short delay if leads exist but none were claimed (lock contention)
+        if (latestTotalCount > mergedContacts.length && mergedContacts.length === 0) {
+          console.warn("[DialerQueue] No contacts claimed despite availability, retrying after 300ms...");
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          continue;
+        }
         console.warn("[DialerQueue] No new contacts claimed, breaking.");
         break;
       }
