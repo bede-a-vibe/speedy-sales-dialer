@@ -221,6 +221,7 @@ export default function DialerPage() {
         setIsDialing(false);
         setCurrentIndex(null);
         setIsBootstrappingSession(false);
+        await stopQueueSession();
         toast.info("No more leads in queue.");
         return;
       }
@@ -235,12 +236,13 @@ export default function DialerPage() {
       setIsDialing(false);
       setCurrentIndex(null);
       setIsBootstrappingSession(false);
+      await stopQueueSession();
       const message = error instanceof Error ? error.message : "Unable to start dialing session.";
       toast.error(message);
     } finally {
       setIsStartingSession(false);
     }
-  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, user?.id]);
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, stopQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
