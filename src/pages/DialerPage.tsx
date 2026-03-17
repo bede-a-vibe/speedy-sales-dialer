@@ -155,6 +155,7 @@ export default function DialerPage() {
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const clearOwnDialerLeadLocks = useClearOwnDialerLeadLocks();
+  const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
