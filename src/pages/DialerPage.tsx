@@ -118,6 +118,7 @@ export default function DialerPage() {
   const [isDialing, setIsDialing] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
+  const [isRecoveringQueue, setIsRecoveringQueue] = useState(false);
   const [isBootstrappingSession, setIsBootstrappingSession] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
