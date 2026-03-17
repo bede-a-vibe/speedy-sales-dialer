@@ -388,6 +388,18 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
+          <Select value={stateFilter} onValueChange={setStateFilter}>
+            <SelectTrigger className="w-[180px] border-border bg-card">
+              <SelectValue placeholder="Filter by state" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All States</SelectItem>
+              {stateOptions.map((state) => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
