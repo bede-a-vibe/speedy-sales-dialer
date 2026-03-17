@@ -121,6 +121,7 @@ function createAppointmentOutcomeCounts(): AppointmentOutcomeCounts {
     rescheduled: 0,
     showed_closed: 0,
     showed_no_close: 0,
+    showed_verbal_commitment: 0,
   };
 }
 
