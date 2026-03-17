@@ -1,8 +1,10 @@
 import { forwardRef, useEffect, useState } from "react";
 import { useCallLogs } from "@/hooks/useCallLogs";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy } from "lucide-react";
+import { Trophy, Crown, Medal } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface RepStats {
   userId: string;
@@ -12,7 +14,14 @@ interface RepStats {
   conversionPct: number;
 }
 
+const MEDAL_COLORS = [
+  "text-[hsl(var(--outcome-voicemail))]", // gold
+  "text-muted-foreground",                // silver
+  "text-[hsl(var(--outcome-voicemail))]",  // bronze (amber-ish)
+];
+
 export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
+  const { user } = useAuth();
   const { data: callLogs = [], isLoading } = useCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
 
@@ -92,23 +101,38 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
       </div>
       <div className="space-y-2">
-        {reps.slice(0, 5).map((rep, i) => (
-          <div key={rep.userId} className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/50 border border-border">
-            <span
-              className={`text-sm font-bold font-mono w-6 text-center ${
-                i === 0 ? "text-primary" : "text-muted-foreground"
-              }`}
+        {reps.slice(0, 5).map((rep, i) => {
+          const isMe = rep.userId === user?.id;
+          return (
+            <div
+              key={rep.userId}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-md border transition-all",
+                isMe
+                  ? "bg-primary/5 border-primary/30 shadow-[0_0_12px_-4px_hsl(var(--primary)/0.25)]"
+                  : "bg-muted/50 border-border"
+              )}
             >
-              {i + 1}
-            </span>
-            <span className="text-sm font-medium text-foreground flex-1">{rep.name}</span>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="font-mono">{rep.calls} calls</span>
-              <span className="font-mono font-semibold text-foreground">{rep.booked} booked</span>
-              <span className="font-mono">{rep.conversionPct}%</span>
+              <span className="w-6 flex items-center justify-center">
+                {i === 0 ? (
+                  <Crown className={cn("h-4.5 w-4.5", MEDAL_COLORS[0])} />
+                ) : i < 3 ? (
+                  <Medal className={cn("h-4 w-4", MEDAL_COLORS[i])} />
+                ) : (
+                  <span className="text-sm font-bold font-mono text-muted-foreground">{i + 1}</span>
+                )}
+              </span>
+              <span className={cn("text-sm font-medium flex-1", isMe ? "text-primary font-semibold" : "text-foreground")}>
+                {rep.name} {isMe && <span className="text-[10px] text-primary ml-1">(you)</span>}
+              </span>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="font-mono">{rep.calls} calls</span>
+                <span className="font-mono font-semibold text-foreground">{rep.booked} booked</span>
+                <span className="font-mono">{rep.conversionPct}%</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

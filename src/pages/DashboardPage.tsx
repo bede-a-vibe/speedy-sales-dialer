@@ -3,6 +3,9 @@ import { StatCard } from "@/components/StatCard";
 import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsOverview";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
+import { AchievementBadges } from "@/components/dashboard/AchievementBadges";
+import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { useContacts } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
@@ -25,12 +28,23 @@ export default function DashboardPage() {
   return (
     <AppLayout title="Dashboard">
       <div className="max-w-6xl mx-auto space-y-6">
-        <DashboardTargetsOverview />
+        {/* Motivational greeting */}
+        <DashboardGreeting />
 
+        {/* Daily ring + targets overview */}
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
+          <DailyProgressRing />
+          <DashboardTargetsOverview />
+        </div>
+
+        {/* Achievement badges */}
+        <AchievementBadges />
+
+        {/* Stat cards with milestone glow */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Calls Made" value={calledContacts} subtext="total dials" />
-          <StatCard label="Booked" value={booked} subtext="appointments" />
-          <StatCard label="Follow-ups" value={followUps} subtext="scheduled" />
+          <StatCard label="Calls Made" value={calledContacts} subtext="total dials" milestone={{ threshold: 50, color: "primary" }} />
+          <StatCard label="Booked" value={booked} subtext="appointments" milestone={{ threshold: 5, color: "outcome-booked" }} />
+          <StatCard label="Follow-ups" value={followUps} subtext="scheduled" milestone={{ threshold: 10, color: "outcome-follow-up" }} />
           <StatCard label="Total Leads" value={totalContacts} subtext="in system" />
           <StatCard label="Penetration" value={`${penetration}%`} subtext="lists called" />
         </div>
