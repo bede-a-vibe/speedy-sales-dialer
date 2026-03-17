@@ -51,6 +51,21 @@ export const PERFORMANCE_TARGET_METRIC_DEFINITIONS: Record<
   PerformanceTargetMetricKey,
   { label: string; description: string; isRate: boolean }
 > = {
+  dials: {
+    label: "Dials",
+    description: "Total calls made",
+    isRate: false,
+  },
+  pickups: {
+    label: "Pickups",
+    description: "Answered calls (excl. no answer/voicemail)",
+    isRate: false,
+  },
+  pickup_to_booking_rate: {
+    label: "Pickup → Booking %",
+    description: "Bookings made / pickups",
+    isRate: true,
+  },
   bookings_made: {
     label: "Bookings Made",
     description: "Setter-created bookings",
