@@ -6,6 +6,32 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const DIALPAD_BASE = "https://dialpad.com/api/v2";
+const SYNC_RELEVANT_STATES = new Set(["hangup", "call_transcription", "recap_summary"]);
+
+type JsonRecord = Record<string, unknown>;
+
+type DialpadWebhookPayload = {
+  call_id?: number | string | null;
+  master_call_id?: number | string | null;
+  entry_point_call_id?: number | string | null;
+  operator_call_id?: number | string | null;
+  state?: string | null;
+  direction?: string | null;
+  external_number?: string | null;
+  date_started?: number | null;
+  date_connected?: number | null;
+  date_ended?: number | null;
+  recap_summary?: string | null;
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function normalizePhoneNumberToE164(phoneNumber: string, defaultCountryCode = "61") {
   const trimmed = phoneNumber.trim();
 
@@ -39,6 +65,362 @@ function normalizePhoneNumberToE164(phoneNumber: string, defaultCountryCode = "6
   return `+${digits}`;
 }
 
+function decodeBase64Url(input: string) {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  const binary = atob(`${normalized}${padding}`);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeBase64Url(bytes: Uint8Array) {
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function verifyDialpadJwt(token: string, secret: string) {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Invalid Dialpad webhook token format");
+  }
+
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  const header = JSON.parse(decodeBase64Url(encodedHeader));
+
+  if (header.alg !== "HS256") {
+    throw new Error("Unsupported Dialpad webhook signature algorithm");
+  }
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+  );
+
+  const expectedSignature = encodeBase64Url(new Uint8Array(signature));
+  if (expectedSignature !== encodedSignature) {
+    throw new Error("Dialpad webhook signature verification failed");
+  }
+
+  return JSON.parse(decodeBase64Url(encodedPayload)) as DialpadWebhookPayload;
+}
+
+async function extractWebhookPayload(req: Request, secret: string) {
+  const rawBody = await req.text();
+  const trimmed = rawBody.trim();
+
+  if (!trimmed) {
+    throw new Error("Empty webhook payload");
+  }
+
+  if (trimmed.startsWith("{")) {
+    return JSON.parse(trimmed) as DialpadWebhookPayload;
+  }
+
+  if (trimmed.startsWith('"')) {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "string") {
+      return verifyDialpadJwt(parsed, secret);
+    }
+    return parsed as DialpadWebhookPayload;
+  }
+
+  return verifyDialpadJwt(trimmed, secret);
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getDialpadCallId(data: unknown) {
+  if (!isRecord(data)) return null;
+
+  const candidate = data.call_id ?? data.id ?? data.callId;
+  if (candidate === null || candidate === undefined) return null;
+  return String(candidate);
+}
+
+function formatDialpadDate(timestamp?: number | null) {
+  if (!timestamp) return null;
+  return new Date(timestamp).toISOString();
+}
+
+function buildSummaryNote(summary: string, payload: DialpadWebhookPayload) {
+  const lines = [
+    "Dialpad Summary",
+    payload.external_number ? `- Number: ${payload.external_number}` : null,
+    payload.date_ended ? `- Call time: ${new Date(payload.date_ended).toLocaleString("en-AU")}` : null,
+    `- Summary: ${summary}`,
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+function buildTranscriptText(transcriptPayload: unknown) {
+  if (!isRecord(transcriptPayload)) return null;
+  const lines = Array.isArray(transcriptPayload.lines) ? transcriptPayload.lines : [];
+
+  const formattedLines = lines
+    .filter(isRecord)
+    .map((line) => {
+      const content = typeof line.content === "string" ? line.content.trim() : "";
+      if (!content) return null;
+      const speaker = typeof line.name === "string" && line.name.trim()
+        ? line.name.trim()
+        : typeof line.user_id === "number"
+          ? `User ${line.user_id}`
+          : "Speaker";
+      return `${speaker}: ${content}`;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  if (formattedLines.length === 0) {
+    return null;
+  }
+
+  return ["Dialpad Transcript", ...formattedLines].join("\n");
+}
+
+async function fetchDialpadTranscript(callId: string, apiKey: string) {
+  const response = await fetch(`${DIALPAD_BASE}/transcripts/${callId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  return buildTranscriptText(payload);
+}
+
+async function fetchDialpadAiRecap(callId: string, apiKey: string) {
+  const response = await fetch(`${DIALPAD_BASE}/call/${callId}/ai_recap?summary_format=medium`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+
+  if (typeof payload === "string") {
+    return payload.trim() || null;
+  }
+
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const summaryCandidates = [
+    payload.summary,
+    payload.recap_summary,
+    payload.content,
+    payload.short,
+    payload.medium,
+    payload.long,
+  ];
+
+  for (const candidate of summaryCandidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  const bullets = Array.isArray(payload.action_items)
+    ? payload.action_items.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+
+  return bullets.length > 0 ? bullets.join("\n") : null;
+}
+
+async function upsertContactNote(adminClient: ReturnType<typeof createClient>, params: {
+  contactId: string;
+  createdBy: string;
+  dialpadCallId: string;
+  source: "dialpad_summary" | "dialpad_transcript";
+  content: string;
+}) {
+  const { data: existing, error: existingError } = await adminClient
+    .from("contact_notes")
+    .select("id")
+    .eq("contact_id", params.contactId)
+    .eq("created_by", params.createdBy)
+    .eq("dialpad_call_id", params.dialpadCallId)
+    .eq("source", params.source)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existing?.id) {
+    const { error } = await adminClient
+      .from("contact_notes")
+      .update({ content: params.content })
+      .eq("id", existing.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return;
+  }
+
+  const { error } = await adminClient.from("contact_notes").insert({
+    contact_id: params.contactId,
+    created_by: params.createdBy,
+    dialpad_call_id: params.dialpadCallId,
+    source: params.source,
+    content: params.content,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function findTrackedDialpadCall(adminClient: ReturnType<typeof createClient>, payload: DialpadWebhookPayload) {
+  const candidateIds = [
+    payload.call_id,
+    payload.master_call_id,
+    payload.entry_point_call_id,
+    payload.operator_call_id,
+  ]
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => String(value));
+
+  for (const candidateId of candidateIds) {
+    const { data, error } = await adminClient
+      .from("dialpad_calls")
+      .select("id, user_id, contact_id, call_log_id, dialpad_call_id")
+      .eq("dialpad_call_id", candidateId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (data) {
+      return data;
+    }
+  }
+
+  return null;
+}
+
+async function syncWebhookPayload(params: {
+  adminClient: ReturnType<typeof createClient>;
+  payload: DialpadWebhookPayload;
+  apiKey: string;
+}) {
+  const { adminClient, payload, apiKey } = params;
+
+  if (!payload.state || !SYNC_RELEVANT_STATES.has(payload.state)) {
+    return { ignored: true, reason: `Ignoring state ${payload.state ?? "unknown"}` };
+  }
+
+  const trackedCall = await findTrackedDialpadCall(adminClient, payload);
+  if (!trackedCall) {
+    return { ignored: true, reason: "Tracked Dialpad call not found" };
+  }
+
+  const dialpadCallId = trackedCall.dialpad_call_id;
+  const summary = typeof payload.recap_summary === "string" && payload.recap_summary.trim()
+    ? payload.recap_summary.trim()
+    : await fetchDialpadAiRecap(dialpadCallId, apiKey);
+
+  const transcript = payload.state === "call_transcription" || payload.state === "hangup"
+    ? await fetchDialpadTranscript(dialpadCallId, apiKey)
+    : null;
+
+  const hasSummary = Boolean(summary);
+  const hasTranscript = Boolean(transcript);
+  const syncedAt = hasSummary || hasTranscript ? new Date().toISOString() : null;
+
+  if (trackedCall.call_log_id || dialpadCallId) {
+    let callLogQuery = adminClient
+      .from("call_logs")
+      .update({
+        dialpad_summary: summary ?? undefined,
+        dialpad_transcript: transcript ?? undefined,
+        transcript_synced_at: syncedAt ?? undefined,
+      });
+
+    callLogQuery = trackedCall.call_log_id
+      ? callLogQuery.eq("id", trackedCall.call_log_id)
+      : callLogQuery.eq("dialpad_call_id", dialpadCallId);
+
+    const { error: callLogError } = await callLogQuery;
+    if (callLogError) {
+      throw new Error(callLogError.message);
+    }
+  }
+
+  if (hasSummary) {
+    await upsertContactNote(adminClient, {
+      contactId: trackedCall.contact_id,
+      createdBy: trackedCall.user_id,
+      dialpadCallId,
+      source: "dialpad_summary",
+      content: buildSummaryNote(summary!, payload),
+    });
+  }
+
+  if (hasTranscript) {
+    await upsertContactNote(adminClient, {
+      contactId: trackedCall.contact_id,
+      createdBy: trackedCall.user_id,
+      dialpadCallId,
+      source: "dialpad_transcript",
+      content: transcript!,
+    });
+  }
+
+  const nextStatus = hasSummary || hasTranscript
+    ? "synced"
+    : payload.state === "hangup"
+      ? "processing"
+      : "pending";
+
+  const { error: trackingError } = await adminClient
+    .from("dialpad_calls")
+    .update({
+      sync_status: nextStatus,
+      transcript_synced_at: syncedAt ?? undefined,
+      sync_error: null,
+    })
+    .eq("id", trackedCall.id);
+
+  if (trackingError) {
+    throw new Error(trackingError.message);
+  }
+
+  return {
+    ignored: false,
+    dialpad_call_id: dialpadCallId,
+    sync_status: nextStatus,
+    transcript_synced: hasTranscript,
+    summary_synced: hasSummary,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -46,43 +428,46 @@ Deno.serve(async (req) => {
 
   const DIALPAD_API_KEY = Deno.env.get("DIALPAD_API_KEY");
   if (!DIALPAD_API_KEY) {
-    return new Response(
-      JSON.stringify({ error: "DIALPAD_API_KEY is not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   if (!supabaseUrl) {
-    return new Response(
-      JSON.stringify({ error: "SUPABASE_URL is not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "SUPABASE_URL is not configured" }, 500);
   }
 
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   if (!supabaseAnonKey) {
-    return new Response(
-      JSON.stringify({ error: "SUPABASE_ANON_KEY is not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "SUPABASE_ANON_KEY is not configured" }, 500);
   }
 
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
   }
 
-  // Verify auth
   const authHeader = req.headers.get("Authorization");
+
   if (!authHeader) {
-    return new Response(
-      JSON.stringify({ error: "No authorization header" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
+    if (!webhookSecret) {
+      return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    try {
+      const payload = await extractWebhookPayload(req, webhookSecret);
+      const result = await syncWebhookPayload({
+        adminClient,
+        payload,
+        apiKey: DIALPAD_API_KEY,
+      });
+      return jsonResponse(result, 200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown webhook error";
+      return jsonResponse({ error: message }, 400);
+    }
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -94,15 +479,11 @@ Deno.serve(async (req) => {
     error: authError,
   } = await supabase.auth.getUser();
   if (authError || !user) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {
     const { action, ...params } = await req.json();
-    const DIALPAD_BASE = "https://dialpad.com/api/v2";
 
     let dialpadResponse: Response;
 
@@ -119,6 +500,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             phone_number: normalizedPhone,
             user_id: params.dialpad_user_id,
+            custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
           }),
         });
         break;
@@ -135,18 +517,12 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (settingsError) {
-          return new Response(
-            JSON.stringify({ error: "Failed to fetch Dialpad settings", details: settingsError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: "Failed to fetch Dialpad settings", details: settingsError.message }, 500);
         }
 
         const dialpadUserId = params.dialpad_user_id || settings?.dialpad_user_id;
         if (!dialpadUserId) {
-          return new Response(
-            JSON.stringify({ error: "No Dialpad user ID configured. Ask an admin to assign one." }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: "No Dialpad user ID configured. Ask an admin to assign one." }, 400);
         }
 
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
@@ -208,17 +584,11 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (adminRoleError) {
-          return new Response(
-            JSON.stringify({ error: "Failed to verify admin access", details: adminRoleError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: "Failed to verify admin access", details: adminRoleError.message }, 500);
         }
 
         if (!adminRole) {
-          return new Response(
-            JSON.stringify({ error: "Admin access required" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: "Admin access required" }, 403);
         }
 
         const usersResponse = await fetch(`${DIALPAD_BASE}/users?limit=100`, {
@@ -230,10 +600,7 @@ Deno.serve(async (req) => {
 
         const usersPayload = await usersResponse.json();
         if (!usersResponse.ok) {
-          return new Response(
-            JSON.stringify({ error: `Dialpad API error [${usersResponse.status}]`, details: usersPayload }),
-            { status: usersResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: `Dialpad API error [${usersResponse.status}]`, details: usersPayload }, usersResponse.status);
         }
 
         const dialpadUsers = Array.isArray(usersPayload?.items) ? usersPayload.items : [];
@@ -247,16 +614,13 @@ Deno.serve(async (req) => {
           .in("email", emails);
 
         if (profilesError) {
-          return new Response(
-            JSON.stringify({ error: "Failed to load existing profiles", details: profilesError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ error: "Failed to load existing profiles", details: profilesError.message }, 500);
         }
 
         const profileMap = new Map(
           (existingProfiles ?? [])
             .filter((profile) => profile.email)
-            .map((profile) => [profile.email!.toLowerCase(), profile.user_id])
+            .map((profile) => [profile.email!.toLowerCase(), profile.user_id]),
         );
 
         const results = [];
@@ -326,7 +690,7 @@ Deno.serve(async (req) => {
                 dialpad_phone_number: phoneNumber,
                 is_active: true,
               },
-              { onConflict: "user_id" }
+              { onConflict: "user_id" },
             );
 
           if (mappingError) {
@@ -348,36 +712,49 @@ Deno.serve(async (req) => {
           });
         }
 
-        return new Response(JSON.stringify({ items: results }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ items: results }, 200);
       }
 
       default:
-        return new Response(
-          JSON.stringify({ error: `Unknown action: ${action}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
 
     const data = await dialpadResponse.json();
     if (!dialpadResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: `Dialpad API error [${dialpadResponse.status}]`, details: data }),
-        { status: dialpadResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: `Dialpad API error [${dialpadResponse.status}]`, details: data }, dialpadResponse.status);
     }
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (action === "initiate_call" && params.contact_id) {
+      const adminClient = createClient(supabaseUrl, serviceRoleKey);
+      const dialpadCallId = getDialpadCallId(data);
+
+      if (dialpadCallId) {
+        const { error: trackingError } = await adminClient.from("dialpad_calls").insert({
+          dialpad_call_id: dialpadCallId,
+          contact_id: params.contact_id,
+          user_id: user.id,
+          sync_status: "pending",
+        });
+
+        if (trackingError) {
+          return jsonResponse({
+            ...data,
+            dialpad_call_id: dialpadCallId,
+            tracking_warning: trackingError.message,
+          }, 200);
+        }
+
+        return jsonResponse({
+          ...data,
+          dialpad_call_id: dialpadCallId,
+          tracking_created_at: formatDialpadDate(Date.now()),
+        }, 200);
+      }
+    }
+
+    return jsonResponse(data, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: message }, 500);
   }
 });
