@@ -13,6 +13,7 @@ import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
+import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
 
 const ALL_REPS_VALUE = "all";

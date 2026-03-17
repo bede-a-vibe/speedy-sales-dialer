@@ -56,6 +56,9 @@ export interface ReportMetrics {
     pickUpRate: number;
     callBacks: number;
     pickUpToFollowUpRate: number;
+    totalTalkTimeSeconds: number;
+    averageTalkTimePerDialSeconds: number;
+    averageTalkTimePerPickupSeconds: number;
   };
   bookingsMade: {
     totalBookingsMade: number;
