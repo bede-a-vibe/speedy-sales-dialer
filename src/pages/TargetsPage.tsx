@@ -5,11 +5,13 @@ import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeletePerformanceTarget, usePerformanceTargets, useUpsertPerformanceTarget } from "@/hooks/usePerformanceTargets";
@@ -32,9 +34,14 @@ import {
 } from "@/lib/performanceTargets";
 
 type BulkFormValues = Record<PerformanceTargetMetricKey, string>;
+type MetricEnabledMap = Record<PerformanceTargetMetricKey, boolean>;
 
 function emptyBulkForm(): BulkFormValues {
   return Object.fromEntries(PERFORMANCE_TARGET_METRICS.map((k) => [k, ""])) as BulkFormValues;
+}
+
+function allMetricsEnabled(): MetricEnabledMap {
+  return Object.fromEntries(INPUT_METRICS.map((k) => [k, true])) as MetricEnabledMap;
 }
 
 function getFormNumericValue(val: string): number | undefined {
@@ -51,6 +58,9 @@ export default function TargetsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedRepId, setSelectedRepId] = useState("");
   const [bulkValues, setBulkValues] = useState<BulkFormValues>(emptyBulkForm);
+  const [enabledMetrics, setEnabledMetrics] = useState<MetricEnabledMap>(allMetricsEnabled);
+  const [setterEnabled, setSetterEnabled] = useState(true);
+  const [closerEnabled, setCloserEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const repNameMap = useMemo(
@@ -76,20 +86,35 @@ export default function TargetsPage() {
     return map;
   }, [storedDailyTargets]);
 
-  // Live-calculate derived values from current form
-  const setterPreview = useMemo(() => deriveSetterValues({
-    bookings_made: getFormNumericValue(bulkValues.bookings_made),
-    pickup_to_booking_rate: getFormNumericValue(bulkValues.pickup_to_booking_rate),
-    dial_to_pickup_rate: getFormNumericValue(bulkValues.dial_to_pickup_rate),
-    setter_show_up_rate: getFormNumericValue(bulkValues.setter_show_up_rate),
-    setter_close_rate: getFormNumericValue(bulkValues.setter_close_rate),
-  }), [bulkValues.bookings_made, bulkValues.pickup_to_booking_rate, bulkValues.dial_to_pickup_rate, bulkValues.setter_show_up_rate, bulkValues.setter_close_rate]);
+  // Determine which enabled metrics are actually active (section enabled + metric enabled)
+  const activeInputMetrics = useMemo(() => {
+    return INPUT_METRICS.filter((key) => {
+      const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[key];
+      const sectionOn = def.group === "setter" ? setterEnabled : closerEnabled;
+      return sectionOn && enabledMetrics[key];
+    });
+  }, [setterEnabled, closerEnabled, enabledMetrics]);
 
-  const closerPreview = useMemo(() => deriveCloserValues({
-    closer_meetings_booked: getFormNumericValue(bulkValues.closer_meetings_booked),
-    closer_verbal_commitment_rate: getFormNumericValue(bulkValues.closer_verbal_commitment_rate),
-    closer_close_rate: getFormNumericValue(bulkValues.closer_close_rate),
-  }), [bulkValues.closer_meetings_booked, bulkValues.closer_verbal_commitment_rate, bulkValues.closer_close_rate]);
+  // Live-calculate derived values from current form (only if section enabled)
+  const setterPreview = useMemo(() => {
+    if (!setterEnabled) return { pickups: 0, dials: 0, setter_showed: 0, setter_closed_deals: 0 };
+    return deriveSetterValues({
+      bookings_made: enabledMetrics.bookings_made ? getFormNumericValue(bulkValues.bookings_made) : undefined,
+      pickup_to_booking_rate: enabledMetrics.pickup_to_booking_rate ? getFormNumericValue(bulkValues.pickup_to_booking_rate) : undefined,
+      dial_to_pickup_rate: enabledMetrics.dial_to_pickup_rate ? getFormNumericValue(bulkValues.dial_to_pickup_rate) : undefined,
+      setter_show_up_rate: enabledMetrics.setter_show_up_rate ? getFormNumericValue(bulkValues.setter_show_up_rate) : undefined,
+      setter_close_rate: enabledMetrics.setter_close_rate ? getFormNumericValue(bulkValues.setter_close_rate) : undefined,
+    });
+  }, [setterEnabled, enabledMetrics, bulkValues]);
+
+  const closerPreview = useMemo(() => {
+    if (!closerEnabled) return { closer_verbal_commitments: 0, closer_closed_deals: 0 };
+    return deriveCloserValues({
+      closer_meetings_booked: enabledMetrics.closer_meetings_booked ? getFormNumericValue(bulkValues.closer_meetings_booked) : undefined,
+      closer_verbal_commitment_rate: enabledMetrics.closer_verbal_commitment_rate ? getFormNumericValue(bulkValues.closer_verbal_commitment_rate) : undefined,
+      closer_close_rate: enabledMetrics.closer_close_rate ? getFormNumericValue(bulkValues.closer_close_rate) : undefined,
+    });
+  }, [closerEnabled, enabledMetrics, bulkValues]);
 
   const hasSetterDerived = setterPreview.pickups > 0 || setterPreview.dials > 0 || setterPreview.setter_showed > 0;
   const hasCloserDerived = closerPreview.closer_verbal_commitments > 0 || closerPreview.closer_closed_deals > 0;
@@ -97,6 +122,9 @@ export default function TargetsPage() {
   const openNewForRep = () => {
     setSelectedRepId("");
     setBulkValues(emptyBulkForm());
+    setEnabledMetrics(allMetricsEnabled());
+    setSetterEnabled(true);
+    setCloserEnabled(false);
     setDialogOpen(true);
   };
 
@@ -104,13 +132,78 @@ export default function TargetsPage() {
     setSelectedRepId(repUserId);
     const repTargets = targetsByRep.get(repUserId) || [];
     const values = emptyBulkForm();
+    const enabled = Object.fromEntries(INPUT_METRICS.map((k) => [k, false])) as MetricEnabledMap;
+    let hasSetter = false;
+    let hasCloser = false;
+
     for (const t of repTargets) {
       if (t.metric_key in values) {
-        values[t.metric_key] = String(t.target_value);
+        values[t.metric_key as PerformanceTargetMetricKey] = String(t.target_value);
+        enabled[t.metric_key as PerformanceTargetMetricKey] = true;
+        const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key as PerformanceTargetMetricKey];
+        if (def?.group === "setter") hasSetter = true;
+        if (def?.group === "closer") hasCloser = true;
       }
     }
+
     setBulkValues(values);
+    setEnabledMetrics(enabled);
+    setSetterEnabled(hasSetter);
+    setCloserEnabled(hasCloser);
     setDialogOpen(true);
+  };
+
+  const toggleSection = (group: "setter" | "closer", on: boolean) => {
+    if (group === "setter") {
+      setSetterEnabled(on);
+      if (!on) {
+        // Clear setter metrics values and disable them
+        setBulkValues((prev) => {
+          const next = { ...prev };
+          for (const k of SETTER_INPUT_METRICS) next[k] = "";
+          return next;
+        });
+        setEnabledMetrics((prev) => {
+          const next = { ...prev };
+          for (const k of SETTER_INPUT_METRICS) next[k] = false;
+          return next;
+        });
+      } else {
+        // Enable all setter metrics by default
+        setEnabledMetrics((prev) => {
+          const next = { ...prev };
+          for (const k of SETTER_INPUT_METRICS) next[k] = true;
+          return next;
+        });
+      }
+    } else {
+      setCloserEnabled(on);
+      if (!on) {
+        setBulkValues((prev) => {
+          const next = { ...prev };
+          for (const k of CLOSER_INPUT_METRICS) next[k] = "";
+          return next;
+        });
+        setEnabledMetrics((prev) => {
+          const next = { ...prev };
+          for (const k of CLOSER_INPUT_METRICS) next[k] = false;
+          return next;
+        });
+      } else {
+        setEnabledMetrics((prev) => {
+          const next = { ...prev };
+          for (const k of CLOSER_INPUT_METRICS) next[k] = true;
+          return next;
+        });
+      }
+    }
+  };
+
+  const toggleMetric = (key: PerformanceTargetMetricKey, on: boolean) => {
+    setEnabledMetrics((prev) => ({ ...prev, [key]: on }));
+    if (!on) {
+      setBulkValues((prev) => ({ ...prev, [key]: "" }));
+    }
   };
 
   const handleBulkSave = async () => {
@@ -119,7 +212,7 @@ export default function TargetsPage() {
       return;
     }
 
-    const entries = INPUT_METRICS
+    const entries = activeInputMetrics
       .filter((key) => bulkValues[key] !== "" && !Number.isNaN(Number(bulkValues[key])))
       .map((key) => ({ metric_key: key, target_value: Number(bulkValues[key]) }));
 
@@ -145,10 +238,11 @@ export default function TargetsPage() {
         });
       }
 
-      const clearedMetrics = INPUT_METRICS.filter(
-        (key) => bulkValues[key] === "" && existingByMetric.has(key),
+      // Delete targets for metrics that are disabled or cleared
+      const metricsToRemove = INPUT_METRICS.filter(
+        (key) => (!activeInputMetrics.includes(key) || bulkValues[key] === "") && existingByMetric.has(key),
       );
-      for (const metricKey of clearedMetrics) {
+      for (const metricKey of metricsToRemove) {
         const existing = existingByMetric.get(metricKey);
         if (existing) {
           await deleteTarget.mutateAsync(existing.id);
@@ -194,11 +288,18 @@ export default function TargetsPage() {
 
   function renderInputMetricRow(metricKey: PerformanceTargetMetricKey) {
     const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
+    const isEnabled = enabledMetrics[metricKey];
+
     return (
       <div key={metricKey} className="flex items-center gap-3">
+        <Checkbox
+          checked={isEnabled}
+          onCheckedChange={(checked) => toggleMetric(metricKey, !!checked)}
+          className="shrink-0"
+        />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground">{def.label}</p>
-          <p className="text-xs text-muted-foreground">{def.description}</p>
+          <p className={`text-sm font-medium ${isEnabled ? "text-foreground" : "text-muted-foreground/50"}`}>{def.label}</p>
+          <p className={`text-xs ${isEnabled ? "text-muted-foreground" : "text-muted-foreground/40"}`}>{def.description}</p>
         </div>
         <Input
           type="number"
@@ -208,6 +309,7 @@ export default function TargetsPage() {
           onChange={(e) => setBulkValues((prev) => ({ ...prev, [metricKey]: e.target.value }))}
           placeholder={def.isRate ? "e.g. 30" : "e.g. 5"}
           className="w-28 font-mono text-right"
+          disabled={!isEnabled}
         />
         {def.isRate ? <span className="text-xs text-muted-foreground w-4">%</span> : <span className="w-4" />}
       </div>
@@ -270,7 +372,7 @@ export default function TargetsPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Performance Targets</h2>
             <p className="text-sm text-muted-foreground">
-              Set setter & closer targets per rep — dials, pickups, showed, closed, weekly, and team totals are all auto-calculated.
+              Set setter & closer targets per rep — toggle which role and metrics apply to each person.
             </p>
           </div>
 
@@ -309,24 +411,36 @@ export default function TargetsPage() {
 
                 {/* Setter Section */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold text-foreground">Setter Targets</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold text-foreground">Setter Targets</h3>
+                    </div>
+                    <Switch
+                      checked={setterEnabled}
+                      onCheckedChange={(on) => toggleSection("setter", on)}
+                    />
                   </div>
-                  <p className="text-xs text-muted-foreground">Bookings, rates, and calling activity for the person setting appointments.</p>
-                  <div className="grid gap-3">
-                    {SETTER_INPUT_METRICS.map(renderInputMetricRow)}
-                  </div>
+                  {setterEnabled && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Toggle individual metrics to focus on what matters most for this rep.
+                      </p>
+                      <div className="grid gap-3">
+                        {SETTER_INPUT_METRICS.map(renderInputMetricRow)}
+                      </div>
 
-                  {hasSetterDerived && renderDerivedPreview(
-                    "Auto-calculated setter targets",
-                    [
-                      { label: "Pickups needed", value: setterPreview.pickups },
-                      { label: "Dials needed", value: setterPreview.dials },
-                      { label: "Expected showed", value: setterPreview.setter_showed },
-                      { label: "Expected closed", value: setterPreview.setter_closed_deals },
-                    ],
-                    `${bulkValues.bookings_made || 0} bookings ÷ ${bulkValues.pickup_to_booking_rate || 0}% = ${setterPreview.pickups} pickups ÷ ${bulkValues.dial_to_pickup_rate || 0}% = ${setterPreview.dials} dials | ${bulkValues.bookings_made || 0} × ${bulkValues.setter_show_up_rate || 0}% = ${setterPreview.setter_showed} showed × ${bulkValues.setter_close_rate || 0}% = ${setterPreview.setter_closed_deals} closed`,
+                      {hasSetterDerived && renderDerivedPreview(
+                        "Auto-calculated setter targets",
+                        [
+                          { label: "Pickups needed", value: setterPreview.pickups },
+                          { label: "Dials needed", value: setterPreview.dials },
+                          { label: "Expected showed", value: setterPreview.setter_showed },
+                          { label: "Expected closed", value: setterPreview.setter_closed_deals },
+                        ],
+                        `${bulkValues.bookings_made || 0} bookings ÷ ${bulkValues.pickup_to_booking_rate || 0}% = ${setterPreview.pickups} pickups ÷ ${bulkValues.dial_to_pickup_rate || 0}% = ${setterPreview.dials} dials | × ${bulkValues.setter_show_up_rate || 0}% = ${setterPreview.setter_showed} showed × ${bulkValues.setter_close_rate || 0}% = ${setterPreview.setter_closed_deals} closed`,
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -334,24 +448,42 @@ export default function TargetsPage() {
 
                 {/* Closer Section */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Handshake className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-semibold text-foreground">Closer Targets</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Handshake className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold text-foreground">Closer Targets</h3>
+                    </div>
+                    <Switch
+                      checked={closerEnabled}
+                      onCheckedChange={(on) => toggleSection("closer", on)}
+                    />
                   </div>
-                  <p className="text-xs text-muted-foreground">Meetings taken, verbal commitments, and closed deals for the person closing.</p>
-                  <div className="grid gap-3">
-                    {CLOSER_INPUT_METRICS.map(renderInputMetricRow)}
-                  </div>
+                  {closerEnabled && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Toggle individual metrics to focus on what matters most for this rep.
+                      </p>
+                      <div className="grid gap-3">
+                        {CLOSER_INPUT_METRICS.map(renderInputMetricRow)}
+                      </div>
 
-                  {hasCloserDerived && renderDerivedPreview(
-                    "Auto-calculated closer targets",
-                    [
-                      { label: "Verbal commitments", value: closerPreview.closer_verbal_commitments },
-                      { label: "Closed deals", value: closerPreview.closer_closed_deals },
-                    ],
-                    `${bulkValues.closer_meetings_booked || 0} meetings × ${bulkValues.closer_verbal_commitment_rate || 0}% = ${closerPreview.closer_verbal_commitments} verbal | × ${bulkValues.closer_close_rate || 0}% = ${closerPreview.closer_closed_deals} closed`,
+                      {hasCloserDerived && renderDerivedPreview(
+                        "Auto-calculated closer targets",
+                        [
+                          { label: "Verbal commitments", value: closerPreview.closer_verbal_commitments },
+                          { label: "Closed deals", value: closerPreview.closer_closed_deals },
+                        ],
+                        `${bulkValues.closer_meetings_booked || 0} meetings × ${bulkValues.closer_verbal_commitment_rate || 0}% = ${closerPreview.closer_verbal_commitments} verbal | × ${bulkValues.closer_close_rate || 0}% = ${closerPreview.closer_closed_deals} closed`,
+                      )}
+                    </>
                   )}
                 </div>
+
+                {!setterEnabled && !closerEnabled && (
+                  <div className="rounded-md border border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
+                    Enable at least one role (Setter or Closer) to set targets.
+                  </div>
+                )}
 
                 <Separator />
 
@@ -364,7 +496,7 @@ export default function TargetsPage() {
                   <p>Team = sum of all reps (rates averaged)</p>
                 </div>
 
-                <Button onClick={handleBulkSave} disabled={isSaving} className="w-full">
+                <Button onClick={handleBulkSave} disabled={isSaving || (!setterEnabled && !closerEnabled)} className="w-full">
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save Daily Targets
                 </Button>
@@ -400,7 +532,21 @@ export default function TargetsPage() {
                   <Card key={repId}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{repNameMap.get(repId) || "Unknown rep"}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-base">{repNameMap.get(repId) || "Unknown rep"}</CardTitle>
+                          <div className="flex gap-1">
+                            {hasSetterTargets && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                                <Phone className="h-2.5 w-2.5" /> Setter
+                              </Badge>
+                            )}
+                            {hasCloserTargets && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                                <Handshake className="h-2.5 w-2.5" /> Closer
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForRep(repId)}>
                             <Pencil className="h-3.5 w-3.5" />
