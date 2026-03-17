@@ -379,7 +379,8 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
 
       const activeSessionId = crypto.randomUUID();
       sessionRef.current = activeSessionId;
-      setSessionId(activeSessionId);
+      startingRef.current = true;
+      // Don't set sessionId state yet — prevents prefetch effect from racing
       contactsRef.current = [];
       setContacts([]);
       setTotalCount(0);
@@ -402,10 +403,15 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         contactsRef.current = claimedContacts;
         setContacts(claimedContacts);
         setTotalCount(claimedTotalCount);
+
+        // Now expose sessionId to React state — contacts are populated so prefetch won't race
+        startingRef.current = false;
+        setSessionId(activeSessionId);
         void ensureBuffer(DIALER_TARGET_BUFFER);
 
         return claimedContacts.length;
       } catch (error) {
+        startingRef.current = false;
         if (sessionRef.current !== activeSessionId) {
           await cleanupSessionLocks(activeSessionId);
           return 0;
