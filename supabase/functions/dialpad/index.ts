@@ -854,6 +854,51 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "get_caller_ids": {
+        const dialpadUserId = params.dialpad_user_id;
+        if (!dialpadUserId) {
+          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        }
+
+        const callerIdResponse = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/caller_id`, {
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (!callerIdResponse.ok) {
+          const callerIdData = await callerIdResponse.json().catch(() => null);
+          const errorPayload = buildDialpadErrorPayload(callerIdResponse.status, callerIdData);
+          return jsonResponse(errorPayload, errorPayload.status_code);
+        }
+
+        const callerIdData = await callerIdResponse.json();
+        const numbers: { number: string; label: string }[] = [];
+
+        // Add user's own caller ID
+        if (isRecord(callerIdData) && typeof callerIdData.caller_id === "string" && callerIdData.caller_id.trim()) {
+          numbers.push({ number: callerIdData.caller_id.trim(), label: "My Number" });
+        }
+
+        // Add group caller IDs (departments, offices, etc.)
+        if (isRecord(callerIdData) && Array.isArray(callerIdData.groups)) {
+          for (const group of callerIdData.groups) {
+            if (isRecord(group) && typeof group.caller_id === "string" && group.caller_id.trim()) {
+              const label = typeof group.display_name === "string" && group.display_name.trim()
+                ? group.display_name.trim()
+                : "Group";
+              // Avoid duplicates
+              if (!numbers.some((n) => n.number === group.caller_id)) {
+                numbers.push({ number: group.caller_id.trim(), label });
+              }
+            }
+          }
+        }
+
+        return jsonResponse({ ok: true, numbers }, 200);
+      }
+
       case "log_call": {
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
