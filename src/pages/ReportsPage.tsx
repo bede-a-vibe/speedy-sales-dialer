@@ -12,9 +12,23 @@ import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
-import { getReportMetrics } from "@/lib/reportMetrics";
+import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
 
 const ALL_REPS_VALUE = "all";
+
+function buildAppointmentOutcomeItems(
+  outcomeCounts: AppointmentOutcomeCounts,
+  metrics: AppointmentPerformanceMetrics,
+) {
+  return Object.entries(APPOINTMENT_OUTCOME_LABELS).map(([key, label]) => ({
+    label,
+    count: outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0,
+    pct:
+      metrics.resolvedAppointments > 0
+        ? Math.round(((outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0) / metrics.resolvedAppointments) * 100)
+        : 0,
+  }));
+}
 
 export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -50,20 +64,13 @@ export default function ReportsPage() {
     [metrics],
   );
 
-  const appointmentOutcomeItems = useMemo(
-    () =>
-      Object.entries(APPOINTMENT_OUTCOME_LABELS).map(([key, label]) => ({
-        label,
-        count: metrics.appointmentOutcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0,
-        pct:
-          metrics.appointmentsScheduled.resolvedAppointments > 0
-            ? Math.round(
-                ((metrics.appointmentOutcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0) /
-                  metrics.appointmentsScheduled.resolvedAppointments) *
-                  100,
-              )
-            : 0,
-      })),
+  const setterOutcomeItems = useMemo(
+    () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.setter, metrics.appointmentPerformance.setter),
+    [metrics],
+  );
+
+  const closerOutcomeItems = useMemo(
+    () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.closer, metrics.appointmentPerformance.closer),
     [metrics],
   );
 
@@ -117,7 +124,8 @@ export default function ReportsPage() {
         <Tabs defaultValue="bookings-made" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
-            <TabsTrigger value="appointments-scheduled" className="rounded-md">Appointments Scheduled</TabsTrigger>
+            <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
+            <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings-made" className="space-y-6">
@@ -149,18 +157,18 @@ export default function ReportsPage() {
             </ReportSection>
           </TabsContent>
 
-          <TabsContent value="appointments-scheduled" className="space-y-6">
+          <TabsContent value="setter-performance" className="space-y-6">
             <ReportSection
-              title="Appointments Scheduled"
-              description={`Setter performance view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} and whether those appointments showed.`}
+              title="Setter Performance"
+              description={`Performance view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} and whether those meetings showed.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-                <StatCard label="Appointments Set" value={metrics.appointmentsScheduled.appointmentsScheduled} />
-                <StatCard label="No Shows" value={metrics.appointmentsScheduled.noShows} />
-                <StatCard label="Showed" value={metrics.appointmentsScheduled.showed} />
-                <StatCard label="Show-Up Rate" value={`${metrics.appointmentsScheduled.showUpRate}%`} subtext="showed / appointments set" />
-                <StatCard label="Showed Closed" value={metrics.appointmentsScheduled.showedClosed} />
-                <StatCard label="Close Rate" value={`${metrics.appointmentsScheduled.closeRate}%`} subtext="closed / showed" />
+                <StatCard label="Appointments Set" value={metrics.appointmentPerformance.setter.appointmentsScheduled} />
+                <StatCard label="No Shows" value={metrics.appointmentPerformance.setter.noShows} />
+                <StatCard label="Showed" value={metrics.appointmentPerformance.setter.showed} />
+                <StatCard label="Show-Up Rate" value={`${metrics.appointmentPerformance.setter.showUpRate}%`} subtext="showed / appointments set" />
+                <StatCard label="Showed Closed" value={metrics.appointmentPerformance.setter.showedClosed} />
+                <StatCard label="Close Rate" value={`${metrics.appointmentPerformance.setter.closeRate}%`} subtext="closed / showed" />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-border bg-background p-4">
@@ -168,8 +176,8 @@ export default function ReportsPage() {
                     <CalendarCheck2 className="h-4 w-4 text-primary" />
                     <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Setter Appointment Outcomes</h3>
                   </div>
-                  <MetricBarList items={appointmentOutcomeItems} emptyLabel="No resolved setter appointments in this date range." />
-                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentsScheduled.resolvedAppointments} · Rescheduled: {metrics.appointmentsScheduled.rescheduled}</p>
+                  <MetricBarList items={setterOutcomeItems} emptyLabel="No resolved setter appointments in this date range." />
+                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentPerformance.setter.resolvedAppointments} · Rescheduled: {metrics.appointmentPerformance.setter.rescheduled}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="mb-4 flex items-center gap-2">
@@ -177,6 +185,39 @@ export default function ReportsPage() {
                     <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Daily Call Volume</h3>
                   </div>
                   <DailyVolumeChart data={metrics.dailyVolume} />
+                </div>
+              </div>
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="closer-performance" className="space-y-6">
+            <ReportSection
+              title="Closer Performance"
+              description={`Performance view based on who was assigned to close the meeting${activeRepId ? ` (${selectedRepLabel})` : ""} for appointments in the selected date range.`}
+            >
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+                <StatCard label="Appointments Closed" value={metrics.appointmentPerformance.closer.appointmentsScheduled} />
+                <StatCard label="No Shows" value={metrics.appointmentPerformance.closer.noShows} />
+                <StatCard label="Showed" value={metrics.appointmentPerformance.closer.showed} />
+                <StatCard label="Show-Up Rate" value={`${metrics.appointmentPerformance.closer.showUpRate}%`} subtext="showed / assigned appointments" />
+                <StatCard label="Showed Closed" value={metrics.appointmentPerformance.closer.showedClosed} />
+                <StatCard label="Close Rate" value={`${metrics.appointmentPerformance.closer.closeRate}%`} subtext="closed / showed" />
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <div className="mb-4 flex items-center gap-2">
+                    <CalendarCheck2 className="h-4 w-4 text-primary" />
+                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Closer Appointment Outcomes</h3>
+                  </div>
+                  <MetricBarList items={closerOutcomeItems} emptyLabel="No resolved closer appointments in this date range." />
+                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentPerformance.closer.resolvedAppointments} · Rescheduled: {metrics.appointmentPerformance.closer.rescheduled}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Compare Roles</p>
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <StatCard label="Setter Show-Up Rate" value={`${metrics.appointmentPerformance.setter.showUpRate}%`} subtext="creator attribution" className="bg-card" />
+                    <StatCard label="Closer Close Rate" value={`${metrics.appointmentPerformance.closer.closeRate}%`} subtext="assigned closer attribution" className="bg-card" />
+                  </div>
                 </div>
               </div>
             </ReportSection>
