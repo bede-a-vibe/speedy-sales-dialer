@@ -445,12 +445,18 @@ export default function DialerPage() {
   useEffect(() => {
     if (!isDialing || currentIndex === null) return;
 
+    if (visibleUncalledContacts.length > 0 && isBootstrappingSession) {
+      setIsBootstrappingSession(false);
+      return;
+    }
+
     if (visibleUncalledContacts.length === 0) {
+      if (isBootstrappingSession || isPrefetching) return;
       stopSession();
     } else if (currentIndex >= visibleUncalledContacts.length) {
       setCurrentIndex(visibleUncalledContacts.length - 1);
     }
-  }, [visibleUncalledContacts.length, isDialing, currentIndex, stopSession]);
+  }, [visibleUncalledContacts.length, isBootstrappingSession, isDialing, currentIndex, isPrefetching, stopSession]);
 
   useEffect(() => {
     if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
