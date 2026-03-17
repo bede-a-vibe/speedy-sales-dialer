@@ -64,6 +64,8 @@ export interface BookedAppointmentReportItem {
   id: string;
   contact_id: string;
   created_at: string;
+  created_by: string;
+  assigned_user_id: string;
   scheduled_for: string | null;
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
