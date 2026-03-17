@@ -18,33 +18,86 @@ export type Database = {
         Row: {
           contact_id: string
           created_at: string
+          dialpad_call_id: string | null
+          dialpad_summary: string | null
+          dialpad_transcript: string | null
           follow_up_date: string | null
           id: string
           notes: string | null
           outcome: Database["public"]["Enums"]["call_outcome"]
+          transcript_synced_at: string | null
           user_id: string
         }
         Insert: {
           contact_id: string
           created_at?: string
+          dialpad_call_id?: string | null
+          dialpad_summary?: string | null
+          dialpad_transcript?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
           outcome: Database["public"]["Enums"]["call_outcome"]
+          transcript_synced_at?: string | null
           user_id: string
         }
         Update: {
           contact_id?: string
           created_at?: string
+          dialpad_call_id?: string | null
+          dialpad_summary?: string | null
+          dialpad_transcript?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
           outcome?: Database["public"]["Enums"]["call_outcome"]
+          transcript_synced_at?: string | null
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_notes: {
+        Row: {
+          contact_id: string
+          content: string
+          created_at: string
+          created_by: string
+          dialpad_call_id: string | null
+          id: string
+          source: Database["public"]["Enums"]["contact_note_source"]
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          content: string
+          created_at?: string
+          created_by: string
+          dialpad_call_id?: string | null
+          id?: string
+          source: Database["public"]["Enums"]["contact_note_source"]
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string
+          dialpad_call_id?: string | null
+          id?: string
+          source?: Database["public"]["Enums"]["contact_note_source"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_notes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
@@ -108,6 +161,60 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      dialpad_calls: {
+        Row: {
+          call_log_id: string | null
+          contact_id: string
+          created_at: string
+          dialpad_call_id: string
+          id: string
+          sync_error: string | null
+          sync_status: string
+          transcript_synced_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          call_log_id?: string | null
+          contact_id: string
+          created_at?: string
+          dialpad_call_id: string
+          id?: string
+          sync_error?: string | null
+          sync_status?: string
+          transcript_synced_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          call_log_id?: string | null
+          contact_id?: string
+          created_at?: string
+          dialpad_call_id?: string
+          id?: string
+          sync_error?: string | null
+          sync_status?: string
+          transcript_synced_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dialpad_calls_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: true
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dialpad_calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dialpad_settings: {
         Row: {
@@ -267,6 +374,7 @@ export type Database = {
         | "follow_up"
         | "booked"
         | "wrong_number"
+      contact_note_source: "manual" | "dialpad_summary" | "dialpad_transcript"
       pipeline_status: "open" | "completed" | "canceled"
       pipeline_type: "follow_up" | "booked"
     }
@@ -406,6 +514,7 @@ export const Constants = {
         "booked",
         "wrong_number",
       ],
+      contact_note_source: ["manual", "dialpad_summary", "dialpad_transcript"],
       pipeline_status: ["open", "completed", "canceled"],
       pipeline_type: ["follow_up", "booked"],
     },
