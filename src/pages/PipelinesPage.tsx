@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { useUpdateContact } from "@/hooks/useContacts";
 import {
@@ -17,11 +18,15 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
 }
 
+type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close";
+
 export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") === "booked" ? "booked" : "follow_up";
-  const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up");
-  const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked");
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
+  const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
+  const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
+  const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
   const updateContact = useUpdateContact();
@@ -30,6 +35,11 @@ export default function PipelinesPage() {
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
     [reps],
   );
+
+  const filteredHistory = useMemo(() => {
+    if (historyFilter === "all") return completedBooked;
+    return completedBooked.filter((item) => item.appointment_outcome === historyFilter);
+  }, [completedBooked, historyFilter]);
 
   const handleComplete = async (id: string) => {
     try {
@@ -113,7 +123,7 @@ export default function PipelinesPage() {
     }
   };
 
-  const renderItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
+  const renderOpenItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
     if ((type === "follow_up" && followUpsLoading) || (type === "booked" && bookedLoading)) {
       return <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>;
     }
@@ -141,6 +151,54 @@ export default function PipelinesPage() {
     );
   };
 
+  const renderHistory = () => {
+    if (historyLoading) {
+      return <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Completed appointments</h3>
+            <p className="text-xs text-muted-foreground">Review past booked outcomes and filter the closed appointment history.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-muted-foreground">{filteredHistory.length} results</span>
+            <Select value={historyFilter} onValueChange={(value) => setHistoryFilter(value as HistoryFilter)}>
+              <SelectTrigger className="w-[220px] bg-background">
+                <SelectValue placeholder="Filter outcomes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All completed outcomes</SelectItem>
+                <SelectItem value="no_show">No Show</SelectItem>
+                <SelectItem value="showed_closed">Showed - Closed</SelectItem>
+                <SelectItem value="showed_no_close">Showed - No Close</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {filteredHistory.length === 0 ? (
+          <div className="py-20 text-center text-sm text-muted-foreground">No completed appointments match this filter.</div>
+        ) : (
+          <div className="space-y-3">
+            {filteredHistory.map((item) => (
+              <PipelineItemCard
+                key={item.id}
+                item={item}
+                repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
+                reps={reps}
+                isSaving={false}
+                showActions={false}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <AppLayout title="Pipelines">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -152,6 +210,7 @@ export default function PipelinesPage() {
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{followUps.length} follow-ups</span>
             <span>{booked.length} booked</span>
+            <span>{completedBooked.length} completed</span>
           </div>
         </div>
 
@@ -159,12 +218,16 @@ export default function PipelinesPage() {
           <TabsList>
             <TabsTrigger value="follow_up">Follow-ups</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
+            <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
           <TabsContent value="follow_up" className="mt-4">
-            {renderItems(followUps, "follow_up")}
+            {renderOpenItems(followUps, "follow_up")}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
-            {renderItems(booked, "booked")}
+            {renderOpenItems(booked, "booked")}
+          </TabsContent>
+          <TabsContent value="history" className="mt-4">
+            {renderHistory()}
           </TabsContent>
         </Tabs>
       </div>
