@@ -928,20 +928,26 @@ Deno.serve(async (req) => {
           sync_status: "pending",
         });
 
-        if (trackingError) {
-          return jsonResponse({
-            ...data,
-            dialpad_call_id: dialpadCallId,
-            tracking_warning: trackingError.message,
-          }, 200);
-        }
-
-        return jsonResponse({
-          ...data,
-          dialpad_call_id: dialpadCallId,
-          tracking_created_at: formatDialpadDate(Date.now()),
-        }, 200);
+        return jsonResponse(buildDialpadClientPayload({
+          action,
+          data,
+          dialpadCallId,
+          message: "Dialpad call initiated.",
+          extras: trackingError
+            ? { tracking_warning: trackingError.message }
+            : { tracking_created_at: formatDialpadDate(Date.now()) },
+        }), 200);
       }
+    }
+
+    if (action === "initiate_call" || action === "log_call" || action === "get_call_status") {
+      return jsonResponse(buildDialpadClientPayload({
+        action,
+        data,
+        message: action === "get_call_status"
+          ? "Dialpad call status refreshed."
+          : "Dialpad call initiated.",
+      }), 200);
     }
 
     return jsonResponse(data, 200);
