@@ -705,8 +705,6 @@ export default function DialerPage() {
     setIsEndingCall(false);
     setIsCallResolving(false);
     leadAdvanceInFlightRef.current = false;
-    setPendingAutoOutcome(null);
-    setCooldownSecondsLeft(null);
 
     const attemptDial = async (retriesLeft: number, isFirstAttempt: boolean): Promise<void> => {
       if (isFirstAttempt) {
