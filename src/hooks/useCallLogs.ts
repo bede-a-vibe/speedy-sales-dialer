@@ -1,10 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type CallLog = Tables<"call_logs">;
 
 const SYNC_REFRESH_INTERVAL_MS = 15000;
+const CONTACT_CALL_LOGS_PAGE_SIZE = 5;
+
+type ContactCallLogsPage = {
+  items: CallLog[];
+  totalCount: number;
+  hasMore: boolean;
+  nextPage: number;
+};
 
 export function useCallLogs() {
   return useQuery({
@@ -19,6 +27,48 @@ export function useCallLogs() {
       return data;
     },
     refetchInterval: SYNC_REFRESH_INTERVAL_MS,
+  });
+}
+
+export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) {
+  return useInfiniteQuery({
+    queryKey: ["contact-call-logs", contactId, pageSize],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      if (!contactId) {
+        return {
+          items: [],
+          totalCount: 0,
+          hasMore: false,
+          nextPage: pageParam + 1,
+        } satisfies ContactCallLogsPage;
+      }
+
+      const from = pageParam * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, error, count } = await supabase
+        .from("call_logs")
+        .select("*", { count: "exact" })
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const items = (data ?? []) as CallLog[];
+      const totalCount = count ?? items.length;
+
+      return {
+        items,
+        totalCount,
+        hasMore: from + items.length < totalCount,
+        nextPage: pageParam + 1,
+      } satisfies ContactCallLogsPage;
+    },
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
+    enabled: !!contactId,
+    refetchInterval: contactId ? SYNC_REFRESH_INTERVAL_MS : false,
   });
 }
 
@@ -83,6 +133,7 @@ export function useCreateCallLog() {
       queryClient.invalidateQueries({ queryKey: ["call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["call-logs-range"] });
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
+      queryClient.invalidateQueries({ queryKey: ["contact-call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
     },
