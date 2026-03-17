@@ -69,6 +69,7 @@ export default function DialerPage() {
   const [followUpTime, setFollowUpTime] = useState("09:00");
   const [assignedRepId, setAssignedRepId] = useState("");
   const [isDialing, setIsDialing] = useState(false);
+  const [isStartingSession, setIsStartingSession] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
   const [sessionOutcomes, setSessionOutcomes] = useState<Partial<Record<CallOutcome, number>>>({});
