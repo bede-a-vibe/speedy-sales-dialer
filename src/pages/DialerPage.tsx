@@ -69,7 +69,7 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
-  const dialpadCallStatus = useDialpadCallStatus();
+  const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
