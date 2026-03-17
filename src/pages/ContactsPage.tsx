@@ -5,7 +5,7 @@ import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Tra
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
-import { useAllContactNotes } from "@/hooks/useContactNotes";
+import { useContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
