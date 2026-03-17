@@ -35,7 +35,8 @@ function ProtectedRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/dialer" element={<DialerPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
-      <Route path="/follow-ups" element={<FollowUpsPage />} />
+      <Route path="/pipelines" element={<PipelinesPage />} />
+      <Route path="/follow-ups" element={<Navigate to="/pipelines?tab=follow_up" replace />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/dialpad-settings" element={<DialpadSettingsPage />} />

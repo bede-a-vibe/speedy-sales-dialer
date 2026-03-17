@@ -20,7 +20,7 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
-  { title: "Follow-ups", url: "/follow-ups", icon: CalendarClock },
+  { title: "Pipelines", url: "/pipelines", icon: CalendarClock }
 ];
 
 const adminItems = [
