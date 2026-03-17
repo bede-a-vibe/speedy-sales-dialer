@@ -806,15 +806,18 @@ Deno.serve(async (req) => {
         const initiateData = await initiateResponse.json().catch(() => ({}));
 
         // The initiate_call endpoint doesn't return a call_id directly.
-        // Poll briefly to find the new call by matching the target phone number.
+        // Poll with bounded backoff to find the new call by matching user + phone.
         let foundCallId: string | null = null;
-        for (let attempt = 0; attempt < 4; attempt++) {
-          if (attempt > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
+        const pollDelays = [0, 400, 600, 800, 1000, 1200, 1500, 2000]; // ~7.5s total max
+        console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
+
+        for (let attempt = 0; attempt < pollDelays.length; attempt++) {
+          if (pollDelays[attempt] > 0) {
+            await new Promise((resolve) => setTimeout(resolve, pollDelays[attempt]));
           }
 
           const callsResponse = await fetch(
-            `${DIALPAD_BASE}/stats/calls?limit=5`,
+            `${DIALPAD_BASE}/stats/calls?limit=15`,
             {
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -846,28 +849,32 @@ Deno.serve(async (req) => {
               }
             }
 
-            if (foundCallId) break;
+            if (foundCallId) {
+              console.log(`[initiate_call] Found call_id=${foundCallId} on attempt ${attempt + 1}`);
+              break;
+            }
           } else {
             await callsResponse.text();
           }
         }
 
         if (foundCallId) {
-          // Build a synthetic response matching the old POST /call format
           dialpadResponse = new Response(JSON.stringify({
             call_id: foundCallId,
             state: "calling",
+            call_resolved: true,
             ...initiateData,
           }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
         } else {
-          // Call was initiated but we couldn't find the call_id yet.
-          // Return success with the device info — the webhook will track it later.
+          // Call was initiated but we couldn't discover the call_id yet.
+          console.warn(`[initiate_call] Could not discover call_id after ${pollDelays.length} attempts for user=${params.dialpad_user_id}`);
           dialpadResponse = new Response(JSON.stringify({
             ...initiateData,
             state: "calling",
+            call_resolved: false,
           }), {
             status: 200,
             headers: { "Content-Type": "application/json" },

@@ -11,6 +11,7 @@ interface DialpadSyncPanelProps {
   isCancelling: boolean;
   isStatusPending: boolean;
   isEndingCall: boolean;
+  isResolving?: boolean;
   enabled?: boolean;
 }
 
@@ -22,6 +23,7 @@ export function DialpadSyncPanel({
   isCancelling,
   isStatusPending,
   isEndingCall,
+  isResolving = false,
   enabled = true,
 }: DialpadSyncPanelProps) {
   const { data: contactNotes = [] } = useContactNotes(contactId, {
@@ -61,6 +63,11 @@ export function DialpadSyncPanel({
                   ? "Ending Call..."
                   : "Cancel Active Call"}
             </Button>
+          </div>
+        ) : isResolving ? (
+          <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+            <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
+            Connecting to Dialpad… waiting for call confirmation.
           </div>
         ) : (
           <p className="text-muted-foreground">

@@ -24,6 +24,7 @@ export interface DialpadActionResponse {
   terminal: boolean;
   already_ended: boolean;
   dialpad_call_id: string | null;
+  call_resolved: boolean;
   tracking_warning?: string | null;
   message?: string | null;
   details?: unknown;
@@ -47,6 +48,7 @@ function normalizeDialpadResponse(data: unknown): DialpadActionResponse {
     terminal: payload.terminal === true || state === "hangup",
     already_ended: payload.already_ended === true,
     dialpad_call_id: dialpadCallId,
+    call_resolved: payload.call_resolved !== false, // default true for backwards compat
     tracking_warning: typeof payload.tracking_warning === "string" ? payload.tracking_warning : null,
     message: typeof payload.message === "string" ? payload.message : null,
     details: payload.details,
