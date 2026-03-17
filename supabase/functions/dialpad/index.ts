@@ -912,16 +912,8 @@ Deno.serve(async (req) => {
 
     const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
-      const message = extractDialpadErrorMessage(data);
-      const status = isDialpadRateLimitError(data) ? 429 : dialpadResponse.status;
-
-      return jsonResponse({
-        error: status === 429
-          ? "Dialpad rate limit reached. Wait a few seconds and try again."
-          : `Dialpad API error [${dialpadResponse.status}]`,
-        details: data,
-        message,
-      }, status);
+      const errorPayload = buildDialpadErrorPayload(dialpadResponse.status, data);
+      return jsonResponse(errorPayload, errorPayload.status_code);
     }
 
     if (action === "initiate_call" && params.contact_id) {
