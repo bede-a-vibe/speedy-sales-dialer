@@ -145,6 +145,23 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "list_users": {
+        const qs = new URLSearchParams();
+        if (params.state) qs.set("state", params.state);
+        if (params.office_id) qs.set("office_id", params.office_id);
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.cursor) qs.set("cursor", params.cursor);
+        const suffix = qs.toString() ? `?${qs}` : "";
+
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/users${suffix}`, {
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            Accept: "application/json",
+          },
+        });
+        break;
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
