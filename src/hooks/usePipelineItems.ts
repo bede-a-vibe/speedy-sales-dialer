@@ -68,11 +68,11 @@ export interface BookedAppointmentReportItem {
   status: PipelineStatus;
 }
 
-export function usePipelineItems(type: PipelineType) {
+export function usePipelineItems(type: PipelineType, status: PipelineStatus = "open") {
   return useQuery({
-    queryKey: ["pipeline-items", type],
+    queryKey: ["pipeline-items", type, status],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from("pipeline_items")
         .select(`
           id,
@@ -100,11 +100,8 @@ export function usePipelineItems(type: PipelineType) {
           )
         `)
         .eq("pipeline_type", type)
-        .eq("status", "open");
-
-      query = type === "follow_up"
-        ? query.order("scheduled_for", { ascending: true, nullsFirst: false })
-        : query.order("scheduled_for", { ascending: true, nullsFirst: false });
+        .eq("status", status)
+        .order(status === "completed" ? "completed_at" : "scheduled_for", { ascending: false, nullsFirst: false });
 
       const { data, error } = await query;
       if (error) throw error;

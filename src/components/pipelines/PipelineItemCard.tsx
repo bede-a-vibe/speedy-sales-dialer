@@ -23,8 +23,9 @@ interface PipelineItemCardProps {
   repName: string;
   reps: SalesRepOption[];
   isSaving: boolean;
-  onComplete: (id: string) => Promise<void>;
-  onAssign: (id: string, userId: string) => Promise<void>;
+  showActions?: boolean;
+  onComplete?: (id: string) => Promise<void>;
+  onAssign?: (id: string, userId: string) => Promise<void>;
   onReschedule?: (id: string, iso: string) => Promise<void>;
   onRecordBookedOutcome?: (
     item: PipelineItemWithRelations,
@@ -39,6 +40,7 @@ export function PipelineItemCard({
   repName,
   reps,
   isSaving,
+  showActions = true,
   onComplete,
   onAssign,
   onReschedule,
@@ -57,8 +59,8 @@ export function PipelineItemCard({
     <div
       className={cn(
         "flex flex-col gap-4 rounded-lg border bg-card p-4",
-        overdue && "border-destructive/40 bg-destructive/5",
-        today && "border-primary/40 bg-primary/5",
+        overdue && item.status === "open" && "border-destructive/40 bg-destructive/5",
+        today && item.status === "open" && "border-primary/40 bg-primary/5",
       )}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -80,8 +82,8 @@ export function PipelineItemCard({
           {scheduledDate && (
             <div className="text-right">
               <p className="text-xs font-mono text-foreground">{format(scheduledDate, isBooked ? "MMM d, yyyy" : "MMM d, yyyy h:mm a")}</p>
-              {overdue && <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive">Overdue</span>}
-              {today && <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Today</span>}
+              {overdue && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive">Overdue</span>}
+              {today && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Today</span>}
             </div>
           )}
           <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -92,128 +94,145 @@ export function PipelineItemCard({
               Last update · {getAppointmentOutcomeLabel(item.appointment_outcome)}
             </span>
           )}
+          {item.completed_at && (
+            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+              Completed · {format(new Date(item.completed_at), "MMM d, yyyy")}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap">
-        <Select value={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>
-          <SelectTrigger className="w-full bg-background lg:w-[240px]">
-            <SelectValue placeholder="Assign rep" />
-          </SelectTrigger>
-          <SelectContent>
-            {reps.map((rep) => (
-              <SelectItem key={rep.user_id} value={rep.user_id}>
-                {rep.display_name?.trim() || rep.email || "Unassigned"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {!showActions ? (
+        isBooked && item.outcome_notes ? (
+          <div className="rounded-lg border border-border bg-background/60 p-3 text-sm text-muted-foreground">
+            {item.outcome_notes}
+          </div>
+        ) : null
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap">
+            {onAssign && (
+              <Select value={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>
+                <SelectTrigger className="w-full bg-background lg:w-[240px]">
+                  <SelectValue placeholder="Assign rep" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reps.map((rep) => (
+                    <SelectItem key={rep.user_id} value={rep.user_id}>
+                      {rep.display_name?.trim() || rep.email || "Unassigned"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
-        {!isBooked && onReschedule && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
-                  <CalendarClock className="h-4 w-4" />
-                  {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={rescheduleDate}
-                  onSelect={setRescheduleDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
+            {!isBooked && onReschedule && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
+                      <CalendarClock className="h-4 w-4" />
+                      {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={rescheduleDate}
+                      onSelect={setRescheduleDate}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  type="time"
+                  value={rescheduleTime}
+                  onChange={(event) => setRescheduleTime(event.target.value)}
+                  className="w-full bg-background sm:w-[140px]"
                 />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={rescheduleTime}
-              onChange={(event) => setRescheduleTime(event.target.value)}
-              className="w-full bg-background sm:w-[140px]"
-            />
-            <Button
-              variant="secondary"
-              onClick={() => rescheduleDate && onReschedule(item.id, combineDateTime(rescheduleDate, rescheduleTime))}
-              disabled={!rescheduleDate || isSaving}
-            >
-              <Clock3 className="h-4 w-4" />
-              Reschedule
-            </Button>
-          </div>
-        )}
-
-        {!isBooked && (
-          <Button variant="outline" onClick={() => onComplete(item.id)} className="lg:ml-auto" disabled={isSaving}>
-            <Check className="h-4 w-4" />
-            Mark complete
-          </Button>
-        )}
-      </div>
-
-      {isBooked && onRecordBookedOutcome && (
-        <div className="space-y-3 rounded-lg border border-border bg-background/60 p-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked outcome</p>
-            <p className="text-xs text-muted-foreground">Record the meeting result or move the appointment day.</p>
-          </div>
-
-          <Textarea
-            value={outcomeNotes}
-            onChange={(event) => setOutcomeNotes(event.target.value)}
-            placeholder="Optional notes about the appointment result"
-            className="min-h-[88px] resize-none bg-background"
-          />
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                rescheduleDate &&
-                onRecordBookedOutcome(
-                  item,
-                  "rescheduled",
-                  outcomeNotes,
-                  combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME),
-                )
-              }
-              disabled={!rescheduleDate || isSaving}
-            >
-              <CalendarClock className="h-4 w-4" />
-              Reschedule
-            </Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
-                  <CalendarClock className="h-4 w-4" />
-                  {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick new day"}
+                <Button
+                  variant="secondary"
+                  onClick={() => rescheduleDate && onReschedule(item.id, combineDateTime(rescheduleDate, rescheduleTime))}
+                  disabled={!rescheduleDate || isSaving}
+                >
+                  <Clock3 className="h-4 w-4" />
+                  Reschedule
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={rescheduleDate}
-                  onSelect={setRescheduleDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "no_show", outcomeNotes)} disabled={isSaving}>
-              No Show
-            </Button>
-            <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_closed", outcomeNotes)} disabled={isSaving}>
-              Showed - Closed
-            </Button>
-            <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_no_close", outcomeNotes)} disabled={isSaving}>
-              Showed - No Close
-            </Button>
+              </div>
+            )}
+
+            {!isBooked && onComplete && (
+              <Button variant="outline" onClick={() => onComplete(item.id)} className="lg:ml-auto" disabled={isSaving}>
+                <Check className="h-4 w-4" />
+                Mark complete
+              </Button>
+            )}
           </div>
-        </div>
+
+          {isBooked && onRecordBookedOutcome && (
+            <div className="space-y-3 rounded-lg border border-border bg-background/60 p-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked outcome</p>
+                <p className="text-xs text-muted-foreground">Record the meeting result or move the appointment day.</p>
+              </div>
+
+              <Textarea
+                value={outcomeNotes}
+                onChange={(event) => setOutcomeNotes(event.target.value)}
+                placeholder="Optional notes about the appointment result"
+                className="min-h-[88px] resize-none bg-background"
+              />
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    rescheduleDate &&
+                    onRecordBookedOutcome(
+                      item,
+                      "rescheduled",
+                      outcomeNotes,
+                      combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME),
+                    )
+                  }
+                  disabled={!rescheduleDate || isSaving}
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  Reschedule
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
+                      <CalendarClock className="h-4 w-4" />
+                      {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick new day"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={rescheduleDate}
+                      onSelect={setRescheduleDate}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "no_show", outcomeNotes)} disabled={isSaving}>
+                  No Show
+                </Button>
+                <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_closed", outcomeNotes)} disabled={isSaving}>
+                  Showed - Closed
+                </Button>
+                <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_no_close", outcomeNotes)} disabled={isSaving}>
+                  Showed - No Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
