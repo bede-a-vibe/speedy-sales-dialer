@@ -23,6 +23,7 @@ export function DialpadSyncPanel({
   isCancelling,
   isStatusPending,
   isEndingCall,
+  isResolving = false,
   enabled = true,
 }: DialpadSyncPanelProps) {
   const { data: contactNotes = [] } = useContactNotes(contactId, {

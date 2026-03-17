@@ -1158,11 +1158,12 @@ export default function DialerPage() {
                 <DialpadSyncPanel
                   contactId={currentContact.id}
                   activeDialpadCallId={activeDialpadCallId}
-                  activeDialpadCallState={activeDialpadCallState}
+                  activeDialpadCallState={isCallResolving ? "connecting" : activeDialpadCallState}
                   onCancelCall={cancelActiveCall}
                   isCancelling={cancelDialpadCall.isPending}
                   isStatusPending={isDialpadCallStatusPending}
                   isEndingCall={isEndingCall}
+                  isResolving={isCallResolving}
                   enabled
                 />
               </Suspense>
