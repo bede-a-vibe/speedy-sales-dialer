@@ -344,42 +344,67 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   }, [claimIntoBuffer, cleanupSessionLocks]);
 
   const startSession = useCallback(async () => {
-    if (sessionRef.current) {
-      await stopSession();
+    if (startInFlightRef.current) {
+      return startInFlightRef.current;
     }
 
-    const activeSessionId = crypto.randomUUID();
-    sessionRef.current = activeSessionId;
-    setSessionId(activeSessionId);
-    contactsRef.current = [];
-    setContacts([]);
-    setTotalCount(0);
-    setPreviewCount(0);
-    setIsLoading(true);
-
-    try {
-      const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
-        activeSessionId,
-        [],
-        DIALER_INITIAL_CLAIM_SIZE,
-      );
-
-      if (sessionRef.current !== activeSessionId) {
-        return 0;
+    const task = (async () => {
+      if (stopInFlightRef.current) {
+        await stopInFlightRef.current;
       }
 
-      contactsRef.current = claimedContacts;
-      setContacts(claimedContacts);
-      setTotalCount(claimedTotalCount);
-      void ensureBuffer(DIALER_TARGET_BUFFER);
-
-      return claimedContacts.length;
-    } finally {
-      if (sessionRef.current === activeSessionId) {
-        setIsLoading(false);
+      if (sessionRef.current) {
+        await stopSession();
       }
-    }
-  }, [claimIntoBuffer, ensureBuffer, stopSession]);
+
+      const activeSessionId = crypto.randomUUID();
+      sessionRef.current = activeSessionId;
+      setSessionId(activeSessionId);
+      contactsRef.current = [];
+      setContacts([]);
+      setTotalCount(0);
+      setPreviewCount(0);
+      setIsLoading(true);
+      claimInFlightRef.current = null;
+
+      try {
+        const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
+          activeSessionId,
+          [],
+          DIALER_INITIAL_CLAIM_SIZE,
+        );
+
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+          return 0;
+        }
+
+        contactsRef.current = claimedContacts;
+        setContacts(claimedContacts);
+        setTotalCount(claimedTotalCount);
+        void ensureBuffer(DIALER_TARGET_BUFFER);
+
+        return claimedContacts.length;
+      } catch (error) {
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+          return 0;
+        }
+        throw error;
+      } finally {
+        if (sessionRef.current === activeSessionId) {
+          setIsLoading(false);
+        }
+      }
+    })().finally(() => {
+      if (startInFlightRef.current === task) {
+        startInFlightRef.current = null;
+      }
+    });
+
+    startInFlightRef.current = task;
+    return task;
+  }, [claimIntoBuffer, cleanupSessionLocks, ensureBuffer, stopSession]);
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
