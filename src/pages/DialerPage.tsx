@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import { DailyTarget } from "@/components/DailyTarget";
 import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
-import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useDialerContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
 interface SessionStats {
   calls: number;
