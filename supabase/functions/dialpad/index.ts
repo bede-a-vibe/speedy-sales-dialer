@@ -574,6 +574,15 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: "No Dialpad user ID configured. Ask an admin to assign one." }, 400);
         }
 
+        let normalizedPhone: string;
+
+        try {
+          normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Phone number is invalid";
+          return jsonResponse({ error: message }, 400);
+        }
+
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
@@ -581,7 +590,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            phone_number: normalizePhoneNumberToE164(params.phone),
+            phone_number: normalizedPhone,
             user_id: dialpadUserId,
           }),
         });
