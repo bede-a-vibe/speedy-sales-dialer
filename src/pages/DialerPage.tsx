@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import { DailyTarget } from "@/components/DailyTarget";
 import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
-import { useDialerContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -61,14 +61,22 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
-  const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
-  const { data: dialerQueue, isLoading } = useDialerContacts(industry, stateFilter, sessionHiddenContactIds.length);
+  const {
+    contacts: visibleUncalledContacts,
+    totalCount: totalQueueCount,
+    isLoading,
+    isPrefetching,
+    startSession: startQueueSession,
+    stopSession: stopQueueSession,
+    ensureBuffer,
+    discardContact,
+  } = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -79,15 +87,9 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
-  const uncalledContacts = dialerQueue?.contacts ?? [];
-  const totalQueueCount = dialerQueue?.totalCount ?? 0;
-  const visibleUncalledContacts = useMemo(
-    () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
-    [sessionHiddenContactIds, uncalledContacts],
-  );
   const queueLeadCount = useMemo(
-    () => Math.max(totalQueueCount - sessionHiddenContactIds.length, visibleUncalledContacts.length),
-    [sessionHiddenContactIds.length, totalQueueCount, visibleUncalledContacts.length],
+    () => Math.max(totalQueueCount, visibleUncalledContacts.length),
+    [totalQueueCount, visibleUncalledContacts.length],
   );
 
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
@@ -132,9 +134,9 @@ export default function DialerPage() {
     }
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
-  const startDialing = useCallback(() => {
-    if (visibleUncalledContacts.length === 0 || !hasDialpadAssignment) return;
-    setSessionHiddenContactIds([]);
+  const startDialing = useCallback(async () => {
+    if (queueLeadCount === 0 || !hasDialpadAssignment) return;
+
     setCurrentIndex(0);
     setIsDialing(true);
     setSelectedOutcome(null);
@@ -151,7 +153,14 @@ export default function DialerPage() {
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
-  }, [hasDialpadAssignment, visibleUncalledContacts.length, user?.id]);
+
+    const claimedCount = await startQueueSession();
+    if (claimedCount <= 0) {
+      setIsDialing(false);
+      setCurrentIndex(null);
+      toast.info("No more leads in queue.");
+    }
+  }, [hasDialpadAssignment, queueLeadCount, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -159,20 +168,20 @@ export default function DialerPage() {
     }
     setIsDialing(false);
     setCurrentIndex(null);
-    setSessionHiddenContactIds([]);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
-  }, [callCount]);
+    void stopQueueSession();
+  }, [callCount, stopQueueSession]);
 
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
 
     const nextLength = visibleUncalledContacts.length - 1;
-    setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
+    void discardContact(currentContact.id);
     setSkippedCount((prev) => prev + 1);
     setSelectedOutcome(null);
     setNotes("");
@@ -185,6 +194,7 @@ export default function DialerPage() {
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
+    void ensureBuffer();
 
     if (nextLength <= 0) {
       toast.info("No more leads in queue.");
@@ -195,7 +205,7 @@ export default function DialerPage() {
     if (currentIndex >= nextLength) {
       setCurrentIndex(nextLength - 1);
     }
-  }, [currentContact, currentIndex, stopSession, user?.id, visibleUncalledContacts.length]);
+  }, [currentContact, currentIndex, discardContact, ensureBuffer, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
@@ -264,7 +274,7 @@ export default function DialerPage() {
         ...prev,
         [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
-      setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
+      await discardContact(currentContact.id, { releaseLock: true });
 
       toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
       activeDialRequestRef.current = null;
@@ -539,7 +549,7 @@ export default function DialerPage() {
         </Dialog>
 
         <div className="flex flex-wrap items-center gap-4">
-          <Select value={industry} onValueChange={setIndustry}>
+          <Select value={industry} onValueChange={setIndustry} disabled={isDialing}>
             <SelectTrigger className="w-[200px] border-border bg-card">
               <SelectValue placeholder="Filter by industry" />
             </SelectTrigger>
@@ -551,7 +561,7 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
-          <Select value={stateFilter} onValueChange={setStateFilter}>
+          <Select value={stateFilter} onValueChange={setStateFilter} disabled={isDialing}>
             <SelectTrigger className="w-[180px] border-border bg-card">
               <SelectValue placeholder="Filter by state" />
             </SelectTrigger>
