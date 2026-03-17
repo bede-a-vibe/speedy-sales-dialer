@@ -744,12 +744,16 @@ export default function DialerPage() {
   useEffect(() => {
     if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) return;
 
+    // Don't auto-advance if there's an active Dialpad call that hasn't ended
+    // The call may be ringing, connected, or in progress — let the rep handle it
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") return;
+
     const timeoutId = window.setTimeout(() => {
       setPendingAutoOutcome("no_answer");
     }, 30000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [currentContact, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
+  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
 
   useEffect(() => {
     if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
