@@ -41,7 +41,9 @@ export interface ReportMetrics {
     rescheduled: number;
     showedClosed: number;
     showedNoClose: number;
-    appointmentCloseRate: number;
+    showed: number;
+    showUpRate: number;
+    closeRate: number;
     resolvedAppointments: number;
   };
   dailyVolume: Array<{ date: string; count: number }>;
