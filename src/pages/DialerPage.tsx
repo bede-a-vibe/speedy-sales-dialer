@@ -341,17 +341,6 @@ export default function DialerPage() {
     setIsEndingCall(true);
 
     try {
-      const status = await fetchDialpadCallStatus(activeDialpadCallId);
-      setActiveDialpadCallState(status.state);
-
-      if (status.already_ended || status.terminal) {
-        setActiveDialpadCallId(null);
-        setActiveDialpadCallState("hangup");
-        setDialpadPollingBackoffUntil(null);
-        toast.info("This call has already ended.");
-        return;
-      }
-
       const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
       setActiveDialpadCallState(result.state ?? "ending");
 
@@ -373,7 +362,7 @@ export default function DialerPage() {
     } finally {
       setIsEndingCall(false);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, cancelDialpadCall]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
