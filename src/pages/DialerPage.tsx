@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
+import { CalendarIcon, Phone, PhoneOff, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
@@ -10,7 +10,7 @@ import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { useContactNotes } from "@/hooks/useContactNotes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

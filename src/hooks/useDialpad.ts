@@ -12,6 +12,10 @@ interface LinkDialpadCallLogParams {
   call_log_id: string;
 }
 
+interface CancelDialpadCallParams {
+  call_id: string;
+}
+
 export function useDialpadCall() {
   return useMutation({
     mutationFn: async (params: DialpadCallParams) => {
