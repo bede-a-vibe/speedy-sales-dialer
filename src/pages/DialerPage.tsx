@@ -121,6 +121,7 @@ export default function DialerPage() {
   const {
     contacts: visibleUncalledContacts,
     totalCount: totalQueueCount,
+    sessionId,
     isLoading,
     isPrefetching,
     startSession: startQueueSession,
