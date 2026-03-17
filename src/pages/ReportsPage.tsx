@@ -152,24 +152,24 @@ export default function ReportsPage() {
           <TabsContent value="appointments-scheduled" className="space-y-6">
             <ReportSection
               title="Appointments Scheduled"
-              description={`Calendar view based on who is assigned to the appointment${activeRepId ? ` (${selectedRepLabel})` : ""} and the appointment date inside the selected range.`}
+              description={`Setter performance view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} and whether those appointments showed.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-                <StatCard label="Appointments Scheduled" value={metrics.appointmentsScheduled.appointmentsScheduled} />
+                <StatCard label="Appointments Set" value={metrics.appointmentsScheduled.appointmentsScheduled} />
                 <StatCard label="No Shows" value={metrics.appointmentsScheduled.noShows} />
-                <StatCard label="Rescheduled" value={metrics.appointmentsScheduled.rescheduled} />
+                <StatCard label="Showed" value={metrics.appointmentsScheduled.showed} />
+                <StatCard label="Show-Up Rate" value={`${metrics.appointmentsScheduled.showUpRate}%`} subtext="showed / appointments set" />
                 <StatCard label="Showed Closed" value={metrics.appointmentsScheduled.showedClosed} />
-                <StatCard label="Showed No Close" value={metrics.appointmentsScheduled.showedNoClose} />
-                <StatCard label="Appointment Close Rate" value={`${metrics.appointmentsScheduled.appointmentCloseRate}%`} subtext="closed / resolved" />
+                <StatCard label="Close Rate" value={`${metrics.appointmentsScheduled.closeRate}%`} subtext="closed / showed" />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="mb-4 flex items-center gap-2">
                     <CalendarCheck2 className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Appointment Outcomes</h3>
+                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Setter Appointment Outcomes</h3>
                   </div>
-                  <MetricBarList items={appointmentOutcomeItems} emptyLabel="No resolved appointments in this date range." />
-                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentsScheduled.resolvedAppointments}</p>
+                  <MetricBarList items={appointmentOutcomeItems} emptyLabel="No resolved setter appointments in this date range." />
+                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentsScheduled.resolvedAppointments} · Rescheduled: {metrics.appointmentsScheduled.rescheduled}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="mb-4 flex items-center gap-2">

@@ -41,7 +41,9 @@ export interface ReportMetrics {
     rescheduled: number;
     showedClosed: number;
     showedNoClose: number;
-    appointmentCloseRate: number;
+    showed: number;
+    showUpRate: number;
+    closeRate: number;
     resolvedAppointments: number;
   };
   dailyVolume: Array<{ date: string; count: number }>;
@@ -117,8 +119,8 @@ export function getReportMetrics({
   const bookingsForCreatedView = repUserId
     ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
-  const bookingsForScheduledView = repUserId
-    ? bookedItems.filter((item) => item.assigned_user_id === repUserId)
+  const appointmentsForSetterView = repUserId
+    ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
 
   const outcomeCounts = createOutcomeCounts();
@@ -142,7 +144,7 @@ export function getReportMetrics({
   }
 
   const bookingsMadeInRange = bookingsForCreatedView.filter((item) => isInDateRange(item.created_at, from, to));
-  const appointmentsScheduledInRange = bookingsForScheduledView.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const appointmentsScheduledInRange = appointmentsForSetterView.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
@@ -163,6 +165,8 @@ export function getReportMetrics({
   const resolvedAppointments = appointmentsScheduledInRange.filter(
     (item) => !!item.appointment_outcome,
   ).length;
+
+  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close;
 
   return {
     dialer: {
@@ -187,7 +191,9 @@ export function getReportMetrics({
       rescheduled: appointmentOutcomeCounts.rescheduled,
       showedClosed: appointmentOutcomeCounts.showed_closed,
       showedNoClose: appointmentOutcomeCounts.showed_no_close,
-      appointmentCloseRate: toPercent(appointmentOutcomeCounts.showed_closed, resolvedAppointments),
+      showed,
+      showUpRate: toPercent(showed, appointmentsScheduledInRange.length),
+      closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       resolvedAppointments,
     },
     dailyVolume: Object.entries(dailyVolumeMap)
