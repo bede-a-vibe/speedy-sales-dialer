@@ -274,7 +274,7 @@ export default function DialerPage() {
         ...prev,
         [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
-      setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
+      await discardContact(currentContact.id, { releaseLock: true });
 
       toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
       activeDialRequestRef.current = null;
