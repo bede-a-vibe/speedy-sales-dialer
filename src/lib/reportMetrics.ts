@@ -30,6 +30,12 @@ export interface AppointmentPerformanceMetrics {
   resolvedAppointments: number;
 }
 
+export interface RepComparisonRow {
+  repUserId: string;
+  setter: AppointmentPerformanceMetrics;
+  closer: AppointmentPerformanceMetrics;
+}
+
 export interface ReportMetrics {
   dialer: {
     dials: number;
@@ -51,6 +57,7 @@ export interface ReportMetrics {
     setter: AppointmentPerformanceMetrics;
     closer: AppointmentPerformanceMetrics;
   };
+  repComparison: RepComparisonRow[];
   dailyVolume: Array<{ date: string; count: number }>;
   outcomeCounts: OutcomeCounts;
   appointmentOutcomeCounts: {
@@ -186,6 +193,33 @@ export function getReportMetrics({
   const setterAppointmentsInRange = setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
   const closerAppointmentsInRange = closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
+  const repIds = Array.from(
+    new Set(
+      bookedItems.flatMap((item) => [item.created_by, item.assigned_user_id]).filter(Boolean),
+    ),
+  );
+
+  const repComparison = repIds
+    .map((repId) => {
+      const setterItems = bookedItems.filter(
+        (item) => item.created_by === repId && isInDateRange(item.scheduled_for, from, to),
+      );
+      const closerItems = bookedItems.filter(
+        (item) => item.assigned_user_id === repId && isInDateRange(item.scheduled_for, from, to),
+      );
+
+      return {
+        repUserId: repId,
+        setter: buildAppointmentPerformance(setterItems).metrics,
+        closer: buildAppointmentPerformance(closerItems).metrics,
+      } satisfies RepComparisonRow;
+    })
+    .sort((a, b) => {
+      const delta = b.setter.appointmentsScheduled - a.setter.appointmentsScheduled;
+      if (delta !== 0) return delta;
+      return b.closer.appointmentsScheduled - a.closer.appointmentsScheduled;
+    });
+
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
   const totalBookingsMade = bookingsMadeInRange.length;
@@ -219,6 +253,7 @@ export function getReportMetrics({
       setter: setterPerformance.metrics,
       closer: closerPerformance.metrics,
     },
+    repComparison,
     dailyVolume: Object.entries(dailyVolumeMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({ date, count })),
