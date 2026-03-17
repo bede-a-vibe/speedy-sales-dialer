@@ -873,15 +873,15 @@ export default function DialerPage() {
       return;
     }
 
-    // Don't start countdown if there's an active Dialpad call that hasn't ended
-    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+    // Don't start countdown if call is still resolving or active
+    if (isCallResolving || (activeDialpadCallId && activeDialpadCallState !== "hangup")) {
       setCooldownSecondsLeft(null);
       return;
     }
 
     // Start the countdown at 30
     setCooldownSecondsLeft(30);
-  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
+  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isCallResolving, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
 
   // Tick the countdown every second
   useEffect(() => {
