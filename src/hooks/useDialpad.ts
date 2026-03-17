@@ -4,6 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 interface DialpadCallParams {
   phone: string;
   dialpad_user_id?: string;
+  contact_id?: string;
+}
+
+interface LinkDialpadCallLogParams {
+  dialpad_call_id: string;
+  call_log_id: string;
 }
 
 export function useDialpadCall() {
@@ -26,6 +32,19 @@ export function useDialpadCallStatus() {
       });
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export function useLinkDialpadCallLog() {
+  return useMutation({
+    mutationFn: async ({ dialpad_call_id, call_log_id }: LinkDialpadCallLogParams) => {
+      const { error } = await supabase
+        .from("dialpad_calls")
+        .update({ call_log_id })
+        .eq("dialpad_call_id", dialpad_call_id);
+
+      if (error) throw error;
     },
   });
 }

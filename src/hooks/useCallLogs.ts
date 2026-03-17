@@ -4,6 +4,8 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type CallLog = Tables<"call_logs">;
 
+const SYNC_REFRESH_INTERVAL_MS = 15000;
+
 export function useCallLogs() {
   return useQuery({
     queryKey: ["call-logs"],
@@ -16,6 +18,7 @@ export function useCallLogs() {
       if (error) throw error;
       return data;
     },
+    refetchInterval: SYNC_REFRESH_INTERVAL_MS,
   });
 }
 
@@ -36,6 +39,7 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
       return data;
     },
     enabled: true,
+    refetchInterval: SYNC_REFRESH_INTERVAL_MS,
   });
 }
 
@@ -52,6 +56,7 @@ export function useFollowUps() {
       if (error) throw error;
       return data;
     },
+    refetchInterval: SYNC_REFRESH_INTERVAL_MS,
   });
 }
 
@@ -64,6 +69,7 @@ export function useCreateCallLog() {
       outcome: "no_answer" | "voicemail" | "not_interested" | "dnc" | "follow_up" | "booked" | "wrong_number";
       notes?: string;
       follow_up_date?: string | null;
+      dialpad_call_id?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("call_logs")
