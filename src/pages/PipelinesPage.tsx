@@ -96,7 +96,7 @@ function sortRepStats(stats: RepHistoryStat[], sort: HistorySort) {
     const difference = a[sort.key] - b[sort.key];
     if (difference !== 0) return difference * direction;
 
-    return (b.total - a.total || b.closed - a.closed || a.repName.localeCompare(b.repName)) * (sort.direction === "asc" ? 1 : -1);
+    return a.repName.localeCompare(b.repName);
   });
 }
 
@@ -198,6 +198,8 @@ function RepStatsTable({
 export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
+  const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
@@ -217,14 +219,22 @@ export default function PipelinesPage() {
   }, [completedBooked, historyFilter]);
 
   const setterStats = useMemo(
-    () => buildRepStats(filteredHistory, (item) => item.created_by, repMap),
-    [filteredHistory, repMap],
+    () => sortRepStats(buildRepStats(filteredHistory, (item) => item.created_by, repMap), setterSort),
+    [filteredHistory, repMap, setterSort],
   );
 
   const closerStats = useMemo(
-    () => buildRepStats(filteredHistory, (item) => item.assigned_user_id, repMap),
-    [filteredHistory, repMap],
+    () => sortRepStats(buildRepStats(filteredHistory, (item) => item.assigned_user_id, repMap), closerSort),
+    [filteredHistory, repMap, closerSort],
   );
+
+  const handleHistorySortChange = (currentSort: HistorySort, setSort: (sort: HistorySort) => void, key: HistorySortKey) => {
+    setSort(
+      currentSort.key === key
+        ? { key, direction: currentSort.direction === "desc" ? "asc" : "desc" }
+        : { key, direction: key === "repName" ? "asc" : "desc" },
+    );
+  };
 
   const handleComplete = async (id: string) => {
     try {
@@ -369,11 +379,15 @@ export default function PipelinesPage() {
             title="Appointment setters"
             description="Uses the rep who originally created the booked appointment."
             stats={setterStats}
+            sort={setterSort}
+            onSortChange={(key) => handleHistorySortChange(setterSort, setSetterSort, key)}
           />
           <RepStatsTable
             title="Closers"
             description="Uses the rep currently assigned to the appointment when it was completed."
             stats={closerStats}
+            sort={closerSort}
+            onSortChange={(key) => handleHistorySortChange(closerSort, setCloserSort, key)}
           />
         </div>
 
