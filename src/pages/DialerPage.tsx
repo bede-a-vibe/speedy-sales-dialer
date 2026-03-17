@@ -732,9 +732,8 @@ export default function DialerPage() {
     setCooldownSecondsLeft(null);
 
     const attemptDial = async (retriesLeft: number, isFirstAttempt: boolean): Promise<void> => {
-      // On first attempt after a previous call, give Dialpad time to release
       if (isFirstAttempt) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 500));
       }
 
       try {
@@ -763,7 +762,7 @@ export default function DialerPage() {
         const isRetryable = is409 || is429;
 
         if (isRetryable && retriesLeft > 0) {
-          const delay = is429 ? 5000 : 4000;
+          const delay = is429 ? 2500 : 1500;
           console.warn(`[Dialer] ${is429 ? "Rate limited" : "409 conflict"}, retrying in ${delay}ms (${retriesLeft} left)`);
           await new Promise((r) => setTimeout(r, delay));
           return attemptDial(retriesLeft - 1, false);
@@ -777,7 +776,7 @@ export default function DialerPage() {
       }
     };
 
-    void attemptDial(3, true);
+    void attemptDial(2, true);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
