@@ -171,7 +171,10 @@ export default function DialerPage() {
       setIsDialing(false);
       setCurrentIndex(null);
       toast.info("No more leads in queue.");
+      return;
     }
+
+    void ensureBuffer();
   }, [hasDialpadAssignment, queueLeadCount, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
