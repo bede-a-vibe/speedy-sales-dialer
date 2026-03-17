@@ -174,6 +174,22 @@ async function releaseDialerLeadLocks(sessionId: string, contactIds?: string[]) 
   });
 }
 
+async function getDialerQueueCount({
+  sessionId,
+  industry,
+  state,
+}: {
+  sessionId: string;
+  industry?: string;
+  state?: string;
+}) {
+  return invokeDialerRpc<number>("get_dialer_queue_count", {
+    _session_id: sessionId,
+    _industry: industry && industry !== "all" ? industry : null,
+    _state: state && state !== "all" ? state : null,
+  });
+}
+
 export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
