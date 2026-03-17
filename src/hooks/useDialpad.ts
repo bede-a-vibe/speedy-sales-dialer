@@ -113,6 +113,21 @@ export function useCancelDialpadCall() {
   });
 }
 
+interface ResolveDialpadCallParams {
+  phone: string;
+  dialpad_user_id: string;
+  contact_id?: string;
+}
+
+export function useResolveDialpadCall() {
+  return useMutation({
+    mutationFn: async (params: ResolveDialpadCallParams) => invokeDialpadAction(
+      { action: "resolve_call", ...params },
+      "Unable to resolve Dialpad call.",
+    ),
+  });
+}
+
 export function useLinkDialpadCallLog() {
   return useMutation({
     mutationFn: async ({ dialpad_call_id, call_log_id }: LinkDialpadCallLogParams) => {
