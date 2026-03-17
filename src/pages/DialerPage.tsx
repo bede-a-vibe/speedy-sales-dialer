@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, SkipForward, UserRound } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";

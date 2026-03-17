@@ -169,6 +169,16 @@ async function releaseDialerLeadLocks(sessionId: string, contactIds?: string[]) 
   });
 }
 
+async function clearDialerLeadLocksForUser(userId: string) {
+  const { count, error } = await supabase
+    .from("dialer_lead_locks")
+    .delete({ count: "exact" })
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 async function getDialerQueueCount({
   sessionId,
   industry,
