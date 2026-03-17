@@ -171,9 +171,23 @@ export async function parseContactUploadFile(file: File): Promise<ParsedContactU
   return isSpreadsheetFile(file) ? parseSpreadsheetFile(file) : parseCsvFile(file);
 }
 
+function buildImportedMetadataNote(extraFields: Record<ExtraNoteField, string | null>) {
+  const labeledValues = [
+    ["Subtype", extraFields.subtype],
+    ["Full address", extraFields.full_address],
+    ["Rating", extraFields.rating],
+  ].filter(([, value]) => value);
+
+  if (labeledValues.length === 0) {
+    return null;
+  }
+
+  return ["Imported builder metadata", ...labeledValues.map(([label, value]) => `${label}: ${value}`)].join("\n");
+}
+
 export function prepareContactImport(rows: ImportRow[], userId: string): PreparedContactImport {
   const headers = rows[0] ? Object.keys(rows[0]) : [];
-  const mapping: Partial<Record<string, (typeof ALL_FIELDS)[number]>> = {};
+  const mapping: Partial<Record<string, MappableField>> = {};
 
   for (const header of headers) {
     const field = mapColumn(header);
@@ -186,12 +200,12 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
   const missingRequired = REQUIRED_FIELDS.filter((field) => !mappedFields.includes(field));
 
   if (missingRequired.length > 0) {
-    return { contacts: [], headers, missingRequired };
+    return { contacts: [], contactNotes: [], headers, missingRequired };
   }
 
-  const contacts = rows
+  const preparedRows = rows
     .map((row) => {
-      const contact: Record<(typeof ALL_FIELDS)[number], string | null> = {
+      const contact: Record<ContactField, string | null> = {
         business_name: null,
         phone: null,
         industry: null,
@@ -202,20 +216,53 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
         city: null,
         state: null,
       };
+      const extraFields: Record<ExtraNoteField, string | null> = {
+        subtype: null,
+        full_address: null,
+        rating: null,
+      };
 
       for (const [header, dbField] of Object.entries(mapping)) {
         if (!dbField) continue;
-        const value = normalizeCellValue(row[header]);
-        contact[dbField] = value || null;
+        const value = normalizeCellValue(row[header]) || null;
+
+        if ((ALL_FIELDS as readonly string[]).includes(dbField)) {
+          contact[dbField as ContactField] = value;
+        } else {
+          extraFields[dbField as ExtraNoteField] = value;
+        }
       }
 
-      return {
-        ...contact,
-        state: normalizeState(contact.state),
-        uploaded_by: userId,
-      } as ContactImportInsert;
-    })
-    .filter((contact) => contact.business_name && contact.phone && contact.industry);
+      if (!contact.business_name || !contact.phone || !contact.industry) {
+        return null;
+      }
 
-  return { contacts, headers, missingRequired: [] };
+      const contactId = crypto.randomUUID();
+      const noteContent = buildImportedMetadataNote(extraFields);
+
+      return {
+        contact: {
+          id: contactId,
+          ...contact,
+          state: normalizeState(contact.state),
+          uploaded_by: userId,
+        } as ContactImportInsert,
+        contactNote: noteContent
+          ? ({
+              contact_id: contactId,
+              content: noteContent,
+              created_by: userId,
+              source: "manual",
+            } as ContactNoteImportInsert)
+          : null,
+      };
+    })
+    .filter((row): row is { contact: ContactImportInsert; contactNote: ContactNoteImportInsert | null } => row !== null);
+
+  return {
+    contacts: preparedRows.map((row) => row.contact),
+    contactNotes: preparedRows.flatMap((row) => (row.contactNote ? [row.contactNote] : [])),
+    headers,
+    missingRequired: [],
+  };
 }

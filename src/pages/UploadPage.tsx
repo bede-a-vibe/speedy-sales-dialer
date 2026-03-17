@@ -226,6 +226,9 @@ export default function UploadPage() {
               "Email / Email 1*",
               "Contact Person*",
               "City / State*",
+              "Subtype*",
+              "Full Address*",
+              "Rating*",
             ].map((col) => (
               <div key={col} className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-2 rounded-md">
                 {col}
