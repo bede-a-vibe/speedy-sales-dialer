@@ -130,9 +130,6 @@ export default function DialerPage() {
   const [rapidStatusPollingUntil, setRapidStatusPollingUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [isCallResolving, setIsCallResolving] = useState(false);
-  const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
-  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number | null>(null);
-  const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [sessionTick, setSessionTick] = useState(() => Date.now());
   const [sessionPhaseStartedAt, setSessionPhaseStartedAt] = useState<number | null>(null);
