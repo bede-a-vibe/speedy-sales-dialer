@@ -236,12 +236,12 @@ export default function DialerPage() {
   }, []);
 
   useEffect(() => {
-    if (isDialing || isStartingSession) return;
+    if (isStartingSession || sessionId) return;
 
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
     void stopQueueSession();
-  }, [industry, isDialing, isStartingSession, resetLeadState, stateFilter, stopQueueSession, user?.id]);
+  }, [industry, isStartingSession, resetLeadState, sessionId, stateFilter, stopQueueSession, user?.id]);
 
   const startDialing = useCallback(async () => {
     if (!hasDialpadAssignment || isStartingSession) return;
