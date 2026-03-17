@@ -11,6 +11,7 @@ interface DialpadSyncPanelProps {
   isCancelling: boolean;
   isStatusPending: boolean;
   isEndingCall: boolean;
+  isResolving?: boolean;
   enabled?: boolean;
 }
 
