@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Target, Trash2, Users, User, Calculator } from "lucide-react";
+import { Loader2, Pencil, Plus, Target, Trash2, Users, User, Calculator, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,12 @@ import { useDeletePerformanceTarget, usePerformanceTargets, useUpsertPerformance
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import {
   deriveAllTargets,
+  deriveDialsAndPickups,
   formatTargetMetricValue,
+  INPUT_METRICS,
   PERFORMANCE_TARGET_METRICS,
   PERFORMANCE_TARGET_METRIC_DEFINITIONS,
+  WEEKLY_MULTIPLIER,
   type PerformanceTargetMetricKey,
   type PerformanceTargetRecord,
 } from "@/lib/performanceTargets";
@@ -27,8 +30,6 @@ type BulkFormValues = Record<PerformanceTargetMetricKey, string>;
 function emptyBulkForm(): BulkFormValues {
   return Object.fromEntries(PERFORMANCE_TARGET_METRICS.map((k) => [k, ""])) as BulkFormValues;
 }
-
-const WEEKLY_MULTIPLIER = 5;
 
 export default function TargetsPage() {
   const { data: targets = [], isLoading } = usePerformanceTargets();
@@ -46,7 +47,7 @@ export default function TargetsPage() {
     [reps],
   );
 
-  // Only individual daily targets are stored
+  // Only individual daily input targets are stored (not dials/pickups)
   const storedDailyTargets = useMemo(
     () => targets.filter((t) => t.scope_type === "individual" && t.period_type === "daily"),
     [targets],
@@ -65,6 +66,18 @@ export default function TargetsPage() {
     }
     return map;
   }, [storedDailyTargets]);
+
+  // Live-calculate dials/pickups from current form values
+  const derivedPreview = useMemo(() => {
+    const bookings = bulkValues.bookings_made ? Number(bulkValues.bookings_made) : 0;
+    const pickupRate = bulkValues.pickup_to_booking_rate ? Number(bulkValues.pickup_to_booking_rate) : 0;
+    const dialRate = bulkValues.dial_to_pickup_rate ? Number(bulkValues.dial_to_pickup_rate) : 0;
+    return deriveDialsAndPickups({
+      bookings_made: bookings,
+      pickup_to_booking_rate: pickupRate,
+      dial_to_pickup_rate: dialRate,
+    });
+  }, [bulkValues.bookings_made, bulkValues.pickup_to_booking_rate, bulkValues.dial_to_pickup_rate]);
 
   const openNewForRep = () => {
     setSelectedRepId("");
@@ -89,7 +102,8 @@ export default function TargetsPage() {
       return;
     }
 
-    const entries = PERFORMANCE_TARGET_METRICS
+    // Only save input metrics (not derived ones)
+    const entries = INPUT_METRICS
       .filter((key) => bulkValues[key] !== "" && !Number.isNaN(Number(bulkValues[key])))
       .map((key) => ({ metric_key: key, target_value: Number(bulkValues[key]) }));
 
@@ -100,7 +114,6 @@ export default function TargetsPage() {
 
     setIsSaving(true);
     try {
-      // Find existing target IDs for this rep to do upserts
       const existingRepTargets = targetsByRep.get(selectedRepId) || [];
       const existingByMetric = new Map(existingRepTargets.map((t) => [t.metric_key, t]));
 
@@ -116,8 +129,8 @@ export default function TargetsPage() {
         });
       }
 
-      // Delete targets for metrics that were cleared (set to empty)
-      const clearedMetrics = PERFORMANCE_TARGET_METRICS.filter(
+      // Delete targets for input metrics that were cleared
+      const clearedMetrics = INPUT_METRICS.filter(
         (key) => bulkValues[key] === "" && existingByMetric.has(key),
       );
       for (const metricKey of clearedMetrics) {
@@ -149,8 +162,19 @@ export default function TargetsPage() {
     }
   };
 
-  // Unique reps that have targets
   const repsWithTargets = useMemo(() => Array.from(targetsByRep.keys()), [targetsByRep]);
+
+  // Build full target list per rep (stored + derived) for display
+  const fullTargetsByRep = useMemo(() => {
+    const map = new Map<string, PerformanceTargetRecord[]>();
+    for (const t of derived.individualDaily) {
+      if (!t.user_id) continue;
+      const list = map.get(t.user_id) || [];
+      list.push(t);
+      map.set(t.user_id, list);
+    }
+    return map;
+  }, [derived.individualDaily]);
 
   return (
     <AppLayout title="Targets">
@@ -159,7 +183,7 @@ export default function TargetsPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Performance Targets</h2>
             <p className="text-sm text-muted-foreground">
-              Set daily targets per rep — weekly and team totals are calculated automatically.
+              Set bookings & rates per rep — dials, pickups, weekly, and team totals are calculated automatically.
             </p>
           </div>
 
@@ -196,8 +220,9 @@ export default function TargetsPage() {
 
                 <Separator />
 
+                {/* Input metrics */}
                 <div className="grid gap-3">
-                  {PERFORMANCE_TARGET_METRICS.map((metricKey) => {
+                  {INPUT_METRICS.map((metricKey) => {
                     const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
                     return (
                       <div key={metricKey} className="flex items-center gap-3">
@@ -207,11 +232,11 @@ export default function TargetsPage() {
                         </div>
                         <Input
                           type="number"
-                          step={def.isRate ? "1" : "1"}
+                          step="1"
                           min="0"
                           value={bulkValues[metricKey]}
                           onChange={(e) => setBulkValues((prev) => ({ ...prev, [metricKey]: e.target.value }))}
-                          placeholder={def.isRate ? "e.g. 30" : "e.g. 50"}
+                          placeholder={def.isRate ? "e.g. 30" : "e.g. 5"}
                           className="w-28 font-mono text-right"
                         />
                         {def.isRate && <span className="text-xs text-muted-foreground w-4">%</span>}
@@ -221,16 +246,40 @@ export default function TargetsPage() {
                   })}
                 </div>
 
-                {selectedRepId && (
-                  <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-                    <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <Calculator className="h-3.5 w-3.5" />
-                      Auto-calculated from daily targets
+                {/* Derived preview */}
+                {(derivedPreview.pickups > 0 || derivedPreview.dials > 0) && (
+                  <>
+                    <Separator />
+                    <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        <Zap className="h-3.5 w-3.5 text-primary" />
+                        Auto-calculated daily targets
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center rounded-md bg-background p-2">
+                          <p className="text-2xl font-bold font-mono text-foreground">{derivedPreview.pickups.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Pickups needed</p>
+                        </div>
+                        <div className="text-center rounded-md bg-background p-2">
+                          <p className="text-2xl font-bold font-mono text-foreground">{derivedPreview.dials.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Dials needed</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {bulkValues.bookings_made || 0} bookings ÷ {bulkValues.pickup_to_booking_rate || 0}% = {derivedPreview.pickups} pickups ÷ {bulkValues.dial_to_pickup_rate || 0}% = {derivedPreview.dials} dials
+                      </p>
                     </div>
-                    <p>Weekly individual = daily × {WEEKLY_MULTIPLIER} (rates stay the same)</p>
-                    <p>Team targets = sum of all rep targets (rates averaged)</p>
-                  </div>
+                  </>
                 )}
+
+                <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Calculator className="h-3.5 w-3.5" />
+                    How targets roll up
+                  </div>
+                  <p>Weekly = daily × {WEEKLY_MULTIPLIER} (rates stay the same)</p>
+                  <p>Team = sum of all reps (rates averaged)</p>
+                </div>
 
                 <Button onClick={handleBulkSave} disabled={isSaving} className="w-full">
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -260,7 +309,7 @@ export default function TargetsPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {repsWithTargets.map((repId) => {
-                const repTargets = targetsByRep.get(repId) || [];
+                const allRepTargets = fullTargetsByRep.get(repId) || [];
                 return (
                   <Card key={repId}>
                     <CardHeader className="pb-3">
@@ -279,12 +328,20 @@ export default function TargetsPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="space-y-1.5">
-                        {repTargets.map((t) => (
-                          <div key={t.id} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">{PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key].label}</span>
-                            <span className="font-mono font-medium">{formatTargetMetricValue(t.metric_key, t.target_value)}</span>
-                          </div>
-                        ))}
+                        {allRepTargets.map((t) => {
+                          const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key];
+                          return (
+                            <div key={t.metric_key} className="flex justify-between text-sm">
+                              <span className={def.isDerived ? "text-muted-foreground italic" : "text-muted-foreground"}>
+                                {def.label}
+                                {def.isDerived && (
+                                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 align-middle">auto</Badge>
+                                )}
+                              </span>
+                              <span className="font-mono font-medium">{formatTargetMetricValue(t.metric_key, t.target_value)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -324,7 +381,12 @@ export default function TargetsPage() {
                       <TableRow key={metricKey}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{def.label}</p>
+                            <p className="font-medium">
+                              {def.label}
+                              {def.isDerived && (
+                                <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 align-middle">auto</Badge>
+                              )}
+                            </p>
                             <p className="text-xs text-muted-foreground">{def.description}</p>
                           </div>
                         </TableCell>
@@ -336,7 +398,8 @@ export default function TargetsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="secondary" className="text-xs">
-                            {def.isRate ? "avg" : "sum"}{!def.isRate ? ` × ${WEEKLY_MULTIPLIER}` : ""}
+                            {def.isDerived ? "derived" : def.isRate ? "avg" : "sum"}
+                            {!def.isRate ? ` × ${WEEKLY_MULTIPLIER}` : ""}
                           </Badge>
                         </TableCell>
                       </TableRow>
