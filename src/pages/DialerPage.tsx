@@ -730,10 +730,13 @@ export default function DialerPage() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         const is409 = message.includes("409") || message.toLowerCase().includes("already being created") || message.toLowerCase().includes("still active");
+        const is429 = message.includes("429") || message.toLowerCase().includes("rate_limit") || message.toLowerCase().includes("rate limit");
+        const isRetryable = is409 || is429;
 
-        if (is409 && retriesLeft > 0) {
-          // Previous call hasn't fully released yet — wait and retry
-          await new Promise((r) => setTimeout(r, 3000));
+        if (isRetryable && retriesLeft > 0) {
+          const delay = is429 ? 5000 : 4000;
+          console.warn(`[Dialer] ${is429 ? "Rate limited" : "409 conflict"}, retrying in ${delay}ms (${retriesLeft} left)`);
+          await new Promise((r) => setTimeout(r, delay));
           return attemptDial(retriesLeft - 1);
         }
 
@@ -745,7 +748,7 @@ export default function DialerPage() {
       }
     };
 
-    void attemptDial(3);
+    void attemptDial(4);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
