@@ -69,7 +69,7 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
-  const dialpadCallStatus = useDialpadCallStatus();
+  const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
@@ -260,7 +260,7 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     try {
-      const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+      const status = await fetchDialpadCallStatus(activeDialpadCallId);
       const currentState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
       setActiveDialpadCallState(currentState);
 
@@ -283,7 +283,7 @@ export default function DialerPage() {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
       toast.error(message);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, dialpadCallStatus]);
+  }, [activeDialpadCallId, cancelDialpadCall, fetchDialpadCallStatus]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
@@ -367,9 +367,14 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     let cancelled = false;
+    let isRequestInFlight = false;
+
     const pollStatus = async () => {
+      if (isRequestInFlight) return;
+      isRequestInFlight = true;
+
       try {
-        const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+        const status = await fetchDialpadCallStatus(activeDialpadCallId);
         if (cancelled) return;
 
         const nextState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
@@ -380,17 +385,18 @@ export default function DialerPage() {
         }
       } catch {
         // Ignore transient polling errors.
+      } finally {
+        isRequestInFlight = false;
       }
     };
 
-    void pollStatus();
-    const intervalId = window.setInterval(pollStatus, 5000);
+    const intervalId = window.setInterval(pollStatus, 10000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeDialpadCallId, dialpadCallStatus]);
+  }, [activeDialpadCallId, fetchDialpadCallStatus]);
 
   return (
     <AppLayout title="Dialer">
@@ -598,10 +604,10 @@ export default function DialerPage() {
                       <Button
                         variant="outline"
                         onClick={cancelActiveCall}
-                        disabled={cancelDialpadCall.isPending || dialpadCallStatus.isPending || activeDialpadCallState === "hangup"}
+                        disabled={cancelDialpadCall.isPending || isDialpadCallStatusPending || activeDialpadCallState === "hangup"}
                         className="w-full border-destructive text-destructive hover:bg-destructive/10"
                       >
-                        {cancelDialpadCall.isPending || dialpadCallStatus.isPending ? (
+                        {cancelDialpadCall.isPending || isDialpadCallStatusPending ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <PhoneOff className="mr-2 h-4 w-4" />
