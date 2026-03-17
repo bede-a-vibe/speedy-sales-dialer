@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import type { TablesInsert } from "@/integrations/supabase/types";
+import { normalizeIndustryValue } from "@/data/mockData";
 
 export interface ImportRow {
   [key: string]: string;
