@@ -18,7 +18,7 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
 }
 
-type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close";
+type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close" | "showed_verbal_commitment";
 type HistorySortKey = "repName" | "total" | "closed" | "showUpRate" | "closeRate";
 type SortDirection = "asc" | "desc";
 
