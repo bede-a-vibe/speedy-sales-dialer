@@ -657,24 +657,29 @@ export default function DialerPage() {
                     <div className="space-y-3">
                       <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
                         Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                        {activeDialpadCallState ? ` Current state: ${activeDialpadCallState}.` : ""}
                       </div>
                       <Button
                         variant="outline"
                         onClick={cancelActiveCall}
-                        disabled={cancelDialpadCall.isPending || isDialpadCallStatusPending || activeDialpadCallState === "hangup"}
+                        disabled={cancelDialpadCall.isPending || isDialpadCallStatusPending || isEndingCall || activeDialpadCallState === "hangup"}
                         className="w-full border-destructive text-destructive hover:bg-destructive/10"
                       >
-                        {cancelDialpadCall.isPending || isDialpadCallStatusPending ? (
+                        {cancelDialpadCall.isPending || isDialpadCallStatusPending || isEndingCall ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <PhoneOff className="mr-2 h-4 w-4" />
                         )}
-                        {activeDialpadCallState === "hangup" ? "Call Already Ended" : "Cancel Active Call"}
+                        {activeDialpadCallState === "hangup"
+                          ? "Call Already Ended"
+                          : isEndingCall
+                            ? "Ending Call..."
+                            : "Cancel Active Call"}
                       </Button>
                     </div>
                   ) : (
                     <p className="text-muted-foreground">
-                      Waiting for a tracked Dialpad call to start.
+                      Waiting for a tracked Dialpad call to reach a loggable state.
                     </p>
                   )}
 
