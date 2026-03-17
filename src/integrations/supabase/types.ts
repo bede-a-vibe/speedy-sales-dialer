@@ -177,6 +177,50 @@ export type Database = {
         }
         Relationships: []
       }
+      dialer_lead_locks: {
+        Row: {
+          contact_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          industry: string | null
+          session_id: string
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          industry?: string | null
+          session_id: string
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          industry?: string | null
+          session_id?: string
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dialer_lead_locks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dialpad_calls: {
         Row: {
           call_log_id: string | null
@@ -386,12 +430,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_dialer_leads: {
+        Args: {
+          _claim_size?: number
+          _industry?: string
+          _lock_minutes?: number
+          _session_id: string
+          _state?: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      refresh_dialer_lead_locks: {
+        Args: {
+          _contact_ids?: string[]
+          _lock_minutes?: number
+          _session_id: string
+        }
+        Returns: number
+      }
+      release_dialer_lead_locks: {
+        Args: { _contact_ids?: string[]; _session_id: string }
+        Returns: number
       }
     }
     Enums: {
