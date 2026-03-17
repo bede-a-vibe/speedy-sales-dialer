@@ -128,6 +128,7 @@ export default function DialerPage() {
     setSessionOutcomes({});
     setShowSummary(false);
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
   }, [uncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
