@@ -1,6 +1,6 @@
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { CheckCircle } from "lucide-react";
+import { ConfettiBurst, useConfettiTrigger } from "@/components/dashboard/ConfettiBurst";
 import type { TargetProgressItem } from "@/lib/performanceTargets";
 
 interface TargetMetricCardProps {
@@ -18,6 +18,8 @@ function getProgressColor(pct: number) {
 export function TargetMetricCard({ item, className }: TargetMetricCardProps) {
   const remainingValue = Math.max((item.targetValue ?? 0) - item.actualValue, 0);
   const isComplete = item.hasTarget && item.actualValue >= (item.targetValue ?? 0);
+  const confettiActive = useConfettiTrigger(isComplete);
+
   const progressLabel = item.hasTarget
     ? isComplete
       ? "🎉 Target smashed!"
@@ -27,13 +29,15 @@ export function TargetMetricCard({ item, className }: TargetMetricCardProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border p-4 transition-all duration-500",
+        "relative rounded-lg border p-4 transition-all duration-500",
         isComplete
           ? "border-[hsl(var(--outcome-booked))]/40 bg-[hsl(var(--outcome-booked))]/5 shadow-[0_0_20px_-6px_hsl(var(--outcome-booked)/0.3)]"
           : "border-border bg-card",
         className
       )}
     >
+      <ConfettiBurst active={confettiActive} />
+
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
@@ -52,7 +56,6 @@ export function TargetMetricCard({ item, className }: TargetMetricCardProps) {
         {item.hasTarget ? `Target ${item.formattedTarget}` : "Set a target from Targets settings"}
       </p>
 
-      {/* Color-coded progress bar */}
       <div className="mt-4 relative">
         <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
           <div
@@ -60,7 +63,6 @@ export function TargetMetricCard({ item, className }: TargetMetricCardProps) {
             style={{ width: `${Math.min(item.progress, 100)}%` }}
           />
         </div>
-        {/* Milestone markers */}
         {item.hasTarget && (
           <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
             {[25, 50, 75].map((mark) => (
