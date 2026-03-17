@@ -481,6 +481,15 @@ export default function DialerPage() {
 
     leadAdvanceInFlightRef.current = true;
 
+    // Hang up any active Dialpad call before logging
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+      try {
+        await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      } catch {
+        // Continue logging even if hangup fails
+      }
+    }
+
     try {
       const scheduledFor = followUpDate
         ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
