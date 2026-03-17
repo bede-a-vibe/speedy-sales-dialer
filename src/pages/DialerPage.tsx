@@ -114,6 +114,7 @@ export default function DialerPage() {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [followUpTime, setFollowUpTime] = useState("09:00");
   const [assignedRepId, setAssignedRepId] = useState("");
+  const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
