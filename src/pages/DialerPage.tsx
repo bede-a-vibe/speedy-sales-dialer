@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -77,9 +78,12 @@ export default function DialerPage() {
 
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
+  const requiresBookedSchedule = selectedOutcome === "booked";
+  const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
   const canSubmit = !!selectedOutcome
     && (!requiresPipelineAssignment || !!assignedRepId)
-    && (!requiresFollowUpSchedule || (!!followUpDate && !!followUpTime))
+    && (!requiresAnySchedule || !!followUpDate)
+    && (!requiresFollowUpSchedule || !!followUpTime)
     && !createCallLog.isPending
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
@@ -95,11 +99,11 @@ export default function DialerPage() {
     if (!requiresPipelineAssignment && user?.id) {
       setAssignedRepId(user.id);
     }
-    if (!requiresFollowUpSchedule) {
+    if (!requiresAnySchedule) {
       setFollowUpDate(undefined);
-      setFollowUpTime("09:00");
+      setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     }
-  }, [requiresPipelineAssignment, requiresFollowUpSchedule, user?.id]);
+  }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
   const startDialing = useCallback(() => {
     if (uncalledContacts.length === 0) return;
@@ -108,7 +112,7 @@ export default function DialerPage() {
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
-    setFollowUpTime("09:00");
+    setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(user?.id || "");
     setCallCount(0);
     setSkippedCount(0);
@@ -133,7 +137,7 @@ export default function DialerPage() {
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
-    setFollowUpTime("09:00");
+    setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(user?.id || "");
     setActiveDialpadCallId(null);
     activeDialRequestRef.current = null;
@@ -154,14 +158,19 @@ export default function DialerPage() {
       return;
     }
 
+    if (requiresBookedSchedule && !followUpDate) {
+      toast.error("Choose an appointment day.");
+      return;
+    }
+
     if (requiresPipelineAssignment && !assignedRepId) {
       toast.error("Choose a sales rep.");
       return;
     }
 
     try {
-      const scheduledFor = requiresFollowUpSchedule && followUpDate
-        ? combineDateAndTime(followUpDate, followUpTime).toISOString()
+      const scheduledFor = followUpDate
+        ? combineDateAndTime(followUpDate, requiresFollowUpSchedule ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
         : null;
 
       const insertedLog = await createCallLog.mutateAsync({
@@ -211,7 +220,7 @@ export default function DialerPage() {
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
-      setFollowUpTime("09:00");
+      setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
       setAssignedRepId(user.id);
     } catch {
       toast.error("Failed to log call. Try again.");
@@ -226,6 +235,7 @@ export default function DialerPage() {
     followUpTime,
     linkDialpadCallLog,
     notes,
+    requiresBookedSchedule,
     requiresFollowUpSchedule,
     requiresPipelineAssignment,
     selectedOutcome,
@@ -576,10 +586,10 @@ export default function DialerPage() {
                 </div>
               )}
 
-              {requiresFollowUpSchedule && (
+              {requiresAnySchedule && (
                 <div className="rounded-lg border border-border bg-card p-4">
                   <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Follow-up Schedule
+                    {requiresBookedSchedule ? "Appointment Day" : "Follow-up Schedule"}
                   </label>
                   <div className="space-y-2">
                     <Popover>
@@ -592,7 +602,7 @@ export default function DialerPage() {
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {followUpDate ? format(followUpDate, "PPP") : "Pick a date"}
+                          {followUpDate ? format(followUpDate, "PPP") : requiresBookedSchedule ? "Pick appointment day" : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -606,12 +616,16 @@ export default function DialerPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <Input
-                      type="time"
-                      value={followUpTime}
-                      onChange={(e) => setFollowUpTime(e.target.value)}
-                      className="border-border bg-background"
-                    />
+                    {requiresFollowUpSchedule ? (
+                      <Input
+                        type="time"
+                        value={followUpTime}
+                        onChange={(e) => setFollowUpTime(e.target.value)}
+                        className="border-border bg-background"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Booked appointments only need a day right now.</p>
+                    )}
                   </div>
                 </div>
               )}

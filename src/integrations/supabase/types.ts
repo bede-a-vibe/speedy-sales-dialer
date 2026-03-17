@@ -117,6 +117,11 @@ export type Database = {
           industry: string
           is_dnc: boolean
           last_outcome: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at: string | null
+          latest_appointment_scheduled_for: string | null
           phone: string
           state: string | null
           status: string
@@ -135,6 +140,11 @@ export type Database = {
           industry: string
           is_dnc?: boolean
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at?: string | null
+          latest_appointment_scheduled_for?: string | null
           phone: string
           state?: string | null
           status?: string
@@ -153,6 +163,11 @@ export type Database = {
           industry?: string
           is_dnc?: boolean
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at?: string | null
+          latest_appointment_scheduled_for?: string | null
           phone?: string
           state?: string | null
           status?: string
@@ -248,6 +263,9 @@ export type Database = {
       }
       pipeline_items: {
         Row: {
+          appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
           assigned_user_id: string
           completed_at: string | null
           contact_id: string
@@ -255,6 +273,8 @@ export type Database = {
           created_by: string
           id: string
           notes: string
+          outcome_notes: string
+          outcome_recorded_at: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
           scheduled_for: string | null
           source_call_log_id: string | null
@@ -262,6 +282,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
           assigned_user_id: string
           completed_at?: string | null
           contact_id: string
@@ -269,6 +292,8 @@ export type Database = {
           created_by: string
           id?: string
           notes?: string
+          outcome_notes?: string
+          outcome_recorded_at?: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
           scheduled_for?: string | null
           source_call_log_id?: string | null
@@ -276,6 +301,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
           assigned_user_id?: string
           completed_at?: string | null
           contact_id?: string
@@ -283,6 +311,8 @@ export type Database = {
           created_by?: string
           id?: string
           notes?: string
+          outcome_notes?: string
+          outcome_recorded_at?: string | null
           pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
           scheduled_for?: string | null
           source_call_log_id?: string | null
@@ -366,6 +396,11 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "sales_rep"
+      appointment_outcome:
+        | "no_show"
+        | "rescheduled"
+        | "showed_closed"
+        | "showed_no_close"
       call_outcome:
         | "no_answer"
         | "voicemail"
@@ -505,6 +540,12 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "sales_rep"],
+      appointment_outcome: [
+        "no_show",
+        "rescheduled",
+        "showed_closed",
+        "showed_no_close",
+      ],
       call_outcome: [
         "no_answer",
         "voicemail",

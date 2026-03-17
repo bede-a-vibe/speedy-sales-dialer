@@ -1,152 +1,20 @@
-import { useMemo, useState } from "react";
-import { format, isPast, isToday } from "date-fns";
-import { useSearchParams } from "react-router-dom";
-import { CalendarClock, Check, Clock3, Phone, UserRound } from "lucide-react";
+import { useMemo } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { useUpdateContact } from "@/hooks/useContacts";
 import {
   usePipelineItems,
   useSalesReps,
   useUpdatePipelineItem,
   type PipelineItemWithRelations,
-  type SalesRepOption,
 } from "@/hooks/usePipelineItems";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
-}
-
-function combineDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const next = new Date(date);
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  return next.toISOString();
-}
-
-function PipelineCard({
-  item,
-  repName,
-  reps,
-  onComplete,
-  onAssign,
-  onReschedule,
-}: {
-  item: PipelineItemWithRelations;
-  repName: string;
-  reps: SalesRepOption[];
-  onComplete: (id: string) => Promise<void>;
-  onAssign: (id: string, userId: string) => Promise<void>;
-  onReschedule?: (id: string, iso: string) => Promise<void>;
-}) {
-  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
-  const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : "09:00");
-
-  const scheduledDate = item.scheduled_for ? new Date(item.scheduled_for) : null;
-  const overdue = !!scheduledDate && isPast(scheduledDate) && !isToday(scheduledDate);
-  const today = !!scheduledDate && isToday(scheduledDate);
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-4 rounded-lg border bg-card p-4",
-        overdue && "border-destructive/40 bg-destructive/5",
-        today && "border-primary/40 bg-primary/5"
-      )}
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
-          <p className="text-xs text-muted-foreground">
-            {item.contacts?.contact_person || "No contact"} · {item.contacts?.industry || "Unknown industry"}
-          </p>
-          {item.notes && <p className="text-xs italic text-muted-foreground">“{item.notes}”</p>}
-          <a
-            href={`tel:${item.contacts?.phone || ""}`}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Phone className="h-3 w-3" /> {item.contacts?.phone}
-          </a>
-        </div>
-
-        <div className="flex flex-col gap-2 lg:items-end">
-          {scheduledDate && (
-            <div className="text-right">
-              <p className="text-xs font-mono text-foreground">{format(scheduledDate, "MMM d, yyyy h:mm a")}</p>
-              {overdue && <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive">Overdue</span>}
-              {today && <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Today</span>}
-            </div>
-          )}
-          <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <UserRound className="h-3 w-3" /> {repName}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 lg:flex-row">
-        <Select value={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>
-          <SelectTrigger className="w-full bg-background lg:w-[240px]">
-            <SelectValue placeholder="Assign rep" />
-          </SelectTrigger>
-          <SelectContent>
-            {reps.map((rep) => (
-              <SelectItem key={rep.user_id} value={rep.user_id}>
-                {getRepLabel(rep.display_name, rep.email)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {onReschedule && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
-                  <CalendarClock className="h-4 w-4" />
-                  {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={rescheduleDate}
-                  onSelect={setRescheduleDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={rescheduleTime}
-              onChange={(event) => setRescheduleTime(event.target.value)}
-              className="w-full bg-background sm:w-[140px]"
-            />
-            <Button
-              variant="secondary"
-              onClick={() => rescheduleDate && onReschedule(item.id, combineDateTime(rescheduleDate, rescheduleTime))}
-              disabled={!rescheduleDate}
-            >
-              <Clock3 className="h-4 w-4" />
-              Reschedule
-            </Button>
-          </div>
-        )}
-
-        <Button variant="outline" onClick={() => onComplete(item.id)} className="lg:ml-auto">
-          <Check className="h-4 w-4" />
-          Mark complete
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 export default function PipelinesPage() {
@@ -156,10 +24,11 @@ export default function PipelinesPage() {
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
+  const updateContact = useUpdateContact();
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
-    [reps]
+    [reps],
   );
 
   const handleComplete = async (id: string) => {
@@ -189,9 +58,64 @@ export default function PipelinesPage() {
     }
   };
 
+  const handleBookedOutcome = async (
+    item: PipelineItemWithRelations,
+    outcome: AppointmentOutcomeValue,
+    notes: string,
+    scheduledFor?: string,
+  ) => {
+    try {
+      if (outcome === "rescheduled") {
+        if (!scheduledFor) {
+          toast.error("Pick a new appointment day first.");
+          return;
+        }
+
+        await updatePipelineItem.mutateAsync({
+          id: item.id,
+          appointment_outcome: "rescheduled",
+          outcome_notes: notes,
+          scheduled_for: scheduledFor,
+          status: "open",
+          completed_at: null,
+        });
+
+        await updateContact.mutateAsync({
+          id: item.contact_id,
+          status: "called",
+          latest_appointment_outcome: "rescheduled",
+          latest_appointment_scheduled_for: scheduledFor,
+          latest_appointment_recorded_at: new Date().toISOString(),
+        });
+
+        toast.success("Appointment rescheduled.");
+        return;
+      }
+
+      await updatePipelineItem.mutateAsync({
+        id: item.id,
+        appointment_outcome: outcome,
+        outcome_notes: notes,
+        status: "completed",
+      });
+
+      await updateContact.mutateAsync({
+        id: item.contact_id,
+        status: "called",
+        latest_appointment_outcome: outcome,
+        latest_appointment_scheduled_for: item.scheduled_for,
+        latest_appointment_recorded_at: new Date().toISOString(),
+      });
+
+      toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
+    } catch {
+      toast.error("Failed to update appointment outcome.");
+    }
+  };
+
   const renderItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
     if ((type === "follow_up" && followUpsLoading) || (type === "booked" && bookedLoading)) {
-      return <div className="py-20 text-center text-sm font-mono text-muted-foreground animate-pulse">Loading...</div>;
+      return <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>;
     }
 
     if (items.length === 0) {
@@ -201,14 +125,16 @@ export default function PipelinesPage() {
     return (
       <div className="space-y-3">
         {items.map((item) => (
-          <PipelineCard
+          <PipelineItemCard
             key={item.id}
             item={item}
             repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
             reps={reps}
+            isSaving={updatePipelineItem.isPending || updateContact.isPending}
             onComplete={handleComplete}
             onAssign={handleAssign}
             onReschedule={type === "follow_up" ? handleReschedule : undefined}
+            onRecordBookedOutcome={type === "booked" ? handleBookedOutcome : undefined}
           />
         ))}
       </div>
@@ -221,7 +147,7 @@ export default function PipelinesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Appointment pipelines</h3>
-            <p className="text-sm text-muted-foreground">Track open follow-ups and booked appointments in one place.</p>
+            <p className="text-sm text-muted-foreground">Track open follow-ups, booked days, and final appointment results in one place.</p>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{followUps.length} follow-ups</span>

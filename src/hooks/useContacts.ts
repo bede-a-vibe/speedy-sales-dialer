@@ -1,8 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
-export type Contact = Tables<"contacts">;
+export type Contact = Tables<"contacts"> & {
+  latest_appointment_outcome: AppointmentOutcomeValue | null;
+  latest_appointment_scheduled_for: string | null;
+  latest_appointment_recorded_at: string | null;
+};
 
 export function useContacts(industry?: string) {
   return useQuery({
