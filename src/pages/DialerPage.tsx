@@ -207,6 +207,7 @@ export default function DialerPage() {
     if (!hasDialpadAssignment || isStartingSession) return;
 
     setIsStartingSession(true);
+    setIsBootstrappingSession(true);
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
@@ -218,6 +219,7 @@ export default function DialerPage() {
       if (claimedCount <= 0) {
         setIsDialing(false);
         setCurrentIndex(null);
+        setIsBootstrappingSession(false);
         toast.info("No more leads in queue.");
         return;
       }
@@ -231,6 +233,7 @@ export default function DialerPage() {
     } catch (error) {
       setIsDialing(false);
       setCurrentIndex(null);
+      setIsBootstrappingSession(false);
       const message = error instanceof Error ? error.message : "Unable to start dialing session.";
       toast.error(message);
     } finally {
