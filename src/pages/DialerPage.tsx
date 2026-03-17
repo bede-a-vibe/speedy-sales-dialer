@@ -285,6 +285,21 @@ export default function DialerPage() {
     setAccumulatedPausedMs(0);
   }, []);
 
+  const handleBookedDateDetected = useCallback((date: Date) => {
+    setFollowUpDate((current) => {
+      const currentKey = current ? format(current, "yyyy-MM-dd") : null;
+      const nextKey = format(date, "yyyy-MM-dd");
+
+      if (currentKey === nextKey && isBookedDateAutoDetected) {
+        return current;
+      }
+
+      toast.success(`Booked date detected: ${format(date, "PPP")}`);
+      return date;
+    });
+    setIsBookedDateAutoDetected(true);
+  }, [isBookedDateAutoDetected]);
+
   useEffect(() => {
     if (isStartingSession || sessionId) return;
 
