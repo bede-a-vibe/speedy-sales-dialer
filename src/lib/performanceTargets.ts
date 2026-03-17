@@ -138,27 +138,46 @@ export function buildTargetProgressItems(
   });
 }
 
-export function buildRolledUpIndividualTargets(
-  targets: PerformanceTargetRecord[],
-  periodType: PerformanceTargetPeriodType,
-): PerformanceTargetRecord[] {
-  const relevantTargets = targets.filter(
-    (target) => target.scope_type === "individual" && target.period_type === periodType,
-  );
+const WEEKLY_MULTIPLIER = 5;
 
+/**
+ * Derive weekly targets from daily targets.
+ * Count metrics are multiplied by 5 (work days). Rate metrics stay the same.
+ */
+export function deriveWeeklyTargets(
+  dailyTargets: PerformanceTargetRecord[],
+): PerformanceTargetRecord[] {
+  return dailyTargets.map((target) => ({
+    ...target,
+    id: `derived-weekly-${target.id}`,
+    period_type: "weekly" as const,
+    target_value: PERFORMANCE_TARGET_METRIC_DEFINITIONS[target.metric_key].isRate
+      ? target.target_value
+      : target.target_value * WEEKLY_MULTIPLIER,
+  }));
+}
+
+/**
+ * Roll up individual targets into team targets.
+ * Count metrics are summed. Rate metrics are averaged.
+ */
+export function rollUpToTeamTargets(
+  individualTargets: PerformanceTargetRecord[],
+): PerformanceTargetRecord[] {
   return PERFORMANCE_TARGET_METRICS.flatMap((metricKey) => {
-    const metricTargets = relevantTargets.filter((target) => target.metric_key === metricKey);
+    const metricTargets = individualTargets.filter((t) => t.metric_key === metricKey);
     if (metricTargets.length === 0) return [];
 
-    const totalValue = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate
-      ? metricTargets.reduce((sum, target) => sum + Number(target.target_value), 0) / metricTargets.length
-      : metricTargets.reduce((sum, target) => sum + Number(target.target_value), 0);
+    const isRate = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate;
+    const totalValue = isRate
+      ? metricTargets.reduce((sum, t) => sum + Number(t.target_value), 0) / metricTargets.length
+      : metricTargets.reduce((sum, t) => sum + Number(t.target_value), 0);
 
     return [
       {
-        id: `rollup-${periodType}-${metricKey}`,
+        id: `rollup-${metricTargets[0].period_type}-${metricKey}`,
         scope_type: "team" as const,
-        period_type: periodType,
+        period_type: metricTargets[0].period_type,
         metric_key: metricKey,
         user_id: null,
         target_value: totalValue,
@@ -167,6 +186,35 @@ export function buildRolledUpIndividualTargets(
       },
     ];
   });
+}
+
+/**
+ * From individual daily targets stored in the DB, derive all 4 target sets:
+ * - individual daily (stored)
+ * - individual weekly (daily × 5 for counts, same for rates)
+ * - team daily (sum counts, average rates)
+ * - team weekly (team daily × 5 for counts, same for rates)
+ */
+export function deriveAllTargets(storedTargets: PerformanceTargetRecord[]) {
+  const individualDaily = storedTargets.filter(
+    (t) => t.scope_type === "individual" && t.period_type === "daily",
+  );
+  const individualWeekly = deriveWeeklyTargets(individualDaily);
+  const teamDaily = rollUpToTeamTargets(individualDaily);
+  const teamWeekly = rollUpToTeamTargets(individualWeekly);
+
+  return { individualDaily, individualWeekly, teamDaily, teamWeekly };
+}
+
+/** @deprecated Use rollUpToTeamTargets instead */
+export function buildRolledUpIndividualTargets(
+  targets: PerformanceTargetRecord[],
+  periodType: PerformanceTargetPeriodType,
+): PerformanceTargetRecord[] {
+  const relevantTargets = targets.filter(
+    (target) => target.scope_type === "individual" && target.period_type === periodType,
+  );
+  return rollUpToTeamTargets(relevantTargets);
 }
 
 export function getTargetPeriodForDateRange(

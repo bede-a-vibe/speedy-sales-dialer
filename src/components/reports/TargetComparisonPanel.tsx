@@ -3,8 +3,8 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import { TargetSection } from "@/components/targets/TargetSection";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import {
-  buildRolledUpIndividualTargets,
   buildTargetProgressItems,
+  deriveAllTargets,
   getPerformanceActualMetrics,
   getTargetPeriodDescription,
   getTargetPeriodForDateRange,
@@ -29,28 +29,21 @@ export function TargetComparisonPanel({
   teamMetrics,
 }: TargetComparisonPanelProps) {
   const { data: targets = [], isLoading } = usePerformanceTargets();
-
   const periodType = getTargetPeriodForDateRange(dateFrom, dateTo);
 
-  const teamTargets = useMemo(
-    () => targets.filter((target) => target.scope_type === "team" && target.period_type === periodType),
-    [periodType, targets],
-  );
-
-  const rolledUpIndividualTargets = useMemo(
-    () => buildRolledUpIndividualTargets(targets, periodType),
-    [periodType, targets],
-  );
+  const derived = useMemo(() => deriveAllTargets(targets), [targets]);
 
   const individualTargets = useMemo(
     () =>
-      targets.filter(
-        (target) =>
-          target.scope_type === "individual" &&
-          target.period_type === periodType &&
-          target.user_id === activeRepId,
+      (periodType === "daily" ? derived.individualDaily : derived.individualWeekly).filter(
+        (t) => t.user_id === activeRepId,
       ),
-    [activeRepId, periodType, targets],
+    [activeRepId, derived, periodType],
+  );
+
+  const teamTargets = useMemo(
+    () => (periodType === "daily" ? derived.teamDaily : derived.teamWeekly),
+    [derived, periodType],
   );
 
   if (isLoading) {
@@ -78,23 +71,16 @@ export function TargetComparisonPanel({
             />
             <TargetSection
               title="Team Context"
-              description="Manual team goals for the same period, using team-wide actuals."
+              description="Auto-calculated team goals (sum of all reps, rates averaged)."
               items={buildTargetProgressItems(teamTargets, getPerformanceActualMetrics(teamMetrics))}
             />
           </>
         ) : (
-          <>
-            <TargetSection
-              title="Manual Team Targets"
-              description="Admin-set team targets for this reporting period."
-              items={buildTargetProgressItems(teamTargets, getPerformanceActualMetrics(teamMetrics))}
-            />
-            <TargetSection
-              title="Rolled-Up Individual Targets"
-              description="Count goals are summed across reps; show-up rate goals are averaged."
-              items={buildTargetProgressItems(rolledUpIndividualTargets, getPerformanceActualMetrics(teamMetrics))}
-            />
-          </>
+          <TargetSection
+            title="Team Targets"
+            description="Auto-calculated from all individual targets (sum for counts, average for rates)."
+            items={buildTargetProgressItems(teamTargets, getPerformanceActualMetrics(teamMetrics))}
+          />
         )}
       </div>
     </ReportSection>

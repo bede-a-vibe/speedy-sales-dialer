@@ -5,7 +5,7 @@ import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { TargetSection } from "@/components/targets/TargetSection";
-import { buildTargetProgressItems, getPerformanceActualMetrics } from "@/lib/performanceTargets";
+import { buildTargetProgressItems, deriveAllTargets, getPerformanceActualMetrics } from "@/lib/performanceTargets";
 import { getReportMetrics } from "@/lib/reportMetrics";
 
 export function DashboardTargetsOverview() {
@@ -38,18 +38,11 @@ export function DashboardTargetsOverview() {
     [weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
   );
 
-  const myDailyTargets = targets.filter(
-    (target) => target.scope_type === "individual" && target.period_type === "daily" && target.user_id === user?.id,
-  );
-  const myWeeklyTargets = targets.filter(
-    (target) => target.scope_type === "individual" && target.period_type === "weekly" && target.user_id === user?.id,
-  );
-  const teamDailyTargets = targets.filter(
-    (target) => target.scope_type === "team" && target.period_type === "daily",
-  );
-  const teamWeeklyTargets = targets.filter(
-    (target) => target.scope_type === "team" && target.period_type === "weekly",
-  );
+  // Derive all target sets from stored individual daily targets
+  const derived = useMemo(() => deriveAllTargets(targets), [targets]);
+
+  const myDailyTargets = derived.individualDaily.filter((t) => t.user_id === user?.id);
+  const myWeeklyTargets = derived.individualWeekly.filter((t) => t.user_id === user?.id);
 
   const isLoading =
     targetsLoading ||
@@ -70,23 +63,23 @@ export function DashboardTargetsOverview() {
     <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
       <TargetSection
         title="My Daily Goals"
-        description="Your progress for today across bookings, show-up rate, and closed deals."
+        description="Your progress for today across all metrics."
         items={buildTargetProgressItems(myDailyTargets, getPerformanceActualMetrics(myDailyMetrics))}
       />
       <TargetSection
         title="My Weekly Goals"
-        description="Your progress for the current week, reset every Monday."
+        description="Your weekly progress (daily × 5 for counts, same for rates)."
         items={buildTargetProgressItems(myWeeklyTargets, getPerformanceActualMetrics(myWeeklyMetrics))}
       />
       <TargetSection
         title="Team Daily Goals"
-        description="Manual team targets for today across the full floor."
-        items={buildTargetProgressItems(teamDailyTargets, getPerformanceActualMetrics(teamDailyMetrics))}
+        description="Sum of all rep daily targets (rates averaged)."
+        items={buildTargetProgressItems(derived.teamDaily, getPerformanceActualMetrics(teamDailyMetrics))}
       />
       <TargetSection
         title="Team Weekly Goals"
-        description="Manual team targets for the current week."
-        items={buildTargetProgressItems(teamWeeklyTargets, getPerformanceActualMetrics(teamWeeklyMetrics))}
+        description="Sum of all rep weekly targets (rates averaged)."
+        items={buildTargetProgressItems(derived.teamWeekly, getPerformanceActualMetrics(teamWeeklyMetrics))}
       />
     </div>
   );
