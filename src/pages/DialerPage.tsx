@@ -238,6 +238,7 @@ export default function DialerPage() {
         ...prev,
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
+      setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
 
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
       activeDialRequestRef.current = null;
@@ -248,6 +249,13 @@ export default function DialerPage() {
       setFollowUpDate(undefined);
       setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
       setAssignedRepId(user.id);
+
+      const nextLength = visibleUncalledContacts.length - 1;
+      if (nextLength <= 0) {
+        stopSession();
+      } else if (currentIndex !== null && currentIndex >= nextLength) {
+        setCurrentIndex(nextLength - 1);
+      }
     } catch {
       toast.error("Failed to log call. Try again.");
     }
