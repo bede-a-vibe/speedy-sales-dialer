@@ -31,13 +31,10 @@ const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC",
 
 const loadDialpadSyncPanel = () =>
   import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
-const loadContactNotesPanel = () =>
-  import("@/components/dialer/ContactNotesPanel").then((module) => ({ default: module.default ?? module.ContactNotesPanel }));
 const loadSessionSummaryDialog = () =>
   import("@/components/dialer/SessionSummaryDialog").then((module) => ({ default: module.default ?? module.SessionSummaryDialog }));
 
 const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
-const ContactNotesPanel = lazy(loadContactNotesPanel);
 const SessionSummaryDialog = lazy(loadSessionSummaryDialog);
 
 function combineDateAndTime(date: Date, time: string) {
