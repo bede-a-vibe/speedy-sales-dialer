@@ -976,11 +976,15 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: "call_id is required" }, 400);
         }
 
+        console.log(`[hangup_call] Attempting hangup for call_id=${params.call_id}`);
+
         const callStatusResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}`, {
           headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
         });
 
         const callStatusData = await callStatusResponse.json().catch(() => null);
+        console.log(`[hangup_call] GET /call/${params.call_id} status=${callStatusResponse.status} data=${JSON.stringify(callStatusData)}`);
+
         if (!callStatusResponse.ok) {
           if (isAlreadyEndedDialpadError(callStatusResponse.status, callStatusData)) {
             return jsonResponse(buildDialpadClientPayload({
@@ -997,6 +1001,7 @@ Deno.serve(async (req) => {
         }
 
         const callState = normalizeDialpadState(isRecord(callStatusData) ? callStatusData.state : null);
+        console.log(`[hangup_call] Current call state: ${callState}`);
         if (isTerminalDialpadState(callState)) {
           return jsonResponse(buildDialpadClientPayload({
             action,
@@ -1007,7 +1012,9 @@ Deno.serve(async (req) => {
           }), 200);
         }
 
-        dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}/actions/hangup`, {
+        const hangupUrl = `${DIALPAD_BASE}/call/${params.call_id}/actions/hangup`;
+        console.log(`[hangup_call] POST ${hangupUrl}`);
+        dialpadResponse = await fetch(hangupUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -1016,6 +1023,8 @@ Deno.serve(async (req) => {
         });
 
         const hangupData = await dialpadResponse.json().catch(() => null);
+        console.log(`[hangup_call] Hangup response status=${dialpadResponse.status} data=${JSON.stringify(hangupData)}`);
+
         if (!dialpadResponse.ok) {
           if (isAlreadyEndedDialpadError(dialpadResponse.status, hangupData)) {
             return jsonResponse(buildDialpadClientPayload({
