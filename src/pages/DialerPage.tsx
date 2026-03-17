@@ -127,7 +127,7 @@ export default function DialerPage() {
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
   const startDialing = useCallback(() => {
-    if (visibleUncalledContacts.length === 0) return;
+    if (visibleUncalledContacts.length === 0 || !hasDialpadAssignment) return;
     setSessionHiddenContactIds([]);
     setCurrentIndex(0);
     setIsDialing(true);
@@ -142,7 +142,9 @@ export default function DialerPage() {
     setShowSummary(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
-  }, [visibleUncalledContacts.length, user?.id]);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
+  }, [hasDialpadAssignment, visibleUncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -152,6 +154,8 @@ export default function DialerPage() {
     setCurrentIndex(null);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
     activeDialRequestRef.current = null;
   }, [callCount]);
 
@@ -168,6 +172,8 @@ export default function DialerPage() {
     setAssignedRepId(user?.id || "");
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
     activeDialRequestRef.current = null;
 
     if (nextLength <= 0) {
