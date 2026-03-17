@@ -16,7 +16,19 @@ const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
 
 type AppointmentOutcomeKey = NonNullable<ReportBookingItem["appointment_outcome"]>;
 type OutcomeCounts = Record<ReportCallLog["outcome"], number>;
-type AppointmentOutcomeCounts = Record<AppointmentOutcomeKey, number>;
+export type AppointmentOutcomeCounts = Record<AppointmentOutcomeKey, number>;
+
+export interface AppointmentPerformanceMetrics {
+  appointmentsScheduled: number;
+  noShows: number;
+  rescheduled: number;
+  showedClosed: number;
+  showedNoClose: number;
+  showed: number;
+  showUpRate: number;
+  closeRate: number;
+  resolvedAppointments: number;
+}
 
 export interface ReportMetrics {
   dialer: {
@@ -35,20 +47,16 @@ export interface ReportMetrics {
     sameDayNextDayBookings: number;
     sameDayNextDayRate: number;
   };
-  appointmentsScheduled: {
-    appointmentsScheduled: number;
-    noShows: number;
-    rescheduled: number;
-    showedClosed: number;
-    showedNoClose: number;
-    showed: number;
-    showUpRate: number;
-    closeRate: number;
-    resolvedAppointments: number;
+  appointmentPerformance: {
+    setter: AppointmentPerformanceMetrics;
+    closer: AppointmentPerformanceMetrics;
   };
   dailyVolume: Array<{ date: string; count: number }>;
   outcomeCounts: OutcomeCounts;
-  appointmentOutcomeCounts: AppointmentOutcomeCounts;
+  appointmentOutcomeCounts: {
+    setter: AppointmentOutcomeCounts;
+    closer: AppointmentOutcomeCounts;
+  };
 }
 
 function toDateKey(value: string) {
@@ -102,6 +110,34 @@ function isSameOrNextDayBooking(item: ReportBookingItem) {
   return dayDifference === 0 || dayDifference === 1;
 }
 
+function buildAppointmentPerformance(items: ReportBookingItem[]) {
+  const appointmentOutcomeCounts = createAppointmentOutcomeCounts();
+
+  for (const item of items) {
+    if (item.appointment_outcome) {
+      appointmentOutcomeCounts[item.appointment_outcome] += 1;
+    }
+  }
+
+  const resolvedAppointments = items.filter((item) => !!item.appointment_outcome).length;
+  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close;
+
+  return {
+    metrics: {
+      appointmentsScheduled: items.length,
+      noShows: appointmentOutcomeCounts.no_show,
+      rescheduled: appointmentOutcomeCounts.rescheduled,
+      showedClosed: appointmentOutcomeCounts.showed_closed,
+      showedNoClose: appointmentOutcomeCounts.showed_no_close,
+      showed,
+      showUpRate: toPercent(showed, items.length),
+      closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
+      resolvedAppointments,
+    } satisfies AppointmentPerformanceMetrics,
+    outcomeCounts: appointmentOutcomeCounts,
+  };
+}
+
 export function getReportMetrics({
   callLogs,
   bookedItems,
@@ -119,8 +155,11 @@ export function getReportMetrics({
   const bookingsForCreatedView = repUserId
     ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
-  const appointmentsForSetterView = repUserId
+  const setterAppointments = repUserId
     ? bookedItems.filter((item) => item.created_by === repUserId)
+    : bookedItems;
+  const closerAppointments = repUserId
+    ? bookedItems.filter((item) => item.assigned_user_id === repUserId)
     : bookedItems;
 
   const outcomeCounts = createOutcomeCounts();
@@ -144,7 +183,8 @@ export function getReportMetrics({
   }
 
   const bookingsMadeInRange = bookingsForCreatedView.filter((item) => isInDateRange(item.created_at, from, to));
-  const appointmentsScheduledInRange = appointmentsForSetterView.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const setterAppointmentsInRange = setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const closerAppointmentsInRange = closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
@@ -155,18 +195,8 @@ export function getReportMetrics({
   const rebooked = totalBookingsMade - newBookings;
   const sameDayNextDayBookings = bookingsMadeInRange.filter(isSameOrNextDayBooking).length;
 
-  const appointmentOutcomeCounts = createAppointmentOutcomeCounts();
-  for (const item of appointmentsScheduledInRange) {
-    if (item.appointment_outcome) {
-      appointmentOutcomeCounts[item.appointment_outcome] += 1;
-    }
-  }
-
-  const resolvedAppointments = appointmentsScheduledInRange.filter(
-    (item) => !!item.appointment_outcome,
-  ).length;
-
-  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close;
+  const setterPerformance = buildAppointmentPerformance(setterAppointmentsInRange);
+  const closerPerformance = buildAppointmentPerformance(closerAppointmentsInRange);
 
   return {
     dialer: {
@@ -185,21 +215,17 @@ export function getReportMetrics({
       sameDayNextDayBookings,
       sameDayNextDayRate: toPercent(sameDayNextDayBookings, totalBookingsMade),
     },
-    appointmentsScheduled: {
-      appointmentsScheduled: appointmentsScheduledInRange.length,
-      noShows: appointmentOutcomeCounts.no_show,
-      rescheduled: appointmentOutcomeCounts.rescheduled,
-      showedClosed: appointmentOutcomeCounts.showed_closed,
-      showedNoClose: appointmentOutcomeCounts.showed_no_close,
-      showed,
-      showUpRate: toPercent(showed, appointmentsScheduledInRange.length),
-      closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
-      resolvedAppointments,
+    appointmentPerformance: {
+      setter: setterPerformance.metrics,
+      closer: closerPerformance.metrics,
     },
     dailyVolume: Object.entries(dailyVolumeMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({ date, count })),
     outcomeCounts,
-    appointmentOutcomeCounts,
+    appointmentOutcomeCounts: {
+      setter: setterPerformance.outcomeCounts,
+      closer: closerPerformance.outcomeCounts,
+    },
   };
 }
