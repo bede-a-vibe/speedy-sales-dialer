@@ -223,29 +223,9 @@ export default function DialerPage() {
   }, [requiresAnySchedule, requiresBookedSchedule, requiresPipelineAssignment, user?.id]);
 
   useEffect(() => {
-    setNotesPanelEnabled(false);
-
-    if (!currentContact?.id) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setNotesPanelEnabled(true);
-    }, 150);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [currentContact?.id]);
-
-  useEffect(() => {
-    if (!currentContact?.id) return;
-
-    void prefetchContactNotes(queryClient, currentContact.id);
-    void prefetchContactCallLogs(queryClient, currentContact.id);
-  }, [currentContact?.id, queryClient]);
-
-  useEffect(() => {
     if (!isSessionActive) return;
 
     void loadDialpadSyncPanel();
-    void loadContactNotesPanel();
     void loadSessionSummaryDialog();
   }, [isSessionActive]);
 
