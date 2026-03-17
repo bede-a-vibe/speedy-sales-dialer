@@ -249,6 +249,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     const seenIds = new Set(seedContacts.map((contact) => contact.id));
     const mergedContacts = [...seedContacts];
     let latestTotalCount = mergedContacts.length;
+    let emptyRetries = 0;
 
     while (mergedContacts.length < desiredMinimum) {
       console.log("[DialerQueue] Claiming leads: session=", activeSessionId, "industry=", industry, "state=", state, "claimSize=", DIALER_CLAIM_SIZE, "buffer=", mergedContacts.length, "/", desiredMinimum);
