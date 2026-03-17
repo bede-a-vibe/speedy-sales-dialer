@@ -1,9 +1,9 @@
 import type { Tables } from "@/integrations/supabase/types";
 
-export type ReportCallLog = Pick<Tables<"call_logs">, "id" | "contact_id" | "outcome" | "created_at">;
+export type ReportCallLog = Pick<Tables<"call_logs">, "id" | "contact_id" | "outcome" | "created_at" | "user_id">;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
-  "id" | "contact_id" | "created_at" | "scheduled_for" | "status" | "appointment_outcome"
+  "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome"
 >;
 
 const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
@@ -14,10 +14,7 @@ const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "wrong_number",
 ]);
 
-const APPOINTMENT_OUTCOME_KEYS = ["no_show", "rescheduled", "showed_closed", "showed_no_close"] as const;
-
-type AppointmentOutcomeKey = (typeof APPOINTMENT_OUTCOME_KEYS)[number];
-
+type AppointmentOutcomeKey = NonNullable<ReportBookingItem["appointment_outcome"]>;
 type OutcomeCounts = Record<ReportCallLog["outcome"], number>;
 type AppointmentOutcomeCounts = Record<AppointmentOutcomeKey, number>;
 
@@ -108,36 +105,46 @@ export function getReportMetrics({
   bookedItems,
   from,
   to,
+  repUserId,
 }: {
   callLogs: ReportCallLog[];
   bookedItems: ReportBookingItem[];
   from?: string;
   to?: string;
+  repUserId?: string;
 }): ReportMetrics {
+  const filteredCallLogs = repUserId ? callLogs.filter((log) => log.user_id === repUserId) : callLogs;
+  const bookingsForCreatedView = repUserId
+    ? bookedItems.filter((item) => item.created_by === repUserId)
+    : bookedItems;
+  const bookingsForScheduledView = repUserId
+    ? bookedItems.filter((item) => item.assigned_user_id === repUserId)
+    : bookedItems;
+
   const outcomeCounts = createOutcomeCounts();
   const dailyVolumeMap: Record<string, number> = {};
 
-  for (const log of callLogs) {
+  for (const log of filteredCallLogs) {
     outcomeCounts[log.outcome] += 1;
     const dateKey = toDateKey(log.created_at);
     dailyVolumeMap[dateKey] = (dailyVolumeMap[dateKey] ?? 0) + 1;
   }
 
-  const sortedBookings = [...bookedItems].sort(
+  const globallySortedBookings = [...bookedItems].sort(
     (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
   );
 
   const firstBookingIdByContact = new Map<string, string>();
-  for (const item of sortedBookings) {
+  for (const item of globallySortedBookings) {
     if (!firstBookingIdByContact.has(item.contact_id)) {
       firstBookingIdByContact.set(item.contact_id, item.id);
     }
   }
 
-  const bookingsMadeInRange = sortedBookings.filter((item) => isInDateRange(item.created_at, from, to));
-  const appointmentsScheduledInRange = sortedBookings.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const bookingsMadeInRange = bookingsForCreatedView.filter((item) => isInDateRange(item.created_at, from, to));
+  const appointmentsScheduledInRange = bookingsForScheduledView.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
-  const pickUps = callLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
+  const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
   const totalBookingsMade = bookingsMadeInRange.length;
   const newBookings = bookingsMadeInRange.filter(
@@ -159,10 +166,10 @@ export function getReportMetrics({
 
   return {
     dialer: {
-      dials: callLogs.length,
-      uniqueLeadsDialed: new Set(callLogs.map((log) => log.contact_id)).size,
+      dials: filteredCallLogs.length,
+      uniqueLeadsDialed: new Set(filteredCallLogs.map((log) => log.contact_id)).size,
       pickUps,
-      pickUpRate: toPercent(pickUps, callLogs.length),
+      pickUpRate: toPercent(pickUps, filteredCallLogs.length),
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
     },
