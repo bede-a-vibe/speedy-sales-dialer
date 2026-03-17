@@ -549,7 +549,7 @@ export default function DialerPage() {
         </Dialog>
 
         <div className="flex flex-wrap items-center gap-4">
-          <Select value={industry} onValueChange={setIndustry}>
+          <Select value={industry} onValueChange={setIndustry} disabled={isDialing}>
             <SelectTrigger className="w-[200px] border-border bg-card">
               <SelectValue placeholder="Filter by industry" />
             </SelectTrigger>
@@ -561,7 +561,7 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
-          <Select value={stateFilter} onValueChange={setStateFilter}>
+          <Select value={stateFilter} onValueChange={setStateFilter} disabled={isDialing}>
             <SelectTrigger className="w-[180px] border-border bg-card">
               <SelectValue placeholder="Filter by state" />
             </SelectTrigger>
