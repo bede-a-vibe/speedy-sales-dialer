@@ -337,7 +337,6 @@ export default function DialerPage() {
       setIsDialing(true);
       setCurrentIndex(0);
       void loadDialpadSyncPanel();
-      void loadContactNotesPanel();
       void loadSessionSummaryDialog();
       void ensureBuffer();
     } catch (error) {
