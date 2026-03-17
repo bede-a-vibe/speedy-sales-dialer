@@ -67,6 +67,7 @@ function DialogSkeleton() {
 }
 
 export default function DialerPage() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [industry, setIndustry] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
@@ -120,6 +121,9 @@ export default function DialerPage() {
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
     ? visibleUncalledContacts[currentIndex]
     : null;
+  const nextContact = currentIndex !== null && currentIndex + 1 < visibleUncalledContacts.length
+    ? visibleUncalledContacts[currentIndex + 1]
+    : null;
 
   useEffect(() => {
     setNotesFetchEnabled(false);
@@ -128,17 +132,15 @@ export default function DialerPage() {
 
     const timeoutId = window.setTimeout(() => {
       setNotesFetchEnabled(true);
-    }, 350);
+    }, 150);
 
     return () => window.clearTimeout(timeoutId);
   }, [currentContact?.id]);
 
-  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id, {
-    enabled: notesFetchEnabled,
-    refetchInterval: notesFetchEnabled ? 15000 : false,
-  });
-  const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
-  const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
+  const latestDialpadSummary = useMemo(
+    () => queryClient.getQueryData<Awaited<ReturnType<typeof prefetchContactNotes>>>(["noop"]),
+    [queryClient],
+  );
   const stateOptions = AUSTRALIAN_STATE_OPTIONS;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
