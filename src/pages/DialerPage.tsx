@@ -806,18 +806,33 @@ export default function DialerPage() {
           </div>
 
           {!isSessionActive ? (
-            <Button
-              onClick={startDialing}
-              disabled={isLoading || isStartingSession || !hasDialpadAssignment}
-              className="px-6 font-semibold"
-            >
-              {isStartingSession ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Phone className="mr-2 h-4 w-4" />
-              )}
-              {isStartingSession ? "Starting..." : "Start Dialing"}
-            </Button>
+            <>
+              <Button
+                onClick={startDialing}
+                disabled={isLoading || isStartingSession || isRecoveringQueue || !hasDialpadAssignment}
+                className="px-6 font-semibold"
+              >
+                {isStartingSession ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Phone className="mr-2 h-4 w-4" />
+                )}
+                {isStartingSession ? "Starting..." : "Start Dialing"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void recoverQueue()}
+                disabled={isLoading || isStartingSession || isRecoveringQueue}
+                className="px-6 font-semibold"
+              >
+                {isRecoveringQueue ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                {isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+              </Button>
+            </>
           ) : (
             <>
               {isSessionPaused ? (
@@ -837,6 +852,19 @@ export default function DialerPage() {
                 className="border-destructive text-destructive hover:bg-destructive/10"
               >
                 Stop Session
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void recoverQueue()}
+                disabled={isRecoveringQueue || isStartingSession}
+                className="px-6 font-semibold"
+              >
+                {isRecoveringQueue ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                )}
+                {isRecoveringQueue ? "Recovering..." : "Recover Queue"}
               </Button>
             </>
           )}
