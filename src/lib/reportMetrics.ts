@@ -27,9 +27,11 @@ export interface AppointmentPerformanceMetrics {
   rescheduled: number;
   showedClosed: number;
   showedNoClose: number;
+  showedVerbalCommitment: number;
   showed: number;
   showUpRate: number;
   closeRate: number;
+  verbalCommitmentRate: number;
   resolvedAppointments: number;
 }
 
