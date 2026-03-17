@@ -146,6 +146,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
   }, [hasDialpadAssignment, visibleUncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
