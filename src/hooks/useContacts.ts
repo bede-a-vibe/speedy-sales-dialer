@@ -10,8 +10,10 @@ const DIALER_QUEUE_MAX_SIZE = 500;
 const DIALER_TARGET_BUFFER = 40;
 const DIALER_PREFETCH_THRESHOLD = 15;
 const DIALER_CLAIM_SIZE = 25;
+const DIALER_INITIAL_CLAIM_SIZE = 12;
 const DIALER_LOCK_MINUTES = 15;
 const DIALER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
+const DIALER_PREVIEW_DEBOUNCE_MS = 250;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
