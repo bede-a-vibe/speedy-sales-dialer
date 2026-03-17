@@ -212,6 +212,8 @@ export default function DialerPage() {
       return;
     }
 
+    leadAdvanceInFlightRef.current = true;
+
     try {
       const scheduledFor = followUpDate
         ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
