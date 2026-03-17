@@ -235,6 +235,7 @@ export default function DialerPage() {
     followUpTime,
     linkDialpadCallLog,
     notes,
+    requiresBookedSchedule,
     requiresFollowUpSchedule,
     requiresPipelineAssignment,
     selectedOutcome,
