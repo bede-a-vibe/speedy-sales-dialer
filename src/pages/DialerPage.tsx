@@ -62,6 +62,7 @@ export default function DialerPage() {
   const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
+  const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
