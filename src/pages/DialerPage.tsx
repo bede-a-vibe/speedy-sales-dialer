@@ -10,7 +10,7 @@ import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { useContactNotes } from "@/hooks/useContactNotes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
