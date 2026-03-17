@@ -514,6 +514,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     stopSession,
     ensureBuffer,
     discardContact,
+    refreshPreviewCount,
   };
 }
 
