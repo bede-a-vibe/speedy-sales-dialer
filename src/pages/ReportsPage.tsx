@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2 } from "lucide-react";
+import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -7,11 +7,14 @@ import { DailyVolumeChart } from "@/components/reports/DailyVolumeChart";
 import { MetricBarList } from "@/components/reports/MetricBarList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
-import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
 import { getReportMetrics } from "@/lib/reportMetrics";
+
+const ALL_REPS_VALUE = "all";
 
 export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -19,13 +22,21 @@ export default function ReportsPage() {
 
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
+  const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
+  const { data: reps = [], isLoading: repsLoading } = useSalesReps();
+
+  const activeRepId = selectedRepId === ALL_REPS_VALUE ? undefined : selectedRepId;
+  const selectedRepLabel =
+    reps.find((rep) => rep.user_id === activeRepId)?.display_name ||
+    reps.find((rep) => rep.user_id === activeRepId)?.email ||
+    "Selected rep";
 
   const metrics = useMemo(
-    () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo }),
-    [bookedAppointments, callLogs, dateFrom, dateTo],
+    () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo, repUserId: activeRepId }),
+    [activeRepId, bookedAppointments, callLogs, dateFrom, dateTo],
   );
 
   const callOutcomeItems = useMemo(
@@ -69,10 +80,30 @@ export default function ReportsPage() {
             <span className="text-xs text-muted-foreground">To</span>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px] border-border bg-card text-sm" />
           </div>
-          {(callsLoading || bookingsLoading) && <span className="ml-2 animate-pulse text-xs text-muted-foreground">Loading...</span>}
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Rep</span>
+            <Select value={selectedRepId} onValueChange={setSelectedRepId}>
+              <SelectTrigger className="w-[220px] border-border bg-card">
+                <SelectValue placeholder="All reps" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_REPS_VALUE}>All reps</SelectItem>
+                {reps.map((rep) => (
+                  <SelectItem key={rep.user_id} value={rep.user_id}>
+                    {rep.display_name || rep.email || "Unnamed rep"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(callsLoading || bookingsLoading || repsLoading) && <span className="ml-2 animate-pulse text-xs text-muted-foreground">Loading...</span>}
         </div>
 
-        <ReportSection title="Dialer KPI Snapshot" description="Core outbound metrics based on calls created in the selected date range.">
+        <ReportSection
+          title="Dialer KPI Snapshot"
+          description={`Core outbound metrics based on calls created in the selected date range${activeRepId ? ` for ${selectedRepLabel}` : " across all reps"}.`}
+        >
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
             <StatCard label="Dials" value={metrics.dialer.dials} />
             <StatCard label="Unique Leads Dialed" value={metrics.dialer.uniqueLeadsDialed} />
@@ -92,7 +123,7 @@ export default function ReportsPage() {
           <TabsContent value="bookings-made" className="space-y-6">
             <ReportSection
               title="Bookings Made"
-              description="Activity view based on when a booking was created by the rep in the selected date range."
+              description={`Activity view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} in the selected date range.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
                 <StatCard label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} />
@@ -121,7 +152,7 @@ export default function ReportsPage() {
           <TabsContent value="appointments-scheduled" className="space-y-6">
             <ReportSection
               title="Appointments Scheduled"
-              description="Calendar view based on the appointment date that falls inside the selected range."
+              description={`Calendar view based on who is assigned to the appointment${activeRepId ? ` (${selectedRepLabel})` : ""} and the appointment date inside the selected range.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
                 <StatCard label="Appointments Scheduled" value={metrics.appointmentsScheduled.appointmentsScheduled} />
