@@ -405,6 +405,39 @@ export default function DialerPage() {
     void stopQueueSession();
   }, [callCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
 
+  const recoverQueue = useCallback(async () => {
+    if (!user?.id || isRecoveringQueue) return;
+
+    setIsRecoveringQueue(true);
+    setIsStartingSession(false);
+    setIsBootstrappingSession(false);
+    setIsDialing(false);
+    setIsSessionPaused(false);
+    setCurrentIndex(null);
+    setShowSummary(false);
+    setCallCount(0);
+    setSkippedCount(0);
+    setSessionOutcomes({});
+    resetLeadState(user.id);
+    resetSessionTimers();
+
+    try {
+      await stopQueueSession();
+      const clearedCount = await clearOwnDialerLeadLocks.mutateAsync(user.id);
+      await refreshPreviewCount();
+      toast.success(
+        clearedCount > 0
+          ? `Recovered queue and cleared ${clearedCount} stuck lead lock${clearedCount === 1 ? "" : "s"}.`
+          : "Queue checked — no stuck lead locks were found for your user.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to recover your queue right now.";
+      toast.error(message);
+    } finally {
+      setIsRecoveringQueue(false);
+    }
+  }, [clearOwnDialerLeadLocks, isRecoveringQueue, refreshPreviewCount, resetLeadState, resetSessionTimers, stopQueueSession, user?.id]);
+
   const skipLead = useCallback(() => {
     if (currentIndex === null || !currentContact) return;
 
