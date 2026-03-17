@@ -549,3 +549,17 @@ export function useDeleteContact() {
     },
   });
 }
+
+export function useClearOwnDialerLeadLocks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => clearDialerLeadLocksForUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+    },
+  });
+}
