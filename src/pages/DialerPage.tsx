@@ -679,6 +679,7 @@ export default function DialerPage() {
         phone: currentContact.phone,
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
         contact_id: currentContact.id,
+        caller_id: selectedCallerId || undefined,
       })
       .then((response) => {
         setActiveDialpadCallId(response.dialpad_call_id);
