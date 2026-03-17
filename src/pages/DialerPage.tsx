@@ -138,6 +138,7 @@ export default function DialerPage() {
     setIsDialing(false);
     setCurrentIndex(null);
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
   }, [callCount]);
 
