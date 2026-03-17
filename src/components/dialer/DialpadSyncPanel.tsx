@@ -64,6 +64,11 @@ export function DialpadSyncPanel({
                   : "Cancel Active Call"}
             </Button>
           </div>
+        ) : isResolving ? (
+          <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+            <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
+            Connecting to Dialpad… waiting for call confirmation.
+          </div>
         ) : (
           <p className="text-muted-foreground">
             Waiting for a tracked Dialpad call to reach a loggable state.
