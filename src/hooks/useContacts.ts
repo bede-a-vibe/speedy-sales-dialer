@@ -324,6 +324,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     contactsRef.current = [];
     setContacts([]);
     setTotalCount(0);
+    setPreviewCount(0);
     setIsLoading(true);
 
     try {
@@ -333,16 +334,20 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         DIALER_INITIAL_CLAIM_SIZE,
       );
 
-      if (sessionRef.current === activeSessionId) {
-        contactsRef.current = claimedContacts;
-        setContacts(claimedContacts);
-        setTotalCount(claimedTotalCount);
-        void ensureBuffer(DIALER_TARGET_BUFFER);
+      if (sessionRef.current !== activeSessionId) {
+        return 0;
       }
+
+      contactsRef.current = claimedContacts;
+      setContacts(claimedContacts);
+      setTotalCount(claimedTotalCount);
+      void ensureBuffer(DIALER_TARGET_BUFFER);
 
       return claimedContacts.length;
     } finally {
-      setIsLoading(false);
+      if (sessionRef.current === activeSessionId) {
+        setIsLoading(false);
+      }
     }
   }, [claimIntoBuffer, ensureBuffer, stopSession]);
 
