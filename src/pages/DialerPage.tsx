@@ -816,10 +816,27 @@ export default function DialerPage() {
               {isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {myDialpadSettings ? (
-              <span className="text-xs font-mono text-primary">
-                <Phone className="mr-1 inline h-3 w-3" />
-                {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-primary">
+                  <Phone className="mr-1 inline h-3 w-3" />
+                  {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
+                </span>
+                {callerIdOptions.length > 1 && (
+                  <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
+                    <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
+                      <SelectValue placeholder="Caller ID" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Auto (default)</SelectItem>
+                      {callerIdOptions.map((opt) => (
+                        <SelectItem key={opt.number} value={opt.number}>
+                          {opt.label} — {opt.number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             ) : (
               <span className="text-xs font-mono text-destructive">
                 No active Dialpad assignment — ask an admin to assign your user before starting a session.
