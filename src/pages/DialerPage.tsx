@@ -471,7 +471,7 @@ export default function DialerPage() {
   }, [currentContact, isDialing, pendingAutoOutcome, selectedOutcome]);
 
   useEffect(() => {
-    if (!pendingAutoOutcome || !currentContact) return;
+    if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
 
     if (!isCallTerminal && activeDialpadCallId && !isEndingCall) {
       void cancelActiveCall();
