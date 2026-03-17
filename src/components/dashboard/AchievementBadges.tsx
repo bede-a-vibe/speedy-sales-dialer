@@ -3,6 +3,7 @@ import { useTodayCallCount, useCallLogs } from "@/hooks/useCallLogs";
 import { useStreak } from "@/hooks/useStreak";
 import { Award, Zap, Target, Trophy, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfettiBurst, useConfettiTrigger } from "@/components/dashboard/ConfettiBurst";
 
 interface Achievement {
   id: string;
@@ -74,8 +75,13 @@ export function AchievementBadges() {
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
+  // Fire confetti when any new achievement unlocks
+  const confettiActive = useConfettiTrigger(unlockedCount > 0);
+
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="relative rounded-lg border border-border bg-card p-5">
+      <ConfettiBurst active={confettiActive} />
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-primary" />
@@ -89,42 +95,47 @@ export function AchievementBadges() {
       </div>
       <div className="grid grid-cols-5 gap-3">
         {achievements.map((a) => (
-          <div
-            key={a.id}
-            className={cn(
-              "flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all",
-              a.unlocked
-                ? "border-primary/30 bg-primary/5 shadow-[0_0_12px_-4px_hsl(var(--primary)/0.3)]"
-                : "border-border bg-muted/30 opacity-40 grayscale"
-            )}
-          >
-            <div
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-full",
-                a.unlocked ? "bg-primary/10" : "bg-muted"
-              )}
-            >
-              <a.Icon
-                className={cn(
-                  "h-4.5 w-4.5",
-                  a.unlocked ? a.color : "text-muted-foreground"
-                )}
-              />
-            </div>
-            <span
-              className={cn(
-                "text-[10px] font-semibold leading-tight",
-                a.unlocked ? "text-foreground" : "text-muted-foreground"
-              )}
-            >
-              {a.label}
-            </span>
-            <span className="text-[9px] text-muted-foreground leading-tight">
-              {a.description}
-            </span>
-          </div>
+          <AchievementBadge key={a.id} achievement={a} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function AchievementBadge({ achievement: a }: { achievement: Achievement }) {
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all",
+        a.unlocked
+          ? "border-primary/30 bg-primary/5 shadow-[0_0_12px_-4px_hsl(var(--primary)/0.3)]"
+          : "border-border bg-muted/30 opacity-40 grayscale"
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-full",
+          a.unlocked ? "bg-primary/10" : "bg-muted"
+        )}
+      >
+        <a.Icon
+          className={cn(
+            "h-4.5 w-4.5",
+            a.unlocked ? a.color : "text-muted-foreground"
+          )}
+        />
+      </div>
+      <span
+        className={cn(
+          "text-[10px] font-semibold leading-tight",
+          a.unlocked ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {a.label}
+      </span>
+      <span className="text-[9px] text-muted-foreground leading-tight">
+        {a.description}
+      </span>
     </div>
   );
 }
