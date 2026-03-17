@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -13,6 +13,53 @@ type ContactCallLogsPage = {
   hasMore: boolean;
   nextPage: number;
 };
+
+export const getContactCallLogsQueryKey = (contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) => ["contact-call-logs", contactId, pageSize] as const;
+
+async function fetchContactCallLogsPage(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE, pageParam = 0) {
+  if (!contactId) {
+    return {
+      items: [],
+      totalCount: 0,
+      hasMore: false,
+      nextPage: pageParam + 1,
+    } satisfies ContactCallLogsPage;
+  }
+
+  const from = pageParam * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error, count } = await supabase
+    .from("call_logs")
+    .select("*", { count: "exact" })
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) throw error;
+
+  const items = (data ?? []) as CallLog[];
+  const totalCount = count ?? items.length;
+
+  return {
+    items,
+    totalCount,
+    hasMore: from + items.length < totalCount,
+    nextPage: pageParam + 1,
+  } satisfies ContactCallLogsPage;
+}
+
+export async function prefetchContactCallLogs(queryClient: QueryClient, contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) {
+  if (!contactId) return;
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey: getContactCallLogsQueryKey(contactId, pageSize),
+    queryFn: ({ pageParam }) => fetchContactCallLogsPage(contactId, pageSize, Number(pageParam ?? 0)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
+    staleTime: 15_000,
+  });
+}
 
 export function useCallLogs() {
   return useQuery({
@@ -57,45 +104,14 @@ export function useTodayCallCount(userId?: string) {
   });
 }
 
-export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) {
+export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE, enabled = true) {
   return useInfiniteQuery({
-    queryKey: ["contact-call-logs", contactId, pageSize],
+    queryKey: getContactCallLogsQueryKey(contactId, pageSize),
     initialPageParam: 0,
-    queryFn: async ({ pageParam }) => {
-      if (!contactId) {
-        return {
-          items: [],
-          totalCount: 0,
-          hasMore: false,
-          nextPage: pageParam + 1,
-        } satisfies ContactCallLogsPage;
-      }
-
-      const from = pageParam * pageSize;
-      const to = from + pageSize - 1;
-
-      const { data, error, count } = await supabase
-        .from("call_logs")
-        .select("*", { count: "exact" })
-        .eq("contact_id", contactId)
-        .order("created_at", { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-
-      const items = (data ?? []) as CallLog[];
-      const totalCount = count ?? items.length;
-
-      return {
-        items,
-        totalCount,
-        hasMore: from + items.length < totalCount,
-        nextPage: pageParam + 1,
-      } satisfies ContactCallLogsPage;
-    },
+    queryFn: ({ pageParam }) => fetchContactCallLogsPage(contactId, pageSize, Number(pageParam ?? 0)),
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
-    enabled: !!contactId,
-    refetchInterval: contactId ? SYNC_REFRESH_INTERVAL_MS : false,
+    enabled: !!contactId && enabled,
+    refetchInterval: contactId && enabled ? SYNC_REFRESH_INTERVAL_MS : false,
   });
 }
 
