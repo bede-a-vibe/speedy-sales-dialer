@@ -182,7 +182,7 @@ export default function DialerPage() {
     : null;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
-  const isCallTerminal = !activeDialpadCallId || activeDialpadCallState === "hangup";
+  const isCallTerminal = (!activeDialpadCallId && !isCallResolving) || activeDialpadCallState === "hangup";
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
   const requiresBookedSchedule = selectedOutcome === "booked";
