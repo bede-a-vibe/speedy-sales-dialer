@@ -799,11 +799,12 @@ export default function DialerPage() {
         if (status.terminal) {
           setActiveDialpadCallId(null);
           setDialpadPollingBackoffUntil(null);
+          setRapidStatusPollingUntil(null);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         if (message.includes("rate limit")) {
-          setDialpadPollingBackoffUntil(Date.now() + 30000);
+          setDialpadPollingBackoffUntil(Date.now() + 10000);
         }
       } finally {
         isRequestInFlight = false;
@@ -811,13 +812,14 @@ export default function DialerPage() {
     };
 
     void pollStatus();
-    const intervalId = window.setInterval(pollStatus, 15000);
+    const intervalMs = rapidStatusPollingUntil && rapidStatusPollingUntil > Date.now() ? 2000 : 6000;
+    const intervalId = window.setInterval(pollStatus, intervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, rapidStatusPollingUntil]);
 
   // Start 30-second countdown when call ends (terminal state) and no outcome selected
   useEffect(() => {
