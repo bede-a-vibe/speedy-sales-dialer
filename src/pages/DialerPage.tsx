@@ -178,6 +178,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
 
     if (nextLength <= 0) {
