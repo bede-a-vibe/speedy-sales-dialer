@@ -69,7 +69,7 @@ export default function ContactsPage() {
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const { data: callLogs = [] } = useCallLogs();
-  const { data: contactNotes = [] } = useAllContactNotes();
+  const { data: currentContactNotes = [] } = useContactNotes(expandedId ?? undefined);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const queryClient = useQueryClient();
