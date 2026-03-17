@@ -531,7 +531,14 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "initiate_call": {
-        const normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        let normalizedPhone: string;
+
+        try {
+          normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Phone number is invalid";
+          return jsonResponse({ error: message }, 400);
+        }
 
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
