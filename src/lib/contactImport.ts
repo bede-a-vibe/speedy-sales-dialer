@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import type { TablesInsert } from "@/integrations/supabase/types";
+import { normalizeIndustryValue } from "@/data/mockData";
 
 export interface ImportRow {
   [key: string]: string;
@@ -233,7 +234,9 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
         }
       }
 
-      if (!contact.business_name || !contact.phone || !contact.industry) {
+      const normalizedIndustry = normalizeIndustryValue(contact.industry);
+
+      if (!contact.business_name || !contact.phone || !normalizedIndustry) {
         return null;
       }
 
@@ -244,6 +247,7 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
         contact: {
           id: contactId,
           ...contact,
+          industry: normalizedIndustry,
           state: normalizeState(contact.state),
           uploaded_by: userId,
         } as ContactImportInsert,
