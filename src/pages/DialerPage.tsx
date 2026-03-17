@@ -77,6 +77,10 @@ export default function DialerPage() {
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
+  const stateOptions = useMemo(
+    () => Array.from(new Set(queueContacts.map((contact) => contact.state?.trim()).filter((state): state is string => !!state))).sort((a, b) => a.localeCompare(b)),
+    [queueContacts],
+  );
 
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
