@@ -729,6 +729,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    setIsCallResolving(false);
     leadAdvanceInFlightRef.current = false;
     setPendingAutoOutcome(null);
     setCooldownSecondsLeft(null);
@@ -746,8 +747,44 @@ export default function DialerPage() {
           caller_id: selectedCallerId || undefined,
         });
 
-        setActiveDialpadCallId(response.dialpad_call_id);
-        setActiveDialpadCallState(response.state);
+        if (response.dialpad_call_id) {
+          setActiveDialpadCallId(response.dialpad_call_id);
+          setActiveDialpadCallState(response.state);
+          setIsCallResolving(false);
+        } else {
+          // Call placed but ID not yet discovered — enter resolving state
+          setIsCallResolving(true);
+          setActiveDialpadCallState("connecting");
+          toast.info("Call placed — waiting for Dialpad to confirm...");
+
+          // Retry resolution: poll the backend a few times to find the call ID
+          for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            try {
+              const retryResponse = await dialpadCall.mutateAsync({
+                phone: currentContact.phone,
+                dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                contact_id: currentContact.id,
+                caller_id: selectedCallerId || undefined,
+              });
+              if (retryResponse.dialpad_call_id) {
+                setActiveDialpadCallId(retryResponse.dialpad_call_id);
+                setActiveDialpadCallState(retryResponse.state);
+                setIsCallResolving(false);
+                toast.success(`Call connected via Dialpad`);
+                return;
+              }
+            } catch {
+              // ignore retry errors
+            }
+          }
+
+          // Still unresolved after retries — allow user to proceed manually
+          setIsCallResolving(false);
+          toast.warning("Dialpad call active but couldn't confirm tracking. You can still log the outcome.");
+          return;
+        }
+
         toast.success(
           response.message === "Existing Dialpad call is already active for this lead."
             ? response.message
@@ -774,6 +811,7 @@ export default function DialerPage() {
         activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
         setActiveDialpadCallState(null);
+        setIsCallResolving(false);
         toast.error(message);
       }
     };
