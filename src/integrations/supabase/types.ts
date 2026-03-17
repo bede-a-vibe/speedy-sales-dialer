@@ -513,6 +513,7 @@ export type Database = {
         | "rescheduled"
         | "showed_closed"
         | "showed_no_close"
+        | "showed_verbal_commitment"
       call_outcome:
         | "no_answer"
         | "voicemail"
@@ -657,6 +658,7 @@ export const Constants = {
         "rescheduled",
         "showed_closed",
         "showed_no_close",
+        "showed_verbal_commitment",
       ],
       call_outcome: [
         "no_answer",
