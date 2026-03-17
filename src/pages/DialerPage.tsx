@@ -535,8 +535,13 @@ export default function DialerPage() {
                 {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
               </span>
             ) : (
-              <span className="text-xs font-mono text-muted-foreground/60">
-                No Dialpad number assigned
+              <span className="text-xs font-mono text-destructive">
+                No active Dialpad assignment — ask an admin to assign your user before starting a session.
+              </span>
+            )}
+            {dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now() && (
+              <span className="text-xs font-mono text-muted-foreground">
+                Dialpad status refresh paused briefly after rate limiting.
               </span>
             )}
             {isDialing && (
@@ -549,7 +554,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={visibleUncalledContacts.length === 0 || isLoading}
+              disabled={visibleUncalledContacts.length === 0 || isLoading || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
               <Phone className="mr-2 h-4 w-4" />
