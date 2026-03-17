@@ -220,7 +220,7 @@ export default function DialerPage() {
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
-      setFollowUpTime("09:00");
+      setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
       setAssignedRepId(user.id);
     } catch {
       toast.error("Failed to log call. Try again.");
