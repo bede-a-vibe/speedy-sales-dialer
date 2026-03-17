@@ -124,6 +124,18 @@ function createAppointmentOutcomeCounts(): AppointmentOutcomeCounts {
   };
 }
 
+function getTalkTimeSeconds(callLog: ReportCallLog) {
+  if (typeof callLog.dialpad_talk_time_seconds === "number") {
+    return Math.max(0, callLog.dialpad_talk_time_seconds);
+  }
+
+  if (typeof callLog.dialpad_total_duration_seconds === "number") {
+    return Math.max(0, callLog.dialpad_total_duration_seconds);
+  }
+
+  return 0;
+}
+
 function isSameOrNextDayBooking(item: ReportBookingItem) {
   if (!item.scheduled_for) return false;
   const createdDate = toDateKey(item.created_at);

@@ -121,13 +121,16 @@ export default function ReportsPage() {
           title="Dialer KPI Snapshot"
           description={`Core outbound metrics based on calls created in the selected date range${activeRepId ? ` for ${selectedRepLabel}` : " across all reps"}.`}
         >
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-3">
             <StatCard label="Dials" value={metrics.dialer.dials} />
             <StatCard label="Unique Leads Dialed" value={metrics.dialer.uniqueLeadsDialed} />
             <StatCard label="Pick Ups" value={metrics.dialer.pickUps} />
             <StatCard label="Pick Up Rate" value={`${metrics.dialer.pickUpRate}%`} subtext="pick ups / dials" />
             <StatCard label="# of Call Backs" value={metrics.dialer.callBacks} />
             <StatCard label="Pick Up to FU %" value={`${metrics.dialer.pickUpToFollowUpRate}%`} subtext="follow ups / pick ups" />
+            <StatCard label="Total Talk Time" value={formatDurationSeconds(metrics.dialer.totalTalkTimeSeconds)} />
+            <StatCard label="Avg Talk / Dial" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerDialSeconds)} />
+            <StatCard label="Avg Talk / Pick Up" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerPickupSeconds)} />
           </div>
         </ReportSection>
 
