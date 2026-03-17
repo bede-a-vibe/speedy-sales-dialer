@@ -614,6 +614,7 @@ export default function DialerPage() {
     }
   }, [activeDialpadCallId, activeDialpadCallState, cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
 
+  useEffect(() => {
     if (!isSessionActive || !currentContact) return;
 
     const handler = (e: KeyboardEvent) => {
