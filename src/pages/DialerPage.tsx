@@ -154,6 +154,7 @@ export default function DialerPage() {
     }
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
+
   useEffect(() => {
     setNotesPanelEnabled(false);
 
@@ -204,6 +205,14 @@ export default function DialerPage() {
     activeDialRequestRef.current = null;
   }, []);
 
+  useEffect(() => {
+    if (isDialing || isStartingSession) return;
+
+    setCurrentIndex(null);
+    resetLeadState(user?.id || "");
+    void stopQueueSession();
+  }, [industry, isDialing, isStartingSession, resetLeadState, stateFilter, stopQueueSession, user?.id]);
+
   const startDialing = useCallback(async () => {
     if (!hasDialpadAssignment || isStartingSession) return;
 
@@ -221,6 +230,7 @@ export default function DialerPage() {
         setIsDialing(false);
         setCurrentIndex(null);
         setIsBootstrappingSession(false);
+        await stopQueueSession();
         toast.info("No more leads in queue.");
         return;
       }
@@ -235,12 +245,13 @@ export default function DialerPage() {
       setIsDialing(false);
       setCurrentIndex(null);
       setIsBootstrappingSession(false);
+      await stopQueueSession();
       const message = error instanceof Error ? error.message : "Unable to start dialing session.";
       toast.error(message);
     } finally {
       setIsStartingSession(false);
     }
-  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, user?.id]);
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, resetLeadState, startQueueSession, stopQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
