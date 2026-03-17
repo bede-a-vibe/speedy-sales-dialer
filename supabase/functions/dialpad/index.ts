@@ -825,7 +825,7 @@ Deno.serve(async (req) => {
           }
 
           const callsResponse = await fetch(
-            `${DIALPAD_BASE}/stats/calls?limit=15`,
+            `${DIALPAD_BASE}/call?limit=25`,
             {
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -843,14 +843,18 @@ Deno.serve(async (req) => {
               const callId = getDialpadCallId(call);
               const state = normalizeDialpadState(call.state);
               const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
-              const callUserId = call.user_id ?? call.operator_id ?? null;
+              const contactPhone = isRecord(call.contact) && typeof call.contact.phone === "string" ? call.contact.phone : "";
+              const callUserId = isRecord(call.target)
+                ? call.target.id ?? call.target.user_id ?? null
+                : call.user_id ?? call.operator_id ?? null;
               const isMatchingUser = String(callUserId) === String(params.dialpad_user_id);
+              const normalizedCandidateNumber = externalNumber || contactPhone;
 
               if (
                 callId
                 && !isTerminalDialpadState(state)
                 && isMatchingUser
-                && externalNumber.includes(normalizedPhone.slice(-8))
+                && normalizedCandidateNumber.includes(normalizedPhone.slice(-8))
               ) {
                 foundCallId = callId;
                 break;
