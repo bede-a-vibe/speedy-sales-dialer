@@ -770,7 +770,30 @@ Deno.serve(async (req) => {
 
         if (!initiateResponse.ok) {
           const initiateData = await initiateResponse.json().catch(() => null);
-          dialpadResponse = initiateResponse;
+          const initiateMessage = extractDialpadErrorMessage(initiateData) ?? "";
+
+          // If user has no active Dialpad app, fall back to the ring-based POST /call endpoint
+          const isNoAppsError = initiateMessage.toLowerCase().includes("no apps available");
+          if (isNoAppsError) {
+            const fallbackBody: Record<string, unknown> = {
+              phone_number: normalizedPhone,
+              user_id: params.dialpad_user_id,
+            };
+            if (params.caller_id) fallbackBody.caller_id = params.caller_id;
+            if (params.contact_id) {
+              fallbackBody.custom_data = JSON.stringify({ contact_id: params.contact_id, user_id: user.id });
+            }
+
+            dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${DIALPAD_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(fallbackBody),
+            });
+            break;
+          }
 
           // Reconstruct a failed Response so the downstream error handler works
           dialpadResponse = new Response(JSON.stringify(initiateData), {
