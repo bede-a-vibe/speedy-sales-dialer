@@ -62,6 +62,7 @@ export default function DialerPage() {
   const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
+  const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
@@ -187,33 +188,35 @@ export default function DialerPage() {
     }
   }, [currentContact, currentIndex, stopSession, user?.id, visibleUncalledContacts.length]);
 
-  const logAndNext = useCallback(async () => {
-    if (!selectedOutcome || !currentContact || !user) return;
+  const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
+    const outcomeToLog = outcomeOverride ?? selectedOutcome;
+    if (!outcomeToLog || !currentContact || !user) return;
 
-    if (requiresFollowUpSchedule && (!followUpDate || !followUpTime)) {
+    if (outcomeToLog === "follow_up" && (!followUpDate || !followUpTime)) {
       toast.error("Choose a follow-up date and time.");
       return;
     }
 
-    if (requiresBookedSchedule && !followUpDate) {
+    if (outcomeToLog === "booked" && !followUpDate) {
       toast.error("Choose an appointment day.");
       return;
     }
 
-    if (requiresPipelineAssignment && !assignedRepId) {
+    const needsPipelineAssignment = outcomeToLog === "follow_up" || outcomeToLog === "booked";
+    if (needsPipelineAssignment && !assignedRepId) {
       toast.error("Choose a sales rep.");
       return;
     }
 
     try {
       const scheduledFor = followUpDate
-        ? combineDateAndTime(followUpDate, requiresFollowUpSchedule ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
+        ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
         : null;
 
       const insertedLog = await createCallLog.mutateAsync({
         contact_id: currentContact.id,
         user_id: user.id,
-        outcome: selectedOutcome,
+        outcome: outcomeToLog,
         notes: notes || undefined,
         follow_up_date: scheduledFor,
         dialpad_call_id: activeDialpadCallId,
@@ -226,11 +229,11 @@ export default function DialerPage() {
         });
       }
 
-      if (requiresPipelineAssignment) {
+      if (needsPipelineAssignment) {
         await createPipelineItem.mutateAsync({
           contact_id: currentContact.id,
           source_call_log_id: insertedLog.id,
-          pipeline_type: selectedOutcome === "follow_up" ? "follow_up" : "booked",
+          pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
           assigned_user_id: assignedRepId,
           created_by: user.id,
           scheduled_for: scheduledFor,
@@ -241,23 +244,24 @@ export default function DialerPage() {
       await updateContact.mutateAsync({
         id: currentContact.id,
         status: "called",
-        last_outcome: selectedOutcome,
-        is_dnc: selectedOutcome === "dnc",
+        last_outcome: outcomeToLog,
+        is_dnc: outcomeToLog === "dnc",
       });
 
       setCallCount((prev) => prev + 1);
       setSessionOutcomes((prev) => ({
         ...prev,
-        [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
+        [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
       setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
 
-      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+      toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
       activeDialRequestRef.current = null;
       setActiveDialpadCallId(null);
       setActiveDialpadCallState(null);
       setDialpadPollingBackoffUntil(null);
       setIsEndingCall(false);
+      setPendingAutoOutcome(null);
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
@@ -284,9 +288,6 @@ export default function DialerPage() {
     followUpTime,
     linkDialpadCallLog,
     notes,
-    requiresBookedSchedule,
-    requiresFollowUpSchedule,
-    requiresPipelineAssignment,
     selectedOutcome,
     stopSession,
     updateContact,
@@ -386,6 +387,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    setPendingAutoOutcome(null);
 
     dialpadCall
       .mutateAsync({
@@ -449,6 +451,29 @@ export default function DialerPage() {
       window.clearInterval(intervalId);
     };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
+
+  useEffect(() => {
+    if (!isDialing || !currentContact || selectedOutcome || pendingAutoOutcome) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setPendingAutoOutcome("no_answer");
+    }, 30000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentContact, isDialing, pendingAutoOutcome, selectedOutcome]);
+
+  useEffect(() => {
+    if (!pendingAutoOutcome || !currentContact) return;
+
+    if (!isCallTerminal && activeDialpadCallId && !isEndingCall) {
+      void cancelActiveCall();
+      return;
+    }
+
+    if (isCallTerminal) {
+      void logAndNext(pendingAutoOutcome);
+    }
+  }, [activeDialpadCallId, cancelActiveCall, currentContact, isCallTerminal, isEndingCall, logAndNext, pendingAutoOutcome]);
 
   return (
     <AppLayout title="Dialer">
@@ -800,7 +825,7 @@ export default function DialerPage() {
 
               <div className="space-y-2">
                 <Button
-                  onClick={logAndNext}
+                  onClick={() => void logAndNext()}
                   disabled={!canSubmit}
                   className="w-full py-3 font-semibold"
                 >
