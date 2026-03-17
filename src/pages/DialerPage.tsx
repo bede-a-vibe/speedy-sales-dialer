@@ -338,7 +338,9 @@ export default function DialerPage() {
     resetLeadState(user?.id || "");
 
     try {
+      console.log("[Dialer] startDialing: industry=", industry, "state=", stateFilter, "user=", user?.id);
       const claimedCount = await startQueueSession();
+      console.log("[Dialer] startDialing: claimedCount=", claimedCount);
       if (claimedCount <= 0) {
         setIsDialing(false);
         setCurrentIndex(null);
@@ -346,6 +348,7 @@ export default function DialerPage() {
         resetSessionTimers();
         await stopQueueSession();
         toast.info("No more leads in queue.");
+        console.warn("[Dialer] No leads claimed. Filters: industry=", industry, "state=", stateFilter);
         return;
       }
 
