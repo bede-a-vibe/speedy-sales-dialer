@@ -91,10 +91,10 @@ function normalizeCellValue(value: unknown): string {
   return String(value).trim();
 }
 
-function mapColumn(header: string): (typeof ALL_FIELDS)[number] | null {
+function mapColumn(header: string): MappableField | null {
   const normalized = normalizeText(header);
 
-  for (const field of ALL_FIELDS) {
+  for (const field of [...ALL_FIELDS, ...EXTRA_NOTE_FIELDS] as const) {
     if (normalized === field) {
       return field;
     }
