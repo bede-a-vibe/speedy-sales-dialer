@@ -137,6 +137,7 @@ export default function DialerPage() {
   const [accumulatedPausedMs, setAccumulatedPausedMs] = useState(0);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
+  const hasInitializedDialerFiltersRef = useRef(false);
 
   const {
     contacts: visibleUncalledContacts,
