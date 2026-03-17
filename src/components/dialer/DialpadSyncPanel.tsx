@@ -1,29 +1,37 @@
 import { format } from "date-fns";
 import { Loader2, PhoneOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ContactNote } from "@/hooks/useContactNotes";
+import { useContactNotes } from "@/hooks/useContactNotes";
 
 interface DialpadSyncPanelProps {
+  contactId?: string;
   activeDialpadCallId: string | null;
   activeDialpadCallState: string | null;
-  latestDialpadSummary: ContactNote | null;
-  latestDialpadTranscript: ContactNote | null;
   onCancelCall: () => void;
   isCancelling: boolean;
   isStatusPending: boolean;
   isEndingCall: boolean;
+  enabled?: boolean;
 }
 
 export function DialpadSyncPanel({
+  contactId,
   activeDialpadCallId,
   activeDialpadCallState,
-  latestDialpadSummary,
-  latestDialpadTranscript,
   onCancelCall,
   isCancelling,
   isStatusPending,
   isEndingCall,
+  enabled = true,
 }: DialpadSyncPanelProps) {
+  const { data: contactNotes = [] } = useContactNotes(contactId, {
+    enabled: enabled && !!contactId,
+    refetchInterval: enabled && contactId ? 15000 : false,
+  });
+
+  const latestDialpadSummary = contactNotes.find((note) => note.source === "dialpad_summary") ?? null;
+  const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
