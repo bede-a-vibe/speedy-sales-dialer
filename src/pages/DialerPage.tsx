@@ -353,9 +353,18 @@ export default function DialerPage() {
                     }
                   }}
                 >
-                  <Phone className="h-4 w-4 mr-2" />
+                  {dialpadCall.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Phone className="h-4 w-4 mr-2" />
+                  )}
                   Dial {manualPhone.trim() || "..."}
                 </Button>
+                {!myDialpadSettings?.dialpad_user_id && (
+                  <p className="text-sm text-muted-foreground">
+                    Assign a Dialpad number to your user before placing calls.
+                  </p>
+                )}
               </div>
             </DialogContent>
           </Dialog>
