@@ -204,7 +204,7 @@ export default function DialerPage() {
   }, []);
 
   const startDialing = useCallback(async () => {
-    if (queueLeadCount === 0 || !hasDialpadAssignment || isStartingSession) return;
+    if (!hasDialpadAssignment || isStartingSession) return;
 
     setIsStartingSession(true);
     setCallCount(0);
@@ -612,7 +612,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={queueLeadCount === 0 || isLoading || isStartingSession || !hasDialpadAssignment}
+              disabled={isLoading || isStartingSession || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
               {isStartingSession ? (
