@@ -16,6 +16,9 @@ export interface PerformanceTargetRecord {
 }
 
 export interface PerformanceActualMetrics {
+  dials: number;
+  pickups: number;
+  pickup_to_booking_rate: number;
   bookings_made: number;
   show_up_rate: number;
   closed_deals: number;
