@@ -318,7 +318,6 @@ export default function DialerPage() {
         }
       })
       .catch((error) => {
-        activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         toast.error(message);

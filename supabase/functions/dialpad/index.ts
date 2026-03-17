@@ -777,9 +777,18 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
 
-    const data = await dialpadResponse.json();
+    const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
-      return jsonResponse({ error: `Dialpad API error [${dialpadResponse.status}]`, details: data }, dialpadResponse.status);
+      const message = extractDialpadErrorMessage(data);
+      const status = isDialpadRateLimitError(data) ? 429 : dialpadResponse.status;
+
+      return jsonResponse({
+        error: status === 429
+          ? "Dialpad rate limit reached. Wait a few seconds and try again."
+          : `Dialpad API error [${dialpadResponse.status}]`,
+        details: data,
+        message,
+      }, status);
     }
 
     if (action === "initiate_call" && params.contact_id) {
