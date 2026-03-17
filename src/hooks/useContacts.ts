@@ -238,6 +238,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   const claimInFlightRef = useRef<Promise<number> | null>(null);
   const startInFlightRef = useRef<Promise<number> | null>(null);
   const stopInFlightRef = useRef<Promise<void> | null>(null);
+  const startingRef = useRef(false);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
