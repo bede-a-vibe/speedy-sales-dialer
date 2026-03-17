@@ -101,6 +101,9 @@ export function formatTargetMetricValue(metricKey: PerformanceTargetMetricKey, v
 
 export function getPerformanceActualMetrics(metrics: ReportMetrics): PerformanceActualMetrics {
   return {
+    dials: metrics.dialer.dials,
+    pickups: metrics.dialer.pickUps,
+    pickup_to_booking_rate: metrics.bookingsMade.pickUpsToBookingRate,
     bookings_made: metrics.bookingsMade.totalBookingsMade,
     show_up_rate: metrics.appointmentPerformance.setter.showUpRate,
     closed_deals: metrics.appointmentPerformance.closer.showedClosed,
