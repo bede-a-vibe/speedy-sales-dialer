@@ -260,6 +260,7 @@ export default function DialerPage() {
       toast.error("Failed to log call. Try again.");
     }
   }, [
+    currentIndex,
     activeDialpadCallId,
     assignedRepId,
     createCallLog,
@@ -273,8 +274,10 @@ export default function DialerPage() {
     requiresFollowUpSchedule,
     requiresPipelineAssignment,
     selectedOutcome,
+    stopSession,
     updateContact,
     user,
+    visibleUncalledContacts.length,
   ]);
 
   const cancelActiveCall = useCallback(async () => {
