@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
 
     const requestBody = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const fileUrl = typeof requestBody.file_url === "string" ? requestBody.file_url : null;
+    const fileFormat = requestBody.file_format === "markdown" ? "markdown" : "xlsx";
 
     if (!fileUrl) {
       return jsonResponse({ error: "Missing file_url." }, 400);
@@ -120,19 +121,45 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: `Failed to fetch spreadsheet: ${workbookResponse.status}` }, 400);
     }
 
-    const workbookBytes = await workbookResponse.arrayBuffer();
-    const workbook = XLSX.read(workbookBytes, { type: "array" });
-    const firstSheetName = workbook.SheetNames[0];
+    let rows: Record<string, unknown>[] = [];
 
-    if (!firstSheetName) {
-      return jsonResponse({ error: "Spreadsheet is empty." }, 400);
+    if (fileFormat === "markdown") {
+      const markdown = await workbookResponse.text();
+      const lines = markdown.split(/\r?\n/).filter((line) => line.startsWith("|"));
+      const headerLine = lines[0];
+      const separatorLine = lines[1];
+      const dataLines = lines.slice(2);
+
+      if (!headerLine || !separatorLine) {
+        return jsonResponse({ error: "Invalid markdown table." }, 400);
+      }
+
+      const parseMarkdownRow = (line: string) =>
+        line
+          .slice(1, -1)
+          .split("|")
+          .map((cell) => cell.trim().replace(/\\([_./:@()\-&])/g, "$1"));
+
+      const headers = parseMarkdownRow(headerLine);
+      rows = dataLines
+        .map((line) => parseMarkdownRow(line))
+        .filter((cells) => cells.length === headers.length)
+        .map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+    } else {
+      const workbookBytes = await workbookResponse.arrayBuffer();
+      const workbook = XLSX.read(workbookBytes, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        return jsonResponse({ error: "Spreadsheet is empty." }, 400);
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+        defval: "",
+        raw: false,
+      });
     }
-
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: "",
-      raw: false,
-    });
 
     const { data: existingContacts, error: existingError } = await adminClient
       .from("contacts")
