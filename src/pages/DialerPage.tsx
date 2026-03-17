@@ -93,6 +93,10 @@ export default function DialerPage() {
     [totalQueueCount, visibleUncalledContacts.length],
   );
 
+  const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
+    ? visibleUncalledContacts[currentIndex]
+    : null;
+
   useEffect(() => {
     setNotesFetchEnabled(false);
 
