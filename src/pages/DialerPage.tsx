@@ -586,10 +586,10 @@ export default function DialerPage() {
                 </div>
               )}
 
-              {requiresFollowUpSchedule && (
+              {requiresAnySchedule && (
                 <div className="rounded-lg border border-border bg-card p-4">
                   <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Follow-up Schedule
+                    {requiresBookedSchedule ? "Appointment Day" : "Follow-up Schedule"}
                   </label>
                   <div className="space-y-2">
                     <Popover>
@@ -602,7 +602,7 @@ export default function DialerPage() {
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {followUpDate ? format(followUpDate, "PPP") : "Pick a date"}
+                          {followUpDate ? format(followUpDate, "PPP") : requiresBookedSchedule ? "Pick appointment day" : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -616,12 +616,16 @@ export default function DialerPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <Input
-                      type="time"
-                      value={followUpTime}
-                      onChange={(e) => setFollowUpTime(e.target.value)}
-                      className="border-border bg-background"
-                    />
+                    {requiresFollowUpSchedule ? (
+                      <Input
+                        type="time"
+                        value={followUpTime}
+                        onChange={(e) => setFollowUpTime(e.target.value)}
+                        className="border-border bg-background"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Booked appointments only need a day right now.</p>
+                    )}
                   </div>
                 </div>
               )}
