@@ -1,10 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DialpadCallParams {
   phone: string;
   dialpad_user_id?: string;
   contact_id?: string;
+  caller_id?: string;
 }
 
 interface LinkDialpadCallLogParams {
@@ -120,5 +121,25 @@ export function useLinkDialpadCallLog() {
 
       if (error) throw error;
     },
+  });
+}
+
+export interface DialpadCallerIdOption {
+  number: string;
+  label: string;
+}
+
+export function useDialpadCallerIds(dialpadUserId: string | undefined) {
+  return useQuery({
+    queryKey: ["dialpad-caller-ids", dialpadUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("dialpad", {
+        body: { action: "get_caller_ids", dialpad_user_id: dialpadUserId },
+      });
+      if (error) throw error;
+      return (data?.numbers ?? []) as DialpadCallerIdOption[];
+    },
+    enabled: !!dialpadUserId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 }

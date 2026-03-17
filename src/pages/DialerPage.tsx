@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateCallLog, prefetchContactCallLogs } from "@/hooks/useCallLogs";
 import { useClearOwnDialerLeadLocks, useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useAuth } from "@/hooks/useAuth";
-import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog, useDialpadCallerIds } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { prefetchContactNotes } from "@/hooks/useContactNotes";
@@ -132,6 +132,7 @@ export default function DialerPage() {
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
+  const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [sessionTick, setSessionTick] = useState(() => Date.now());
   const [sessionPhaseStartedAt, setSessionPhaseStartedAt] = useState<number | null>(null);
   const [accumulatedDialingMs, setAccumulatedDialingMs] = useState(0);
@@ -158,6 +159,7 @@ export default function DialerPage() {
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
+  const { data: callerIdOptions = [] } = useDialpadCallerIds(myDialpadSettings?.dialpad_user_id);
   const dialpadCall = useDialpadCall();
   const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
@@ -677,6 +679,7 @@ export default function DialerPage() {
         phone: currentContact.phone,
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
         contact_id: currentContact.id,
+        caller_id: selectedCallerId || undefined,
       })
       .then((response) => {
         setActiveDialpadCallId(response.dialpad_call_id);
@@ -813,10 +816,27 @@ export default function DialerPage() {
               {isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {myDialpadSettings ? (
-              <span className="text-xs font-mono text-primary">
-                <Phone className="mr-1 inline h-3 w-3" />
-                {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-primary">
+                  <Phone className="mr-1 inline h-3 w-3" />
+                  {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
+                </span>
+                {callerIdOptions.length > 1 && (
+                  <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
+                    <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
+                      <SelectValue placeholder="Caller ID" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Auto (default)</SelectItem>
+                      {callerIdOptions.map((opt) => (
+                        <SelectItem key={opt.number} value={opt.number}>
+                          {opt.label} — {opt.number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             ) : (
               <span className="text-xs font-mono text-destructive">
                 No active Dialpad assignment — ask an admin to assign your user before starting a session.
@@ -933,6 +953,7 @@ export default function DialerPage() {
                         await dialpadCall.mutateAsync({
                           phone: manualPhone.trim(),
                           dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                          caller_id: selectedCallerId || undefined,
                         });
                         toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                         setManualOpen(false);
@@ -952,6 +973,7 @@ export default function DialerPage() {
                       await dialpadCall.mutateAsync({
                         phone: manualPhone.trim(),
                         dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                        caller_id: selectedCallerId || undefined,
                       });
                       toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                       setManualOpen(false);
