@@ -64,6 +64,7 @@ export default function DialerPage() {
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
+  const leadAdvanceInFlightRef = useRef(false);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
   const { data: queueContacts = [] } = useUncalledContacts();
