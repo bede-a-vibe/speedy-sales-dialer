@@ -238,6 +238,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   const claimInFlightRef = useRef<Promise<number> | null>(null);
   const startInFlightRef = useRef<Promise<number> | null>(null);
   const stopInFlightRef = useRef<Promise<void> | null>(null);
+  const startingRef = useRef(false);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
@@ -248,6 +249,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     const seenIds = new Set(seedContacts.map((contact) => contact.id));
     const mergedContacts = [...seedContacts];
     let latestTotalCount = mergedContacts.length;
+    let emptyRetries = 0;
 
     while (mergedContacts.length < desiredMinimum) {
       console.log("[DialerQueue] Claiming leads: session=", activeSessionId, "industry=", industry, "state=", state, "claimSize=", DIALER_CLAIM_SIZE, "buffer=", mergedContacts.length, "/", desiredMinimum);
@@ -263,6 +265,13 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
       const newlyClaimed = (response.claimed_contacts ?? []).filter((contact) => !seenIds.has(contact.id));
 
       if (newlyClaimed.length === 0) {
+        // Retry once after a short delay if leads exist but none were claimed (lock contention)
+        if (latestTotalCount > mergedContacts.length && mergedContacts.length === 0 && emptyRetries < 2) {
+          emptyRetries++;
+          console.warn("[DialerQueue] No contacts claimed despite availability, retrying after 300ms... (attempt", emptyRetries, ")");
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          continue;
+        }
         console.warn("[DialerQueue] No new contacts claimed, breaking.");
         break;
       }
@@ -299,6 +308,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
 
     const activeSessionId = sessionRef.current;
     sessionRef.current = null;
+    startingRef.current = false;
     startInFlightRef.current = null;
     setSessionId(null);
     contactsRef.current = [];
@@ -319,7 +329,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   }, [cleanupSessionLocks]);
 
   const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
-    if (!sessionRef.current) return 0;
+    if (!sessionRef.current || startingRef.current) return 0;
 
     if (claimInFlightRef.current) {
       return claimInFlightRef.current;
@@ -372,7 +382,8 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
 
       const activeSessionId = crypto.randomUUID();
       sessionRef.current = activeSessionId;
-      setSessionId(activeSessionId);
+      startingRef.current = true;
+      // Don't set sessionId state yet — prevents prefetch effect from racing
       contactsRef.current = [];
       setContacts([]);
       setTotalCount(0);
@@ -395,10 +406,15 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         contactsRef.current = claimedContacts;
         setContacts(claimedContacts);
         setTotalCount(claimedTotalCount);
+
+        // Now expose sessionId to React state — contacts are populated so prefetch won't race
+        startingRef.current = false;
+        setSessionId(activeSessionId);
         void ensureBuffer(DIALER_TARGET_BUFFER);
 
         return claimedContacts.length;
       } catch (error) {
+        startingRef.current = false;
         if (sessionRef.current !== activeSessionId) {
           await cleanupSessionLocks(activeSessionId);
           return 0;
