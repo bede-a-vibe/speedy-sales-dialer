@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useClearOwnDialerLeadLocks, useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useAuth } from "@/hooks/useAuth";
-import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog, useDialpadCallerIds } from "@/hooks/useDialpad";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog, useDialpadCallerIds, useResolveDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
