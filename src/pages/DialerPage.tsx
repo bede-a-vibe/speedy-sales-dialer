@@ -158,6 +158,11 @@ export default function DialerPage() {
       return;
     }
 
+    if (requiresBookedSchedule && !followUpDate) {
+      toast.error("Choose an appointment day.");
+      return;
+    }
+
     if (requiresPipelineAssignment && !assignedRepId) {
       toast.error("Choose a sales rep.");
       return;
