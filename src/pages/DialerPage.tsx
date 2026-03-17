@@ -487,14 +487,24 @@ export default function DialerPage() {
         ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
         : null;
 
-      const insertedLog = await createCallLog.mutateAsync({
-        contact_id: currentContact.id,
-        user_id: user.id,
-        outcome: outcomeToLog,
-        notes: notes || undefined,
-        follow_up_date: scheduledFor,
-        dialpad_call_id: activeDialpadCallId,
-      });
+      // CRITICAL: Update contact status BEFORE releasing the lock or claiming
+      // new leads, otherwise the contact can be re-claimed while still "uncalled".
+      const [insertedLog] = await Promise.all([
+        createCallLog.mutateAsync({
+          contact_id: currentContact.id,
+          user_id: user.id,
+          outcome: outcomeToLog,
+          notes: notes || undefined,
+          follow_up_date: scheduledFor,
+          dialpad_call_id: activeDialpadCallId,
+        }),
+        updateContact.mutateAsync({
+          id: currentContact.id,
+          status: "called",
+          last_outcome: outcomeToLog,
+          is_dnc: outcomeToLog === "dnc",
+        }),
+      ]);
 
       const nextLength = visibleUncalledContacts.length - 1;
       void discardContact(currentContact.id, { releaseLock: true });
@@ -524,12 +534,6 @@ export default function DialerPage() {
               notes,
             })
           : Promise.resolve(),
-        updateContact.mutateAsync({
-          id: currentContact.id,
-          status: "called",
-          last_outcome: outcomeToLog,
-          is_dnc: outcomeToLog === "dnc",
-        }),
       ]);
 
       setCallCount((prev) => prev + 1);
