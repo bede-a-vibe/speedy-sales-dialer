@@ -64,6 +64,7 @@ export default function DialerPage() {
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
+  const leadAdvanceInFlightRef = useRef(false);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
   const { data: queueContacts = [] } = useUncalledContacts();
@@ -145,6 +146,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
   }, [hasDialpadAssignment, visibleUncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
@@ -157,6 +159,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
   }, [callCount]);
 
@@ -175,6 +178,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
 
     if (nextLength <= 0) {
@@ -190,7 +194,7 @@ export default function DialerPage() {
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
-    if (!outcomeToLog || !currentContact || !user) return;
+    if (!outcomeToLog || !currentContact || !user || leadAdvanceInFlightRef.current) return;
 
     if (outcomeToLog === "follow_up" && (!followUpDate || !followUpTime)) {
       toast.error("Choose a follow-up date and time.");
@@ -207,6 +211,8 @@ export default function DialerPage() {
       toast.error("Choose a sales rep.");
       return;
     }
+
+    leadAdvanceInFlightRef.current = true;
 
     try {
       const scheduledFor = followUpDate
@@ -275,6 +281,7 @@ export default function DialerPage() {
         setCurrentIndex(nextLength - 1);
       }
     } catch {
+      leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
     }
   }, [
@@ -387,6 +394,7 @@ export default function DialerPage() {
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
+    leadAdvanceInFlightRef.current = false;
     setPendingAutoOutcome(null);
 
     dialpadCall
@@ -463,7 +471,7 @@ export default function DialerPage() {
   }, [currentContact, isDialing, pendingAutoOutcome, selectedOutcome]);
 
   useEffect(() => {
-    if (!pendingAutoOutcome || !currentContact) return;
+    if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
 
     if (!isCallTerminal && activeDialpadCallId && !isEndingCall) {
       void cancelActiveCall();
