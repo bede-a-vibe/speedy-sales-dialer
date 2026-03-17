@@ -197,6 +197,7 @@ export default function ReportsPage() {
                 <StatCard label="Showed" value={metrics.appointmentPerformance.setter.showed} />
                 <StatCard label="Show-Up Rate" value={`${metrics.appointmentPerformance.setter.showUpRate}%`} subtext="showed / appointments set" />
                 <StatCard label="Showed Closed" value={metrics.appointmentPerformance.setter.showedClosed} />
+                <StatCard label="Verbal Commitments" value={metrics.appointmentPerformance.setter.showedVerbalCommitment} />
                 <StatCard label="Close Rate" value={`${metrics.appointmentPerformance.setter.closeRate}%`} subtext="closed / showed" />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
