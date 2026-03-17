@@ -60,6 +60,8 @@ export default function DialerPage() {
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
+  const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
+  const [isEndingCall, setIsEndingCall] = useState(false);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
@@ -91,14 +93,18 @@ export default function DialerPage() {
     [queueContacts],
   );
 
+  const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
+  const isCallTerminal = !activeDialpadCallId || activeDialpadCallState === "hangup";
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
   const requiresBookedSchedule = selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
   const canSubmit = !!selectedOutcome
+    && isCallTerminal
     && (!requiresPipelineAssignment || !!assignedRepId)
     && (!requiresAnySchedule || !!followUpDate)
     && (!requiresFollowUpSchedule || !!followUpTime)
+    && !isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
