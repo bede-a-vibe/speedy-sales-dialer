@@ -598,15 +598,15 @@ export default function DialerPage() {
                       <Button
                         variant="outline"
                         onClick={cancelActiveCall}
-                        disabled={cancelDialpadCall.isPending}
+                        disabled={cancelDialpadCall.isPending || dialpadCallStatus.isPending || activeDialpadCallState === "hangup"}
                         className="w-full border-destructive text-destructive hover:bg-destructive/10"
                       >
-                        {cancelDialpadCall.isPending ? (
+                        {cancelDialpadCall.isPending || dialpadCallStatus.isPending ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <PhoneOff className="mr-2 h-4 w-4" />
                         )}
-                        Cancel Active Call
+                        {activeDialpadCallState === "hangup" ? "Call Already Ended" : "Cancel Active Call"}
                       </Button>
                     </div>
                   ) : (
