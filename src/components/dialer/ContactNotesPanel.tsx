@@ -22,6 +22,10 @@ function HistorySkeleton() {
   );
 }
 
+function formatLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
 export function ContactNotesPanel({ contactId, notes, onNotesChange, enabled = true }: ContactNotesPanelProps) {
   const { data: contactNotes = [], isLoading: isNotesLoading } = useContactNotes(contactId, {
     enabled,
@@ -77,7 +81,7 @@ export function ContactNotesPanel({ contactId, notes, onNotesChange, enabled = t
               {contactNotes.map((note) => (
                 <div key={note.id} className="rounded-md border border-border bg-background px-3 py-3">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <span>{note.source.replaceAll("_", " ")}</span>
+                    <span>{formatLabel(note.source)}</span>
                     <span>{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
                   </div>
                   <p className="whitespace-pre-wrap text-sm text-foreground">{note.content}</p>
@@ -87,7 +91,7 @@ export function ContactNotesPanel({ contactId, notes, onNotesChange, enabled = t
               {callLogs.map((callLog) => (
                 <div key={callLog.id} className="rounded-md border border-border bg-secondary px-3 py-3">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <span>{callLog.outcome.replaceAll("_", " ")}</span>
+                    <span>{formatLabel(callLog.outcome)}</span>
                     <span>{format(new Date(callLog.created_at), "MMM d, h:mm a")}</span>
                   </div>
                   <p className="whitespace-pre-wrap text-sm text-foreground">{callLog.notes || "No notes recorded."}</p>
