@@ -965,9 +965,12 @@ Deno.serve(async (req) => {
       }
 
       case "get_call_status": {
+        console.log(`[get_call_status] Fetching status for call_id=${params.call_id}`);
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}`, {
           headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
         });
+        const statusBody = await dialpadResponse.clone().json().catch(() => null);
+        console.log(`[get_call_status] Response status=${dialpadResponse.status} state=${statusBody?.state ?? 'unknown'}`);
         break;
       }
 
