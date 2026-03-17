@@ -68,8 +68,7 @@ export default function DialerPage() {
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
-  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
-  const { data: queueContacts = [] } = useUncalledContacts();
+  const { data: dialerQueue, isLoading } = useDialerContacts(industry, stateFilter, sessionHiddenContactIds.length);
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -80,9 +79,15 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
+  const uncalledContacts = dialerQueue?.contacts ?? [];
+  const totalQueueCount = dialerQueue?.totalCount ?? 0;
   const visibleUncalledContacts = useMemo(
     () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
     [sessionHiddenContactIds, uncalledContacts],
+  );
+  const queueLeadCount = useMemo(
+    () => Math.max(totalQueueCount - sessionHiddenContactIds.length, visibleUncalledContacts.length),
+    [sessionHiddenContactIds.length, totalQueueCount, visibleUncalledContacts.length],
   );
 
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
@@ -92,10 +97,7 @@ export default function DialerPage() {
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
-  const stateOptions = useMemo(
-    () => Array.from(new Set(queueContacts.map((contact) => contact.state?.trim()).filter((state): state is string => !!state))).sort((a, b) => a.localeCompare(b)),
-    [queueContacts],
-  );
+  const stateOptions = AUSTRALIAN_STATE_OPTIONS;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
   const isCallTerminal = !activeDialpadCallId || activeDialpadCallState === "hangup";
