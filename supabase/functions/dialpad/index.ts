@@ -195,6 +195,71 @@ function formatDialpadDate(timestamp?: number | null) {
   return new Date(timestamp).toISOString();
 }
 
+function normalizeDialpadState(state: unknown) {
+  if (typeof state !== "string") return null;
+  const normalized = state.trim().toLowerCase();
+  return normalized || null;
+}
+
+function isTerminalDialpadState(state: string | null) {
+  return state === "hangup"
+    || state === "ended"
+    || state === "completed"
+    || state === "canceled"
+    || state === "cancelled";
+}
+
+function isAlreadyEndedDialpadError(status: number, data: unknown) {
+  const message = (extractDialpadErrorMessage(data) ?? "").toLowerCase();
+  return status === 404
+    || message.includes("already ended")
+    || message.includes("already hung up")
+    || message.includes("not found")
+    || message.includes("no active call")
+    || message.includes("cannot be hung up");
+}
+
+function buildDialpadClientPayload(params: {
+  action: string;
+  data: unknown;
+  alreadyEnded?: boolean;
+  dialpadCallId?: string | null;
+  message?: string | null;
+  extras?: JsonRecord;
+}) {
+  const state = normalizeDialpadState(isRecord(params.data) ? params.data.state : null);
+  const dialpadCallId = params.dialpadCallId ?? getDialpadCallId(params.data);
+  const alreadyEnded = params.alreadyEnded === true;
+
+  return {
+    ok: true,
+    action: params.action,
+    state,
+    terminal: alreadyEnded || isTerminalDialpadState(state),
+    already_ended: alreadyEnded,
+    dialpad_call_id: dialpadCallId,
+    message: params.message ?? null,
+    details: params.data,
+    ...(params.extras ?? {}),
+  };
+}
+
+function buildDialpadErrorPayload(status: number, data: unknown) {
+  const statusCode = status === 429 || isDialpadRateLimitError(data) ? 429 : status;
+  const message = extractDialpadErrorMessage(data);
+
+  return {
+    ok: false,
+    error: statusCode === 429
+      ? "Dialpad rate limit reached. Wait a few seconds and try again."
+      : `Dialpad API error [${status}]`,
+    message,
+    retryable: statusCode === 429,
+    status_code: statusCode,
+    details: data,
+  };
+}
+
 function buildSummaryNote(summary: string, payload: DialpadWebhookPayload) {
   const lines = [
     "Dialpad Summary",
@@ -615,25 +680,29 @@ Deno.serve(async (req) => {
 
         const callStatusData = await callStatusResponse.json().catch(() => null);
         if (!callStatusResponse.ok) {
-          const message = extractDialpadErrorMessage(callStatusData);
-          return jsonResponse({
-            error: `Dialpad API error [${callStatusResponse.status}]`,
-            details: callStatusData,
-            message,
-          }, callStatusResponse.status);
+          if (isAlreadyEndedDialpadError(callStatusResponse.status, callStatusData)) {
+            return jsonResponse(buildDialpadClientPayload({
+              action,
+              data: { state: "hangup" },
+              dialpadCallId: String(params.call_id),
+              alreadyEnded: true,
+              message: "This call has already ended.",
+            }), 200);
+          }
+
+          const errorPayload = buildDialpadErrorPayload(callStatusResponse.status, callStatusData);
+          return jsonResponse(errorPayload, errorPayload.status_code);
         }
 
-        const callState = isRecord(callStatusData) && typeof callStatusData.state === "string"
-          ? callStatusData.state.toLowerCase()
-          : null;
-
-        if (callState === "hangup") {
-          return jsonResponse({
-            ok: true,
-            already_ended: true,
-            state: callStatusData?.state ?? null,
-            call_id: params.call_id,
-          }, 200);
+        const callState = normalizeDialpadState(isRecord(callStatusData) ? callStatusData.state : null);
+        if (isTerminalDialpadState(callState)) {
+          return jsonResponse(buildDialpadClientPayload({
+            action,
+            data: callStatusData,
+            dialpadCallId: String(params.call_id),
+            alreadyEnded: true,
+            message: "This call has already ended.",
+          }), 200);
         }
 
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}/actions/hangup`, {
@@ -643,7 +712,29 @@ Deno.serve(async (req) => {
             Accept: "application/json",
           },
         });
-        break;
+
+        const hangupData = await dialpadResponse.json().catch(() => null);
+        if (!dialpadResponse.ok) {
+          if (isAlreadyEndedDialpadError(dialpadResponse.status, hangupData)) {
+            return jsonResponse(buildDialpadClientPayload({
+              action,
+              data: { state: "hangup" },
+              dialpadCallId: String(params.call_id),
+              alreadyEnded: true,
+              message: "This call has already ended.",
+            }), 200);
+          }
+
+          const errorPayload = buildDialpadErrorPayload(dialpadResponse.status, hangupData);
+          return jsonResponse(errorPayload, errorPayload.status_code);
+        }
+
+        return jsonResponse(buildDialpadClientPayload({
+          action,
+          data: hangupData,
+          dialpadCallId: String(params.call_id),
+          message: "Hangup requested. Waiting for Dialpad to confirm the call end.",
+        }), 200);
       }
 
       case "list_calls": {
