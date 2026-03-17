@@ -782,7 +782,8 @@ Deno.serve(async (req) => {
         const initiateData = await initiateResponse.json().catch(() => ({}));
 
         // The initiate_call endpoint doesn't return a call_id directly.
-        // Poll the user's recent calls briefly to find the new call.
+        // Poll the stats/calls endpoint briefly to find the new call by matching
+        // the target phone number and a non-terminal state.
         let foundCallId: string | null = null;
         for (let attempt = 0; attempt < 4; attempt++) {
           if (attempt > 0) {
@@ -790,7 +791,7 @@ Deno.serve(async (req) => {
           }
 
           const callsResponse = await fetch(
-            `${DIALPAD_BASE}/users/${params.dialpad_user_id}/calls?limit=5`,
+            `${DIALPAD_BASE}/stats/calls?limit=5`,
             {
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -808,12 +809,15 @@ Deno.serve(async (req) => {
               const callId = getDialpadCallId(call);
               const state = normalizeDialpadState(call.state);
               const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
+              const callUserId = call.user_id ?? call.operator_id ?? null;
+              const isMatchingUser = String(callUserId) === String(params.dialpad_user_id);
 
-              // Match by phone number and non-terminal state
+              // Match by phone number, user, and non-terminal state
               if (
                 callId
                 && !isTerminalDialpadState(state)
-                && (externalNumber.includes(normalizedPhone.slice(-8)) || !externalNumber)
+                && isMatchingUser
+                && externalNumber.includes(normalizedPhone.slice(-8))
               ) {
                 foundCallId = callId;
                 break;
