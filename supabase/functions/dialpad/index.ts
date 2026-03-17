@@ -753,7 +753,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+        // Use the user-scoped initiate_call endpoint instead of POST /call
+        // This initiates a direct outbound call and works even when the user is in DND mode
+        const initiateResponse = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/initiate_call`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -761,10 +763,94 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             phone_number: normalizedPhone,
-            user_id: params.dialpad_user_id,
             custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
           }),
         });
+
+        if (!initiateResponse.ok) {
+          const initiateData = await initiateResponse.json().catch(() => null);
+          dialpadResponse = initiateResponse;
+
+          // Reconstruct a failed Response so the downstream error handler works
+          dialpadResponse = new Response(JSON.stringify(initiateData), {
+            status: initiateResponse.status,
+            headers: { "Content-Type": "application/json" },
+          });
+          break;
+        }
+
+        const initiateData = await initiateResponse.json().catch(() => ({}));
+
+        // The initiate_call endpoint doesn't return a call_id directly.
+        // Poll the stats/calls endpoint briefly to find the new call by matching
+        // the target phone number and a non-terminal state.
+        let foundCallId: string | null = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+
+          const callsResponse = await fetch(
+            `${DIALPAD_BASE}/stats/calls?limit=5`,
+            {
+              headers: {
+                Authorization: `Bearer ${DIALPAD_API_KEY}`,
+                Accept: "application/json",
+              },
+            },
+          );
+
+          if (callsResponse.ok) {
+            const callsData = await callsResponse.json().catch(() => null);
+            const items = Array.isArray(callsData?.items) ? callsData.items : Array.isArray(callsData) ? callsData : [];
+
+            for (const call of items) {
+              if (!isRecord(call)) continue;
+              const callId = getDialpadCallId(call);
+              const state = normalizeDialpadState(call.state);
+              const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
+              const callUserId = call.user_id ?? call.operator_id ?? null;
+              const isMatchingUser = String(callUserId) === String(params.dialpad_user_id);
+
+              // Match by phone number, user, and non-terminal state
+              if (
+                callId
+                && !isTerminalDialpadState(state)
+                && isMatchingUser
+                && externalNumber.includes(normalizedPhone.slice(-8))
+              ) {
+                foundCallId = callId;
+                break;
+              }
+            }
+
+            if (foundCallId) break;
+          } else {
+            await callsResponse.text();
+          }
+        }
+
+        if (foundCallId) {
+          // Build a synthetic response matching the old POST /call format
+          dialpadResponse = new Response(JSON.stringify({
+            call_id: foundCallId,
+            state: "calling",
+            ...initiateData,
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else {
+          // Call was initiated but we couldn't find the call_id yet.
+          // Return success with the device info — the webhook will track it later.
+          dialpadResponse = new Response(JSON.stringify({
+            ...initiateData,
+            state: "calling",
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         break;
       }
 
@@ -796,7 +882,7 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: message }, 400);
         }
 
-        dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/initiate_call`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -804,7 +890,6 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             phone_number: normalizedPhone,
-            user_id: dialpadUserId,
           }),
         });
         break;
