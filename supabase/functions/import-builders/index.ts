@@ -108,7 +108,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Only admins can run this import." }, 403);
     }
 
-    const workbookBytes = await Deno.readFile(new URL("./Builders_AU.xlsx", import.meta.url));
+    const requestBody = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const fileUrl = typeof requestBody.file_url === "string" ? requestBody.file_url : null;
+
+    if (!fileUrl) {
+      return jsonResponse({ error: "Missing file_url." }, 400);
+    }
+
+    const workbookResponse = await fetch(fileUrl);
+    if (!workbookResponse.ok) {
+      return jsonResponse({ error: `Failed to fetch spreadsheet: ${workbookResponse.status}` }, 400);
+    }
+
+    const workbookBytes = await workbookResponse.arrayBuffer();
     const workbook = XLSX.read(workbookBytes, { type: "array" });
     const firstSheetName = workbook.SheetNames[0];
 
