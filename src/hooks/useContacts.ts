@@ -306,6 +306,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
 
     const activeSessionId = sessionRef.current;
     sessionRef.current = null;
+    startingRef.current = false;
     startInFlightRef.current = null;
     setSessionId(null);
     contactsRef.current = [];
