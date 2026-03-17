@@ -119,8 +119,8 @@ export function getReportMetrics({
   const bookingsForCreatedView = repUserId
     ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
-  const bookingsForScheduledView = repUserId
-    ? bookedItems.filter((item) => item.assigned_user_id === repUserId)
+  const appointmentsForSetterView = repUserId
+    ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
 
   const outcomeCounts = createOutcomeCounts();
