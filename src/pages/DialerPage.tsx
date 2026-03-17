@@ -201,29 +201,34 @@ export default function DialerPage() {
   }, []);
 
   const startDialing = useCallback(async () => {
-    if (queueLeadCount === 0 || !hasDialpadAssignment) return;
+    if (queueLeadCount === 0 || !hasDialpadAssignment || isStartingSession) return;
 
-    setCurrentIndex(0);
-    setIsDialing(true);
+    setIsStartingSession(true);
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
     resetLeadState(user?.id || "");
 
-    const claimedCount = await startQueueSession();
-    if (claimedCount <= 0) {
-      setIsDialing(false);
-      setCurrentIndex(null);
-      toast.info("No more leads in queue.");
-      return;
-    }
+    try {
+      const claimedCount = await startQueueSession();
+      if (claimedCount <= 0) {
+        setIsDialing(false);
+        setCurrentIndex(null);
+        toast.info("No more leads in queue.");
+        return;
+      }
 
-    void loadDialpadSyncPanel();
-    void loadContactNotesPanel();
-    void loadSessionSummaryDialog();
-    void ensureBuffer();
-  }, [ensureBuffer, hasDialpadAssignment, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
+      setIsDialing(true);
+      setCurrentIndex(0);
+      void loadDialpadSyncPanel();
+      void loadContactNotesPanel();
+      void loadSessionSummaryDialog();
+      void ensureBuffer();
+    } finally {
+      setIsStartingSession(false);
+    }
+  }, [ensureBuffer, hasDialpadAssignment, isStartingSession, queueLeadCount, resetLeadState, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
