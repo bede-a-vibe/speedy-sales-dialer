@@ -246,6 +246,7 @@ export default function DialerPage() {
       setShowSummary(true);
     }
     setIsStartingSession(false);
+    setIsBootstrappingSession(false);
     setIsDialing(false);
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
