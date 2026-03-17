@@ -150,7 +150,10 @@ export default function DialerPage() {
   }, [callCount]);
 
   const skipLead = useCallback(() => {
-    if (currentIndex === null) return;
+    if (currentIndex === null || !currentContact) return;
+
+    const nextLength = visibleUncalledContacts.length - 1;
+    setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
     setSkippedCount((prev) => prev + 1);
     setSelectedOutcome(null);
     setNotes("");
@@ -160,14 +163,17 @@ export default function DialerPage() {
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
-    const nextIdx = currentIndex + 1;
-    if (nextIdx < uncalledContacts.length) {
-      setCurrentIndex(nextIdx);
-    } else {
+
+    if (nextLength <= 0) {
       toast.info("No more leads in queue.");
       stopSession();
+      return;
     }
-  }, [currentIndex, stopSession, uncalledContacts.length, user?.id]);
+
+    if (currentIndex >= nextLength) {
+      setCurrentIndex(nextLength - 1);
+    }
+  }, [currentContact, currentIndex, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async () => {
     if (!selectedOutcome || !currentContact || !user) return;
