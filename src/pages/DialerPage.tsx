@@ -73,6 +73,7 @@ export default function DialerPage() {
   const [assignedRepId, setAssignedRepId] = useState("");
   const [isDialing, setIsDialing] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
+  const [isBootstrappingSession, setIsBootstrappingSession] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
   const [sessionOutcomes, setSessionOutcomes] = useState<Partial<Record<CallOutcome, number>>>({});
@@ -207,6 +208,7 @@ export default function DialerPage() {
     if (!hasDialpadAssignment || isStartingSession) return;
 
     setIsStartingSession(true);
+    setIsBootstrappingSession(true);
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
@@ -218,6 +220,7 @@ export default function DialerPage() {
       if (claimedCount <= 0) {
         setIsDialing(false);
         setCurrentIndex(null);
+        setIsBootstrappingSession(false);
         toast.info("No more leads in queue.");
         return;
       }
@@ -231,6 +234,7 @@ export default function DialerPage() {
     } catch (error) {
       setIsDialing(false);
       setCurrentIndex(null);
+      setIsBootstrappingSession(false);
       const message = error instanceof Error ? error.message : "Unable to start dialing session.";
       toast.error(message);
     } finally {
@@ -243,6 +247,7 @@ export default function DialerPage() {
       setShowSummary(true);
     }
     setIsStartingSession(false);
+    setIsBootstrappingSession(false);
     setIsDialing(false);
     setCurrentIndex(null);
     resetLeadState(user?.id || "");
@@ -441,12 +446,18 @@ export default function DialerPage() {
   useEffect(() => {
     if (!isDialing || currentIndex === null) return;
 
+    if (visibleUncalledContacts.length > 0 && isBootstrappingSession) {
+      setIsBootstrappingSession(false);
+      return;
+    }
+
     if (visibleUncalledContacts.length === 0) {
+      if (isBootstrappingSession || isPrefetching) return;
       stopSession();
     } else if (currentIndex >= visibleUncalledContacts.length) {
       setCurrentIndex(visibleUncalledContacts.length - 1);
     }
-  }, [visibleUncalledContacts.length, isDialing, currentIndex, stopSession]);
+  }, [visibleUncalledContacts.length, isBootstrappingSession, isDialing, currentIndex, isPrefetching, stopSession]);
 
   useEffect(() => {
     if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
