@@ -558,26 +558,43 @@ export default function DialerPage() {
   ]);
 
   const cancelActiveCall = useCallback(async () => {
-    if (!activeDialpadCallId) return;
-
     setIsEndingCall(true);
     setActiveDialpadCallState((current) => (current === "hangup" ? current : "ending"));
     setRapidStatusPollingUntil(Date.now() + 10000);
 
     try {
-      const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
-      setActiveDialpadCallState(result.state ?? "ending");
+      // If we have a call ID, use the normal hangup
+      if (activeDialpadCallId) {
+        const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+        setActiveDialpadCallState(result.state ?? "ending");
 
-      if (result.already_ended || result.terminal) {
+        if (result.already_ended || result.terminal) {
+          setActiveDialpadCallId(null);
+          setActiveDialpadCallState("hangup");
+          setDialpadPollingBackoffUntil(null);
+          setRapidStatusPollingUntil(null);
+          setIsCallResolving(false);
+          toast.info("This call has already ended.");
+          return;
+        }
+
+        toast.success(result.message || "Call cancellation requested.");
+      } else if (myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
+        // No call ID yet (resolving state) — use force hangup by user+phone
+        const result = await forceHangupCall.mutateAsync({
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          phone: currentContact.phone,
+        });
+
         setActiveDialpadCallId(null);
         setActiveDialpadCallState("hangup");
         setDialpadPollingBackoffUntil(null);
         setRapidStatusPollingUntil(null);
-        toast.info("This call has already ended.");
-        return;
+        setIsCallResolving(false);
+        toast.success(result.message || "Call ended.");
+      } else {
+        toast.info("No active call to cancel.");
       }
-
-      toast.success(result.message || "Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
       const normalized = message.toLowerCase();
@@ -595,7 +612,7 @@ export default function DialerPage() {
     } finally {
       setIsEndingCall(false);
     }
-  }, [activeDialpadCallId, cancelDialpadCall]);
+  }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, myDialpadSettings, currentContact]);
 
   const skipLead = useCallback(async () => {
     if (currentIndex === null || !currentContact) return;
