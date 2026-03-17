@@ -363,6 +363,35 @@ export default function DialerPage() {
       });
   }, [isDialing, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
+  useEffect(() => {
+    if (!activeDialpadCallId) return;
+
+    let cancelled = false;
+    const pollStatus = async () => {
+      try {
+        const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+        if (cancelled) return;
+
+        const nextState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
+        setActiveDialpadCallState(nextState);
+
+        if (nextState === "hangup") {
+          setActiveDialpadCallId(null);
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+    };
+
+    void pollStatus();
+    const intervalId = window.setInterval(pollStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeDialpadCallId, dialpadCallStatus]);
+
   return (
     <AppLayout title="Dialer">
       <div className="mx-auto max-w-6xl space-y-6">
