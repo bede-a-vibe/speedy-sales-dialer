@@ -210,7 +210,10 @@ export default function DialerPage() {
       setFollowUpDate(undefined);
       setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     }
-  }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
+    if (!requiresBookedSchedule) {
+      setIsBookedDateAutoDetected(false);
+    }
+  }, [requiresAnySchedule, requiresBookedSchedule, requiresPipelineAssignment, user?.id]);
 
   useEffect(() => {
     setNotesPanelEnabled(false);
