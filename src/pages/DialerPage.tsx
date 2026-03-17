@@ -61,14 +61,22 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
-  const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
-  const { data: dialerQueue, isLoading } = useDialerContacts(industry, stateFilter, sessionHiddenContactIds.length);
+  const {
+    contacts: visibleUncalledContacts,
+    totalCount: totalQueueCount,
+    isLoading,
+    isPrefetching,
+    startSession: startQueueSession,
+    stopSession: stopQueueSession,
+    ensureBuffer,
+    discardContact,
+  } = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -79,15 +87,9 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
-  const uncalledContacts = dialerQueue?.contacts ?? [];
-  const totalQueueCount = dialerQueue?.totalCount ?? 0;
-  const visibleUncalledContacts = useMemo(
-    () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
-    [sessionHiddenContactIds, uncalledContacts],
-  );
   const queueLeadCount = useMemo(
-    () => Math.max(totalQueueCount - sessionHiddenContactIds.length, visibleUncalledContacts.length),
-    [sessionHiddenContactIds.length, totalQueueCount, visibleUncalledContacts.length],
+    () => Math.max(totalQueueCount, visibleUncalledContacts.length),
+    [totalQueueCount, visibleUncalledContacts.length],
   );
 
   const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
