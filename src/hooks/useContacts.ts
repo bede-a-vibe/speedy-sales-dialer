@@ -266,8 +266,9 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
 
       if (newlyClaimed.length === 0) {
         // Retry once after a short delay if leads exist but none were claimed (lock contention)
-        if (latestTotalCount > mergedContacts.length && mergedContacts.length === 0) {
-          console.warn("[DialerQueue] No contacts claimed despite availability, retrying after 300ms...");
+        if (latestTotalCount > mergedContacts.length && mergedContacts.length === 0 && emptyRetries < 2) {
+          emptyRetries++;
+          console.warn("[DialerQueue] No contacts claimed despite availability, retrying after 300ms... (attempt", emptyRetries, ")");
           await new Promise((resolve) => setTimeout(resolve, 300));
           continue;
         }
