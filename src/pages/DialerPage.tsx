@@ -154,7 +154,7 @@ export default function DialerPage() {
   } = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
-  const createCallLog = useCreateCallLog();
+  const clearOwnDialerLeadLocks = useClearOwnDialerLeadLocks();
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
