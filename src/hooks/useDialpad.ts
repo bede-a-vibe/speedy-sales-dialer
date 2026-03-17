@@ -24,6 +24,7 @@ export interface DialpadActionResponse {
   terminal: boolean;
   already_ended: boolean;
   dialpad_call_id: string | null;
+  call_resolved: boolean;
   tracking_warning?: string | null;
   message?: string | null;
   details?: unknown;
