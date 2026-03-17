@@ -150,6 +150,7 @@ export default function DialerPage() {
     stopSession: stopQueueSession,
     ensureBuffer,
     discardContact,
+    refreshPreviewCount,
   } = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
