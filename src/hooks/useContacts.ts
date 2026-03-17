@@ -315,23 +315,33 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     setIsPrefetching(true);
     const activeSessionId = sessionRef.current;
     const task = claimIntoBuffer(activeSessionId, contactsRef.current, desiredMinimum)
-      .then(({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
+      .then(async ({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
         if (sessionRef.current === activeSessionId) {
           contactsRef.current = nextContacts;
           setContacts(nextContacts);
           setTotalCount(nextTotalCount);
+        } else {
+          await cleanupSessionLocks(activeSessionId);
         }
 
         return claimedCount;
       })
+      .catch(async (error) => {
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+        }
+        throw error;
+      })
       .finally(() => {
-        claimInFlightRef.current = null;
+        if (claimInFlightRef.current === task) {
+          claimInFlightRef.current = null;
+        }
         setIsPrefetching(false);
       });
 
     claimInFlightRef.current = task;
     return task;
-  }, [claimIntoBuffer]);
+  }, [claimIntoBuffer, cleanupSessionLocks]);
 
   const startSession = useCallback(async () => {
     if (sessionRef.current) {
