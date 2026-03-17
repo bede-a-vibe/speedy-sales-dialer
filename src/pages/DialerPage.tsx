@@ -521,7 +521,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={uncalledContacts.length === 0 || isLoading}
+              disabled={visibleUncalledContacts.length === 0 || isLoading}
               className="px-6 font-semibold"
             >
               <Phone className="mr-2 h-4 w-4" />
