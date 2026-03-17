@@ -42,6 +42,10 @@ type RollingDialerQueueOptions = {
   userId?: string | null;
 };
 
+type DiscardDialerContactOptions = {
+  releaseLock?: boolean;
+};
+
 async function fetchContactsInBatches({ industry, state, status, includeDnc = false }: ContactQueryFilters = {}) {
   const contacts: Contact[] = [];
   let from = 0;
@@ -330,19 +334,19 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     }
   }, [claimIntoBuffer, stopSession, userId]);
 
-  const releaseContact = useCallback(async (contactId: string) => {
+  const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
 
     contactsRef.current = contactsRef.current.filter((contact) => contact.id !== contactId);
     setContacts(contactsRef.current);
     setTotalCount((current) => Math.max(current - 1, contactsRef.current.length));
 
-    if (!activeSessionId || !userId) return;
+    if (!options?.releaseLock || !activeSessionId || !userId) return;
 
     try {
       await releaseDialerLeadLocks(activeSessionId, [contactId]);
     } catch {
-      // The lead stays protected until lock expiry if release fails.
+      // If release fails, expiry still clears the lock.
     }
   }, [userId]);
 
@@ -392,7 +396,7 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     return () => {
       cancelled = true;
     };
-  }, [industry, state, userId]);
+  }, [industry, sessionId, state, userId]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -421,7 +425,8 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     isPrefetching,
     startSession,
     stopSession,
-    releaseContact,
+    ensureBuffer,
+    discardContact,
   };
 }
 
