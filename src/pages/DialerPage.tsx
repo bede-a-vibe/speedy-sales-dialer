@@ -93,11 +93,22 @@ export default function DialerPage() {
     [totalQueueCount, visibleUncalledContacts.length],
   );
 
-  const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
-    ? visibleUncalledContacts[currentIndex]
-    : null;
+  useEffect(() => {
+    setNotesFetchEnabled(false);
 
-  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
+    if (!currentContact?.id) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotesFetchEnabled(true);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentContact?.id]);
+
+  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id, {
+    enabled: notesFetchEnabled,
+    refetchInterval: notesFetchEnabled ? 15000 : false,
+  });
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
   const stateOptions = AUSTRALIAN_STATE_OPTIONS;
