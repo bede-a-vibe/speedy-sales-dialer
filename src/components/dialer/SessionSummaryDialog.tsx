@@ -12,19 +12,16 @@ interface SessionSummaryDialogProps {
   sessionOutcomes: Partial<Record<CallOutcome, number>>;
 }
 
-export const SessionSummaryDialog = React.forwardRef<HTMLDivElement, SessionSummaryDialogProps>(function SessionSummaryDialog(
-  {
-    open,
-    onOpenChange,
-    callCount,
-    skippedCount,
-    sessionOutcomes,
-  },
-  ref,
-) {
+export function SessionSummaryDialog({
+  open,
+  onOpenChange,
+  callCount,
+  skippedCount,
+  sessionOutcomes,
+}: SessionSummaryDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent ref={ref} className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
@@ -66,6 +63,6 @@ export const SessionSummaryDialog = React.forwardRef<HTMLDivElement, SessionSumm
       </DialogContent>
     </Dialog>
   );
-});
+}
 
 export default SessionSummaryDialog;

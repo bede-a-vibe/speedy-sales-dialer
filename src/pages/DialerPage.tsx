@@ -302,14 +302,18 @@ export default function DialerPage() {
   }, [isBookedDateAutoDetected]);
 
   useEffect(() => {
+    if (!hasInitializedDialerFiltersRef.current) {
+      hasInitializedDialerFiltersRef.current = true;
+      return;
+    }
+
     if (isStartingSession || sessionId) return;
 
     setCurrentIndex(null);
     setIsSessionPaused(false);
     resetLeadState(user?.id || "");
     resetSessionTimers();
-    void stopQueueSession();
-  }, [industry, isStartingSession, resetLeadState, resetSessionTimers, sessionId, stateFilter, stopQueueSession, user?.id]);
+  }, [industry, isStartingSession, resetLeadState, resetSessionTimers, sessionId, stateFilter, user?.id]);
 
   const startDialing = useCallback(async () => {
     if (!hasDialpadAssignment || isStartingSession) return;
