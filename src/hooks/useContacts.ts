@@ -221,7 +221,7 @@ export function useDialerContacts(industry?: string, state?: string, hiddenCount
   });
 }
 
-export function useRollingDialerQueue({ industry, state, userId }: RollingDialerQueueOptions) {
+export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOptions) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -281,17 +281,17 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     setTotalCount(0);
     claimInFlightRef.current = null;
 
-    if (activeSessionId && userId) {
+    if (activeSessionId) {
       try {
         await releaseDialerLeadLocks(activeSessionId);
       } catch {
         // Lock expiry handles abandoned cleanup.
       }
     }
-  }, [userId]);
+  }, []);
 
   const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
-    if (!userId || !sessionRef.current) return 0;
+    if (!sessionRef.current) return 0;
 
     if (claimInFlightRef.current) {
       return claimInFlightRef.current;
@@ -316,11 +316,9 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
 
     claimInFlightRef.current = task;
     return task;
-  }, [claimIntoBuffer, userId]);
+  }, [claimIntoBuffer]);
 
   const startSession = useCallback(async () => {
-    if (!userId) return 0;
-
     if (sessionRef.current) {
       await stopSession();
     }
@@ -351,7 +349,7 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     } finally {
       setIsLoading(false);
     }
-  }, [claimIntoBuffer, ensureBuffer, stopSession, userId]);
+  }, [claimIntoBuffer, ensureBuffer, stopSession]);
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
@@ -360,14 +358,14 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     setContacts(contactsRef.current);
     setTotalCount((current) => Math.max(current - 1, contactsRef.current.length));
 
-    if (!options?.releaseLock || !activeSessionId || !userId) return;
+    if (!options?.releaseLock || !activeSessionId) return;
 
     try {
       await releaseDialerLeadLocks(activeSessionId, [contactId]);
     } catch {
       // If release fails, expiry still clears the lock.
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (!sessionId || contacts.length > DIALER_PREFETCH_THRESHOLD) return;
@@ -385,7 +383,7 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
   }, [contacts.length, sessionId]);
 
   useEffect(() => {
-    if (!userId || sessionRef.current) return;
+    if (sessionRef.current) return;
 
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
@@ -417,7 +415,7 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [industry, sessionId, state, userId]);
+  }, [industry, sessionId, state]);
 
   useEffect(() => {
     const handlePageHide = () => {
