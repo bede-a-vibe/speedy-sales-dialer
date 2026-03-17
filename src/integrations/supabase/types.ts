@@ -20,6 +20,8 @@ export type Database = {
           created_at: string
           dialpad_call_id: string | null
           dialpad_summary: string | null
+          dialpad_talk_time_seconds: number | null
+          dialpad_total_duration_seconds: number | null
           dialpad_transcript: string | null
           follow_up_date: string | null
           id: string
@@ -33,6 +35,8 @@ export type Database = {
           created_at?: string
           dialpad_call_id?: string | null
           dialpad_summary?: string | null
+          dialpad_talk_time_seconds?: number | null
+          dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
           follow_up_date?: string | null
           id?: string
@@ -46,6 +50,8 @@ export type Database = {
           created_at?: string
           dialpad_call_id?: string | null
           dialpad_summary?: string | null
+          dialpad_talk_time_seconds?: number | null
+          dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
           follow_up_date?: string | null
           id?: string

@@ -13,6 +13,7 @@ import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
+import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
 
 const ALL_REPS_VALUE = "all";
@@ -120,13 +121,16 @@ export default function ReportsPage() {
           title="Dialer KPI Snapshot"
           description={`Core outbound metrics based on calls created in the selected date range${activeRepId ? ` for ${selectedRepLabel}` : " across all reps"}.`}
         >
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-3">
             <StatCard label="Dials" value={metrics.dialer.dials} />
             <StatCard label="Unique Leads Dialed" value={metrics.dialer.uniqueLeadsDialed} />
             <StatCard label="Pick Ups" value={metrics.dialer.pickUps} />
             <StatCard label="Pick Up Rate" value={`${metrics.dialer.pickUpRate}%`} subtext="pick ups / dials" />
             <StatCard label="# of Call Backs" value={metrics.dialer.callBacks} />
             <StatCard label="Pick Up to FU %" value={`${metrics.dialer.pickUpToFollowUpRate}%`} subtext="follow ups / pick ups" />
+            <StatCard label="Total Talk Time" value={formatDurationSeconds(metrics.dialer.totalTalkTimeSeconds)} />
+            <StatCard label="Avg Talk / Dial" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerDialSeconds)} />
+            <StatCard label="Avg Talk / Pick Up" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerPickupSeconds)} />
           </div>
         </ReportSection>
 
@@ -242,10 +246,13 @@ export default function ReportsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
+                    <TableHead colSpan={2} className="text-center">Dialer</TableHead>
                     <TableHead colSpan={4} className="text-center">Setter</TableHead>
                     <TableHead colSpan={4} className="text-center">Closer</TableHead>
                   </TableRow>
                   <TableRow>
+                    <TableHead>Talk Time</TableHead>
+                    <TableHead>Avg Talk</TableHead>
                     <TableHead>Set</TableHead>
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
@@ -259,7 +266,7 @@ export default function ReportsPage() {
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
@@ -267,6 +274,8 @@ export default function ReportsPage() {
                     metrics.repComparison.map((row) => (
                       <TableRow key={row.repUserId}>
                         <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
+                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.appointmentsScheduled}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
