@@ -269,23 +269,41 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     };
   }, [industry, state]);
 
+  const cleanupSessionLocks = useCallback(async (staleSessionId: string | null) => {
+    if (!staleSessionId) return;
+
+    try {
+      await releaseDialerLeadLocks(staleSessionId);
+    } catch {
+      // Lock expiry handles abandoned cleanup.
+    }
+  }, []);
+
   const stopSession = useCallback(async () => {
+    if (stopInFlightRef.current) {
+      return stopInFlightRef.current;
+    }
+
     const activeSessionId = sessionRef.current;
     sessionRef.current = null;
+    startInFlightRef.current = null;
     setSessionId(null);
     contactsRef.current = [];
     setContacts([]);
     setTotalCount(0);
     claimInFlightRef.current = null;
+    setIsLoading(false);
+    setIsPrefetching(false);
 
-    if (activeSessionId) {
-      try {
-        await releaseDialerLeadLocks(activeSessionId);
-      } catch {
-        // Lock expiry handles abandoned cleanup.
+    const task = cleanupSessionLocks(activeSessionId).finally(() => {
+      if (stopInFlightRef.current === task) {
+        stopInFlightRef.current = null;
       }
-    }
-  }, []);
+    });
+
+    stopInFlightRef.current = task;
+    return task;
+  }, [cleanupSessionLocks]);
 
   const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
     if (!sessionRef.current) return 0;
