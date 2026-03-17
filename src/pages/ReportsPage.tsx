@@ -5,6 +5,7 @@ import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { DailyVolumeChart } from "@/components/reports/DailyVolumeChart";
 import { MetricBarList } from "@/components/reports/MetricBarList";
+import { TargetComparisonPanel } from "@/components/reports/TargetComparisonPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,6 +64,11 @@ export default function ReportsPage() {
     [activeRepId, bookedAppointments, callLogs, dateFrom, dateTo],
   );
 
+  const teamMetrics = useMemo(
+    () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo }),
+    [bookedAppointments, callLogs, dateFrom, dateTo],
+  );
+
   const callOutcomeItems = useMemo(
     () =>
       (Object.keys(OUTCOME_CONFIG) as CallOutcome[]).map((outcome) => ({
@@ -116,6 +122,15 @@ export default function ReportsPage() {
           </div>
           {(callsLoading || bookingsLoading || repsLoading) && <span className="ml-2 animate-pulse text-xs text-muted-foreground">Loading...</span>}
         </div>
+
+        <TargetComparisonPanel
+          activeRepId={activeRepId}
+          selectedRepLabel={selectedRepLabel}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          metrics={metrics}
+          teamMetrics={teamMetrics}
+        />
 
         <ReportSection
           title="Dialer KPI Snapshot"

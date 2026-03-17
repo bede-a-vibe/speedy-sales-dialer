@@ -314,6 +314,39 @@ export type Database = {
         }
         Relationships: []
       }
+      performance_targets: {
+        Row: {
+          created_at: string
+          id: string
+          metric_key: string
+          period_type: string
+          scope_type: string
+          target_value: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric_key: string
+          period_type: string
+          scope_type: string
+          target_value?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric_key?: string
+          period_type?: string
+          scope_type?: string
+          target_value?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       pipeline_items: {
         Row: {
           appointment_outcome:

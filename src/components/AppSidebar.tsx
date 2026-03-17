@@ -1,6 +1,5 @@
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import {
   Sidebar,
@@ -20,19 +19,19 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
-  { title: "Pipelines", url: "/pipelines", icon: CalendarClock }
+  { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
 ];
 
 const adminItems = [
   { title: "Upload Lists", url: "/upload", icon: Upload },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Targets", url: "/targets", icon: Target },
   { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
   const isAdmin = useIsAdmin();
 
   return (

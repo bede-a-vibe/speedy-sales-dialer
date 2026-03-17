@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
-import { DailyTarget } from "@/components/DailyTarget";
+import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsOverview";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { useContacts } from "@/hooks/useContacts";
@@ -25,10 +25,8 @@ export default function DashboardPage() {
   return (
     <AppLayout title="Dashboard">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Daily target */}
-        <DailyTarget />
+        <DashboardTargetsOverview />
 
-        {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard label="Calls Made" value={calledContacts} subtext="total dials" />
           <StatCard label="Booked" value={booked} subtext="appointments" />
@@ -37,7 +35,6 @@ export default function DashboardPage() {
           <StatCard label="Penetration" value={`${penetration}%`} subtext="lists called" />
         </div>
 
-        {/* Outcome breakdown */}
         <div className="bg-card border border-border rounded-lg p-5">
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
             Outcome Breakdown
@@ -56,7 +53,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Two column: Leaderboard + Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TeamLeaderboard />
           <LiveActivityFeed />
