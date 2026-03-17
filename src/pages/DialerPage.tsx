@@ -27,6 +27,14 @@ import { toast } from "sonner";
 
 const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
+const loadDialpadSyncPanel = () => import("@/components/dialer/DialpadSyncPanel");
+const loadContactNotesPanel = () => import("@/components/dialer/ContactNotesPanel");
+const loadSessionSummaryDialog = () => import("@/components/dialer/SessionSummaryDialog");
+
+const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
+const ContactNotesPanel = lazy(loadContactNotesPanel);
+const SessionSummaryDialog = lazy(loadSessionSummaryDialog);
+
 interface SessionStats {
   calls: number;
   outcomes: Partial<Record<CallOutcome, number>>;
@@ -41,6 +49,21 @@ function combineDateAndTime(date: Date, time: string) {
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
+}
+
+function PanelSkeleton({ height = "h-40" }: { height?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className={cn("w-full", height)} />
+      </div>
+    </div>
+  );
+}
+
+function DialogSkeleton() {
+  return <Skeleton className="h-64 w-full rounded-xl" />;
 }
 
 export default function DialerPage() {
