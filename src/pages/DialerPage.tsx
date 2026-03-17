@@ -59,6 +59,7 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
+  const [sessionHiddenContactIds, setSessionHiddenContactIds] = useState<string[]>([]);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
@@ -73,8 +74,13 @@ export default function DialerPage() {
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
-  const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
-    ? uncalledContacts[currentIndex]
+  const visibleUncalledContacts = useMemo(
+    () => uncalledContacts.filter((contact) => !sessionHiddenContactIds.includes(contact.id)),
+    [sessionHiddenContactIds, uncalledContacts],
+  );
+
+  const currentContact = currentIndex !== null && currentIndex < visibleUncalledContacts.length
+    ? visibleUncalledContacts[currentIndex]
     : null;
 
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
@@ -115,7 +121,8 @@ export default function DialerPage() {
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
   const startDialing = useCallback(() => {
-    if (uncalledContacts.length === 0) return;
+    if (visibleUncalledContacts.length === 0) return;
+    setSessionHiddenContactIds([]);
     setCurrentIndex(0);
     setIsDialing(true);
     setSelectedOutcome(null);
@@ -129,7 +136,7 @@ export default function DialerPage() {
     setShowSummary(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
-  }, [uncalledContacts.length, user?.id]);
+  }, [visibleUncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -143,7 +150,10 @@ export default function DialerPage() {
   }, [callCount]);
 
   const skipLead = useCallback(() => {
-    if (currentIndex === null) return;
+    if (currentIndex === null || !currentContact) return;
+
+    const nextLength = visibleUncalledContacts.length - 1;
+    setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
     setSkippedCount((prev) => prev + 1);
     setSelectedOutcome(null);
     setNotes("");
@@ -153,14 +163,17 @@ export default function DialerPage() {
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
-    const nextIdx = currentIndex + 1;
-    if (nextIdx < uncalledContacts.length) {
-      setCurrentIndex(nextIdx);
-    } else {
+
+    if (nextLength <= 0) {
       toast.info("No more leads in queue.");
       stopSession();
+      return;
     }
-  }, [currentIndex, stopSession, uncalledContacts.length, user?.id]);
+
+    if (currentIndex >= nextLength) {
+      setCurrentIndex(nextLength - 1);
+    }
+  }, [currentContact, currentIndex, stopSession, user?.id, visibleUncalledContacts.length]);
 
   const logAndNext = useCallback(async () => {
     if (!selectedOutcome || !currentContact || !user) return;
@@ -225,6 +238,7 @@ export default function DialerPage() {
         ...prev,
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
+      setSessionHiddenContactIds((prev) => [...prev, currentContact.id]);
 
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
       activeDialRequestRef.current = null;
@@ -235,10 +249,18 @@ export default function DialerPage() {
       setFollowUpDate(undefined);
       setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
       setAssignedRepId(user.id);
+
+      const nextLength = visibleUncalledContacts.length - 1;
+      if (nextLength <= 0) {
+        stopSession();
+      } else if (currentIndex !== null && currentIndex >= nextLength) {
+        setCurrentIndex(nextLength - 1);
+      }
     } catch {
       toast.error("Failed to log call. Try again.");
     }
   }, [
+    currentIndex,
     activeDialpadCallId,
     assignedRepId,
     createCallLog,
@@ -252,8 +274,10 @@ export default function DialerPage() {
     requiresFollowUpSchedule,
     requiresPipelineAssignment,
     selectedOutcome,
+    stopSession,
     updateContact,
     user,
+    visibleUncalledContacts.length,
   ]);
 
   const cancelActiveCall = useCallback(async () => {
@@ -318,13 +342,13 @@ export default function DialerPage() {
   ];
 
   useEffect(() => {
-    if (isDialing && currentIndex !== null && uncalledContacts.length === 0) {
+    if (isDialing && currentIndex !== null && visibleUncalledContacts.length === 0) {
       stopSession();
-    } else if (isDialing && currentIndex !== null && currentIndex >= uncalledContacts.length) {
-      setCurrentIndex(uncalledContacts.length > 0 ? uncalledContacts.length - 1 : null);
-      if (uncalledContacts.length === 0) stopSession();
+    } else if (isDialing && currentIndex !== null && currentIndex >= visibleUncalledContacts.length) {
+      setCurrentIndex(visibleUncalledContacts.length > 0 ? visibleUncalledContacts.length - 1 : null);
+      if (visibleUncalledContacts.length === 0) stopSession();
     }
-  }, [uncalledContacts.length, isDialing, currentIndex, stopSession]);
+  }, [visibleUncalledContacts.length, isDialing, currentIndex, stopSession]);
 
   useEffect(() => {
     if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
@@ -475,7 +499,7 @@ export default function DialerPage() {
 
           <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
-              {isLoading ? "..." : uncalledContacts.length} leads in queue
+              {isLoading ? "..." : visibleUncalledContacts.length} leads in queue
             </span>
             {myDialpadSettings ? (
               <span className="text-xs font-mono text-primary">
@@ -497,7 +521,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={uncalledContacts.length === 0 || isLoading}
+              disabled={visibleUncalledContacts.length === 0 || isLoading}
               className="px-6 font-semibold"
             >
               <Phone className="mr-2 h-4 w-4" />
@@ -772,13 +796,13 @@ export default function DialerPage() {
               <Phone className="h-8 w-8 text-primary" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-foreground">
-              {uncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
+               {visibleUncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
-              {uncalledContacts.length === 0 && !isLoading
-                ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
-                : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
-              }
+               {visibleUncalledContacts.length === 0 && !isLoading
+                 ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
+                 : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
+               }
             </p>
           </div>
         )}
