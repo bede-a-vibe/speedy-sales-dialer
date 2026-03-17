@@ -561,7 +561,9 @@ export default function DialerPage() {
     }
   }, [
     activeDialpadCallId,
+    activeDialpadCallState,
     assignedRepId,
+    cancelDialpadCall,
     createCallLog,
     createPipelineItem,
     currentContact,
