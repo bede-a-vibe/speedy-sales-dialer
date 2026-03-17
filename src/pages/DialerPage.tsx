@@ -192,6 +192,9 @@ export default function DialerPage() {
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
+  const primaryActionLabel = requiresBookedSchedule
+    ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
+    : (isCallTerminal ? (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead") : "End or wait for call to finish before logging");
 
   useEffect(() => {
     if (user?.id) {
