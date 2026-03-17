@@ -62,6 +62,8 @@ export interface SalesRepOption {
 
 export interface BookedAppointmentReportItem {
   id: string;
+  contact_id: string;
+  created_at: string;
   scheduled_for: string | null;
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
