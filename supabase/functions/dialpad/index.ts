@@ -108,6 +108,8 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "initiate_call": {
+        const normalizedPhone = normalizePhoneNumberToE164(params.phone);
+
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
@@ -115,7 +117,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            phone_number: params.phone,
+            phone_number: normalizedPhone,
             user_id: params.dialpad_user_id,
           }),
         });
