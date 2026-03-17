@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { useUpdateContact } from "@/hooks/useContacts";
 import {
@@ -19,6 +19,8 @@ function getRepLabel(displayName: string | null, email: string | null) {
 }
 
 type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close";
+type HistorySortKey = "repName" | "total" | "closed" | "showUpRate" | "closeRate";
+type SortDirection = "asc" | "desc";
 
 type RepHistoryStat = {
   repId: string;
@@ -30,6 +32,16 @@ type RepHistoryStat = {
   showed: number;
   showUpRate: number;
   closeRate: number;
+};
+
+type HistorySort = {
+  key: HistorySortKey;
+  direction: SortDirection;
+};
+
+const DEFAULT_HISTORY_SORT: HistorySort = {
+  key: "total",
+  direction: "desc",
 };
 
 function buildRepStats(
@@ -66,29 +78,83 @@ function buildRepStats(
     stats.set(repId, current);
   });
 
-  return Array.from(stats.values())
-    .map((stat) => ({
-      ...stat,
-      showUpRate: stat.total > 0 ? Math.round((stat.showed / stat.total) * 100) : 0,
-      closeRate: stat.showed > 0 ? Math.round((stat.closed / stat.showed) * 100) : 0,
-    }))
-    .sort((a, b) => b.total - a.total || b.closed - a.closed || a.repName.localeCompare(b.repName));
+  return Array.from(stats.values()).map((stat) => ({
+    ...stat,
+    showUpRate: stat.total > 0 ? Math.round((stat.showed / stat.total) * 100) : 0,
+    closeRate: stat.showed > 0 ? Math.round((stat.closed / stat.showed) * 100) : 0,
+  }));
+}
+
+function sortRepStats(stats: RepHistoryStat[], sort: HistorySort) {
+  return [...stats].sort((a, b) => {
+    const direction = sort.direction === "asc" ? 1 : -1;
+
+    if (sort.key === "repName") {
+      return a.repName.localeCompare(b.repName) * direction;
+    }
+
+    const difference = a[sort.key] - b[sort.key];
+    if (difference !== 0) return difference * direction;
+
+    return a.repName.localeCompare(b.repName);
+  });
+}
+
+function getSortLabel(key: HistorySortKey) {
+  switch (key) {
+    case "repName":
+      return "rep";
+    case "total":
+      return "total appointments";
+    case "closed":
+      return "closes";
+    case "showUpRate":
+      return "show-up rate";
+    case "closeRate":
+      return "close rate";
+  }
 }
 
 function RepStatsTable({
   title,
   description,
   stats,
+  sort,
+  onSortChange,
 }: {
   title: string;
   description: string;
   stats: RepHistoryStat[];
+  sort: HistorySort;
+  onSortChange: (key: HistorySortKey) => void;
 }) {
+  const renderSortableHeader = (label: string, key: HistorySortKey) => {
+    const isActive = sort.key === key;
+    const indicator = !isActive ? "↕" : sort.direction === "asc" ? "↑" : "↓";
+
+    return (
+      <button
+        type="button"
+        onClick={() => onSortChange(key)}
+        className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+        aria-label={`Sort ${title.toLowerCase()} by ${getSortLabel(key)}`}
+      >
+        <span>{label}</span>
+        <span className="text-[11px] text-muted-foreground">{indicator}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-4 space-y-1">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+          Sorted by {getSortLabel(sort.key)} {sort.direction}
+        </p>
       </div>
 
       {stats.length === 0 ? (
@@ -98,14 +164,14 @@ function RepStatsTable({
           <table className="w-full min-w-[620px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Rep</th>
-                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Total</th>
+                <th className="pb-2">{renderSortableHeader("Rep", "repName")}</th>
+                <th className="pb-2">{renderSortableHeader("Total", "total")}</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-show</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Showed</th>
-                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Show-up %</th>
-                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Closed</th>
+                <th className="pb-2">{renderSortableHeader("Show-up %", "showUpRate")}</th>
+                <th className="pb-2">{renderSortableHeader("Closed", "closed")}</th>
                 <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">No-close</th>
-                <th className="pb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Close %</th>
+                <th className="pb-2">{renderSortableHeader("Close %", "closeRate")}</th>
               </tr>
             </thead>
             <tbody>
@@ -132,6 +198,8 @@ function RepStatsTable({
 export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
+  const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
@@ -151,14 +219,22 @@ export default function PipelinesPage() {
   }, [completedBooked, historyFilter]);
 
   const setterStats = useMemo(
-    () => buildRepStats(filteredHistory, (item) => item.created_by, repMap),
-    [filteredHistory, repMap],
+    () => sortRepStats(buildRepStats(filteredHistory, (item) => item.created_by, repMap), setterSort),
+    [filteredHistory, repMap, setterSort],
   );
 
   const closerStats = useMemo(
-    () => buildRepStats(filteredHistory, (item) => item.assigned_user_id, repMap),
-    [filteredHistory, repMap],
+    () => sortRepStats(buildRepStats(filteredHistory, (item) => item.assigned_user_id, repMap), closerSort),
+    [filteredHistory, repMap, closerSort],
   );
+
+  const handleHistorySortChange = (currentSort: HistorySort, setSort: (sort: HistorySort) => void, key: HistorySortKey) => {
+    setSort(
+      currentSort.key === key
+        ? { key, direction: currentSort.direction === "desc" ? "asc" : "desc" }
+        : { key, direction: key === "repName" ? "asc" : "desc" },
+    );
+  };
 
   const handleComplete = async (id: string) => {
     try {
@@ -303,11 +379,15 @@ export default function PipelinesPage() {
             title="Appointment setters"
             description="Uses the rep who originally created the booked appointment."
             stats={setterStats}
+            sort={setterSort}
+            onSortChange={(key) => handleHistorySortChange(setterSort, setSetterSort, key)}
           />
           <RepStatsTable
             title="Closers"
             description="Uses the rep currently assigned to the appointment when it was completed."
             stats={closerStats}
+            sort={closerSort}
+            onSortChange={(key) => handleHistorySortChange(closerSort, setCloserSort, key)}
           />
         </div>
 
