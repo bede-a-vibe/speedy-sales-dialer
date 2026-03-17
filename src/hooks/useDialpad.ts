@@ -119,6 +119,20 @@ interface ResolveDialpadCallParams {
   contact_id?: string;
 }
 
+interface ForceHangupParams {
+  dialpad_user_id: string;
+  phone: string;
+}
+
+export function useForceHangupCall() {
+  return useMutation({
+    mutationFn: async (params: ForceHangupParams) => invokeDialpadAction(
+      { action: "force_hangup", ...params },
+      "Unable to force hangup the active call.",
+    ),
+  });
+}
+
 export function useResolveDialpadCall() {
   return useMutation({
     mutationFn: async (params: ResolveDialpadCallParams) => invokeDialpadAction(

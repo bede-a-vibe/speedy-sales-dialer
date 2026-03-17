@@ -1054,6 +1054,74 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "force_hangup": {
+        // Hang up an active call by discovering it via user+phone (no call_id needed)
+        const fhDialpadUserId = params.dialpad_user_id;
+        if (!fhDialpadUserId) {
+          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        }
+        let fhPhone: string;
+        try {
+          fhPhone = normalizePhoneNumberToE164(params.phone);
+        } catch {
+          return jsonResponse({ error: "Invalid phone number" }, 400);
+        }
+
+        console.log(`[force_hangup] Searching for active call: user=${fhDialpadUserId} phone=${fhPhone}`);
+
+        const fhCallsResponse = await fetch(`${DIALPAD_BASE}/stats/calls?limit=15`, {
+          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        });
+
+        if (fhCallsResponse.ok) {
+          const fhCallsData = await fhCallsResponse.json().catch(() => null);
+          const fhItems = Array.isArray(fhCallsData?.items) ? fhCallsData.items : Array.isArray(fhCallsData) ? fhCallsData : [];
+
+          for (const call of fhItems) {
+            if (!isRecord(call)) continue;
+            const callId = getDialpadCallId(call);
+            const state = normalizeDialpadState(call.state);
+            const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
+            const callUserId = call.user_id ?? call.operator_id ?? null;
+            const isMatchingUser = String(callUserId) === String(fhDialpadUserId);
+
+            if (callId && !isTerminalDialpadState(state) && isMatchingUser && externalNumber.includes(fhPhone.slice(-8))) {
+              console.log(`[force_hangup] Found active call_id=${callId}, hanging up`);
+
+              const fhHangupUrl = `${DIALPAD_BASE}/call/${callId}/actions/hangup`;
+              const fhHangupResponse = await fetch(fhHangupUrl, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+              });
+              const fhHangupData = await fhHangupResponse.json().catch(() => null);
+              console.log(`[force_hangup] Hangup response status=${fhHangupResponse.status}`);
+
+              return jsonResponse(buildDialpadClientPayload({
+                action,
+                data: fhHangupData ?? { state: "hangup" },
+                dialpadCallId: callId,
+                alreadyEnded: !fhHangupResponse.ok,
+                message: fhHangupResponse.ok ? "Call hangup requested." : "Call may have already ended.",
+              }), 200);
+            }
+          }
+        } else {
+          await fhCallsResponse.text();
+        }
+
+        console.log(`[force_hangup] No active call found`);
+        return jsonResponse({
+          ok: true,
+          action: "force_hangup",
+          dialpad_call_id: null,
+          state: "hangup",
+          terminal: true,
+          already_ended: true,
+          call_resolved: false,
+          message: "No active call found to hang up.",
+        }, 200);
+      }
+
       case "hangup_call": {
         if (!params.call_id) {
           return jsonResponse({ error: "call_id is required" }, 400);

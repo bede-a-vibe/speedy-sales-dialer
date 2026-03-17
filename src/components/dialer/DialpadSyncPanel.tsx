@@ -65,9 +65,24 @@ export function DialpadSyncPanel({
             </Button>
           </div>
         ) : isResolving ? (
-          <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-            <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
-            Connecting to Dialpad… waiting for call confirmation.
+          <div className="space-y-3">
+            <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+              <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
+              Connecting to Dialpad… waiting for call confirmation.
+            </div>
+            <Button
+              variant="outline"
+              onClick={onCancelCall}
+              disabled={isCancelling || isEndingCall}
+              className="w-full border-destructive text-destructive hover:bg-destructive/10"
+            >
+              {isCancelling || isEndingCall ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PhoneOff className="mr-2 h-4 w-4" />
+              )}
+              Cancel Call
+            </Button>
           </div>
         ) : (
           <p className="text-muted-foreground">
