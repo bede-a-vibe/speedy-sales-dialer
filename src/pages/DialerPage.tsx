@@ -43,6 +43,7 @@ function getRepLabel(displayName: string | null, email: string | null) {
 export default function DialerPage() {
   const { user } = useAuth();
   const [industry, setIndustry] = useState<string>("all");
+  const [stateFilter, setStateFilter] = useState<string>("all");
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null);
   const [notes, setNotes] = useState("");
@@ -59,7 +60,8 @@ export default function DialerPage() {
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
-  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
+  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
+  const { data: queueContacts = [] } = useUncalledContacts();
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
