@@ -334,6 +334,7 @@ export default function DialerPage() {
 
     activeDialRequestRef.current = requestKey;
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
 
     dialpadCall
       .mutateAsync({
@@ -347,6 +348,7 @@ export default function DialerPage() {
           : null;
 
         setActiveDialpadCallId(dialpadCallId);
+        setActiveDialpadCallState(typeof response?.state === "string" ? response.state.toLowerCase() : null);
         toast.success(`Calling ${currentContact.phone} through Dialpad`);
 
         if (response?.tracking_warning) {
