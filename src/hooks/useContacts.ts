@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -6,6 +7,11 @@ import type { AppointmentOutcomeValue } from "@/lib/appointments";
 const CONTACTS_BATCH_SIZE = 1000;
 const DIALER_QUEUE_PAGE_SIZE = 100;
 const DIALER_QUEUE_MAX_SIZE = 500;
+const DIALER_TARGET_BUFFER = 40;
+const DIALER_PREFETCH_THRESHOLD = 15;
+const DIALER_CLAIM_SIZE = 25;
+const DIALER_LOCK_MINUTES = 15;
+const DIALER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -23,6 +29,17 @@ type ContactQueryFilters = {
 type DialerContactsResult = {
   contacts: Contact[];
   totalCount: number;
+};
+
+type ClaimDialerLeadsResponse = {
+  claimed_contacts: Contact[];
+  total_available_count: number;
+};
+
+type RollingDialerQueueOptions = {
+  industry?: string;
+  state?: string;
+  userId?: string | null;
 };
 
 async function fetchContactsInBatches({ industry, state, status, includeDnc = false }: ContactQueryFilters = {}) {
@@ -100,6 +117,57 @@ async function fetchDialerContacts({ industry, state, status = "uncalled", inclu
   };
 }
 
+async function invokeDialerRpc<T>(fnName: string, params: Record<string, unknown>) {
+  const rpc = supabase.rpc as unknown as (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => Promise<{ data: T | null; error: { message?: string } | null }>;
+
+  const { data, error } = await rpc(fnName, params);
+  if (error) {
+    throw new Error(error.message || "Dialer queue request failed.");
+  }
+
+  return data as T;
+}
+
+async function claimDialerLeads({
+  sessionId,
+  industry,
+  state,
+  claimSize,
+}: {
+  sessionId: string;
+  industry?: string;
+  state?: string;
+  claimSize: number;
+}) {
+  return invokeDialerRpc<ClaimDialerLeadsResponse>("claim_dialer_leads", {
+    _session_id: sessionId,
+    _industry: industry && industry !== "all" ? industry : null,
+    _state: state && state !== "all" ? state : null,
+    _claim_size: claimSize,
+    _lock_minutes: DIALER_LOCK_MINUTES,
+  });
+}
+
+async function refreshDialerLeadLocks(sessionId: string, contactIds: string[]) {
+  if (contactIds.length === 0) return 0;
+
+  return invokeDialerRpc<number>("refresh_dialer_lead_locks", {
+    _session_id: sessionId,
+    _contact_ids: contactIds,
+    _lock_minutes: DIALER_LOCK_MINUTES,
+  });
+}
+
+async function releaseDialerLeadLocks(sessionId: string, contactIds?: string[]) {
+  return invokeDialerRpc<number>("release_dialer_lead_locks", {
+    _session_id: sessionId,
+    _contact_ids: contactIds && contactIds.length > 0 ? contactIds : null,
+  });
+}
+
 export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
@@ -129,6 +197,232 @@ export function useDialerContacts(industry?: string, state?: string, hiddenCount
     queryFn: () => fetchDialerContacts({ industry, state, status: "uncalled", limit }),
     staleTime: 15_000,
   });
+}
+
+export function useRollingDialerQueue({ industry, state, userId }: RollingDialerQueueOptions) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPrefetching, setIsPrefetching] = useState(false);
+  const [previewCount, setPreviewCount] = useState(0);
+  const contactsRef = useRef<Contact[]>([]);
+  const sessionRef = useRef<string | null>(null);
+  const claimInFlightRef = useRef<Promise<number> | null>(null);
+  const previewSessionIdRef = useRef<string>(crypto.randomUUID());
+
+  useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
+
+  const claimIntoBuffer = useCallback(async (activeSessionId: string, seedContacts: Contact[], desiredMinimum: number) => {
+    const seenIds = new Set(seedContacts.map((contact) => contact.id));
+    const mergedContacts = [...seedContacts];
+    let latestTotalCount = mergedContacts.length;
+
+    while (mergedContacts.length < desiredMinimum) {
+      const response = await claimDialerLeads({
+        sessionId: activeSessionId,
+        industry,
+        state,
+        claimSize: DIALER_CLAIM_SIZE,
+      });
+
+      latestTotalCount = Math.max(response.total_available_count ?? 0, mergedContacts.length);
+      const newlyClaimed = (response.claimed_contacts ?? []).filter((contact) => !seenIds.has(contact.id));
+
+      if (newlyClaimed.length === 0) {
+        break;
+      }
+
+      newlyClaimed.forEach((contact) => seenIds.add(contact.id));
+      mergedContacts.push(...newlyClaimed);
+
+      if (latestTotalCount <= mergedContacts.length) {
+        break;
+      }
+    }
+
+    return {
+      contacts: mergedContacts,
+      totalCount: Math.max(latestTotalCount, mergedContacts.length),
+      claimedCount: mergedContacts.length - seedContacts.length,
+    };
+  }, [industry, state]);
+
+  const stopSession = useCallback(async () => {
+    const activeSessionId = sessionRef.current;
+    sessionRef.current = null;
+    setSessionId(null);
+    contactsRef.current = [];
+    setContacts([]);
+    setTotalCount(0);
+    claimInFlightRef.current = null;
+
+    if (activeSessionId && userId) {
+      try {
+        await releaseDialerLeadLocks(activeSessionId);
+      } catch {
+        // Lock expiry handles abandoned cleanup.
+      }
+    }
+  }, [userId]);
+
+  const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
+    if (!userId || !sessionRef.current) return 0;
+
+    if (claimInFlightRef.current) {
+      return claimInFlightRef.current;
+    }
+
+    setIsPrefetching(true);
+    const activeSessionId = sessionRef.current;
+    const task = claimIntoBuffer(activeSessionId, contactsRef.current, desiredMinimum)
+      .then(({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
+        if (sessionRef.current === activeSessionId) {
+          contactsRef.current = nextContacts;
+          setContacts(nextContacts);
+          setTotalCount(nextTotalCount);
+        }
+
+        return claimedCount;
+      })
+      .finally(() => {
+        claimInFlightRef.current = null;
+        setIsPrefetching(false);
+      });
+
+    claimInFlightRef.current = task;
+    return task;
+  }, [claimIntoBuffer, userId]);
+
+  const startSession = useCallback(async () => {
+    if (!userId) return 0;
+
+    if (sessionRef.current) {
+      await stopSession();
+    }
+
+    const activeSessionId = crypto.randomUUID();
+    sessionRef.current = activeSessionId;
+    setSessionId(activeSessionId);
+    contactsRef.current = [];
+    setContacts([]);
+    setTotalCount(0);
+    setIsLoading(true);
+
+    try {
+      const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
+        activeSessionId,
+        [],
+        DIALER_TARGET_BUFFER,
+      );
+
+      if (sessionRef.current === activeSessionId) {
+        contactsRef.current = claimedContacts;
+        setContacts(claimedContacts);
+        setTotalCount(claimedTotalCount);
+      }
+
+      return claimedContacts.length;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [claimIntoBuffer, stopSession, userId]);
+
+  const releaseContact = useCallback(async (contactId: string) => {
+    const activeSessionId = sessionRef.current;
+
+    contactsRef.current = contactsRef.current.filter((contact) => contact.id !== contactId);
+    setContacts(contactsRef.current);
+    setTotalCount((current) => Math.max(current - 1, contactsRef.current.length));
+
+    if (!activeSessionId || !userId) return;
+
+    try {
+      await releaseDialerLeadLocks(activeSessionId, [contactId]);
+    } catch {
+      // The lead stays protected until lock expiry if release fails.
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!sessionId || contacts.length > DIALER_PREFETCH_THRESHOLD) return;
+    void ensureBuffer();
+  }, [contacts.length, ensureBuffer, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || contacts.length === 0) return;
+
+    const intervalId = window.setInterval(() => {
+      void refreshDialerLeadLocks(sessionId, contactsRef.current.map((contact) => contact.id));
+    }, DIALER_HEARTBEAT_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [contacts.length, sessionId]);
+
+  useEffect(() => {
+    if (!userId || sessionRef.current) return;
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    claimDialerLeads({
+      sessionId: previewSessionIdRef.current,
+      industry,
+      state,
+      claimSize: 0,
+    })
+      .then((response) => {
+        if (!cancelled && !sessionRef.current) {
+          setPreviewCount(response.total_available_count ?? 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && !sessionRef.current) {
+          setPreviewCount(0);
+        }
+      })
+      .finally(() => {
+        if (!cancelled && !sessionRef.current) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [industry, state, userId]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      const activeSessionId = sessionRef.current;
+      if (activeSessionId) {
+        void releaseDialerLeadLocks(activeSessionId);
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, []);
+
+  useEffect(() => () => {
+    const activeSessionId = sessionRef.current;
+    if (activeSessionId) {
+      void releaseDialerLeadLocks(activeSessionId);
+    }
+  }, []);
+
+  return {
+    contacts,
+    totalCount: sessionId ? totalCount : previewCount,
+    sessionId,
+    isLoading,
+    isPrefetching,
+    startSession,
+    stopSession,
+    releaseContact,
+  };
 }
 
 export function useUpdateContact() {
