@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, SkipForward, UserRound } from "lucide-react";
@@ -89,16 +89,18 @@ function formatDuration(durationMs: number) {
     .join(":");
 }
 
-function PanelSkeleton({ height = "h-40" }: { height?: string }) {
+const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div ref={ref} className="rounded-lg border border-border bg-card p-4">
       <div className="space-y-3">
         <Skeleton className="h-3 w-32" />
         <Skeleton className={cn("w-full", height)} />
       </div>
     </div>
   );
-}
+});
+
+PanelSkeleton.displayName = "PanelSkeleton";
 
 export default function DialerPage() {
   const queryClient = useQueryClient();
@@ -1037,12 +1039,14 @@ export default function DialerPage() {
               <Phone className="h-8 w-8 text-primary" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-foreground">
-              {visibleUncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
+              {isLoading ? "Checking Queue" : queueLeadCount === 0 ? "No Leads Available" : "Ready to Dial"}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
-              {visibleUncalledContacts.length === 0 && !isLoading
-                ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
-                : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
+              {isLoading
+                ? "Checking the current queue for available leads."
+                : queueLeadCount === 0
+                  ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
+                  : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
               }
             </p>
           </div>
