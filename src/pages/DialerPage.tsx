@@ -384,6 +384,8 @@ export default function DialerPage() {
     activeDialRequestRef.current = requestKey;
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
 
     dialpadCall
       .mutateAsync({
@@ -392,15 +394,11 @@ export default function DialerPage() {
         contact_id: currentContact.id,
       })
       .then((response) => {
-        const dialpadCallId = typeof response?.dialpad_call_id === "string"
-          ? response.dialpad_call_id
-          : null;
-
-        setActiveDialpadCallId(dialpadCallId);
-        setActiveDialpadCallState(typeof response?.state === "string" ? response.state.toLowerCase() : null);
+        setActiveDialpadCallId(response.dialpad_call_id);
+        setActiveDialpadCallState(response.state);
         toast.success(`Calling ${currentContact.phone} through Dialpad`);
 
-        if (response?.tracking_warning) {
+        if (response.tracking_warning) {
           toast.warning("Call placed, but transcript tracking needs attention.");
         }
       })
@@ -419,33 +417,38 @@ export default function DialerPage() {
     let isRequestInFlight = false;
 
     const pollStatus = async () => {
-      if (isRequestInFlight) return;
+      if (cancelled || isRequestInFlight) return;
+      if (dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()) return;
       isRequestInFlight = true;
 
       try {
         const status = await fetchDialpadCallStatus(activeDialpadCallId);
         if (cancelled) return;
 
-        const nextState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
-        setActiveDialpadCallState(nextState);
+        setActiveDialpadCallState(status.state);
 
-        if (nextState === "hangup") {
+        if (status.terminal) {
           setActiveDialpadCallId(null);
+          setDialpadPollingBackoffUntil(null);
         }
-      } catch {
-        // Ignore transient polling errors.
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (message.includes("rate limit")) {
+          setDialpadPollingBackoffUntil(Date.now() + 30000);
+        }
       } finally {
         isRequestInFlight = false;
       }
     };
 
-    const intervalId = window.setInterval(pollStatus, 10000);
+    void pollStatus();
+    const intervalId = window.setInterval(pollStatus, 15000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeDialpadCallId, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
 
   return (
     <AppLayout title="Dialer">
