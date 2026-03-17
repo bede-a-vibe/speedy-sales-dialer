@@ -447,40 +447,43 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     return () => window.clearInterval(intervalId);
   }, [contacts.length, sessionId]);
 
-  useEffect(() => {
+  const refreshPreviewCount = useCallback(async () => {
     if (sessionRef.current) return;
 
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      setIsLoading(true);
+    setIsLoading(true);
 
-      getDialerQueueCount({
+    try {
+      const count = await getDialerQueueCount({
         sessionId: previewSessionIdRef.current,
         industry,
         state,
-      })
-        .then((count) => {
-          if (!cancelled && !sessionRef.current) {
-            setPreviewCount(count ?? 0);
-          }
-        })
-        .catch(() => {
-          if (!cancelled && !sessionRef.current) {
-            setPreviewCount(0);
-          }
-        })
-        .finally(() => {
-          if (!cancelled && !sessionRef.current) {
-            setIsLoading(false);
-          }
-        });
+      });
+
+      if (!sessionRef.current) {
+        setPreviewCount(count ?? 0);
+      }
+    } catch {
+      if (!sessionRef.current) {
+        setPreviewCount(0);
+      }
+    } finally {
+      if (!sessionRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [industry, state]);
+
+  useEffect(() => {
+    if (sessionRef.current) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void refreshPreviewCount();
     }, DIALER_PREVIEW_DEBOUNCE_MS);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [industry, sessionId, state]);
+  }, [refreshPreviewCount, sessionId]);
 
   useEffect(() => {
     const handlePageHide = () => {
