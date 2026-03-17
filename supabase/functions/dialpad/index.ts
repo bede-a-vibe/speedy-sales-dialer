@@ -977,6 +977,73 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "resolve_call": {
+        // Attempt to find an active call for a user+phone without initiating a new one
+        const resolveDialpadUserId = params.dialpad_user_id;
+        let resolvePhone: string;
+        try {
+          resolvePhone = normalizePhoneNumberToE164(params.phone);
+        } catch {
+          return jsonResponse({ error: "Invalid phone number" }, 400);
+        }
+
+        console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
+
+        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/stats/calls?limit=15`, {
+          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        });
+
+        if (resolveCallsResponse.ok) {
+          const resolveCallsData = await resolveCallsResponse.json().catch(() => null);
+          const resolveItems = Array.isArray(resolveCallsData?.items) ? resolveCallsData.items : Array.isArray(resolveCallsData) ? resolveCallsData : [];
+
+          for (const call of resolveItems) {
+            if (!isRecord(call)) continue;
+            const callId = getDialpadCallId(call);
+            const state = normalizeDialpadState(call.state);
+            const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
+            const callUserId = call.user_id ?? call.operator_id ?? null;
+            const isMatchingUser = String(callUserId) === String(resolveDialpadUserId);
+
+            if (callId && !isTerminalDialpadState(state) && isMatchingUser && externalNumber.includes(resolvePhone.slice(-8))) {
+              console.log(`[resolve_call] Found active call_id=${callId} state=${state}`);
+
+              // Track in dialpad_calls if contact_id provided
+              if (params.contact_id) {
+                const adminClient = createClient(supabaseUrl, serviceRoleKey);
+                await adminClient.from("dialpad_calls").upsert({
+                  dialpad_call_id: callId,
+                  contact_id: params.contact_id,
+                  user_id: user.id,
+                  sync_status: "pending",
+                }, { onConflict: "dialpad_call_id" }).then(() => {});
+              }
+
+              return jsonResponse({
+                ok: true,
+                action: "resolve_call",
+                call_id: callId,
+                dialpad_call_id: callId,
+                state,
+                call_resolved: true,
+              }, 200);
+            }
+          }
+        } else {
+          await resolveCallsResponse.text();
+        }
+
+        console.log(`[resolve_call] No active call found for user=${resolveDialpadUserId}`);
+        return jsonResponse({
+          ok: true,
+          action: "resolve_call",
+          call_id: null,
+          dialpad_call_id: null,
+          state: null,
+          call_resolved: false,
+        }, 200);
+      }
+
       case "get_call_status": {
         console.log(`[get_call_status] Fetching status for call_id=${params.call_id}`);
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}`, {
