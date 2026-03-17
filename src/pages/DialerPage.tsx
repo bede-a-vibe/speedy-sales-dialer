@@ -260,7 +260,7 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     try {
-      const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+      const status = await fetchDialpadCallStatus(activeDialpadCallId);
       const currentState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
       setActiveDialpadCallState(currentState);
 
@@ -283,7 +283,7 @@ export default function DialerPage() {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
       toast.error(message);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, dialpadCallStatus]);
+  }, [activeDialpadCallId, cancelDialpadCall, fetchDialpadCallStatus]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
