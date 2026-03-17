@@ -50,9 +50,9 @@ export function useAllContacts(industry?: string) {
   });
 }
 
-export function useUncalledContacts(industry?: string) {
+export function useUncalledContacts(industry?: string, state?: string) {
   return useQuery({
-    queryKey: ["uncalled-contacts", industry],
+    queryKey: ["uncalled-contacts", industry, state],
     queryFn: async () => {
       let query = supabase
         .from("contacts")
@@ -63,6 +63,10 @@ export function useUncalledContacts(industry?: string) {
 
       if (industry && industry !== "all") {
         query = query.eq("industry", industry);
+      }
+
+      if (state && state !== "all") {
+        query = query.eq("state", state);
       }
 
       const { data, error } = await query;
