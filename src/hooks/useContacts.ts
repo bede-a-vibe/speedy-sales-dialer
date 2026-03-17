@@ -226,6 +226,8 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   const contactsRef = useRef<Contact[]>([]);
   const sessionRef = useRef<string | null>(null);
   const claimInFlightRef = useRef<Promise<number> | null>(null);
+  const startInFlightRef = useRef<Promise<number> | null>(null);
+  const stopInFlightRef = useRef<Promise<void> | null>(null);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
