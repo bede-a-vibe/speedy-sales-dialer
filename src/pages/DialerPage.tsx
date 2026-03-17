@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -43,6 +43,7 @@ function getRepLabel(displayName: string | null, email: string | null) {
 export default function DialerPage() {
   const { user } = useAuth();
   const [industry, setIndustry] = useState<string>("all");
+  const [stateFilter, setStateFilter] = useState<string>("all");
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null);
   const [notes, setNotes] = useState("");
@@ -59,7 +60,8 @@ export default function DialerPage() {
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
-  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
+  const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
+  const { data: queueContacts = [] } = useUncalledContacts();
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
@@ -75,6 +77,10 @@ export default function DialerPage() {
   const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
+  const stateOptions = useMemo(
+    () => Array.from(new Set(queueContacts.map((contact) => contact.state?.trim()).filter((state): state is string => !!state))).sort((a, b) => a.localeCompare(b)),
+    [queueContacts],
+  );
 
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
@@ -382,6 +388,18 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
+          <Select value={stateFilter} onValueChange={setStateFilter}>
+            <SelectTrigger className="w-[180px] border-border bg-card">
+              <SelectValue placeholder="Filter by state" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All States</SelectItem>
+              {stateOptions.map((state) => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
@@ -670,8 +688,8 @@ export default function DialerPage() {
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
               {uncalledContacts.length === 0 && !isLoading
-                ? "All contacts in this queue have been called. Try a different industry filter or upload new lists."
-                : "Select an industry filter and hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
+                ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
+                : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
               }
             </p>
           </div>
