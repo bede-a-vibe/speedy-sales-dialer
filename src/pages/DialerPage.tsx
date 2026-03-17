@@ -131,6 +131,7 @@ export default function DialerPage() {
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number | null>(null);
   const [notesPanelEnabled, setNotesPanelEnabled] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [sessionTick, setSessionTick] = useState(() => Date.now());
@@ -280,6 +281,7 @@ export default function DialerPage() {
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
     leadAdvanceInFlightRef.current = false;
     activeDialRequestRef.current = null;
   }, []);
@@ -393,6 +395,7 @@ export default function DialerPage() {
     setIsDialing(false);
     setIsSessionPaused(true);
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
     toast.info("Dialing paused. Resume when you're ready for the next call.");
   }, [isDialing, sessionPhaseStartedAt, activeDialpadCallId, activeDialpadCallState, cancelDialpadCall]);
 
@@ -702,6 +705,7 @@ export default function DialerPage() {
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
 
     dialpadCall
       .mutateAsync({
@@ -773,19 +777,41 @@ export default function DialerPage() {
     };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
 
+  // Start 30-second countdown when call ends (terminal state) and no outcome selected
   useEffect(() => {
-    if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) return;
+    if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) {
+      if (!selectedOutcome && !pendingAutoOutcome) return;
+      // Clear countdown if user selects an outcome
+      setCooldownSecondsLeft(null);
+      return;
+    }
 
-    // Don't auto-advance if there's an active Dialpad call that hasn't ended
-    // The call may be ringing, connected, or in progress — let the rep handle it
-    if (activeDialpadCallId && activeDialpadCallState !== "hangup") return;
+    // Don't start countdown if there's an active Dialpad call that hasn't ended
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+      setCooldownSecondsLeft(null);
+      return;
+    }
 
-    const timeoutId = window.setTimeout(() => {
-      setPendingAutoOutcome("no_answer");
-    }, 30000);
-
-    return () => window.clearTimeout(timeoutId);
+    // Start the countdown at 30
+    setCooldownSecondsLeft(30);
   }, [activeDialpadCallId, activeDialpadCallState, currentContact, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
+
+  // Tick the countdown every second
+  useEffect(() => {
+    if (cooldownSecondsLeft === null || cooldownSecondsLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setCooldownSecondsLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          setPendingAutoOutcome("no_answer");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownSecondsLeft]);
 
   useEffect(() => {
     if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
@@ -1202,6 +1228,14 @@ export default function DialerPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {cooldownSecondsLeft !== null && cooldownSecondsLeft > 0 && !selectedOutcome && (
+                <div className="flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Auto-advancing as <span className="font-medium text-foreground">No Answer</span> in{" "}
+                  <span className="font-mono font-semibold text-foreground">{cooldownSecondsLeft}s</span>
                 </div>
               )}
 
