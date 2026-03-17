@@ -612,7 +612,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={queueLeadCount === 0 || isLoading || isStartingSession || !hasDialpadAssignment}
+              disabled={isLoading || isStartingSession || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
               {isStartingSession ? (
