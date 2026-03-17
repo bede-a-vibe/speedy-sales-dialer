@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import DashboardPage from "./pages/DashboardPage";
 import DialerPage from "./pages/DialerPage";
 import ContactsPage from "./pages/ContactsPage";
-import FollowUpsPage from "./pages/FollowUpsPage";
+import PipelinesPage from "./pages/PipelinesPage";
 import UploadPage from "./pages/UploadPage";
 import ReportsPage from "./pages/ReportsPage";
 import DialpadSettingsPage from "./pages/DialpadSettingsPage";
@@ -35,7 +35,8 @@ function ProtectedRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/dialer" element={<DialerPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
-      <Route path="/follow-ups" element={<FollowUpsPage />} />
+      <Route path="/pipelines" element={<PipelinesPage />} />
+      <Route path="/follow-ups" element={<Navigate to="/pipelines?tab=follow_up" replace />} />
       <Route path="/upload" element={<UploadPage />} />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/dialpad-settings" element={<DialpadSettingsPage />} />

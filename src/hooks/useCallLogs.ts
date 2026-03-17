@@ -65,8 +65,13 @@ export function useCreateCallLog() {
       notes?: string;
       follow_up_date?: string | null;
     }) => {
-      const { error } = await supabase.from("call_logs").insert([log]);
+      const { data, error } = await supabase
+        .from("call_logs")
+        .insert([log])
+        .select("id")
+        .single();
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["call-logs"] });

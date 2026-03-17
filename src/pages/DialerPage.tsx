@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { format } from "date-fns";
+import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
@@ -9,6 +11,7 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useDialpadCall } from "@/hooks/useDialpad";
+import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -17,13 +20,22 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
 interface SessionStats {
   calls: number;
   outcomes: Partial<Record<CallOutcome, number>>;
+}
+
+function combineDateAndTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const next = new Date(date);
+  next.setHours(hours || 0, minutes || 0, 0, 0);
+  return next;
+}
+
+function getRepLabel(displayName: string | null, email: string | null) {
+  return displayName?.trim() || email || "Unknown rep";
 }
 
 export default function DialerPage() {
@@ -33,6 +45,8 @@ export default function DialerPage() {
   const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null);
   const [notes, setNotes] = useState("");
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
+  const [followUpTime, setFollowUpTime] = useState("09:00");
+  const [assignedRepId, setAssignedRepId] = useState("");
   const [isDialing, setIsDialing] = useState(false);
   const [callCount, setCallCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
@@ -43,14 +57,41 @@ export default function DialerPage() {
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
+  const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
+  const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
     ? uncalledContacts[currentIndex]
     : null;
+
+  const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
+  const requiresFollowUpSchedule = selectedOutcome === "follow_up";
+  const canSubmit = !!selectedOutcome
+    && (!requiresPipelineAssignment || !!assignedRepId)
+    && (!requiresFollowUpSchedule || (!!followUpDate && !!followUpTime))
+    && !createCallLog.isPending
+    && !createPipelineItem.isPending
+    && !dialpadCall.isPending;
+
+  useEffect(() => {
+    if (user?.id) {
+      setAssignedRepId((current) => current || user.id);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!requiresPipelineAssignment && user?.id) {
+      setAssignedRepId(user.id);
+    }
+    if (!requiresFollowUpSchedule) {
+      setFollowUpDate(undefined);
+      setFollowUpTime("09:00");
+    }
+  }, [requiresPipelineAssignment, requiresFollowUpSchedule, user?.id]);
 
   const startDialing = useCallback(() => {
     if (uncalledContacts.length === 0) return;
@@ -59,11 +100,13 @@ export default function DialerPage() {
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
+    setFollowUpTime("09:00");
+    setAssignedRepId(user?.id || "");
     setCallCount(0);
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
-  }, [uncalledContacts]);
+  }, [uncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
@@ -79,6 +122,8 @@ export default function DialerPage() {
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
+    setFollowUpTime("09:00");
+    setAssignedRepId(user?.id || "");
     const nextIdx = currentIndex + 1;
     if (nextIdx < uncalledContacts.length) {
       setCurrentIndex(nextIdx);
@@ -86,21 +131,45 @@ export default function DialerPage() {
       toast.info("No more leads in queue.");
       stopSession();
     }
-  }, [currentIndex, uncalledContacts.length, stopSession]);
+  }, [currentIndex, stopSession, uncalledContacts.length, user?.id]);
 
   const logAndNext = useCallback(async () => {
     if (!selectedOutcome || !currentContact || !user) return;
 
+    if (requiresFollowUpSchedule && (!followUpDate || !followUpTime)) {
+      toast.error("Choose a follow-up date and time.");
+      return;
+    }
+
+    if (requiresPipelineAssignment && !assignedRepId) {
+      toast.error("Choose a sales rep.");
+      return;
+    }
+
     try {
-      await createCallLog.mutateAsync({
+      const scheduledFor = requiresFollowUpSchedule && followUpDate
+        ? combineDateAndTime(followUpDate, followUpTime).toISOString()
+        : null;
+
+      const insertedLog = await createCallLog.mutateAsync({
         contact_id: currentContact.id,
         user_id: user.id,
         outcome: selectedOutcome,
         notes: notes || undefined,
-        follow_up_date: selectedOutcome === "follow_up" && followUpDate
-          ? followUpDate.toISOString()
-          : null,
+        follow_up_date: scheduledFor,
       });
+
+      if (requiresPipelineAssignment) {
+        await createPipelineItem.mutateAsync({
+          contact_id: currentContact.id,
+          source_call_log_id: insertedLog.id,
+          pipeline_type: selectedOutcome === "follow_up" ? "follow_up" : "booked",
+          assigned_user_id: assignedRepId,
+          created_by: user.id,
+          scheduled_for: scheduledFor,
+          notes,
+        });
+      }
 
       await updateContact.mutateAsync({
         id: currentContact.id,
@@ -120,12 +189,26 @@ export default function DialerPage() {
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
-    } catch (err) {
+      setFollowUpTime("09:00");
+      setAssignedRepId(user.id);
+    } catch {
       toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
+  }, [
+    assignedRepId,
+    createCallLog,
+    createPipelineItem,
+    currentContact,
+    followUpDate,
+    followUpTime,
+    notes,
+    requiresFollowUpSchedule,
+    requiresPipelineAssignment,
+    selectedOutcome,
+    updateContact,
+    user,
+  ]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     if (!isDialing || !currentContact) return;
 
@@ -139,11 +222,10 @@ export default function DialerPage() {
       if (idx >= 0 && idx < outcomes.length) {
         setSelectedOutcome(outcomes[idx]);
       }
-      if (e.key === "Enter" && selectedOutcome) {
+      if (e.key === "Enter" && canSubmit) {
         e.preventDefault();
         logAndNext();
       }
-      // S key to skip
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
         skipLead();
@@ -152,14 +234,13 @@ export default function DialerPage() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isDialing, currentContact, selectedOutcome, logAndNext, skipLead]);
+  }, [canSubmit, currentContact, isDialing, logAndNext, skipLead]);
 
   const outcomes: CallOutcome[] = [
     "no_answer", "voicemail", "not_interested", "dnc",
     "follow_up", "booked", "wrong_number",
   ];
 
-  // When uncalled contacts refresh
   useEffect(() => {
     if (isDialing && currentIndex !== null && uncalledContacts.length === 0) {
       stopSession();
@@ -194,34 +275,33 @@ export default function DialerPage() {
 
   return (
     <AppLayout title="Dialer">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <DailyTarget />
 
-        {/* Session Summary Dialog */}
         <Dialog open={showSummary} onOpenChange={setShowSummary}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  Session Summary
-                </DialogTitle>
-                <DialogDescription>
-                  Review this calling session before closing the summary.
-                </DialogDescription>
-              </DialogHeader>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Session Summary
+              </DialogTitle>
+              <DialogDescription>
+                Review this calling session before closing the summary.
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
-                  <p className="text-2xl font-bold font-mono text-foreground">{callCount}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Calls</p>
+                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+                  <p className="font-mono text-2xl font-bold text-foreground">{callCount}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Calls</p>
                 </div>
-                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
-                  <p className="text-2xl font-bold font-mono text-foreground">{sessionOutcomes.booked || 0}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Booked</p>
+                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+                  <p className="font-mono text-2xl font-bold text-foreground">{sessionOutcomes.booked || 0}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked</p>
                 </div>
-                <div className="text-center p-3 bg-secondary rounded-lg border border-border">
-                  <p className="text-2xl font-bold font-mono text-foreground">{skippedCount}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Skipped</p>
+                <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+                  <p className="font-mono text-2xl font-bold text-foreground">{skippedCount}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Skipped</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -229,8 +309,8 @@ export default function DialerPage() {
                   const config = OUTCOME_CONFIG[outcome];
                   return (
                     <div key={outcome} className="flex items-center gap-3 text-sm">
-                      <div className={`w-2 h-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
-                      <span className="text-foreground flex-1">{config?.label || outcome}</span>
+                      <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                      <span className="flex-1 text-foreground">{config?.label || outcome}</span>
                       <span className="font-mono text-muted-foreground">{count}</span>
                     </div>
                   );
@@ -243,10 +323,9 @@ export default function DialerPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Controls bar */}
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex flex-wrap items-center gap-4">
           <Select value={industry} onValueChange={setIndustry}>
-            <SelectTrigger className="w-[200px] bg-card border-border">
+            <SelectTrigger className="w-[200px] border-border bg-card">
               <SelectValue placeholder="Filter by industry" />
             </SelectTrigger>
             <SelectContent>
@@ -257,13 +336,13 @@ export default function DialerPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex-1 flex items-center gap-3">
+          <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
               {isLoading ? "..." : uncalledContacts.length} leads in queue
             </span>
             {myDialpadSettings ? (
               <span className="text-xs font-mono text-primary">
-                <Phone className="h-3 w-3 inline mr-1" />
+                <Phone className="mr-1 inline h-3 w-3" />
                 {myDialpadSettings.dialpad_phone_number || myDialpadSettings.dialpad_user_id}
               </span>
             ) : (
@@ -282,9 +361,9 @@ export default function DialerPage() {
             <Button
               onClick={startDialing}
               disabled={uncalledContacts.length === 0 || isLoading}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
+              className="px-6 font-semibold"
             >
-              <Phone className="h-4 w-4 mr-2" />
+              <Phone className="mr-2 h-4 w-4" />
               Start Dialing
             </Button>
           ) : (
@@ -300,7 +379,7 @@ export default function DialerPage() {
           <Dialog open={manualOpen} onOpenChange={setManualOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-border">
-                <PhoneCall className="h-4 w-4 mr-2" />
+                <PhoneCall className="mr-2 h-4 w-4" />
                 Manual Dial
               </Button>
             </DialogTrigger>
@@ -336,7 +415,7 @@ export default function DialerPage() {
                   }}
                 />
                 <Button
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  className="w-full font-semibold"
                   disabled={!manualPhone.trim() || !myDialpadSettings?.dialpad_user_id || dialpadCall.isPending}
                   onClick={async () => {
                     try {
@@ -354,9 +433,9 @@ export default function DialerPage() {
                   }}
                 >
                   {dialpadCall.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Phone className="h-4 w-4 mr-2" />
+                    <Phone className="mr-2 h-4 w-4" />
                   )}
                   Dial {manualPhone.trim() || "..."}
                 </Button>
@@ -370,31 +449,27 @@ export default function DialerPage() {
           </Dialog>
         </div>
 
-        {/* Main dialer area */}
         {isDialing && currentContact ? (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left: Contact info */}
-            <div className="lg:col-span-3 space-y-4">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+            <div className="space-y-4 lg:col-span-3">
               <ContactCard contact={currentContact} />
 
-              {/* Notes */}
-              <div className="bg-card border border-border rounded-lg p-4">
-                <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Notes
                 </label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Type notes during or after the call..."
-                  className="bg-background border-border min-h-[100px] font-mono text-sm resize-none"
+                  className="min-h-[100px] resize-none border-border bg-background font-mono text-sm"
                 />
               </div>
             </div>
 
-            {/* Right: Outcomes */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-card border border-border rounded-lg p-4">
-                <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 block">
+            <div className="space-y-4 lg:col-span-2">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Outcome <span className="text-primary">(required)</span>
                 </label>
                 <div className="space-y-2">
@@ -409,53 +484,85 @@ export default function DialerPage() {
                 </div>
               </div>
 
-              {/* Follow-up date picker */}
-              {selectedOutcome === "follow_up" && (
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">
-                    Follow-up Date
+              {requiresPipelineAssignment && (
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Assigned Sales Rep
                   </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal bg-background",
-                          !followUpDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {followUpDate ? format(followUpDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={followUpDate}
-                        onSelect={setFollowUpDate}
-                        disabled={(date) => date < new Date()}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Select value={assignedRepId} onValueChange={setAssignedRepId}>
+                    <SelectTrigger className="w-full border-border bg-background">
+                      <SelectValue placeholder="Choose a sales rep" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {salesReps.map((rep) => (
+                        <SelectItem key={rep.user_id} value={rep.user_id}>
+                          {getRepLabel(rep.display_name, rep.email)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <UserRound className="h-3 w-3" />
+                    {assignedRepId
+                      ? getRepLabel(salesReps.find((rep) => rep.user_id === assignedRepId)?.display_name || null, salesReps.find((rep) => rep.user_id === assignedRepId)?.email || null)
+                      : "No rep selected"}
+                  </div>
                 </div>
               )}
 
-              {/* Submit + Skip */}
+              {requiresFollowUpSchedule && (
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Follow-up Schedule
+                  </label>
+                  <div className="space-y-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start border-border bg-background text-left font-normal",
+                            !followUpDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {followUpDate ? format(followUpDate, "PPP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={followUpDate}
+                          onSelect={setFollowUpDate}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      type="time"
+                      value={followUpTime}
+                      onChange={(e) => setFollowUpTime(e.target.value)}
+                      className="border-border bg-background"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Button
                   onClick={logAndNext}
-                  disabled={!selectedOutcome || createCallLog.isPending || dialpadCall.isPending}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
+                  disabled={!canSubmit}
+                  className="w-full py-3 font-semibold"
                 >
-                  {createCallLog.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {createCallLog.isPending || createPipelineItem.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
                   )}
                   Log & Next Lead
-                  <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-primary-foreground/20 px-1.5 py-0.5 rounded">
+                  <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-mono opacity-70">
                     Enter
                   </kbd>
                 </Button>
@@ -464,9 +571,9 @@ export default function DialerPage() {
                   onClick={skipLead}
                   className="w-full border-border text-muted-foreground hover:text-foreground"
                 >
-                  <SkipForward className="h-4 w-4 mr-2" />
+                  <SkipForward className="mr-2 h-4 w-4" />
                   Skip Lead
-                  <kbd className="ml-2 text-[10px] font-mono opacity-70 bg-muted px-1.5 py-0.5 rounded">
+                  <kbd className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono opacity-70">
                     S
                   </kbd>
                 </Button>
@@ -474,15 +581,14 @@ export default function DialerPage() {
             </div>
           </div>
         ) : (
-          /* Empty state */
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
               <Phone className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">
+            <h3 className="mb-2 text-lg font-semibold text-foreground">
               {uncalledContacts.length === 0 && !isLoading ? "No Leads Available" : "Ready to Dial"}
             </h3>
-            <p className="text-sm text-muted-foreground max-w-md">
+            <p className="max-w-md text-sm text-muted-foreground">
               {uncalledContacts.length === 0 && !isLoading
                 ? "All contacts in this queue have been called. Try a different industry filter or upload new lists."
                 : "Select an industry filter and hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."
