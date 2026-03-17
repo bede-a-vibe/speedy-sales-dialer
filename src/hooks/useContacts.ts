@@ -158,6 +158,7 @@ export function useDeleteContact() {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
     },
   });
 }
