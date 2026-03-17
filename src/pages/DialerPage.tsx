@@ -10,7 +10,7 @@ import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { useContactNotes } from "@/hooks/useContactNotes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +58,7 @@ export default function DialerPage() {
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
+  const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
@@ -68,6 +69,7 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
+  const dialpadCallStatus = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
@@ -126,6 +128,7 @@ export default function DialerPage() {
     setSessionOutcomes({});
     setShowSummary(false);
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
   }, [uncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
@@ -135,6 +138,7 @@ export default function DialerPage() {
     setIsDialing(false);
     setCurrentIndex(null);
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
   }, [callCount]);
 
@@ -147,6 +151,7 @@ export default function DialerPage() {
     setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(user?.id || "");
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
     const nextIdx = currentIndex + 1;
     if (nextIdx < uncalledContacts.length) {
@@ -224,6 +229,7 @@ export default function DialerPage() {
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
       activeDialRequestRef.current = null;
       setActiveDialpadCallId(null);
+      setActiveDialpadCallState(null);
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
@@ -254,13 +260,30 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     try {
-      await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+      const currentState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
+      setActiveDialpadCallState(currentState);
+
+      if (currentState === "hangup") {
+        setActiveDialpadCallId(null);
+        toast.info("This call has already ended.");
+        return;
+      }
+
+      const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      if (result?.already_ended) {
+        setActiveDialpadCallId(null);
+        setActiveDialpadCallState("hangup");
+        toast.info("This call has already ended.");
+        return;
+      }
+
       toast.success("Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
       toast.error(message);
     }
-  }, [activeDialpadCallId, cancelDialpadCall]);
+  }, [activeDialpadCallId, cancelDialpadCall, dialpadCallStatus]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
@@ -311,6 +334,7 @@ export default function DialerPage() {
 
     activeDialRequestRef.current = requestKey;
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
 
     dialpadCall
       .mutateAsync({
@@ -324,6 +348,7 @@ export default function DialerPage() {
           : null;
 
         setActiveDialpadCallId(dialpadCallId);
+        setActiveDialpadCallState(typeof response?.state === "string" ? response.state.toLowerCase() : null);
         toast.success(`Calling ${currentContact.phone} through Dialpad`);
 
         if (response?.tracking_warning) {
@@ -332,10 +357,40 @@ export default function DialerPage() {
       })
       .catch((error) => {
         setActiveDialpadCallId(null);
+        setActiveDialpadCallState(null);
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         toast.error(message);
       });
   }, [isDialing, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
+
+  useEffect(() => {
+    if (!activeDialpadCallId) return;
+
+    let cancelled = false;
+    const pollStatus = async () => {
+      try {
+        const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+        if (cancelled) return;
+
+        const nextState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
+        setActiveDialpadCallState(nextState);
+
+        if (nextState === "hangup") {
+          setActiveDialpadCallId(null);
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+    };
+
+    void pollStatus();
+    const intervalId = window.setInterval(pollStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeDialpadCallId, dialpadCallStatus]);
 
   return (
     <AppLayout title="Dialer">
@@ -543,15 +598,15 @@ export default function DialerPage() {
                       <Button
                         variant="outline"
                         onClick={cancelActiveCall}
-                        disabled={cancelDialpadCall.isPending}
+                        disabled={cancelDialpadCall.isPending || dialpadCallStatus.isPending || activeDialpadCallState === "hangup"}
                         className="w-full border-destructive text-destructive hover:bg-destructive/10"
                       >
-                        {cancelDialpadCall.isPending ? (
+                        {cancelDialpadCall.isPending || dialpadCallStatus.isPending ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                           <PhoneOff className="mr-2 h-4 w-4" />
                         )}
-                        Cancel Active Call
+                        {activeDialpadCallState === "hangup" ? "Call Already Ended" : "Cancel Active Call"}
                       </Button>
                     </div>
                   ) : (

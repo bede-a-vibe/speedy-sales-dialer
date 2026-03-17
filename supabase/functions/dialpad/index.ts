@@ -609,6 +609,33 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: "call_id is required" }, 400);
         }
 
+        const callStatusResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}`, {
+          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+        });
+
+        const callStatusData = await callStatusResponse.json().catch(() => null);
+        if (!callStatusResponse.ok) {
+          const message = extractDialpadErrorMessage(callStatusData);
+          return jsonResponse({
+            error: `Dialpad API error [${callStatusResponse.status}]`,
+            details: callStatusData,
+            message,
+          }, callStatusResponse.status);
+        }
+
+        const callState = isRecord(callStatusData) && typeof callStatusData.state === "string"
+          ? callStatusData.state.toLowerCase()
+          : null;
+
+        if (callState === "hangup") {
+          return jsonResponse({
+            ok: true,
+            already_ended: true,
+            state: callStatusData?.state ?? null,
+            call_id: params.call_id,
+          }, 200);
+        }
+
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}/actions/hangup`, {
           method: "POST",
           headers: {
