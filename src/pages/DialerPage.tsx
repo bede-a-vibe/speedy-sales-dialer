@@ -833,54 +833,6 @@ export default function DialerPage() {
     };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, rapidStatusPollingUntil]);
 
-  // Start 30-second countdown when call ends (terminal state) and no outcome selected
-  useEffect(() => {
-    if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) {
-      if (!selectedOutcome && !pendingAutoOutcome) return;
-      // Clear countdown if user selects an outcome
-      setCooldownSecondsLeft(null);
-      return;
-    }
-
-    // Don't start countdown if call is still resolving or active
-    if (isCallResolving || (activeDialpadCallId && activeDialpadCallState !== "hangup")) {
-      setCooldownSecondsLeft(null);
-      return;
-    }
-
-    // Start the countdown at 30
-    setCooldownSecondsLeft(30);
-  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isCallResolving, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
-
-  // Tick the countdown every second
-  useEffect(() => {
-    if (cooldownSecondsLeft === null || cooldownSecondsLeft <= 0) return;
-
-    const intervalId = window.setInterval(() => {
-      setCooldownSecondsLeft((prev) => {
-        if (prev === null || prev <= 1) {
-          setPendingAutoOutcome("no_answer");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, [cooldownSecondsLeft]);
-
-  useEffect(() => {
-    if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
-
-    if (!isCallTerminal && activeDialpadCallId && !isEndingCall) {
-      void cancelActiveCall();
-      return;
-    }
-
-    if (isCallTerminal) {
-      void logAndNext(pendingAutoOutcome);
-    }
-  }, [activeDialpadCallId, cancelActiveCall, currentContact, isCallTerminal, isEndingCall, logAndNext, pendingAutoOutcome]);
 
   return (
     <AppLayout title="Dialer">
