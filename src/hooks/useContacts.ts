@@ -124,12 +124,7 @@ async function fetchDialerContacts({ industry, state, status = "uncalled", inclu
 }
 
 async function invokeDialerRpc<T>(fnName: string, params: Record<string, unknown>) {
-  const rpc = supabase.rpc as unknown as (
-    name: string,
-    args?: Record<string, unknown>,
-  ) => Promise<{ data: T | null; error: { message?: string } | null }>;
-
-  const { data, error } = await rpc(fnName, params);
+  const { data, error } = await supabase.rpc(fnName as never, params as never);
   if (error) {
     throw new Error(error.message || "Dialer queue request failed.");
   }
