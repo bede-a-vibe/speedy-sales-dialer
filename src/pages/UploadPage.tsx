@@ -15,7 +15,7 @@ export default function UploadPage() {
   const { user } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ success: number; errors: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ success: number; errors: number; total: number; metadataNotes: number } | null>(null);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

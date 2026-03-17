@@ -13,6 +13,7 @@ export interface ParsedContactUploadFile {
 
 export interface PreparedContactImport {
   contacts: ContactImportInsert[];
+  contactNotes: ContactNoteImportInsert[];
   headers: string[];
   missingRequired: string[];
 }
