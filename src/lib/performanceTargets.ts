@@ -2,7 +2,7 @@ import type { ReportMetrics } from "@/lib/reportMetrics";
 
 export type PerformanceTargetScopeType = "individual" | "team";
 export type PerformanceTargetPeriodType = "daily" | "weekly";
-export type PerformanceTargetMetricKey = "bookings_made" | "show_up_rate" | "closed_deals";
+export type PerformanceTargetMetricKey = "dials" | "pickups" | "pickup_to_booking_rate" | "bookings_made" | "show_up_rate" | "closed_deals";
 
 export interface PerformanceTargetRecord {
   id: string;
@@ -16,6 +16,9 @@ export interface PerformanceTargetRecord {
 }
 
 export interface PerformanceActualMetrics {
+  dials: number;
+  pickups: number;
+  pickup_to_booking_rate: number;
   bookings_made: number;
   show_up_rate: number;
   closed_deals: number;
@@ -48,6 +51,21 @@ export const PERFORMANCE_TARGET_METRIC_DEFINITIONS: Record<
   PerformanceTargetMetricKey,
   { label: string; description: string; isRate: boolean }
 > = {
+  dials: {
+    label: "Dials",
+    description: "Total calls made",
+    isRate: false,
+  },
+  pickups: {
+    label: "Pickups",
+    description: "Answered calls (excl. no answer/voicemail)",
+    isRate: false,
+  },
+  pickup_to_booking_rate: {
+    label: "Pickup → Booking %",
+    description: "Bookings made / pickups",
+    isRate: true,
+  },
   bookings_made: {
     label: "Bookings Made",
     description: "Setter-created bookings",
@@ -83,6 +101,9 @@ export function formatTargetMetricValue(metricKey: PerformanceTargetMetricKey, v
 
 export function getPerformanceActualMetrics(metrics: ReportMetrics): PerformanceActualMetrics {
   return {
+    dials: metrics.dialer.dials,
+    pickups: metrics.dialer.pickUps,
+    pickup_to_booking_rate: metrics.bookingsMade.pickUpsToBookingRate,
     bookings_made: metrics.bookingsMade.totalBookingsMade,
     show_up_rate: metrics.appointmentPerformance.setter.showUpRate,
     closed_deals: metrics.appointmentPerformance.closer.showedClosed,
