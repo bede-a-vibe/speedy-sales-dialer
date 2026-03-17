@@ -281,6 +281,7 @@ export default function DialerPage() {
         setCurrentIndex(nextLength - 1);
       }
     } catch {
+      leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
     }
   }, [
