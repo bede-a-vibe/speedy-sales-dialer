@@ -13,6 +13,7 @@ import ReportsPage from "./pages/ReportsPage";
 import DialpadSettingsPage from "./pages/DialpadSettingsPage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import FollowUpsPage from "./pages/FollowUpsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
