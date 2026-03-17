@@ -1,35 +1,34 @@
 import { useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Target, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Target, Trash2, Users, User, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDeletePerformanceTarget, usePerformanceTargets, useUpsertPerformanceTarget } from "@/hooks/usePerformanceTargets";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import {
+  deriveAllTargets,
   formatTargetMetricValue,
   PERFORMANCE_TARGET_METRICS,
   PERFORMANCE_TARGET_METRIC_DEFINITIONS,
-  PERFORMANCE_TARGET_PERIOD_LABELS,
-  PERFORMANCE_TARGET_SCOPE_LABELS,
   type PerformanceTargetMetricKey,
-  type PerformanceTargetPeriodType,
   type PerformanceTargetRecord,
-  type PerformanceTargetScopeType,
 } from "@/lib/performanceTargets";
 
-const DEFAULT_FORM = {
-  id: undefined as string | undefined,
-  scope_type: "team" as PerformanceTargetScopeType,
-  period_type: "daily" as PerformanceTargetPeriodType,
-  metric_key: "bookings_made" as PerformanceTargetMetricKey,
-  user_id: "",
-  target_value: "",
-};
+type BulkFormValues = Record<PerformanceTargetMetricKey, string>;
+
+function emptyBulkForm(): BulkFormValues {
+  return Object.fromEntries(PERFORMANCE_TARGET_METRICS.map((k) => [k, ""])) as BulkFormValues;
+}
+
+const WEEKLY_MULTIPLIER = 5;
 
 export default function TargetsPage() {
   const { data: targets = [], isLoading } = usePerformanceTargets();
@@ -38,76 +37,120 @@ export default function TargetsPage() {
   const deleteTarget = useDeletePerformanceTarget();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(DEFAULT_FORM);
+  const [selectedRepId, setSelectedRepId] = useState("");
+  const [bulkValues, setBulkValues] = useState<BulkFormValues>(emptyBulkForm);
+  const [isSaving, setIsSaving] = useState(false);
 
   const repNameMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, rep.display_name || rep.email || "Unnamed rep"])),
     [reps],
   );
 
-  const sortedTargets = useMemo(
-    () =>
-      [...targets].sort((a, b) => {
-        if (a.period_type !== b.period_type) return a.period_type.localeCompare(b.period_type);
-        if (a.scope_type !== b.scope_type) return a.scope_type.localeCompare(b.scope_type);
-        if (a.metric_key !== b.metric_key) return a.metric_key.localeCompare(b.metric_key);
-        return (repNameMap.get(a.user_id || "") || "Team").localeCompare(repNameMap.get(b.user_id || "") || "Team");
-      }),
-    [repNameMap, targets],
+  // Only individual daily targets are stored
+  const storedDailyTargets = useMemo(
+    () => targets.filter((t) => t.scope_type === "individual" && t.period_type === "daily"),
+    [targets],
   );
 
-  const openNew = () => {
-    setForm(DEFAULT_FORM);
+  const derived = useMemo(() => deriveAllTargets(targets), [targets]);
+
+  // Group stored targets by rep
+  const targetsByRep = useMemo(() => {
+    const map = new Map<string, PerformanceTargetRecord[]>();
+    for (const t of storedDailyTargets) {
+      if (!t.user_id) continue;
+      const list = map.get(t.user_id) || [];
+      list.push(t);
+      map.set(t.user_id, list);
+    }
+    return map;
+  }, [storedDailyTargets]);
+
+  const openNewForRep = () => {
+    setSelectedRepId("");
+    setBulkValues(emptyBulkForm());
     setDialogOpen(true);
   };
 
-  const openEdit = (target: PerformanceTargetRecord) => {
-    setForm({
-      id: target.id,
-      scope_type: target.scope_type,
-      period_type: target.period_type,
-      metric_key: target.metric_key,
-      user_id: target.user_id || "",
-      target_value: String(target.target_value),
-    });
+  const openEditForRep = (repUserId: string) => {
+    setSelectedRepId(repUserId);
+    const repTargets = targetsByRep.get(repUserId) || [];
+    const values = emptyBulkForm();
+    for (const t of repTargets) {
+      values[t.metric_key] = String(t.target_value);
+    }
+    setBulkValues(values);
     setDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (form.scope_type === "individual" && !form.user_id) {
-      toast.error("Select a rep for individual targets.");
+  const handleBulkSave = async () => {
+    if (!selectedRepId) {
+      toast.error("Select a rep first.");
       return;
     }
 
-    if (!form.target_value || Number.isNaN(Number(form.target_value))) {
-      toast.error("Enter a valid target value.");
+    const entries = PERFORMANCE_TARGET_METRICS
+      .filter((key) => bulkValues[key] !== "" && !Number.isNaN(Number(bulkValues[key])))
+      .map((key) => ({ metric_key: key, target_value: Number(bulkValues[key]) }));
+
+    if (entries.length === 0) {
+      toast.error("Enter at least one target value.");
       return;
     }
 
+    setIsSaving(true);
     try {
-      await upsertTarget.mutateAsync({
-        id: form.id,
-        scope_type: form.scope_type,
-        period_type: form.period_type,
-        metric_key: form.metric_key,
-        user_id: form.scope_type === "team" ? null : form.user_id,
-        target_value: Number(form.target_value),
-      });
-      toast.success(form.id ? "Target updated." : "Target saved.");
+      // Find existing target IDs for this rep to do upserts
+      const existingRepTargets = targetsByRep.get(selectedRepId) || [];
+      const existingByMetric = new Map(existingRepTargets.map((t) => [t.metric_key, t]));
+
+      for (const entry of entries) {
+        const existing = existingByMetric.get(entry.metric_key);
+        await upsertTarget.mutateAsync({
+          id: existing?.id,
+          scope_type: "individual",
+          period_type: "daily",
+          metric_key: entry.metric_key,
+          user_id: selectedRepId,
+          target_value: entry.target_value,
+        });
+      }
+
+      // Delete targets for metrics that were cleared (set to empty)
+      const clearedMetrics = PERFORMANCE_TARGET_METRICS.filter(
+        (key) => bulkValues[key] === "" && existingByMetric.has(key),
+      );
+      for (const metricKey of clearedMetrics) {
+        const existing = existingByMetric.get(metricKey);
+        if (existing) {
+          await deleteTarget.mutateAsync(existing.id);
+        }
+      }
+
+      toast.success(`Targets saved for ${repNameMap.get(selectedRepId) || "rep"}.`);
       setDialogOpen(false);
     } catch {
-      toast.error("Failed to save target.");
+      toast.error("Failed to save targets.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteAllForRep = async (repUserId: string) => {
+    const repTargets = targetsByRep.get(repUserId) || [];
+    if (repTargets.length === 0) return;
     try {
-      await deleteTarget.mutateAsync(id);
-      toast.success("Target removed.");
+      for (const t of repTargets) {
+        await deleteTarget.mutateAsync(t.id);
+      }
+      toast.success(`All targets removed for ${repNameMap.get(repUserId) || "rep"}.`);
     } catch {
-      toast.error("Failed to delete target.");
+      toast.error("Failed to delete targets.");
     }
   };
+
+  // Unique reps that have targets
+  const repsWithTargets = useMemo(() => Array.from(targetsByRep.keys()), [targetsByRep]);
 
   return (
     <AppLayout title="Targets">
@@ -116,182 +159,194 @@ export default function TargetsPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Performance Targets</h2>
             <p className="text-sm text-muted-foreground">
-              Manage daily and weekly goals for each rep and for the team.
+              Set daily targets per rep — weekly and team totals are calculated automatically.
             </p>
           </div>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openNew}>
+              <Button onClick={openNewForRep}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Target
+                Set Rep Targets
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>{form.id ? "Edit target" : "Add target"}</DialogTitle>
+                <DialogTitle>
+                  {selectedRepId ? `Edit daily targets — ${repNameMap.get(selectedRepId) || "Rep"}` : "Set daily targets for a rep"}
+                </DialogTitle>
               </DialogHeader>
 
-              <div className="grid gap-4 pt-2 sm:grid-cols-2">
+              <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label>Scope</Label>
-                  <Select
-                    value={form.scope_type}
-                    onValueChange={(value: PerformanceTargetScopeType) =>
-                      setForm((current) => ({
-                        ...current,
-                        scope_type: value,
-                        user_id: value === "team" ? "" : current.user_id,
-                      }))
-                    }
-                  >
+                  <Label>Rep</Label>
+                  <Select value={selectedRepId} onValueChange={setSelectedRepId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select scope" />
+                      <SelectValue placeholder="Select a rep" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(PERFORMANCE_TARGET_SCOPE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
+                      {reps.map((rep) => (
+                        <SelectItem key={rep.user_id} value={rep.user_id}>
+                          {rep.display_name || rep.email || "Unnamed rep"}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Period</Label>
-                  <Select
-                    value={form.period_type}
-                    onValueChange={(value: PerformanceTargetPeriodType) =>
-                      setForm((current) => ({ ...current, period_type: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(PERFORMANCE_TARGET_PERIOD_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Separator />
+
+                <div className="grid gap-3">
+                  {PERFORMANCE_TARGET_METRICS.map((metricKey) => {
+                    const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
+                    return (
+                      <div key={metricKey} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{def.label}</p>
+                          <p className="text-xs text-muted-foreground">{def.description}</p>
+                        </div>
+                        <Input
+                          type="number"
+                          step={def.isRate ? "1" : "1"}
+                          min="0"
+                          value={bulkValues[metricKey]}
+                          onChange={(e) => setBulkValues((prev) => ({ ...prev, [metricKey]: e.target.value }))}
+                          placeholder={def.isRate ? "e.g. 30" : "e.g. 50"}
+                          className="w-28 font-mono text-right"
+                        />
+                        {def.isRate && <span className="text-xs text-muted-foreground w-4">%</span>}
+                        {!def.isRate && <span className="w-4" />}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Metric</Label>
-                  <Select
-                    value={form.metric_key}
-                    onValueChange={(value: PerformanceTargetMetricKey) =>
-                      setForm((current) => ({ ...current, metric_key: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select metric" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PERFORMANCE_TARGET_METRICS.map((metricKey) => (
-                        <SelectItem key={metricKey} value={metricKey}>
-                          {PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {form.scope_type === "individual" && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Rep</Label>
-                    <Select
-                      value={form.user_id}
-                      onValueChange={(value) => setForm((current) => ({ ...current, user_id: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select rep" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {reps.map((rep) => (
-                          <SelectItem key={rep.user_id} value={rep.user_id}>
-                            {rep.display_name || rep.email || "Unnamed rep"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {selectedRepId && (
+                  <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <Calculator className="h-3.5 w-3.5" />
+                      Auto-calculated from daily targets
+                    </div>
+                    <p>Weekly individual = daily × {WEEKLY_MULTIPLIER} (rates stay the same)</p>
+                    <p>Team targets = sum of all rep targets (rates averaged)</p>
                   </div>
                 )}
 
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Target Value</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.target_value}
-                    onChange={(event) => setForm((current) => ({ ...current, target_value: event.target.value }))}
-                    placeholder={form.metric_key === "show_up_rate" ? "e.g. 70" : "e.g. 12"}
-                    className="font-mono"
-                  />
-                </div>
+                <Button onClick={handleBulkSave} disabled={isSaving} className="w-full">
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Daily Targets
+                </Button>
               </div>
-
-              <Button onClick={handleSave} disabled={upsertTarget.isPending} className="mt-2 w-full">
-                {upsertTarget.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {form.id ? "Update Target" : "Save Target"}
-              </Button>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
+        {/* Individual rep cards */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Individual Daily Targets
+          </h3>
+
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading targets…</div>
-          ) : sortedTargets.length === 0 ? (
-            <div className="p-8 text-center">
-              <Target className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">No targets configured yet.</p>
-            </div>
+          ) : repsWithTargets.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Target className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No targets configured yet. Click "Set Rep Targets" to get started.</p>
+              </CardContent>
+            </Card>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Metric</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Target</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedTargets.map((target) => (
-                  <TableRow key={target.id}>
-                    <TableCell>{PERFORMANCE_TARGET_SCOPE_LABELS[target.scope_type]}</TableCell>
-                    <TableCell>{PERFORMANCE_TARGET_PERIOD_LABELS[target.period_type]}</TableCell>
-                    <TableCell>{PERFORMANCE_TARGET_METRIC_DEFINITIONS[target.metric_key].label}</TableCell>
-                    <TableCell>{target.scope_type === "team" ? "Team" : repNameMap.get(target.user_id || "") || "Unknown rep"}</TableCell>
-                    <TableCell className="font-mono">{formatTargetMetricValue(target.metric_key, Number(target.target_value))}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(target)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(target.id)}
-                          disabled={deleteTarget.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {repsWithTargets.map((repId) => {
+                const repTargets = targetsByRep.get(repId) || [];
+                return (
+                  <Card key={repId}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{repNameMap.get(repId) || "Unknown rep"}</CardTitle>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForRep(repId)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteAllForRep(repId)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <CardDescription>Daily targets</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-1.5">
+                        {repTargets.map((t) => (
+                          <div key={t.id} className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">{PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key].label}</span>
+                            <span className="font-mono font-medium">{formatTargetMetricValue(t.metric_key, t.target_value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </div>
+
+        {/* Derived team targets */}
+        {!isLoading && repsWithTargets.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Auto-Calculated Team Targets
+            </h3>
+
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Metric</TableHead>
+                    <TableHead className="text-right">Team Daily</TableHead>
+                    <TableHead className="text-right">Team Weekly</TableHead>
+                    <TableHead className="text-right">How</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {PERFORMANCE_TARGET_METRICS.map((metricKey) => {
+                    const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey];
+                    const teamDailyTarget = derived.teamDaily.find((t) => t.metric_key === metricKey);
+                    const teamWeeklyTarget = derived.teamWeekly.find((t) => t.metric_key === metricKey);
+
+                    if (!teamDailyTarget && !teamWeeklyTarget) return null;
+
+                    return (
+                      <TableRow key={metricKey}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{def.label}</p>
+                            <p className="text-xs text-muted-foreground">{def.description}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {teamDailyTarget ? formatTargetMetricValue(metricKey, teamDailyTarget.target_value) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {teamWeeklyTarget ? formatTargetMetricValue(metricKey, teamWeeklyTarget.target_value) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="text-xs">
+                            {def.isRate ? "avg" : "sum"}{!def.isRate ? ` × ${WEEKLY_MULTIPLIER}` : ""}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
