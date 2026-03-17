@@ -1,1 +1,4 @@
 project_id = "xhcvwhcpaeetmmzkuwyw"
+
+[functions.dialpad]
+verify_jwt = false
