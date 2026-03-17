@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy } from "lucide-react";
@@ -11,7 +11,7 @@ interface RepStats {
   conversionPct: number;
 }
 
-export function TeamLeaderboard() {
+export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
   const { data: callLogs = [] } = useCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
 
@@ -25,7 +25,6 @@ export function TeamLeaderboard() {
     fetchNames();
   }, [callLogs]);
 
-  // Group by user
   const repMap = new Map<string, { calls: number; booked: number; name: string }>();
   for (const log of callLogs as any[]) {
     const uid = log.user_id;
@@ -49,7 +48,7 @@ export function TeamLeaderboard() {
   if (reps.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div ref={ref} className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
         <Trophy className="h-4 w-4 text-primary" />
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
@@ -57,9 +56,11 @@ export function TeamLeaderboard() {
       <div className="space-y-2">
         {reps.slice(0, 5).map((rep, i) => (
           <div key={rep.userId} className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/50 border border-border">
-            <span className={`text-sm font-bold font-mono w-6 text-center ${
-              i === 0 ? "text-primary" : "text-muted-foreground"
-            }`}>
+            <span
+              className={`text-sm font-bold font-mono w-6 text-center ${
+                i === 0 ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
               {i + 1}
             </span>
             <span className="text-sm font-medium text-foreground flex-1">{rep.name}</span>
@@ -73,4 +74,4 @@ export function TeamLeaderboard() {
       </div>
     </div>
   );
-}
+});

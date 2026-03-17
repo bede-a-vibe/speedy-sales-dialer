@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { Activity } from "lucide-react";
@@ -13,11 +13,10 @@ interface RealtimeLog {
   userName?: string;
 }
 
-export function LiveActivityFeed() {
+export const LiveActivityFeed = forwardRef<HTMLDivElement>(function LiveActivityFeed(_, ref) {
   const [items, setItems] = useState<RealtimeLog[]>([]);
 
   useEffect(() => {
-    // Fetch recent logs on mount
     const fetchRecent = async () => {
       const { data } = await supabase
         .from("call_logs")
@@ -26,7 +25,6 @@ export function LiveActivityFeed() {
         .limit(8);
 
       if (data) {
-        // Fetch profile names for unique user_ids
         const userIds = [...new Set(data.map((d: any) => d.user_id))];
         const { data: profiles } = await supabase
           .from("profiles")
@@ -49,7 +47,6 @@ export function LiveActivityFeed() {
     };
     fetchRecent();
 
-    // Subscribe to realtime
     const channel = supabase
       .channel("live-calls")
       .on(
@@ -57,7 +54,6 @@ export function LiveActivityFeed() {
         { event: "INSERT", schema: "public", table: "call_logs" },
         async (payload) => {
           const log = payload.new as any;
-          // Fetch contact name
           const { data: contact } = await supabase
             .from("contacts")
             .select("business_name")
@@ -86,7 +82,7 @@ export function LiveActivityFeed() {
 
   if (items.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div ref={ref} className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Live Activity</h3>
@@ -97,7 +93,7 @@ export function LiveActivityFeed() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div ref={ref} className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
         <div className="relative">
           <Activity className="h-4 w-4 text-primary" />
@@ -121,7 +117,7 @@ export function LiveActivityFeed() {
       </div>
     </div>
   );
-}
+});
 
 function getTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
