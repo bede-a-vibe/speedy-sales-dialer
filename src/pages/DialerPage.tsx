@@ -49,6 +49,35 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
 }
 
+function getDialRequestStorageKey(requestKey: string) {
+  return `dialpad-request:${requestKey}`;
+}
+
+function hasActiveDialRequestLock(requestKey: string, maxAgeMs = 45000) {
+  if (typeof window === "undefined") return false;
+
+  const rawValue = window.sessionStorage.getItem(getDialRequestStorageKey(requestKey));
+  if (!rawValue) return false;
+
+  const timestamp = Number(rawValue);
+  if (!Number.isFinite(timestamp) || Date.now() - timestamp > maxAgeMs) {
+    window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+    return false;
+  }
+
+  return true;
+}
+
+function setActiveDialRequestLock(requestKey: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(getDialRequestStorageKey(requestKey), String(Date.now()));
+}
+
+function clearActiveDialRequestLock(requestKey: string | null) {
+  if (typeof window === "undefined" || !requestKey) return;
+  window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+}
+
 function PanelSkeleton({ height = "h-40" }: { height?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -191,6 +220,7 @@ export default function DialerPage() {
   }, [ensureBuffer, isDialing, nextContact?.id, queryClient]);
 
   const resetLeadState = useCallback((assignedUserId?: string) => {
+    clearActiveDialRequestLock(activeDialRequestRef.current);
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
@@ -474,9 +504,16 @@ export default function DialerPage() {
     if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
 
     const requestKey = `${currentContact.id}:${currentContact.phone}`;
-    if (activeDialRequestRef.current === requestKey || dialpadCall.isPending) return;
+    if (
+      activeDialRequestRef.current === requestKey
+      || hasActiveDialRequestLock(requestKey)
+      || dialpadCall.isPending
+    ) {
+      return;
+    }
 
     activeDialRequestRef.current = requestKey;
+    setActiveDialRequestLock(requestKey);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
@@ -493,13 +530,19 @@ export default function DialerPage() {
       .then((response) => {
         setActiveDialpadCallId(response.dialpad_call_id);
         setActiveDialpadCallState(response.state);
-        toast.success(`Calling ${currentContact.phone} through Dialpad`);
+        toast.success(
+          response.message === "Existing Dialpad call is already active for this lead."
+            ? response.message
+            : `Calling ${currentContact.phone} through Dialpad`,
+        );
 
         if (response.tracking_warning) {
           toast.warning("Call placed, but transcript tracking needs attention.");
         }
       })
       .catch((error) => {
+        clearActiveDialRequestLock(requestKey);
+        activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
         setActiveDialpadCallState(null);
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
