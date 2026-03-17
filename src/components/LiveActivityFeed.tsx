@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Activity } from "lucide-react";
 
 interface RealtimeLog {
@@ -15,9 +16,12 @@ interface RealtimeLog {
 
 export const LiveActivityFeed = forwardRef<HTMLDivElement>(function LiveActivityFeed(_, ref) {
   const [items, setItems] = useState<RealtimeLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchRecent = async () => {
+      setIsLoading(true);
+
       const { data } = await supabase
         .from("call_logs")
         .select("id, outcome, created_at, contact_id, user_id, contacts(business_name)")
@@ -44,6 +48,8 @@ export const LiveActivityFeed = forwardRef<HTMLDivElement>(function LiveActivity
           }))
         );
       }
+
+      setIsLoading(false);
     };
     fetchRecent();
 
@@ -80,6 +86,27 @@ export const LiveActivityFeed = forwardRef<HTMLDivElement>(function LiveActivity
     };
   }, []);
 
+  if (isLoading) {
+    return (
+      <div ref={ref} className="bg-card border border-border rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-primary" />
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Live Activity</h3>
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/40 border border-border">
+              <Skeleton className="h-2.5 w-2.5 rounded-full shrink-0" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div ref={ref} className="bg-card border border-border rounded-lg p-5">
@@ -87,7 +114,10 @@ export const LiveActivityFeed = forwardRef<HTMLDivElement>(function LiveActivity
           <Activity className="h-4 w-4 text-primary" />
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Live Activity</h3>
         </div>
-        <p className="text-xs text-muted-foreground text-center py-4">No activity yet.</p>
+        <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">No recent call activity</p>
+          <p className="mt-1 text-xs text-muted-foreground">New call outcomes will appear here in real time.</p>
+        </div>
       </div>
     );
   }
