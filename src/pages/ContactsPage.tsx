@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
@@ -10,11 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download } from "lucide-react";
-import { format } from "date-fns";
+import { getAppointmentOutcomeLabel } from "@/lib/appointments";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import type { Contact } from "@/hooks/useContacts";
 
 const AUSTRALIAN_STATE_OPTIONS = [
@@ -46,6 +47,13 @@ const NOTE_SOURCE_LABELS = {
   dialpad_transcript: "Dialpad transcript",
 } as const;
 
+function getContactStage(contact: Contact) {
+  if (contact.latest_appointment_outcome) return getAppointmentOutcomeLabel(contact.latest_appointment_outcome);
+  if (contact.latest_appointment_scheduled_for) return "Booked appointment";
+  if (contact.last_outcome) return OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome;
+  return "—";
+}
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
@@ -70,18 +78,13 @@ export default function ContactsPage() {
       c.contact_person?.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||
       c.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || c.status === statusFilter;
-    const matchesState =
-      stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
     return matchesSearch && matchesStatus && matchesState;
   });
 
-  const getContactLogs = (contactId: string) =>
-    callLogs.filter((l: any) => l.contact_id === contactId);
-
-  const getContactNotes = (contactId: string) =>
-    contactNotes.filter((note) => note.contact_id === contactId);
+  const getContactLogs = (contactId: string) => callLogs.filter((l: any) => l.contact_id === contactId);
+  const getContactNotes = (contactId: string) => contactNotes.filter((note) => note.contact_id === contactId);
 
   const openEdit = (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -124,7 +127,7 @@ export default function ContactsPage() {
   };
 
   const exportCSV = () => {
-    const headers = ["Business Name", "Contact Person", "Phone", "Email", "Industry", "City", "State", "Status", "Last Outcome"];
+    const headers = ["Business Name", "Contact Person", "Phone", "Email", "Industry", "City", "State", "Status", "Last Outcome", "Appointment Stage", "Appointment Day"];
     const rows = filtered.map((c) => [
       c.business_name,
       c.contact_person || "",
@@ -135,6 +138,8 @@ export default function ContactsPage() {
       c.state || "",
       c.status,
       c.last_outcome || "",
+      getContactStage(c),
+      c.latest_appointment_scheduled_for ? format(new Date(c.latest_appointment_scheduled_for), "yyyy-MM-dd") : "",
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${v}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -149,74 +154,51 @@ export default function ContactsPage() {
 
   return (
     <AppLayout title="Contacts">
-      <div className="max-w-6xl mx-auto space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search contacts..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-card border-border"
-            />
+      <div className="mx-auto max-w-6xl space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="border-border bg-card pl-9" />
           </div>
           <Select value={industryFilter} onValueChange={setIndustryFilter}>
-            <SelectTrigger className="w-[180px] bg-card border-border">
-              <SelectValue placeholder="Industry" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Industries</SelectItem>
-              {INDUSTRIES.map((ind) => (
-                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-              ))}
-            </SelectContent>
+            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Industry" /></SelectTrigger>
+            <SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={stateFilter} onValueChange={setStateFilter}>
-            <SelectTrigger className="w-[220px] bg-card border-border">
-              <SelectValue placeholder="Australian state" />
-            </SelectTrigger>
-            <SelectContent>
-              {AUSTRALIAN_STATE_OPTIONS.map((state) => (
-                <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
-              ))}
-            </SelectContent>
+            <SelectTrigger className="w-[220px] border-border bg-card"><SelectValue placeholder="Australian state" /></SelectTrigger>
+            <SelectContent>{AUSTRALIAN_STATE_OPTIONS.map((state) => <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px] bg-card border-border">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[140px] border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="uncalled">Uncalled</SelectItem>
               <SelectItem value="called">Called</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs font-mono text-muted-foreground">
-              {filtered.length} contacts
-            </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">{filtered.length} contacts</span>
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
-              <Download className="h-3.5 w-3.5 mr-1.5" />
-              Export
+              <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="text-center py-20 text-sm text-muted-foreground animate-pulse">Loading...</div>
+          <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-sm text-muted-foreground">No contacts found.</div>
+          <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Business</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Contact</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Industry</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Status</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Last Outcome</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-24">Actions</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
+                  <th className="w-24 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,53 +209,26 @@ export default function ContactsPage() {
 
                   return (
                     <React.Fragment key={contact.id}>
-                      <tr
-                        className="border-b border-border hover:bg-muted/30 cursor-pointer transition-colors"
-                        onClick={() => setExpandedId(isExpanded ? null : contact.id)}
-                      >
+                      <tr className="cursor-pointer border-b border-border transition-colors hover:bg-muted/30" onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
                         <td className="px-4 py-3">
                           <p className="font-medium text-foreground">{contact.business_name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{contact.phone}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
+                        <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
                         <td className="px-4 py-3">
-                          <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-mono">
-                            {contact.industry}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                            contact.status === "called"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          }`}>
+                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${contact.status === "called" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                             {contact.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          {contact.last_outcome ? (
-                            <span className="text-xs text-muted-foreground">
-                              {OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </td>
+                        <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => openEdit(contact, e)}
-                              className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                              title="Edit"
-                            >
+                            <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                             {isAdmin && (
-                              <button
-                                onClick={(e) => deleteContact(contact.id, e)}
-                                className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                title="Delete"
-                              >
+                              <button onClick={(e) => deleteContact(contact.id, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" title="Delete">
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
@@ -285,107 +240,75 @@ export default function ContactsPage() {
                         <tr>
                           <td colSpan={6} className="bg-muted/20 px-4 py-3">
                             <div className="space-y-4">
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                                {contact.email && (
-                                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                                    <Mail className="h-3 w-3" /> {contact.email}
-                                  </a>
-                                )}
-                                {contact.website && (
-                                  <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">
-                                    <Globe className="h-3 w-3" /> Website
-                                  </a>
-                                )}
-                                {(contact.city || contact.state) && (
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
-                                  </span>
-                                )}
-                                <a href={`tel:${contact.phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors ml-auto">
-                                  <Phone className="h-3 w-3" /> Call Now
-                                </a>
+                              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                                {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
+                                {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
+                                {(contact.city || contact.state) && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}</span>}
+                                <a href={`tel:${contact.phone}`} className="ml-auto flex items-center gap-1 transition-colors hover:text-foreground"><Phone className="h-3 w-3" /> Call Now</a>
                               </div>
+
+                              {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
+                                <div className="rounded border border-border bg-card px-3 py-3">
+                                  <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                    <CalendarClock className="h-3 w-3" /> Appointment Status
+                                  </div>
+                                  <div className="space-y-1 text-sm">
+                                    {contact.latest_appointment_scheduled_for && (
+                                      <p className="text-foreground">Day: <span className="font-mono">{format(new Date(contact.latest_appointment_scheduled_for), "MMM d, yyyy")}</span></p>
+                                    )}
+                                    {contact.latest_appointment_outcome && (
+                                      <p className="text-foreground">Outcome: <span className="text-muted-foreground">{getAppointmentOutcomeLabel(contact.latest_appointment_outcome)}</span></p>
+                                    )}
+                                    {contact.latest_appointment_recorded_at && (
+                                      <p className="text-xs text-muted-foreground">Updated {format(new Date(contact.latest_appointment_recorded_at), "MMM d, h:mm a")}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
 
                               {logs.length > 0 ? (
                                 <div>
-                                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-                                    Call History ({logs.length})
-                                  </p>
+                                  <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Call History ({logs.length})</p>
                                   <div className="space-y-2">
                                     {logs.map((log: any) => {
                                       const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
                                       const hasSyncedSummary = Boolean(log.dialpad_summary);
                                       const hasSyncedTranscript = Boolean(log.dialpad_transcript);
                                       const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
-
                                       return (
                                         <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
                                           <div className="flex items-center gap-3 text-xs">
-                                            <div className={`w-2 h-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                                            <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
                                             <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
-                                            {syncPending && (
-                                              <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                                                Sync pending
-                                              </span>
-                                            )}
-                                            {hasSyncedSummary && (
-                                              <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
-                                                Summary
-                                              </span>
-                                            )}
-                                            {hasSyncedTranscript && (
-                                              <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">
-                                                Transcript
-                                              </span>
-                                            )}
-                                            <span className="font-mono text-muted-foreground ml-auto shrink-0">
-                                              {format(new Date(log.created_at), "MMM d, h:mm a")}
-                                            </span>
+                                            {syncPending && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sync pending</span>}
+                                            {hasSyncedSummary && <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">Summary</span>}
+                                            {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
+                                            <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
                                           </div>
-
-                                          {log.notes && (
-                                            <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>
-                                          )}
-
-                                          {hasSyncedSummary && (
-                                            <div className="rounded-md bg-background px-3 py-2 text-xs text-foreground whitespace-pre-wrap">
-                                              {log.dialpad_summary}
-                                            </div>
-                                          )}
+                                          {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
+                                          {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
                                         </div>
                                       );
                                     })}
                                   </div>
                                 </div>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">No call history.</p>
-                              )}
+                              ) : <p className="text-xs text-muted-foreground">No call history.</p>}
 
                               <div>
-                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-                                  Contact Notes ({notesForContact.length})
-                                </p>
+                                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Contact Notes ({notesForContact.length})</p>
                                 {notesForContact.length > 0 ? (
                                   <div className="space-y-2">
                                     {notesForContact.map((note) => (
                                       <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
                                         <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                          <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">
-                                            {NOTE_SOURCE_LABELS[note.source]}
-                                          </span>
-                                          <span className="font-mono">
-                                            {format(new Date(note.created_at), "MMM d, h:mm a")}
-                                          </span>
+                                          <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">{NOTE_SOURCE_LABELS[note.source]}</span>
+                                          <span className="font-mono">{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
                                         </div>
-                                        <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-                                          {note.content}
-                                        </p>
+                                        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.content}</p>
                                       </div>
                                     ))}
                                   </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">No contact notes yet.</p>
-                                )}
+                                ) : <p className="text-xs text-muted-foreground">No contact notes yet.</p>}
                               </div>
                             </div>
                           </td>
@@ -401,95 +324,18 @@ export default function ContactsPage() {
 
         <Dialog open={!!editContact} onOpenChange={(open) => !open && setEditContact(null)}>
           <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit Contact</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Edit Contact</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Business Name</Label>
-                <Input
-                  value={editForm.business_name || ""}
-                  onChange={(e) => setEditForm({ ...editForm, business_name: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Contact Person</Label>
-                <Input
-                  value={editForm.contact_person || ""}
-                  onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Phone</Label>
-                <Input
-                  value={editForm.phone || ""}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  className="bg-card border-border font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Email</Label>
-                <Input
-                  value={editForm.email || ""}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Industry</Label>
-                <Select
-                  value={editForm.industry || ""}
-                  onValueChange={(v) => setEditForm({ ...editForm, industry: v })}
-                >
-                  <SelectTrigger className="bg-card border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDUSTRIES.map((ind) => (
-                      <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Website</Label>
-                <Input
-                  value={editForm.website || ""}
-                  onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">GMB Link</Label>
-                <Input
-                  value={editForm.gmb_link || ""}
-                  onChange={(e) => setEditForm({ ...editForm, gmb_link: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">City</Label>
-                <Input
-                  value={editForm.city || ""}
-                  onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">State</Label>
-                <Input
-                  value={editForm.state || ""}
-                  onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                  className="bg-card border-border"
-                />
-              </div>
-              <div className="col-span-2">
-                <Button onClick={saveEdit} className="w-full bg-primary text-primary-foreground font-semibold">
-                  Save Changes
-                </Button>
-              </div>
+              <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Business Name</Label><Input value={editForm.business_name || ""} onChange={(e) => setEditForm({ ...editForm, business_name: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Contact Person</Label><Input value={editForm.contact_person || ""} onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone</Label><Input value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="border-border bg-card font-mono" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Email</Label><Input value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Industry</Label><Select value={editForm.industry || ""} onValueChange={(v) => setEditForm({ ...editForm, industry: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Website</Label><Input value={editForm.website || ""} onChange={(e) => setEditForm({ ...editForm, website: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={editForm.gmb_link || ""} onChange={(e) => setEditForm({ ...editForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={editForm.state || ""} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="border-border bg-card" /></div>
+              <div className="col-span-2"><Button onClick={saveEdit} className="w-full font-semibold">Save Changes</Button></div>
             </div>
           </DialogContent>
         </Dialog>
