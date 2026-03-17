@@ -10,8 +10,10 @@ const DIALER_QUEUE_MAX_SIZE = 500;
 const DIALER_TARGET_BUFFER = 40;
 const DIALER_PREFETCH_THRESHOLD = 15;
 const DIALER_CLAIM_SIZE = 25;
+const DIALER_INITIAL_CLAIM_SIZE = 12;
 const DIALER_LOCK_MINUTES = 15;
 const DIALER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
+const DIALER_PREVIEW_DEBOUNCE_MS = 250;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -172,6 +174,22 @@ async function releaseDialerLeadLocks(sessionId: string, contactIds?: string[]) 
   });
 }
 
+async function getDialerQueueCount({
+  sessionId,
+  industry,
+  state,
+}: {
+  sessionId: string;
+  industry?: string;
+  state?: string;
+}) {
+  return invokeDialerRpc<number>("get_dialer_queue_count", {
+    _session_id: sessionId,
+    _industry: industry && industry !== "all" ? industry : null,
+    _state: state && state !== "all" ? state : null,
+  });
+}
+
 export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
@@ -319,20 +337,21 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
       const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
         activeSessionId,
         [],
-        DIALER_TARGET_BUFFER,
+        DIALER_INITIAL_CLAIM_SIZE,
       );
 
       if (sessionRef.current === activeSessionId) {
         contactsRef.current = claimedContacts;
         setContacts(claimedContacts);
         setTotalCount(claimedTotalCount);
+        void ensureBuffer(DIALER_TARGET_BUFFER);
       }
 
       return claimedContacts.length;
     } finally {
       setIsLoading(false);
     }
-  }, [claimIntoBuffer, stopSession, userId]);
+  }, [claimIntoBuffer, ensureBuffer, stopSession, userId]);
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
@@ -369,32 +388,34 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     if (!userId || sessionRef.current) return;
 
     let cancelled = false;
-    setIsLoading(true);
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(true);
 
-    claimDialerLeads({
-      sessionId: previewSessionIdRef.current,
-      industry,
-      state,
-      claimSize: 0,
-    })
-      .then((response) => {
-        if (!cancelled && !sessionRef.current) {
-          setPreviewCount(response.total_available_count ?? 0);
-        }
+      getDialerQueueCount({
+        sessionId: previewSessionIdRef.current,
+        industry,
+        state,
       })
-      .catch(() => {
-        if (!cancelled && !sessionRef.current) {
-          setPreviewCount(0);
-        }
-      })
-      .finally(() => {
-        if (!cancelled && !sessionRef.current) {
-          setIsLoading(false);
-        }
-      });
+        .then((count) => {
+          if (!cancelled && !sessionRef.current) {
+            setPreviewCount(count ?? 0);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && !sessionRef.current) {
+            setPreviewCount(0);
+          }
+        })
+        .finally(() => {
+          if (!cancelled && !sessionRef.current) {
+            setIsLoading(false);
+          }
+        });
+    }, DIALER_PREVIEW_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [industry, sessionId, state, userId]);
 

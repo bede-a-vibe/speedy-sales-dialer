@@ -97,6 +97,7 @@ export function useDialpadCallStatus() {
       { action: "get_call_status", call_id: callId },
       "Unable to fetch Dialpad call status.",
     ),
+    retry: false,
   });
 }
 

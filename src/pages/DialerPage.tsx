@@ -64,6 +64,7 @@ export default function DialerPage() {
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [pendingAutoOutcome, setPendingAutoOutcome] = useState<CallOutcome | null>(null);
+  const [notesFetchEnabled, setNotesFetchEnabled] = useState(false);
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
 
@@ -96,7 +97,22 @@ export default function DialerPage() {
     ? visibleUncalledContacts[currentIndex]
     : null;
 
-  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id);
+  useEffect(() => {
+    setNotesFetchEnabled(false);
+
+    if (!currentContact?.id) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotesFetchEnabled(true);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentContact?.id]);
+
+  const { data: currentContactNotes = [] } = useContactNotes(currentContact?.id, {
+    enabled: notesFetchEnabled,
+    refetchInterval: notesFetchEnabled ? 15000 : false,
+  });
   const latestDialpadSummary = currentContactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = currentContactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
   const stateOptions = AUSTRALIAN_STATE_OPTIONS;
@@ -159,7 +175,10 @@ export default function DialerPage() {
       setIsDialing(false);
       setCurrentIndex(null);
       toast.info("No more leads in queue.");
+      return;
     }
+
+    void ensureBuffer();
   }, [hasDialpadAssignment, queueLeadCount, startQueueSession, user?.id]);
 
   const stopSession = useCallback(() => {
@@ -243,38 +262,39 @@ export default function DialerPage() {
         dialpad_call_id: activeDialpadCallId,
       });
 
-      if (activeDialpadCallId) {
-        await linkDialpadCallLog.mutateAsync({
-          dialpad_call_id: activeDialpadCallId,
-          call_log_id: insertedLog.id,
-        });
-      }
-
-      if (needsPipelineAssignment) {
-        await createPipelineItem.mutateAsync({
-          contact_id: currentContact.id,
-          source_call_log_id: insertedLog.id,
-          pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
-          assigned_user_id: assignedRepId,
-          created_by: user.id,
-          scheduled_for: scheduledFor,
-          notes,
-        });
-      }
-
-      await updateContact.mutateAsync({
-        id: currentContact.id,
-        status: "called",
-        last_outcome: outcomeToLog,
-        is_dnc: outcomeToLog === "dnc",
-      });
+      await Promise.all([
+        activeDialpadCallId
+          ? linkDialpadCallLog.mutateAsync({
+              dialpad_call_id: activeDialpadCallId,
+              call_log_id: insertedLog.id,
+            })
+          : Promise.resolve(),
+        needsPipelineAssignment
+          ? createPipelineItem.mutateAsync({
+              contact_id: currentContact.id,
+              source_call_log_id: insertedLog.id,
+              pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
+              assigned_user_id: assignedRepId,
+              created_by: user.id,
+              scheduled_for: scheduledFor,
+              notes,
+            })
+          : Promise.resolve(),
+        updateContact.mutateAsync({
+          id: currentContact.id,
+          status: "called",
+          last_outcome: outcomeToLog,
+          is_dnc: outcomeToLog === "dnc",
+        }),
+      ]);
 
       setCallCount((prev) => prev + 1);
       setSessionOutcomes((prev) => ({
         ...prev,
         [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
-      await discardContact(currentContact.id, { releaseLock: true });
+      void discardContact(currentContact.id, { releaseLock: true });
+      void ensureBuffer();
 
       toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
       activeDialRequestRef.current = null;
@@ -295,6 +315,8 @@ export default function DialerPage() {
       } else if (currentIndex !== null && currentIndex >= nextLength) {
         setCurrentIndex(nextLength - 1);
       }
+
+      leadAdvanceInFlightRef.current = false;
     } catch {
       leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
@@ -323,17 +345,6 @@ export default function DialerPage() {
     setIsEndingCall(true);
 
     try {
-      const status = await fetchDialpadCallStatus(activeDialpadCallId);
-      setActiveDialpadCallState(status.state);
-
-      if (status.already_ended || status.terminal) {
-        setActiveDialpadCallId(null);
-        setActiveDialpadCallState("hangup");
-        setDialpadPollingBackoffUntil(null);
-        toast.info("This call has already ended.");
-        return;
-      }
-
       const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
       setActiveDialpadCallState(result.state ?? "ending");
 
@@ -355,7 +366,7 @@ export default function DialerPage() {
     } finally {
       setIsEndingCall(false);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, cancelDialpadCall]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
@@ -602,7 +613,7 @@ export default function DialerPage() {
           {!isDialing ? (
             <Button
               onClick={startDialing}
-              disabled={visibleUncalledContacts.length === 0 || isLoading || !hasDialpadAssignment}
+              disabled={queueLeadCount === 0 || isLoading || !hasDialpadAssignment}
               className="px-6 font-semibold"
             >
               <Phone className="mr-2 h-4 w-4" />
