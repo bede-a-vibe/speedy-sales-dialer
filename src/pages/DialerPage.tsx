@@ -199,13 +199,16 @@ export default function DialerPage() {
 
         {/* Session Summary Dialog */}
         <Dialog open={showSummary} onOpenChange={setShowSummary}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Session Summary
-              </DialogTitle>
-            </DialogHeader>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Session Summary
+                </DialogTitle>
+                <DialogDescription>
+                  Review this calling session before closing the summary.
+                </DialogDescription>
+              </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 bg-secondary rounded-lg border border-border">
