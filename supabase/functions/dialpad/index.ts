@@ -572,6 +572,8 @@ async function syncWebhookPayload(params: {
   }
 
   const dialpadCallId = trackedCall.dialpad_call_id;
+  const callInfo = payload.state === "hangup" ? await fetchDialpadCallInfo(dialpadCallId, apiKey) : null;
+  const { talkTimeSeconds, totalDurationSeconds } = extractDialpadDurations(payload, callInfo);
   const summary = typeof payload.recap_summary === "string" && payload.recap_summary.trim()
     ? payload.recap_summary.trim()
     : await fetchDialpadAiRecap(dialpadCallId, apiKey);
@@ -591,6 +593,8 @@ async function syncWebhookPayload(params: {
         dialpad_summary: summary ?? undefined,
         dialpad_transcript: transcript ?? undefined,
         transcript_synced_at: syncedAt ?? undefined,
+        dialpad_talk_time_seconds: talkTimeSeconds ?? undefined,
+        dialpad_total_duration_seconds: totalDurationSeconds ?? undefined,
       });
 
     callLogQuery = trackedCall.call_log_id
@@ -648,6 +652,8 @@ async function syncWebhookPayload(params: {
     sync_status: nextStatus,
     transcript_synced: hasTranscript,
     summary_synced: hasSummary,
+    talk_time_seconds: talkTimeSeconds,
+    total_duration_seconds: totalDurationSeconds,
   };
 }
 

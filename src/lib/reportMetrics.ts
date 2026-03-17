@@ -220,9 +220,13 @@ export function getReportMetrics({
   const setterAppointmentsInRange = setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
   const closerAppointmentsInRange = closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
+  const totalTalkTimeSeconds = filteredCallLogs.reduce((total, log) => total + getTalkTimeSeconds(log), 0);
+  const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
+  const callBacks = outcomeCounts.follow_up;
+
   const repIds = Array.from(
     new Set(
-      bookedItems.flatMap((item) => [item.created_by, item.assigned_user_id]).filter(Boolean),
+      [...bookedItems.flatMap((item) => [item.created_by, item.assigned_user_id]), ...callLogs.map((log) => log.user_id)].filter(Boolean),
     ),
   );
 
@@ -234,21 +238,29 @@ export function getReportMetrics({
       const closerItems = bookedItems.filter(
         (item) => item.assigned_user_id === repId && isInDateRange(item.scheduled_for, from, to),
       );
+      const repCallLogs = callLogs.filter((log) => log.user_id === repId && isInDateRange(log.created_at, from, to));
+      const repPickUps = repCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
+      const repTotalTalkTimeSeconds = repCallLogs.reduce((total, log) => total + getTalkTimeSeconds(log), 0);
 
       return {
         repUserId: repId,
+        dialer: {
+          dials: repCallLogs.length,
+          pickUps: repPickUps,
+          totalTalkTimeSeconds: repTotalTalkTimeSeconds,
+          averageTalkTimePerDialSeconds: repCallLogs.length > 0 ? Math.round(repTotalTalkTimeSeconds / repCallLogs.length) : 0,
+          averageTalkTimePerPickupSeconds: repPickUps > 0 ? Math.round(repTotalTalkTimeSeconds / repPickUps) : 0,
+        },
         setter: buildAppointmentPerformance(setterItems).metrics,
         closer: buildAppointmentPerformance(closerItems).metrics,
       } satisfies RepComparisonRow;
     })
     .sort((a, b) => {
-      const delta = b.setter.appointmentsScheduled - a.setter.appointmentsScheduled;
+      const delta = b.dialer.totalTalkTimeSeconds - a.dialer.totalTalkTimeSeconds;
       if (delta !== 0) return delta;
-      return b.closer.appointmentsScheduled - a.closer.appointmentsScheduled;
+      return b.setter.appointmentsScheduled - a.setter.appointmentsScheduled;
     });
 
-  const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
-  const callBacks = outcomeCounts.follow_up;
   const totalBookingsMade = bookingsMadeInRange.length;
   const newBookings = bookingsMadeInRange.filter(
     (item) => firstBookingIdByContact.get(item.contact_id) === item.id,
@@ -267,6 +279,9 @@ export function getReportMetrics({
       pickUpRate: toPercent(pickUps, filteredCallLogs.length),
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
+      totalTalkTimeSeconds,
+      averageTalkTimePerDialSeconds: filteredCallLogs.length > 0 ? Math.round(totalTalkTimeSeconds / filteredCallLogs.length) : 0,
+      averageTalkTimePerPickupSeconds: pickUps > 0 ? Math.round(totalTalkTimeSeconds / pickUps) : 0,
     },
     bookingsMade: {
       totalBookingsMade,
