@@ -1089,14 +1089,6 @@ export default function DialerPage() {
                 />
               </Suspense>
 
-              <Suspense fallback={<PanelSkeleton height="h-[320px]" />}>
-                <ContactNotesPanel
-                  contactId={currentContact.id}
-                  notes={notes}
-                  onNotesChange={setNotes}
-                  enabled={notesPanelEnabled}
-                />
-              </Suspense>
             </div>
 
             <div className="space-y-4 lg:col-span-2">
