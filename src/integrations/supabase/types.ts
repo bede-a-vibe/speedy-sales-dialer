@@ -108,6 +108,7 @@ export type Database = {
       contacts: {
         Row: {
           business_name: string
+          call_attempt_count: number
           city: string | null
           contact_person: string | null
           created_at: string
@@ -131,6 +132,7 @@ export type Database = {
         }
         Insert: {
           business_name: string
+          call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
           created_at?: string
@@ -154,6 +156,7 @@ export type Database = {
         }
         Update: {
           business_name?: string
+          call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
           created_at?: string
@@ -439,6 +442,10 @@ export type Database = {
           _state?: string
         }
         Returns: Json
+      }
+      get_dialer_queue_count: {
+        Args: { _industry?: string; _session_id: string; _state?: string }
+        Returns: number
       }
       has_role: {
         Args: {
