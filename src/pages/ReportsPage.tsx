@@ -166,10 +166,10 @@ export default function ReportsPage() {
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="mb-4 flex items-center gap-2">
                     <CalendarCheck2 className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Appointment Outcomes</h3>
+                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Setter Appointment Outcomes</h3>
                   </div>
-                  <MetricBarList items={appointmentOutcomeItems} emptyLabel="No resolved appointments in this date range." />
-                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentsScheduled.resolvedAppointments}</p>
+                  <MetricBarList items={appointmentOutcomeItems} emptyLabel="No resolved setter appointments in this date range." />
+                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentsScheduled.resolvedAppointments} · Rescheduled: {metrics.appointmentsScheduled.rescheduled}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-background p-4">
                   <div className="mb-4 flex items-center gap-2">
