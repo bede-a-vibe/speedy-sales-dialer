@@ -169,6 +169,29 @@ export default function DialerPage() {
     }
   }, [uncalledContacts.length, isDialing, currentIndex, stopSession]);
 
+  useEffect(() => {
+    if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+
+    const requestKey = `${currentContact.id}:${currentContact.phone}`;
+    if (activeDialRequestRef.current === requestKey || dialpadCall.isPending) return;
+
+    activeDialRequestRef.current = requestKey;
+
+    dialpadCall
+      .mutateAsync({
+        phone: currentContact.phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+      })
+      .then(() => {
+        toast.success(`Calling ${currentContact.phone} through Dialpad`);
+      })
+      .catch((error) => {
+        activeDialRequestRef.current = null;
+        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+        toast.error(message);
+      });
+  }, [isDialing, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
+
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
