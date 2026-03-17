@@ -1,12 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
 
-type PipelineInsert = TablesInsert<"pipeline_items">;
-type PipelineUpdate = TablesUpdate<"pipeline_items">;
+export interface PipelineItemInsert {
+  contact_id: string;
+  source_call_log_id?: string | null;
+  pipeline_type: PipelineType;
+  assigned_user_id: string;
+  created_by: string;
+  scheduled_for?: string | null;
+  notes?: string;
+  status?: PipelineStatus;
+}
+
+export interface PipelineItemUpdate {
+  id: string;
+  assigned_user_id?: string;
+  scheduled_for?: string | null;
+  status?: PipelineStatus;
+  notes?: string;
+  completed_at?: string | null;
+}
 
 export interface PipelineItemWithRelations {
   id: string;
@@ -98,8 +114,13 @@ export function useCreatePipelineItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: PipelineInsert) => {
-      const { error } = await supabase.from("pipeline_items").insert(payload);
+    mutationFn: async (payload: PipelineItemInsert) => {
+      const { error } = await supabase.from("pipeline_items").insert({
+        notes: "",
+        status: "open",
+        ...payload,
+      });
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -112,7 +133,7 @@ export function useUpdatePipelineItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: PipelineUpdate & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: PipelineItemUpdate) => {
       const { error } = await supabase.from("pipeline_items").update(updates).eq("id", id);
       if (error) throw error;
     },

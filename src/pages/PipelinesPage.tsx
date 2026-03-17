@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
-import { format, isToday, isPast } from "date-fns";
+import { format, isPast, isToday } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 import { CalendarClock, Check, Clock3, Phone, UserRound } from "lucide-react";
+import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,7 +11,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { usePipelineItems, useSalesReps, useUpdatePipelineItem, type PipelineItemWithRelations } from "@/hooks/usePipelineItems";
+import {
+  usePipelineItems,
+  useSalesReps,
+  useUpdatePipelineItem,
+  type PipelineItemWithRelations,
+  type SalesRepOption,
+} from "@/hooks/usePipelineItems";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -32,7 +40,7 @@ function PipelineCard({
 }: {
   item: PipelineItemWithRelations;
   repName: string;
-  reps: { user_id: string; display_name: string | null; email: string | null }[];
+  reps: SalesRepOption[];
   onComplete: (id: string) => Promise<void>;
   onAssign: (id: string, userId: string) => Promise<void>;
   onReschedule?: (id: string, iso: string) => Promise<void>;
@@ -45,11 +53,13 @@ function PipelineCard({
   const today = !!scheduledDate && isToday(scheduledDate);
 
   return (
-    <div className={cn(
-      "rounded-lg border p-4 flex flex-col gap-4 bg-card",
-      overdue && "border-destructive/40 bg-destructive/5",
-      today && "border-primary/40 bg-primary/5"
-    )}>
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-lg border bg-card p-4",
+        overdue && "border-destructive/40 bg-destructive/5",
+        today && "border-primary/40 bg-primary/5"
+      )}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
@@ -57,7 +67,10 @@ function PipelineCard({
             {item.contacts?.contact_person || "No contact"} · {item.contacts?.industry || "Unknown industry"}
           </p>
           {item.notes && <p className="text-xs italic text-muted-foreground">“{item.notes}”</p>}
-          <a href={`tel:${item.contacts?.phone || ""}`} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          <a
+            href={`tel:${item.contacts?.phone || ""}`}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
             <Phone className="h-3 w-3" /> {item.contacts?.phone}
           </a>
         </div>
@@ -77,8 +90,8 @@ function PipelineCard({
       </div>
 
       <div className="flex flex-col gap-2 lg:flex-row">
-        <Select defaultValue={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>
-          <SelectTrigger className="w-full lg:w-[240px] bg-background">
+        <Select value={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>
+          <SelectTrigger className="w-full bg-background lg:w-[240px]">
             <SelectValue placeholder="Assign rep" />
           </SelectTrigger>
           <SelectContent>
@@ -114,7 +127,7 @@ function PipelineCard({
               type="time"
               value={rescheduleTime}
               onChange={(event) => setRescheduleTime(event.target.value)}
-              className="w-full sm:w-[140px] bg-background"
+              className="w-full bg-background sm:w-[140px]"
             />
             <Button
               variant="secondary"
@@ -137,7 +150,8 @@ function PipelineCard({
 }
 
 export default function PipelinesPage() {
-  const [tab, setTab] = useState<"follow_up" | "booked">("follow_up");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "booked" ? "booked" : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked");
   const { data: reps = [] } = useSalesReps();
@@ -149,15 +163,30 @@ export default function PipelinesPage() {
   );
 
   const handleComplete = async (id: string) => {
-    await updatePipelineItem.mutateAsync({ id, status: "completed" });
+    try {
+      await updatePipelineItem.mutateAsync({ id, status: "completed" });
+      toast.success("Pipeline item completed.");
+    } catch {
+      toast.error("Failed to complete pipeline item.");
+    }
   };
 
   const handleAssign = async (id: string, userId: string) => {
-    await updatePipelineItem.mutateAsync({ id, assigned_user_id: userId });
+    try {
+      await updatePipelineItem.mutateAsync({ id, assigned_user_id: userId });
+      toast.success("Rep updated.");
+    } catch {
+      toast.error("Failed to update rep.");
+    }
   };
 
   const handleReschedule = async (id: string, iso: string) => {
-    await updatePipelineItem.mutateAsync({ id, scheduled_for: iso });
+    try {
+      await updatePipelineItem.mutateAsync({ id, scheduled_for: iso });
+      toast.success("Follow-up rescheduled.");
+    } catch {
+      toast.error("Failed to reschedule follow-up.");
+    }
   };
 
   const renderItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
@@ -200,7 +229,7 @@ export default function PipelinesPage() {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as "follow_up" | "booked") }>
+        <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>
             <TabsTrigger value="follow_up">Follow-ups</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
