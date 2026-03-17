@@ -229,6 +229,7 @@ export default function DialerPage() {
       toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
       activeDialRequestRef.current = null;
       setActiveDialpadCallId(null);
+      setActiveDialpadCallState(null);
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
