@@ -151,6 +151,7 @@ export default function DialerPage() {
     setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(user?.id || "");
     setActiveDialpadCallId(null);
+    setActiveDialpadCallState(null);
     activeDialRequestRef.current = null;
     const nextIdx = currentIndex + 1;
     if (nextIdx < uncalledContacts.length) {
