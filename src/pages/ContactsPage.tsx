@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
@@ -10,6 +10,7 @@ import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
@@ -17,6 +18,8 @@ import { getAppointmentOutcomeLabel } from "@/lib/appointments";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
+
+const CONTACTS_PER_PAGE = 100;
 
 const AUSTRALIAN_STATE_OPTIONS = [
   { value: "all", label: "All States" },
@@ -62,6 +65,7 @@ export default function ContactsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
+  const [page, setPage] = useState(1);
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const { data: callLogs = [] } = useCallLogs();
@@ -70,18 +74,38 @@ export default function ContactsPage() {
   const updateContact = useUpdateContact();
   const queryClient = useQueryClient();
 
-  const filtered = contacts.filter((c) => {
-    const normalizedState = c.state?.trim().toLowerCase() ?? "";
-    const matchesSearch =
-      !search ||
-      c.business_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.contact_person?.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      c.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-    const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
-    return matchesSearch && matchesStatus && matchesState;
-  });
+  const filtered = useMemo(() => {
+    return contacts.filter((c) => {
+      const normalizedState = c.state?.trim().toLowerCase() ?? "";
+      const normalizedSearch = search.toLowerCase();
+      const matchesSearch =
+        !search ||
+        c.business_name.toLowerCase().includes(normalizedSearch) ||
+        c.contact_person?.toLowerCase().includes(normalizedSearch) ||
+        c.phone.includes(search) ||
+        c.email?.toLowerCase().includes(normalizedSearch);
+      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+      const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
+      return matchesSearch && matchesStatus && matchesState;
+    });
+  }, [contacts, search, statusFilter, stateFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PER_PAGE));
+  const paginatedContacts = useMemo(() => {
+    const start = (page - 1) * CONTACTS_PER_PAGE;
+    return filtered.slice(start, start + CONTACTS_PER_PAGE);
+  }, [filtered, page]);
+
+  useEffect(() => {
+    setPage(1);
+    setExpandedId(null);
+  }, [search, industryFilter, statusFilter, stateFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const getContactLogs = (contactId: string) => callLogs.filter((l: any) => l.contact_id === contactId);
   const getContactNotes = (contactId: string) => contactNotes.filter((note) => note.contact_id === contactId);
@@ -177,7 +201,7 @@ export default function ContactsPage() {
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">{filtered.length} contacts</span>
+            <span className="text-xs font-mono text-muted-foreground">{filtered.length} contacts · page {page} of {totalPages}</span>
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
@@ -189,137 +213,169 @@ export default function ContactsPage() {
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
-                  <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
-                  <th className="w-24 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.slice(0, 200).map((contact) => {
-                  const logs = getContactLogs(contact.id);
-                  const notesForContact = getContactNotes(contact.id);
-                  const isExpanded = expandedId === contact.id;
+          <>
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
+                    <th className="w-24 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedContacts.map((contact) => {
+                    const logs = getContactLogs(contact.id);
+                    const notesForContact = getContactNotes(contact.id);
+                    const isExpanded = expandedId === contact.id;
 
-                  return (
-                    <React.Fragment key={contact.id}>
-                      <tr className="cursor-pointer border-b border-border transition-colors hover:bg-muted/30" onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-foreground">{contact.business_name}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
-                        <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${contact.status === "called" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {contact.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            {isAdmin && (
-                              <button onClick={(e) => deleteContact(contact.id, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" title="Delete">
-                                <Trash2 className="h-3.5 w-3.5" />
+                    return (
+                      <React.Fragment key={contact.id}>
+                        <tr className="cursor-pointer border-b border-border transition-colors hover:bg-muted/30" onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground">{contact.business_name}</p>
+                            <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
+                          <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${contact.status === "called" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                              {contact.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
+                                <Pencil className="h-3.5 w-3.5" />
                               </button>
-                            )}
-                            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={6} className="bg-muted/20 px-4 py-3">
-                            <div className="space-y-4">
-                              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                                {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
-                                {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
-                                {(contact.city || contact.state) && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}</span>}
-                                <a href={`tel:${contact.phone}`} className="ml-auto flex items-center gap-1 transition-colors hover:text-foreground"><Phone className="h-3 w-3" /> Call Now</a>
-                              </div>
-
-                              {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
-                                <div className="rounded border border-border bg-card px-3 py-3">
-                                  <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                    <CalendarClock className="h-3 w-3" /> Appointment Status
-                                  </div>
-                                  <div className="space-y-1 text-sm">
-                                    {contact.latest_appointment_scheduled_for && (
-                                      <p className="text-foreground">Day: <span className="font-mono">{format(new Date(contact.latest_appointment_scheduled_for), "MMM d, yyyy")}</span></p>
-                                    )}
-                                    {contact.latest_appointment_outcome && (
-                                      <p className="text-foreground">Outcome: <span className="text-muted-foreground">{getAppointmentOutcomeLabel(contact.latest_appointment_outcome)}</span></p>
-                                    )}
-                                    {contact.latest_appointment_recorded_at && (
-                                      <p className="text-xs text-muted-foreground">Updated {format(new Date(contact.latest_appointment_recorded_at), "MMM d, h:mm a")}</p>
-                                    )}
-                                  </div>
-                                </div>
+                              {isAdmin && (
+                                <button onClick={(e) => deleteContact(contact.id, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" title="Delete">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               )}
-
-                              {logs.length > 0 ? (
-                                <div>
-                                  <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Call History ({logs.length})</p>
-                                  <div className="space-y-2">
-                                    {logs.map((log: any) => {
-                                      const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
-                                      const hasSyncedSummary = Boolean(log.dialpad_summary);
-                                      const hasSyncedTranscript = Boolean(log.dialpad_transcript);
-                                      const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
-                                      return (
-                                        <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
-                                          <div className="flex items-center gap-3 text-xs">
-                                            <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
-                                            <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
-                                            {syncPending && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sync pending</span>}
-                                            {hasSyncedSummary && <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">Summary</span>}
-                                            {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
-                                            <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
-                                          </div>
-                                          {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
-                                          {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ) : <p className="text-xs text-muted-foreground">No call history.</p>}
-
-                              <div>
-                                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Contact Notes ({notesForContact.length})</p>
-                                {notesForContact.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {notesForContact.map((note) => (
-                                      <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
-                                        <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                          <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">{NOTE_SOURCE_LABELS[note.source]}</span>
-                                          <span className="font-mono">{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
-                                        </div>
-                                        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.content}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : <p className="text-xs text-muted-foreground">No contact notes yet.</p>}
-                              </div>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={6} className="bg-muted/20 px-4 py-3">
+                              <div className="space-y-4">
+                                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                                  {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
+                                  {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
+                                  {(contact.city || contact.state) && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[contact.city, contact.state].filter(Boolean).join(", ")}</span>}
+                                  <a href={`tel:${contact.phone}`} className="ml-auto flex items-center gap-1 transition-colors hover:text-foreground"><Phone className="h-3 w-3" /> Call Now</a>
+                                </div>
+
+                                {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
+                                  <div className="rounded border border-border bg-card px-3 py-3">
+                                    <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                      <CalendarClock className="h-3 w-3" /> Appointment Status
+                                    </div>
+                                    <div className="space-y-1 text-sm">
+                                      {contact.latest_appointment_scheduled_for && (
+                                        <p className="text-foreground">Day: <span className="font-mono">{format(new Date(contact.latest_appointment_scheduled_for), "MMM d, yyyy")}</span></p>
+                                      )}
+                                      {contact.latest_appointment_outcome && (
+                                        <p className="text-foreground">Outcome: <span className="text-muted-foreground">{getAppointmentOutcomeLabel(contact.latest_appointment_outcome)}</span></p>
+                                      )}
+                                      {contact.latest_appointment_recorded_at && (
+                                        <p className="text-xs text-muted-foreground">Updated {format(new Date(contact.latest_appointment_recorded_at), "MMM d, h:mm a")}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {logs.length > 0 ? (
+                                  <div>
+                                    <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Call History ({logs.length})</p>
+                                    <div className="space-y-2">
+                                      {logs.map((log: any) => {
+                                        const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
+                                        const hasSyncedSummary = Boolean(log.dialpad_summary);
+                                        const hasSyncedTranscript = Boolean(log.dialpad_transcript);
+                                        const syncPending = Boolean(log.dialpad_call_id) && !log.transcript_synced_at;
+                                        return (
+                                          <div key={log.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
+                                            <div className="flex items-center gap-3 text-xs">
+                                              <div className={`h-2 w-2 rounded-full ${config?.bgClass || "bg-muted-foreground"}`} />
+                                              <span className="font-medium text-foreground">{config?.label || log.outcome}</span>
+                                              {syncPending && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sync pending</span>}
+                                              {hasSyncedSummary && <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">Summary</span>}
+                                              {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
+                                              <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
+                                            </div>
+                                            {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
+                                            {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : <p className="text-xs text-muted-foreground">No call history.</p>}
+
+                                <div>
+                                  <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Contact Notes ({notesForContact.length})</p>
+                                  {notesForContact.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {notesForContact.map((note) => (
+                                        <div key={note.id} className="rounded border border-border bg-card px-3 py-3">
+                                          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                            <span className="rounded bg-secondary px-2 py-1 text-secondary-foreground">{NOTE_SOURCE_LABELS[note.source]}</span>
+                                            <span className="font-mono">{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
+                                          </div>
+                                          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.content}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : <p className="text-xs text-muted-foreground">No contact notes yet.</p>}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage((current) => Math.max(1, current - 1));
+                    }}
+                    className={page === 1 ? "pointer-events-none opacity-50" : undefined}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLink href="#" isActive>
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage((current) => Math.min(totalPages, current + 1));
+                    }}
+                    className={page === totalPages ? "pointer-events-none opacity-50" : undefined}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </>
         )}
 
         <Dialog open={!!editContact} onOpenChange={(open) => !open && setEditContact(null)}>
