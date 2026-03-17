@@ -70,6 +70,9 @@ function buildRepStats(
       current.closed += 1;
       current.showed += 1;
     }
+    if (item.appointment_outcome === "showed_verbal_commitment") {
+      current.showed += 1;
+    }
     if (item.appointment_outcome === "showed_no_close") {
       current.noClose += 1;
       current.showed += 1;
