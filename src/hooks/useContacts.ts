@@ -121,6 +121,16 @@ export function useUncalledContacts(industry?: string, state?: string) {
   });
 }
 
+export function useDialerContacts(industry?: string, state?: string, hiddenCount = 0) {
+  const limit = Math.min(DIALER_QUEUE_PAGE_SIZE + Math.max(hiddenCount, 0), DIALER_QUEUE_MAX_SIZE);
+
+  return useQuery({
+    queryKey: ["dialer-contacts", industry, state, limit],
+    queryFn: () => fetchDialerContacts({ industry, state, status: "uncalled", limit }),
+    staleTime: 15_000,
+  });
+}
+
 export function useUpdateContact() {
   const queryClient = useQueryClient();
   return useMutation({

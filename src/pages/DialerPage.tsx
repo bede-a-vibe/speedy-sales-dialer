@@ -565,7 +565,7 @@ export default function DialerPage() {
 
           <div className="flex flex-1 items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
-              {isLoading ? "..." : visibleUncalledContacts.length} leads in queue
+              {isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {myDialpadSettings ? (
               <span className="text-xs font-mono text-primary">

@@ -30,6 +30,33 @@ export function useCallLogs() {
   });
 }
 
+export function useTodayCallCount(userId?: string) {
+  const today = new Date();
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  return useQuery({
+    queryKey: ["today-call-count", userId, startOfDay.toISOString().slice(0, 10)],
+    queryFn: async () => {
+      if (!userId) return 0;
+
+      const { count, error } = await supabase
+        .from("call_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", startOfDay.toISOString())
+        .lte("created_at", endOfDay.toISOString());
+
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!userId,
+    refetchInterval: SYNC_REFRESH_INTERVAL_MS,
+  });
+}
+
 export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) {
   return useInfiniteQuery({
     queryKey: ["contact-call-logs", contactId, pageSize],
