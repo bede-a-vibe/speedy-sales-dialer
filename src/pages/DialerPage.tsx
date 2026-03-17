@@ -307,6 +307,9 @@ export default function DialerPage() {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Manual Dial</DialogTitle>
+                <DialogDescription>
+                  Place a Dialpad call directly to any phone number.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <Input
@@ -315,19 +318,39 @@ export default function DialerPage() {
                   value={manualPhone}
                   onChange={(e) => setManualPhone(e.target.value)}
                   className="font-mono text-lg tracking-wider"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && manualPhone.trim()) {
-                      window.open(`tel:${manualPhone.trim()}`, "_self");
-                      toast.success(`Dialing ${manualPhone.trim()}`);
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter" && manualPhone.trim() && myDialpadSettings?.dialpad_user_id) {
+                      try {
+                        await dialpadCall.mutateAsync({
+                          phone: manualPhone.trim(),
+                          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                        });
+                        toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
+                        setManualOpen(false);
+                        setManualPhone("");
+                      } catch (error) {
+                        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+                        toast.error(message);
+                      }
                     }
                   }}
                 />
                 <Button
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                  disabled={!manualPhone.trim()}
-                  onClick={() => {
-                    window.open(`tel:${manualPhone.trim()}`, "_self");
-                    toast.success(`Dialing ${manualPhone.trim()}`);
+                  disabled={!manualPhone.trim() || !myDialpadSettings?.dialpad_user_id || dialpadCall.isPending}
+                  onClick={async () => {
+                    try {
+                      await dialpadCall.mutateAsync({
+                        phone: manualPhone.trim(),
+                        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                      });
+                      toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
+                      setManualOpen(false);
+                      setManualPhone("");
+                    } catch (error) {
+                      const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+                      toast.error(message);
+                    }
                   }}
                 >
                   <Phone className="h-4 w-4 mr-2" />
