@@ -705,6 +705,7 @@ export default function DialerPage() {
     setIsEndingCall(false);
     leadAdvanceInFlightRef.current = false;
     setPendingAutoOutcome(null);
+    setCooldownSecondsLeft(null);
 
     dialpadCall
       .mutateAsync({
