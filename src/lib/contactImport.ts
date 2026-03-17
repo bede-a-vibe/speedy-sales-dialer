@@ -13,12 +13,14 @@ export interface ParsedContactUploadFile {
 
 export interface PreparedContactImport {
   contacts: ContactImportInsert[];
+  contactNotes: ContactNoteImportInsert[];
   headers: string[];
   missingRequired: string[];
 }
 
 type ContactImportInsert = Pick<
   TablesInsert<"contacts">,
+  | "id"
   | "business_name"
   | "phone"
   | "industry"
@@ -31,11 +33,21 @@ type ContactImportInsert = Pick<
   | "uploaded_by"
 >;
 
+type ContactNoteImportInsert = Pick<
+  TablesInsert<"contact_notes">,
+  "contact_id" | "content" | "created_by" | "source"
+>;
+
 const REQUIRED_FIELDS = ["business_name", "phone", "industry"] as const;
 const OPTIONAL_FIELDS = ["contact_person", "email", "website", "gmb_link", "city", "state"] as const;
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS] as const;
+const EXTRA_NOTE_FIELDS = ["subtype", "full_address", "rating"] as const;
 
-const FIELD_ALIASES: Record<(typeof ALL_FIELDS)[number], string[]> = {
+type ContactField = (typeof ALL_FIELDS)[number];
+type ExtraNoteField = (typeof EXTRA_NOTE_FIELDS)[number];
+type MappableField = ContactField | ExtraNoteField;
+
+const FIELD_ALIASES: Record<MappableField, string[]> = {
   business_name: ["business name", "business", "company", "company name", "name"],
   phone: ["phone", "phone number", "telephone", "tel", "mobile"],
   industry: ["industry", "category", "type", "sector", "subtypes"],
@@ -45,6 +57,9 @@ const FIELD_ALIASES: Record<(typeof ALL_FIELDS)[number], string[]> = {
   gmb_link: ["gmb link", "gmb", "google my business", "google business", "gmb url", "google maps", "location link", "location_link"],
   city: ["city", "town"],
   state: ["state", "province", "region"],
+  subtype: ["subtype", "sub type"],
+  full_address: ["full address", "full_address", "address", "street address"],
+  rating: ["rating", "review rating", "stars", "star rating"],
 };
 
 const SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
@@ -76,10 +91,10 @@ function normalizeCellValue(value: unknown): string {
   return String(value).trim();
 }
 
-function mapColumn(header: string): (typeof ALL_FIELDS)[number] | null {
+function mapColumn(header: string): MappableField | null {
   const normalized = normalizeText(header);
 
-  for (const field of ALL_FIELDS) {
+  for (const field of [...ALL_FIELDS, ...EXTRA_NOTE_FIELDS] as const) {
     if (normalized === field) {
       return field;
     }
@@ -156,9 +171,23 @@ export async function parseContactUploadFile(file: File): Promise<ParsedContactU
   return isSpreadsheetFile(file) ? parseSpreadsheetFile(file) : parseCsvFile(file);
 }
 
+function buildImportedMetadataNote(extraFields: Record<ExtraNoteField, string | null>) {
+  const labeledValues = [
+    ["Subtype", extraFields.subtype],
+    ["Full address", extraFields.full_address],
+    ["Rating", extraFields.rating],
+  ].filter(([, value]) => value);
+
+  if (labeledValues.length === 0) {
+    return null;
+  }
+
+  return ["Imported builder metadata", ...labeledValues.map(([label, value]) => `${label}: ${value}`)].join("\n");
+}
+
 export function prepareContactImport(rows: ImportRow[], userId: string): PreparedContactImport {
   const headers = rows[0] ? Object.keys(rows[0]) : [];
-  const mapping: Partial<Record<string, (typeof ALL_FIELDS)[number]>> = {};
+  const mapping: Partial<Record<string, MappableField>> = {};
 
   for (const header of headers) {
     const field = mapColumn(header);
@@ -171,12 +200,12 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
   const missingRequired = REQUIRED_FIELDS.filter((field) => !mappedFields.includes(field));
 
   if (missingRequired.length > 0) {
-    return { contacts: [], headers, missingRequired };
+    return { contacts: [], contactNotes: [], headers, missingRequired };
   }
 
-  const contacts = rows
+  const preparedRows = rows
     .map((row) => {
-      const contact: Record<(typeof ALL_FIELDS)[number], string | null> = {
+      const contact: Record<ContactField, string | null> = {
         business_name: null,
         phone: null,
         industry: null,
@@ -187,20 +216,53 @@ export function prepareContactImport(rows: ImportRow[], userId: string): Prepare
         city: null,
         state: null,
       };
+      const extraFields: Record<ExtraNoteField, string | null> = {
+        subtype: null,
+        full_address: null,
+        rating: null,
+      };
 
       for (const [header, dbField] of Object.entries(mapping)) {
         if (!dbField) continue;
-        const value = normalizeCellValue(row[header]);
-        contact[dbField] = value || null;
+        const value = normalizeCellValue(row[header]) || null;
+
+        if ((ALL_FIELDS as readonly string[]).includes(dbField)) {
+          contact[dbField as ContactField] = value;
+        } else {
+          extraFields[dbField as ExtraNoteField] = value;
+        }
       }
 
-      return {
-        ...contact,
-        state: normalizeState(contact.state),
-        uploaded_by: userId,
-      } as ContactImportInsert;
-    })
-    .filter((contact) => contact.business_name && contact.phone && contact.industry);
+      if (!contact.business_name || !contact.phone || !contact.industry) {
+        return null;
+      }
 
-  return { contacts, headers, missingRequired: [] };
+      const contactId = crypto.randomUUID();
+      const noteContent = buildImportedMetadataNote(extraFields);
+
+      return {
+        contact: {
+          id: contactId,
+          ...contact,
+          state: normalizeState(contact.state),
+          uploaded_by: userId,
+        } as ContactImportInsert,
+        contactNote: noteContent
+          ? ({
+              contact_id: contactId,
+              content: noteContent,
+              created_by: userId,
+              source: "manual",
+            } as ContactNoteImportInsert)
+          : null,
+      };
+    })
+    .filter((row): row is { contact: ContactImportInsert; contactNote: ContactNoteImportInsert | null } => row !== null);
+
+  return {
+    contacts: preparedRows.map((row) => row.contact),
+    contactNotes: preparedRows.flatMap((row) => (row.contactNote ? [row.contactNote] : [])),
+    headers,
+    missingRequired: [],
+  };
 }
