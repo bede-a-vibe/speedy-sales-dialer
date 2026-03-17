@@ -144,7 +144,7 @@ export function getReportMetrics({
   }
 
   const bookingsMadeInRange = bookingsForCreatedView.filter((item) => isInDateRange(item.created_at, from, to));
-  const appointmentsScheduledInRange = bookingsForScheduledView.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const appointmentsScheduledInRange = appointmentsForSetterView.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
