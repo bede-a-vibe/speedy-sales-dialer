@@ -777,19 +777,41 @@ export default function DialerPage() {
     };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
 
+  // Start 30-second countdown when call ends (terminal state) and no outcome selected
   useEffect(() => {
-    if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) return;
+    if (!isDialing || isSessionPaused || !currentContact || selectedOutcome || pendingAutoOutcome) {
+      if (!selectedOutcome && !pendingAutoOutcome) return;
+      // Clear countdown if user selects an outcome
+      setCooldownSecondsLeft(null);
+      return;
+    }
 
-    // Don't auto-advance if there's an active Dialpad call that hasn't ended
-    // The call may be ringing, connected, or in progress — let the rep handle it
-    if (activeDialpadCallId && activeDialpadCallState !== "hangup") return;
+    // Don't start countdown if there's an active Dialpad call that hasn't ended
+    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+      setCooldownSecondsLeft(null);
+      return;
+    }
 
-    const timeoutId = window.setTimeout(() => {
-      setPendingAutoOutcome("no_answer");
-    }, 30000);
-
-    return () => window.clearTimeout(timeoutId);
+    // Start the countdown at 30
+    setCooldownSecondsLeft(30);
   }, [activeDialpadCallId, activeDialpadCallState, currentContact, isDialing, isSessionPaused, pendingAutoOutcome, selectedOutcome]);
+
+  // Tick the countdown every second
+  useEffect(() => {
+    if (cooldownSecondsLeft === null || cooldownSecondsLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setCooldownSecondsLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          setPendingAutoOutcome("no_answer");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownSecondsLeft]);
 
   useEffect(() => {
     if (!pendingAutoOutcome || !currentContact || leadAdvanceInFlightRef.current) return;
