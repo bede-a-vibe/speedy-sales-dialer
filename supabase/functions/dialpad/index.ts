@@ -6,6 +6,39 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function normalizePhoneNumberToE164(phoneNumber: string, defaultCountryCode = "61") {
+  const trimmed = phoneNumber.trim();
+
+  if (!trimmed) {
+    throw new Error("Phone number is required");
+  }
+
+  if (trimmed.startsWith("+")) {
+    const digits = trimmed.slice(1).replace(/\D/g, "");
+    if (!digits) throw new Error("Phone number is invalid");
+    return `+${digits}`;
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) {
+    throw new Error("Phone number is invalid");
+  }
+
+  if (digits.startsWith("00")) {
+    return `+${digits.slice(2)}`;
+  }
+
+  if (digits.startsWith("0")) {
+    return `+${defaultCountryCode}${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith(defaultCountryCode)) {
+    return `+${digits}`;
+  }
+
+  return `+${digits}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
