@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
     );
 
     const contactsToInsert: Array<{
+      id: string;
       business_name: string;
       contact_person: string | null;
       phone: string;
@@ -145,6 +146,12 @@ Deno.serve(async (req) => {
       city: string | null;
       state: string | null;
       uploaded_by: string;
+    }> = [];
+    const contactNotesToInsert: Array<{
+      contact_id: string;
+      content: string;
+      created_by: string;
+      source: "manual";
     }> = [];
 
     let skippedDuplicates = 0;
@@ -158,6 +165,9 @@ Deno.serve(async (req) => {
       const website = normalize(row.site) || null;
       const gmbLink = normalize(row.location_link) || null;
       const city = normalize(row.city) || null;
+      const fullAddress = normalize(row.full_address) || null;
+      const rating = normalize(row.rating) || null;
+      const subtype = normalize(row.subtype) || normalize(row.subtypes) || null;
       const stateRaw = normalize(row.state).toLowerCase();
       const state = (STATE_ALIASES[stateRaw] ?? normalize(row.state)) || null;
       const contactPerson = normalize(row.email_1_full_name) || null;
@@ -174,7 +184,9 @@ Deno.serve(async (req) => {
       }
 
       seen.add(key);
+      const contactId = crypto.randomUUID();
       contactsToInsert.push({
+        id: contactId,
         business_name: businessName,
         contact_person: contactPerson,
         phone,
@@ -186,10 +198,22 @@ Deno.serve(async (req) => {
         state,
         uploaded_by: user.id,
       });
+
+      const metadataNote = buildImportedMetadataNote(subtype, fullAddress, rating);
+      if (metadataNote) {
+        contactNotesToInsert.push({
+          contact_id: contactId,
+          content: metadataNote,
+          created_by: user.id,
+          source: "manual",
+        });
+      }
     }
 
     let inserted = 0;
+    let metadataNotesInserted = 0;
     const chunkSize = 200;
+    const notesByContactId = new Map(contactNotesToInsert.map((note) => [note.contact_id, note]));
 
     for (let index = 0; index < contactsToInsert.length; index += chunkSize) {
       const chunk = contactsToInsert.slice(index, index + chunkSize);
@@ -198,10 +222,24 @@ Deno.serve(async (req) => {
         throw error;
       }
       inserted += chunk.length;
+
+      const chunkNotes = chunk.flatMap((contact) => {
+        const note = notesByContactId.get(contact.id);
+        return note ? [note] : [];
+      });
+
+      if (chunkNotes.length > 0) {
+        const { error: noteError } = await adminClient.from("contact_notes").insert(chunkNotes);
+        if (noteError) {
+          throw noteError;
+        }
+        metadataNotesInserted += chunkNotes.length;
+      }
     }
 
     return jsonResponse({
       inserted,
+      metadata_notes_inserted: metadataNotesInserted,
       skipped_duplicates: skippedDuplicates,
       skipped_invalid: skippedInvalid,
       total_rows: rows.length,
