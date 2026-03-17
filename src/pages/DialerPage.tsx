@@ -58,6 +58,7 @@ export default function DialerPage() {
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
+  const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry, stateFilter);
