@@ -37,6 +37,8 @@ export const INDUSTRIES = [
   "Plumbers",
   "HVAC",
   "Electricians",
+  "Builders",
+  "Renovators",
   "Roofers",
   "Landscaping",
   "Pest Control",
@@ -45,6 +47,45 @@ export const INDUSTRIES = [
   "Chiropractors",
   "Real Estate",
 ];
+
+const INDUSTRY_ALIASES: Record<string, string> = {
+  plumbers: "Plumbers",
+  plumber: "Plumbers",
+  hvac: "HVAC",
+  "air conditioning contractor": "HVAC",
+  "hvac contractor": "HVAC",
+  "heating contractor": "HVAC",
+  "nhà thầu hvac": "HVAC",
+  electricians: "Electricians",
+  electrician: "Electricians",
+  electricista: "Electricians",
+  "electrical installation service": "Electricians",
+  builders: "Builders",
+  builder: "Builders",
+  "home builder": "Builders",
+  "custom home builder": "Builders",
+  "modular home builder": "Builders",
+  "construction company": "Builders",
+  "deck builder": "Builders",
+  constructor: "Builders",
+  construtora: "Builders",
+  renovators: "Renovators",
+  renovator: "Renovators",
+  remodeler: "Renovators",
+  "kitchen remodeler": "Renovators",
+  "bathroom remodeler": "Renovators",
+};
+
+function normalizeIndustryKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function normalizeIndustryValue(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return INDUSTRY_ALIASES[normalizeIndustryKey(trimmed)] ?? trimmed;
+}
 
 export const OUTCOME_CONFIG: Record<
   CallOutcome,
