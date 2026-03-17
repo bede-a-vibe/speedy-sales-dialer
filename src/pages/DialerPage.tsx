@@ -121,7 +121,8 @@ export default function DialerPage() {
   }, [requiresAnySchedule, requiresPipelineAssignment, user?.id]);
 
   const startDialing = useCallback(() => {
-    if (uncalledContacts.length === 0) return;
+    if (visibleUncalledContacts.length === 0) return;
+    setSessionHiddenContactIds([]);
     setCurrentIndex(0);
     setIsDialing(true);
     setSelectedOutcome(null);
@@ -135,7 +136,7 @@ export default function DialerPage() {
     setShowSummary(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
-  }, [uncalledContacts.length, user?.id]);
+  }, [visibleUncalledContacts.length, user?.id]);
 
   const stopSession = useCallback(() => {
     if (callCount > 0) {
