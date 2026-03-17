@@ -135,7 +135,9 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pipeline_items")
-        .select("id, contact_id, created_at, scheduled_for, appointment_outcome, outcome_recorded_at, status")
+        .select(
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status",
+        )
         .eq("pipeline_type", "booked")
         .order("created_at", { ascending: false });
 
