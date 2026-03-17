@@ -250,6 +250,18 @@ export default function DialerPage() {
     user,
   ]);
 
+  const cancelActiveCall = useCallback(async () => {
+    if (!activeDialpadCallId) return;
+
+    try {
+      await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      toast.success("Call cancellation requested.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
+      toast.error(message);
+    }
+  }, [activeDialpadCallId, cancelDialpadCall]);
+
   useEffect(() => {
     if (!isDialing || !currentContact) return;
 
