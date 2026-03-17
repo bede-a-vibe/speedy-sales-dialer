@@ -5,7 +5,7 @@ import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Tra
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCallLogs } from "@/hooks/useCallLogs";
-import { useAllContactNotes } from "@/hooks/useContactNotes";
+import { useContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ export default function ContactsPage() {
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const { data: callLogs = [] } = useCallLogs();
-  const { data: contactNotes = [] } = useAllContactNotes();
+  const { data: currentContactNotes = [] } = useContactNotes(expandedId ?? undefined);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const queryClient = useQueryClient();
@@ -108,7 +108,7 @@ export default function ContactsPage() {
   }, [page, totalPages]);
 
   const getContactLogs = (contactId: string) => callLogs.filter((l: any) => l.contact_id === contactId);
-  const getContactNotes = (contactId: string) => contactNotes.filter((note) => note.contact_id === contactId);
+  const getContactNotes = (contactId: string) => (expandedId === contactId ? currentContactNotes : []);
 
   const openEdit = (contact: Contact, e: React.MouseEvent) => {
     e.stopPropagation();
