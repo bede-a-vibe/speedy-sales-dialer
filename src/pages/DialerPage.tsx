@@ -280,6 +280,7 @@ export default function DialerPage() {
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
+    setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
     setPendingAutoOutcome(null);
     setCooldownSecondsLeft(null);
