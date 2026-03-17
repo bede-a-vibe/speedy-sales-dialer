@@ -38,18 +38,13 @@ export function DashboardTargetsOverview() {
     [weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
   );
 
-  // Derive all target sets from stored individual daily targets
   const derived = useMemo(() => deriveAllTargets(targets), [targets]);
 
   const myDailyTargets = derived.individualDaily.filter((t) => t.user_id === user?.id);
   const myWeeklyTargets = derived.individualWeekly.filter((t) => t.user_id === user?.id);
 
   const isLoading =
-    targetsLoading ||
-    dailyCallsLoading ||
-    weeklyCallsLoading ||
-    dailyBookingsLoading ||
-    weeklyBookingsLoading;
+    targetsLoading || dailyCallsLoading || weeklyCallsLoading || dailyBookingsLoading || weeklyBookingsLoading;
 
   if (isLoading) {
     return (
@@ -59,28 +54,60 @@ export function DashboardTargetsOverview() {
     );
   }
 
+  const myDailyActuals = getPerformanceActualMetrics(myDailyMetrics);
+  const myWeeklyActuals = getPerformanceActualMetrics(myWeeklyMetrics);
+  const teamDailyActuals = getPerformanceActualMetrics(teamDailyMetrics);
+  const teamWeeklyActuals = getPerformanceActualMetrics(teamWeeklyMetrics);
+
   return (
-    <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-      <TargetSection
-        title="My Daily Goals"
-        description="Your progress for today across all metrics."
-        items={buildTargetProgressItems(myDailyTargets, getPerformanceActualMetrics(myDailyMetrics))}
-      />
-      <TargetSection
-        title="My Weekly Goals"
-        description="Your weekly progress (daily × 5 for counts, same for rates)."
-        items={buildTargetProgressItems(myWeeklyTargets, getPerformanceActualMetrics(myWeeklyMetrics))}
-      />
-      <TargetSection
-        title="Team Daily Goals"
-        description="Sum of all rep daily targets (rates averaged)."
-        items={buildTargetProgressItems(derived.teamDaily, getPerformanceActualMetrics(teamDailyMetrics))}
-      />
-      <TargetSection
-        title="Team Weekly Goals"
-        description="Sum of all rep weekly targets (rates averaged)."
-        items={buildTargetProgressItems(derived.teamWeekly, getPerformanceActualMetrics(teamWeeklyMetrics))}
-      />
+    <div className="space-y-6">
+      {/* My targets */}
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
+        <TargetSection
+          title="My Daily Goals — Setter"
+          description="Your setter progress for today."
+          items={buildTargetProgressItems(myDailyTargets, myDailyActuals, "setter")}
+        />
+        <TargetSection
+          title="My Daily Goals — Closer"
+          description="Your closer progress for today."
+          items={buildTargetProgressItems(myDailyTargets, myDailyActuals, "closer")}
+        />
+        <TargetSection
+          title="My Weekly Goals — Setter"
+          description="Your setter progress this week (daily × 5)."
+          items={buildTargetProgressItems(myWeeklyTargets, myWeeklyActuals, "setter")}
+        />
+        <TargetSection
+          title="My Weekly Goals — Closer"
+          description="Your closer progress this week (daily × 5)."
+          items={buildTargetProgressItems(myWeeklyTargets, myWeeklyActuals, "closer")}
+        />
+      </div>
+
+      {/* Team targets */}
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
+        <TargetSection
+          title="Team Daily — Setter"
+          description="Sum of all rep setter targets (rates averaged)."
+          items={buildTargetProgressItems(derived.teamDaily, teamDailyActuals, "setter")}
+        />
+        <TargetSection
+          title="Team Daily — Closer"
+          description="Sum of all rep closer targets (rates averaged)."
+          items={buildTargetProgressItems(derived.teamDaily, teamDailyActuals, "closer")}
+        />
+        <TargetSection
+          title="Team Weekly — Setter"
+          description="Sum of all rep weekly setter targets."
+          items={buildTargetProgressItems(derived.teamWeekly, teamWeeklyActuals, "setter")}
+        />
+        <TargetSection
+          title="Team Weekly — Closer"
+          description="Sum of all rep weekly closer targets."
+          items={buildTargetProgressItems(derived.teamWeekly, teamWeeklyActuals, "closer")}
+        />
+      </div>
     </div>
   );
 }
