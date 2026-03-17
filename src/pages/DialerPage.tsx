@@ -194,7 +194,7 @@ export default function DialerPage() {
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? selectedOutcome;
-    if (!outcomeToLog || !currentContact || !user) return;
+    if (!outcomeToLog || !currentContact || !user || leadAdvanceInFlightRef.current) return;
 
     if (outcomeToLog === "follow_up" && (!followUpDate || !followUpTime)) {
       toast.error("Choose a follow-up date and time.");
