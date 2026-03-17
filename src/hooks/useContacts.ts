@@ -226,6 +226,8 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
   const contactsRef = useRef<Contact[]>([]);
   const sessionRef = useRef<string | null>(null);
   const claimInFlightRef = useRef<Promise<number> | null>(null);
+  const startInFlightRef = useRef<Promise<number> | null>(null);
+  const stopInFlightRef = useRef<Promise<void> | null>(null);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
@@ -267,23 +269,41 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     };
   }, [industry, state]);
 
+  const cleanupSessionLocks = useCallback(async (staleSessionId: string | null) => {
+    if (!staleSessionId) return;
+
+    try {
+      await releaseDialerLeadLocks(staleSessionId);
+    } catch {
+      // Lock expiry handles abandoned cleanup.
+    }
+  }, []);
+
   const stopSession = useCallback(async () => {
+    if (stopInFlightRef.current) {
+      return stopInFlightRef.current;
+    }
+
     const activeSessionId = sessionRef.current;
     sessionRef.current = null;
+    startInFlightRef.current = null;
     setSessionId(null);
     contactsRef.current = [];
     setContacts([]);
     setTotalCount(0);
     claimInFlightRef.current = null;
+    setIsLoading(false);
+    setIsPrefetching(false);
 
-    if (activeSessionId) {
-      try {
-        await releaseDialerLeadLocks(activeSessionId);
-      } catch {
-        // Lock expiry handles abandoned cleanup.
+    const task = cleanupSessionLocks(activeSessionId).finally(() => {
+      if (stopInFlightRef.current === task) {
+        stopInFlightRef.current = null;
       }
-    }
-  }, []);
+    });
+
+    stopInFlightRef.current = task;
+    return task;
+  }, [cleanupSessionLocks]);
 
   const ensureBuffer = useCallback(async (desiredMinimum = DIALER_TARGET_BUFFER) => {
     if (!sessionRef.current) return 0;
@@ -295,61 +315,96 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     setIsPrefetching(true);
     const activeSessionId = sessionRef.current;
     const task = claimIntoBuffer(activeSessionId, contactsRef.current, desiredMinimum)
-      .then(({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
+      .then(async ({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
         if (sessionRef.current === activeSessionId) {
           contactsRef.current = nextContacts;
           setContacts(nextContacts);
           setTotalCount(nextTotalCount);
+        } else {
+          await cleanupSessionLocks(activeSessionId);
         }
 
         return claimedCount;
       })
+      .catch(async (error) => {
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+        }
+        throw error;
+      })
       .finally(() => {
-        claimInFlightRef.current = null;
+        if (claimInFlightRef.current === task) {
+          claimInFlightRef.current = null;
+        }
         setIsPrefetching(false);
       });
 
     claimInFlightRef.current = task;
     return task;
-  }, [claimIntoBuffer]);
+  }, [claimIntoBuffer, cleanupSessionLocks]);
 
   const startSession = useCallback(async () => {
-    if (sessionRef.current) {
-      await stopSession();
+    if (startInFlightRef.current) {
+      return startInFlightRef.current;
     }
 
-    const activeSessionId = crypto.randomUUID();
-    sessionRef.current = activeSessionId;
-    setSessionId(activeSessionId);
-    contactsRef.current = [];
-    setContacts([]);
-    setTotalCount(0);
-    setPreviewCount(0);
-    setIsLoading(true);
-
-    try {
-      const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
-        activeSessionId,
-        [],
-        DIALER_INITIAL_CLAIM_SIZE,
-      );
-
-      if (sessionRef.current !== activeSessionId) {
-        return 0;
+    const task = (async () => {
+      if (stopInFlightRef.current) {
+        await stopInFlightRef.current;
       }
 
-      contactsRef.current = claimedContacts;
-      setContacts(claimedContacts);
-      setTotalCount(claimedTotalCount);
-      void ensureBuffer(DIALER_TARGET_BUFFER);
-
-      return claimedContacts.length;
-    } finally {
-      if (sessionRef.current === activeSessionId) {
-        setIsLoading(false);
+      if (sessionRef.current) {
+        await stopSession();
       }
-    }
-  }, [claimIntoBuffer, ensureBuffer, stopSession]);
+
+      const activeSessionId = crypto.randomUUID();
+      sessionRef.current = activeSessionId;
+      setSessionId(activeSessionId);
+      contactsRef.current = [];
+      setContacts([]);
+      setTotalCount(0);
+      setPreviewCount(0);
+      setIsLoading(true);
+      claimInFlightRef.current = null;
+
+      try {
+        const { contacts: claimedContacts, totalCount: claimedTotalCount } = await claimIntoBuffer(
+          activeSessionId,
+          [],
+          DIALER_INITIAL_CLAIM_SIZE,
+        );
+
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+          return 0;
+        }
+
+        contactsRef.current = claimedContacts;
+        setContacts(claimedContacts);
+        setTotalCount(claimedTotalCount);
+        void ensureBuffer(DIALER_TARGET_BUFFER);
+
+        return claimedContacts.length;
+      } catch (error) {
+        if (sessionRef.current !== activeSessionId) {
+          await cleanupSessionLocks(activeSessionId);
+          return 0;
+        }
+        throw error;
+      } finally {
+        if (sessionRef.current === activeSessionId) {
+          setIsLoading(false);
+        }
+      }
+    })().finally(() => {
+      if (startInFlightRef.current === task) {
+        startInFlightRef.current = null;
+      }
+    });
+
+    startInFlightRef.current = task;
+    return task;
+  }, [claimIntoBuffer, cleanupSessionLocks, ensureBuffer, stopSession]);
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
