@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateCallLog, prefetchContactCallLogs } from "@/hooks/useCallLogs";
 import { useClearOwnDialerLeadLocks, useRollingDialerQueue, useUpdateContact } from "@/hooks/useContacts";
 import { useAuth } from "@/hooks/useAuth";
-import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useDialpadCallStatus, useCancelDialpadCall, useLinkDialpadCallLog, useDialpadCallerIds } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { prefetchContactNotes } from "@/hooks/useContactNotes";
