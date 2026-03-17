@@ -161,9 +161,6 @@ export function useCreateCallLog() {
       queryClient.invalidateQueries({ queryKey: ["call-logs-range"] });
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
       queryClient.invalidateQueries({ queryKey: ["contact-call-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["today-call-count"] });
     },
   });

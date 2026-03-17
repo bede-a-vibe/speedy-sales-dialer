@@ -14,7 +14,14 @@ type ContactNotesPage = {
   nextPage: number;
 };
 
-export function useContactNotes(contactId?: string) {
+type UseContactNotesOptions = {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+};
+
+export function useContactNotes(contactId?: string, options: UseContactNotesOptions = {}) {
+  const isEnabled = Boolean(contactId) && (options.enabled ?? true);
+
   return useQuery({
     queryKey: ["contact-notes", contactId],
     queryFn: async () => {
@@ -29,8 +36,8 @@ export function useContactNotes(contactId?: string) {
       if (error) throw error;
       return (data ?? []) as ContactNote[];
     },
-    enabled: !!contactId,
-    refetchInterval: contactId ? SYNC_REFRESH_INTERVAL_MS : false,
+    enabled: isEnabled,
+    refetchInterval: isEnabled ? options.refetchInterval ?? SYNC_REFRESH_INTERVAL_MS : false,
   });
 }
 

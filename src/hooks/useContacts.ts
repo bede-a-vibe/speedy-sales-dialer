@@ -388,32 +388,34 @@ export function useRollingDialerQueue({ industry, state, userId }: RollingDialer
     if (!userId || sessionRef.current) return;
 
     let cancelled = false;
-    setIsLoading(true);
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(true);
 
-    claimDialerLeads({
-      sessionId: previewSessionIdRef.current,
-      industry,
-      state,
-      claimSize: 0,
-    })
-      .then((response) => {
-        if (!cancelled && !sessionRef.current) {
-          setPreviewCount(response.total_available_count ?? 0);
-        }
+      getDialerQueueCount({
+        sessionId: previewSessionIdRef.current,
+        industry,
+        state,
       })
-      .catch(() => {
-        if (!cancelled && !sessionRef.current) {
-          setPreviewCount(0);
-        }
-      })
-      .finally(() => {
-        if (!cancelled && !sessionRef.current) {
-          setIsLoading(false);
-        }
-      });
+        .then((count) => {
+          if (!cancelled && !sessionRef.current) {
+            setPreviewCount(count ?? 0);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && !sessionRef.current) {
+            setPreviewCount(0);
+          }
+        })
+        .finally(() => {
+          if (!cancelled && !sessionRef.current) {
+            setIsLoading(false);
+          }
+        });
+    }, DIALER_PREVIEW_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [industry, sessionId, state, userId]);
 
