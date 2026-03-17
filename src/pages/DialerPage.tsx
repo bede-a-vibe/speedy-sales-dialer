@@ -220,6 +220,7 @@ export default function DialerPage() {
   }, [ensureBuffer, isDialing, nextContact?.id, queryClient]);
 
   const resetLeadState = useCallback((assignedUserId?: string) => {
+    clearActiveDialRequestLock(activeDialRequestRef.current);
     setSelectedOutcome(null);
     setNotes("");
     setFollowUpDate(undefined);
