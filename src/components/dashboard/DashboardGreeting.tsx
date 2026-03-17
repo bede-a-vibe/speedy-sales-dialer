@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useStreak } from "@/hooks/useStreak";
+import { supabase } from "@/integrations/supabase/client";
 import { Flame, Sparkles, Sun, Moon, CloudSun } from "lucide-react";
 
 function getTimeGreeting() {
@@ -19,11 +21,23 @@ function getMotivation(calls: number) {
 }
 
 export function DashboardGreeting() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
   const { data: streak = 0 } = useStreak(user?.id);
   const { text: greeting, Icon: TimeIcon } = getTimeGreeting();
-  const firstName = profile?.display_name?.split(" ")[0] || "there";
+  const [firstName, setFirstName] = useState("there");
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.display_name) setFirstName(data.display_name.split(" ")[0]);
+      });
+  }, [user?.id]);
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-border bg-card p-5">
