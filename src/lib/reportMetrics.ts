@@ -166,6 +166,8 @@ export function getReportMetrics({
     (item) => !!item.appointment_outcome,
   ).length;
 
+  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close;
+
   return {
     dialer: {
       dials: filteredCallLogs.length,
@@ -189,7 +191,9 @@ export function getReportMetrics({
       rescheduled: appointmentOutcomeCounts.rescheduled,
       showedClosed: appointmentOutcomeCounts.showed_closed,
       showedNoClose: appointmentOutcomeCounts.showed_no_close,
-      appointmentCloseRate: toPercent(appointmentOutcomeCounts.showed_closed, resolvedAppointments),
+      showed,
+      showUpRate: toPercent(showed, appointmentsScheduledInRange.length),
+      closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       resolvedAppointments,
     },
     dailyVolume: Object.entries(dailyVolumeMap)
