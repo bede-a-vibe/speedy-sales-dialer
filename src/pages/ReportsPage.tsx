@@ -43,7 +43,7 @@ export default function ReportsPage() {
     () =>
       Object.entries(APPOINTMENT_OUTCOME_LABELS).map(([key, label]) => ({
         label,
-        count: metrics.appointmentsScheduled[key as keyof typeof APPOINTMENT_OUTCOME_LABELS extends never ? never : never],
+        count: metrics.appointmentOutcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0,
         pct:
           metrics.appointmentsScheduled.resolvedAppointments > 0
             ? Math.round(
