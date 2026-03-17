@@ -912,16 +912,8 @@ Deno.serve(async (req) => {
 
     const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
-      const message = extractDialpadErrorMessage(data);
-      const status = isDialpadRateLimitError(data) ? 429 : dialpadResponse.status;
-
-      return jsonResponse({
-        error: status === 429
-          ? "Dialpad rate limit reached. Wait a few seconds and try again."
-          : `Dialpad API error [${dialpadResponse.status}]`,
-        details: data,
-        message,
-      }, status);
+      const errorPayload = buildDialpadErrorPayload(dialpadResponse.status, data);
+      return jsonResponse(errorPayload, errorPayload.status_code);
     }
 
     if (action === "initiate_call" && params.contact_id) {
@@ -936,20 +928,26 @@ Deno.serve(async (req) => {
           sync_status: "pending",
         });
 
-        if (trackingError) {
-          return jsonResponse({
-            ...data,
-            dialpad_call_id: dialpadCallId,
-            tracking_warning: trackingError.message,
-          }, 200);
-        }
-
-        return jsonResponse({
-          ...data,
-          dialpad_call_id: dialpadCallId,
-          tracking_created_at: formatDialpadDate(Date.now()),
-        }, 200);
+        return jsonResponse(buildDialpadClientPayload({
+          action,
+          data,
+          dialpadCallId,
+          message: "Dialpad call initiated.",
+          extras: trackingError
+            ? { tracking_warning: trackingError.message }
+            : { tracking_created_at: formatDialpadDate(Date.now()) },
+        }), 200);
       }
+    }
+
+    if (action === "initiate_call" || action === "log_call" || action === "get_call_status") {
+      return jsonResponse(buildDialpadClientPayload({
+        action,
+        data,
+        message: action === "get_call_status"
+          ? "Dialpad call status refreshed."
+          : "Dialpad call initiated.",
+      }), 200);
     }
 
     return jsonResponse(data, 200);
