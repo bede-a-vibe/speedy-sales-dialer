@@ -131,18 +131,25 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["booked-appointments-range", from, to],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("pipeline_items")
-        .select("id, scheduled_for, appointment_outcome, outcome_recorded_at, status")
+        .select("id, contact_id, created_at, scheduled_for, appointment_outcome, outcome_recorded_at, status")
         .eq("pipeline_type", "booked")
-        .order("scheduled_for", { ascending: false });
+        .order("created_at", { ascending: false });
 
-      if (from) query = query.gte("scheduled_for", from);
-      if (to) query = query.lte("scheduled_for", `${to}T23:59:59`);
-
-      const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as BookedAppointmentReportItem[];
+
+      const items = (data ?? []) as BookedAppointmentReportItem[];
+      return items.filter((item) => {
+        const createdDate = item.created_at.slice(0, 10);
+        const scheduledDate = item.scheduled_for?.slice(0, 10) ?? null;
+
+        const matchesCreatedRange = (!from || createdDate >= from) && (!to || createdDate <= to);
+        const matchesScheduledRange =
+          !!scheduledDate && (!from || scheduledDate >= from) && (!to || scheduledDate <= to);
+
+        return matchesCreatedRange || matchesScheduledRange;
+      });
     },
   });
 }
