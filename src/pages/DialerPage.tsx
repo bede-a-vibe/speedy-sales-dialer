@@ -169,8 +169,8 @@ export default function DialerPage() {
     }
 
     try {
-      const scheduledFor = requiresFollowUpSchedule && followUpDate
-        ? combineDateAndTime(followUpDate, followUpTime).toISOString()
+      const scheduledFor = followUpDate
+        ? combineDateAndTime(followUpDate, requiresFollowUpSchedule ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
         : null;
 
       const insertedLog = await createCallLog.mutateAsync({
