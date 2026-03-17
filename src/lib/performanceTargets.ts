@@ -231,10 +231,11 @@ export const CLOSER_INPUT_METRICS = INPUT_METRICS.filter(
 
 export function formatTargetMetricValue(metricKey: PerformanceTargetMetricKey, value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
-  const rounded = Math.round(value);
-  return PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate
-    ? `${rounded}%`
-    : rounded.toLocaleString();
+  if (PERFORMANCE_TARGET_METRIC_DEFINITIONS[metricKey].isRate) {
+    return `${Math.round(value)}%`;
+  }
+  // Show 1 decimal place for non-whole numbers, whole numbers stay clean
+  return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1);
 }
 
 // ── Derivation logic ──────────────────────────────────────────────
@@ -259,10 +260,10 @@ export function deriveSetterValues(inputs: {
   const showUpRate = inputs.setter_show_up_rate ?? 0;
   const closeRate = inputs.setter_close_rate ?? 0;
 
-  const pickups = pickupToBooking > 0 ? Math.ceil(bookings / (pickupToBooking / 100)) : 0;
-  const dials = dialToPickup > 0 ? Math.ceil(pickups / (dialToPickup / 100)) : 0;
-  const showed = showUpRate > 0 ? Math.round(bookings * (showUpRate / 100)) : 0;
-  const closedDeals = closeRate > 0 ? Math.round(showed * (closeRate / 100)) : 0;
+  const pickups = pickupToBooking > 0 ? bookings / (pickupToBooking / 100) : 0;
+  const dials = dialToPickup > 0 ? pickups / (dialToPickup / 100) : 0;
+  const showed = showUpRate > 0 ? bookings * (showUpRate / 100) : 0;
+  const closedDeals = closeRate > 0 ? showed * (closeRate / 100) : 0;
 
   return { pickups, dials, setter_showed: showed, setter_closed_deals: closedDeals };
 }
@@ -282,8 +283,8 @@ export function deriveCloserValues(inputs: {
   const closeRate = inputs.closer_close_rate ?? 0;
 
   return {
-    closer_verbal_commitments: verbalRate > 0 ? Math.round(meetings * (verbalRate / 100)) : 0,
-    closer_closed_deals: closeRate > 0 ? Math.round(meetings * (closeRate / 100)) : 0,
+    closer_verbal_commitments: verbalRate > 0 ? meetings * (verbalRate / 100) : 0,
+    closer_closed_deals: closeRate > 0 ? meetings * (closeRate / 100) : 0,
   };
 }
 
