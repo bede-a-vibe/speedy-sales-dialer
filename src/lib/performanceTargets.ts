@@ -259,10 +259,10 @@ export function deriveSetterValues(inputs: {
   const showUpRate = inputs.setter_show_up_rate ?? 0;
   const closeRate = inputs.setter_close_rate ?? 0;
 
-  const pickups = pickupToBooking > 0 ? Math.ceil(bookings / (pickupToBooking / 100)) : 0;
-  const dials = dialToPickup > 0 ? Math.ceil(pickups / (dialToPickup / 100)) : 0;
-  const showed = showUpRate > 0 ? Math.round(bookings * (showUpRate / 100)) : 0;
-  const closedDeals = closeRate > 0 ? Math.round(showed * (closeRate / 100)) : 0;
+  const pickups = pickupToBooking > 0 ? bookings / (pickupToBooking / 100) : 0;
+  const dials = dialToPickup > 0 ? pickups / (dialToPickup / 100) : 0;
+  const showed = showUpRate > 0 ? bookings * (showUpRate / 100) : 0;
+  const closedDeals = closeRate > 0 ? showed * (closeRate / 100) : 0;
 
   return { pickups, dials, setter_showed: showed, setter_closed_deals: closedDeals };
 }
