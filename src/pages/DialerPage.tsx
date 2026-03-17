@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
@@ -7,14 +7,15 @@ import { INDUSTRIES, CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
 import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
-import { useMyDialpadSettings, useDialpadLogCall } from "@/hooks/useDialpadSettings";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { useDialpadCall } from "@/hooks/useDialpad";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3 } from "lucide-react";
@@ -39,12 +40,13 @@ export default function DialerPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const activeDialRequestRef = useRef<string | null>(null);
 
   const { data: uncalledContacts = [], isLoading } = useUncalledContacts(industry);
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
   const { data: myDialpadSettings } = useMyDialpadSettings();
-  const dialpadLogCall = useDialpadLogCall();
+  const dialpadCall = useDialpadCall();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
     ? uncalledContacts[currentIndex]
@@ -113,28 +115,15 @@ export default function DialerPage() {
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
 
-      // Initiate Dialpad call logging
-      if (myDialpadSettings?.dialpad_user_id) {
-        try {
-          await dialpadLogCall.mutateAsync({
-            phone: currentContact.phone,
-            dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          });
-          toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call initiated`);
-        } catch {
-          toast.warning(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call failed`);
-        }
-      } else {
-        toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
-      }
-
+      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+      activeDialRequestRef.current = null;
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact, myDialpadSettings, dialpadLogCall]);
+  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -180,6 +169,29 @@ export default function DialerPage() {
     }
   }, [uncalledContacts.length, isDialing, currentIndex, stopSession]);
 
+  useEffect(() => {
+    if (!isDialing || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+
+    const requestKey = `${currentContact.id}:${currentContact.phone}`;
+    if (activeDialRequestRef.current === requestKey || dialpadCall.isPending) return;
+
+    activeDialRequestRef.current = requestKey;
+
+    dialpadCall
+      .mutateAsync({
+        phone: currentContact.phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+      })
+      .then(() => {
+        toast.success(`Calling ${currentContact.phone} through Dialpad`);
+      })
+      .catch((error) => {
+        activeDialRequestRef.current = null;
+        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+        toast.error(message);
+      });
+  }, [isDialing, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
+
   return (
     <AppLayout title="Dialer">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -187,13 +199,16 @@ export default function DialerPage() {
 
         {/* Session Summary Dialog */}
         <Dialog open={showSummary} onOpenChange={setShowSummary}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Session Summary
-              </DialogTitle>
-            </DialogHeader>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Session Summary
+                </DialogTitle>
+                <DialogDescription>
+                  Review this calling session before closing the summary.
+                </DialogDescription>
+              </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 bg-secondary rounded-lg border border-border">
@@ -292,6 +307,9 @@ export default function DialerPage() {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Manual Dial</DialogTitle>
+                <DialogDescription>
+                  Place a Dialpad call directly to any phone number.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <Input
@@ -300,24 +318,53 @@ export default function DialerPage() {
                   value={manualPhone}
                   onChange={(e) => setManualPhone(e.target.value)}
                   className="font-mono text-lg tracking-wider"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && manualPhone.trim()) {
-                      window.open(`tel:${manualPhone.trim()}`, "_self");
-                      toast.success(`Dialing ${manualPhone.trim()}`);
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter" && manualPhone.trim() && myDialpadSettings?.dialpad_user_id) {
+                      try {
+                        await dialpadCall.mutateAsync({
+                          phone: manualPhone.trim(),
+                          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                        });
+                        toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
+                        setManualOpen(false);
+                        setManualPhone("");
+                      } catch (error) {
+                        const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+                        toast.error(message);
+                      }
                     }
                   }}
                 />
                 <Button
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                  disabled={!manualPhone.trim()}
-                  onClick={() => {
-                    window.open(`tel:${manualPhone.trim()}`, "_self");
-                    toast.success(`Dialing ${manualPhone.trim()}`);
+                  disabled={!manualPhone.trim() || !myDialpadSettings?.dialpad_user_id || dialpadCall.isPending}
+                  onClick={async () => {
+                    try {
+                      await dialpadCall.mutateAsync({
+                        phone: manualPhone.trim(),
+                        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+                      });
+                      toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
+                      setManualOpen(false);
+                      setManualPhone("");
+                    } catch (error) {
+                      const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
+                      toast.error(message);
+                    }
                   }}
                 >
-                  <Phone className="h-4 w-4 mr-2" />
+                  {dialpadCall.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Phone className="h-4 w-4 mr-2" />
+                  )}
                   Dial {manualPhone.trim() || "..."}
                 </Button>
+                {!myDialpadSettings?.dialpad_user_id && (
+                  <p className="text-sm text-muted-foreground">
+                    Assign a Dialpad number to your user before placing calls.
+                  </p>
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -399,7 +446,7 @@ export default function DialerPage() {
               <div className="space-y-2">
                 <Button
                   onClick={logAndNext}
-                  disabled={!selectedOutcome || createCallLog.isPending}
+                  disabled={!selectedOutcome || createCallLog.isPending || dialpadCall.isPending}
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3"
                 >
                   {createCallLog.isPending ? (
