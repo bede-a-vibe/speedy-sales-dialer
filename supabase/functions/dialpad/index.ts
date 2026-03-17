@@ -993,7 +993,7 @@ Deno.serve(async (req) => {
 
         console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
 
-        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/stats/calls?limit=15`, {
+        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/call?limit=25`, {
           headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
         });
 
@@ -1006,13 +1006,16 @@ Deno.serve(async (req) => {
             const callId = getDialpadCallId(call);
             const state = normalizeDialpadState(call.state);
             const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
-            const callUserId = call.user_id ?? call.operator_id ?? null;
+            const contactPhone = isRecord(call.contact) && typeof call.contact.phone === "string" ? call.contact.phone : "";
+            const callUserId = isRecord(call.target)
+              ? call.target.id ?? call.target.user_id ?? null
+              : call.user_id ?? call.operator_id ?? null;
             const isMatchingUser = String(callUserId) === String(resolveDialpadUserId);
+            const normalizedCandidateNumber = externalNumber || contactPhone;
 
-            if (callId && !isTerminalDialpadState(state) && isMatchingUser && externalNumber.includes(resolvePhone.slice(-8))) {
+            if (callId && !isTerminalDialpadState(state) && isMatchingUser && normalizedCandidateNumber.includes(resolvePhone.slice(-8))) {
               console.log(`[resolve_call] Found active call_id=${callId} state=${state}`);
 
-              // Track in dialpad_calls if contact_id provided
               if (params.contact_id) {
                 const adminClient = createClient(supabaseUrl, serviceRoleKey);
                 await adminClient.from("dialpad_calls").upsert({
