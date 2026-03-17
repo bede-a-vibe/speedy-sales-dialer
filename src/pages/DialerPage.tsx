@@ -367,9 +367,14 @@ export default function DialerPage() {
     if (!activeDialpadCallId) return;
 
     let cancelled = false;
+    let isRequestInFlight = false;
+
     const pollStatus = async () => {
+      if (isRequestInFlight) return;
+      isRequestInFlight = true;
+
       try {
-        const status = await dialpadCallStatus.mutateAsync(activeDialpadCallId);
+        const status = await fetchDialpadCallStatus(activeDialpadCallId);
         if (cancelled) return;
 
         const nextState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
@@ -380,17 +385,18 @@ export default function DialerPage() {
         }
       } catch {
         // Ignore transient polling errors.
+      } finally {
+        isRequestInFlight = false;
       }
     };
 
-    void pollStatus();
-    const intervalId = window.setInterval(pollStatus, 5000);
+    const intervalId = window.setInterval(pollStatus, 10000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeDialpadCallId, dialpadCallStatus]);
+  }, [activeDialpadCallId, fetchDialpadCallStatus]);
 
   return (
     <AppLayout title="Dialer">
