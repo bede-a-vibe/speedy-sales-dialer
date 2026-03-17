@@ -205,7 +205,14 @@ export default function DialerPage() {
     activeDialRequestRef.current = null;
   }, []);
 
-  const startDialing = useCallback(async () => {
+  useEffect(() => {
+    if (isDialing || isStartingSession) return;
+
+    setCurrentIndex(null);
+    resetLeadState(user?.id || "");
+    void stopQueueSession();
+  }, [industry, isDialing, isStartingSession, resetLeadState, stateFilter, stopQueueSession, user?.id]);
+
     if (!hasDialpadAssignment || isStartingSession) return;
 
     setIsStartingSession(true);
