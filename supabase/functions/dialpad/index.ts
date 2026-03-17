@@ -32,37 +32,55 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+class PhoneValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PhoneValidationError";
+  }
+}
+
 function normalizePhoneNumberToE164(phoneNumber: string, defaultCountryCode = "61") {
   const trimmed = phoneNumber.trim();
 
   if (!trimmed) {
-    throw new Error("Phone number is required");
+    throw new PhoneValidationError("Phone number is required");
   }
 
-  if (trimmed.startsWith("+")) {
-    const digits = trimmed.slice(1).replace(/\D/g, "");
-    if (!digits) throw new Error("Phone number is invalid");
-    return `+${digits}`;
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digitsOnly = trimmed.replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    throw new PhoneValidationError("Phone number is invalid");
   }
 
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) {
-    throw new Error("Phone number is invalid");
+  let normalized: string | null = null;
+
+  if (hasLeadingPlus) {
+    normalized = `+${trimmed.slice(1).replace(/\D/g, "")}`;
+  } else if (digitsOnly.startsWith("00")) {
+    normalized = `+${digitsOnly.slice(2)}`;
+  } else if (defaultCountryCode === "61") {
+    if (/^0[2378]\d{8}$/.test(digitsOnly) || /^04\d{8}$/.test(digitsOnly)) {
+      normalized = `+61${digitsOnly.slice(1)}`;
+    } else if (/^[2378]\d{8}$/.test(digitsOnly) || /^4\d{8}$/.test(digitsOnly)) {
+      normalized = `+61${digitsOnly}`;
+    } else if (/^61\d{8,10}$/.test(digitsOnly)) {
+      normalized = `+${digitsOnly}`;
+    }
   }
 
-  if (digits.startsWith("00")) {
-    return `+${digits.slice(2)}`;
+  if (!normalized) {
+    throw new PhoneValidationError(
+      "Phone number must include a valid country code or be a valid Australian number, e.g. +61412345678 or 0412345678.",
+    );
   }
 
-  if (digits.startsWith("0")) {
-    return `+${defaultCountryCode}${digits.slice(1)}`;
+  const e164Digits = normalized.slice(1);
+  if (e164Digits.length < 8 || e164Digits.length > 15 || !/^\+\d+$/.test(normalized)) {
+    throw new PhoneValidationError("Phone number must be in valid E.164 format, e.g. +61412345678.");
   }
 
-  if (digits.startsWith(defaultCountryCode)) {
-    return `+${digits}`;
-  }
-
-  return `+${digits}`;
+  return normalized;
 }
 
 function decodeBase64Url(input: string) {
@@ -138,6 +156,30 @@ async function extractWebhookPayload(req: Request, secret: string) {
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function extractDialpadErrorMessage(data: unknown) {
+  const payload = isRecord(data) && isRecord(data.error) ? data.error : data;
+  if (!isRecord(payload)) return null;
+
+  if (typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message.trim();
+  }
+
+  if (Array.isArray(payload.errors)) {
+    for (const item of payload.errors) {
+      if (isRecord(item) && typeof item.message === "string" && item.message.trim()) {
+        return item.message.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+function isDialpadRateLimitError(data: unknown) {
+  const message = extractDialpadErrorMessage(data);
+  return typeof message === "string" && message.toLowerCase().includes("rate_limit_exceeded");
 }
 
 function getDialpadCallId(data: unknown) {
@@ -489,7 +531,14 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "initiate_call": {
-        const normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        let normalizedPhone: string;
+
+        try {
+          normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Phone number is invalid";
+          return jsonResponse({ error: message }, 400);
+        }
 
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
@@ -525,6 +574,15 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: "No Dialpad user ID configured. Ask an admin to assign one." }, 400);
         }
 
+        let normalizedPhone: string;
+
+        try {
+          normalizedPhone = normalizePhoneNumberToE164(params.phone);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Phone number is invalid";
+          return jsonResponse({ error: message }, 400);
+        }
+
         dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
           method: "POST",
           headers: {
@@ -532,7 +590,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            phone_number: normalizePhoneNumberToE164(params.phone),
+            phone_number: normalizedPhone,
             user_id: dialpadUserId,
           }),
         });
@@ -719,9 +777,18 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
 
-    const data = await dialpadResponse.json();
+    const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
-      return jsonResponse({ error: `Dialpad API error [${dialpadResponse.status}]`, details: data }, dialpadResponse.status);
+      const message = extractDialpadErrorMessage(data);
+      const status = isDialpadRateLimitError(data) ? 429 : dialpadResponse.status;
+
+      return jsonResponse({
+        error: status === 429
+          ? "Dialpad rate limit reached. Wait a few seconds and try again."
+          : `Dialpad API error [${dialpadResponse.status}]`,
+        details: data,
+        message,
+      }, status);
     }
 
     if (action === "initiate_call" && params.contact_id) {
