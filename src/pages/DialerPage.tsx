@@ -256,6 +256,8 @@ export default function DialerPage() {
       activeDialRequestRef.current = null;
       setActiveDialpadCallId(null);
       setActiveDialpadCallState(null);
+      setDialpadPollingBackoffUntil(null);
+      setIsEndingCall(false);
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
@@ -295,29 +297,40 @@ export default function DialerPage() {
   const cancelActiveCall = useCallback(async () => {
     if (!activeDialpadCallId) return;
 
+    setIsEndingCall(true);
+
     try {
       const status = await fetchDialpadCallStatus(activeDialpadCallId);
-      const currentState = typeof status?.state === "string" ? status.state.toLowerCase() : null;
-      setActiveDialpadCallState(currentState);
+      setActiveDialpadCallState(status.state);
 
-      if (currentState === "hangup") {
+      if (status.already_ended || status.terminal) {
         setActiveDialpadCallId(null);
+        setActiveDialpadCallState("hangup");
+        setDialpadPollingBackoffUntil(null);
         toast.info("This call has already ended.");
         return;
       }
 
       const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
-      if (result?.already_ended) {
+      setActiveDialpadCallState(result.state ?? "ending");
+
+      if (result.already_ended || result.terminal) {
         setActiveDialpadCallId(null);
         setActiveDialpadCallState("hangup");
+        setDialpadPollingBackoffUntil(null);
         toast.info("This call has already ended.");
         return;
       }
 
-      toast.success("Call cancellation requested.");
+      toast.success(result.message || "Call cancellation requested.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
+      if (message.toLowerCase().includes("rate limit")) {
+        setDialpadPollingBackoffUntil(Date.now() + 30000);
+      }
       toast.error(message);
+    } finally {
+      setIsEndingCall(false);
     }
   }, [activeDialpadCallId, cancelDialpadCall, fetchDialpadCallStatus]);
 
