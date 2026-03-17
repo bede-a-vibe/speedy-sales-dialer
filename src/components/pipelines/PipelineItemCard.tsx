@@ -223,6 +223,9 @@ export function PipelineItemCard({
                 <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "no_show", outcomeNotes)} disabled={isSaving}>
                   No Show
                 </Button>
+                <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_verbal_commitment", outcomeNotes)} disabled={isSaving}>
+                  Verbal Commitment
+                </Button>
                 <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_closed", outcomeNotes)} disabled={isSaving}>
                   Showed - Closed
                 </Button>

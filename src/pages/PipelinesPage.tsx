@@ -370,6 +370,7 @@ export default function PipelinesPage() {
               <SelectContent>
                 <SelectItem value="all">All completed outcomes</SelectItem>
                 <SelectItem value="no_show">No Show</SelectItem>
+                <SelectItem value="showed_verbal_commitment">Verbal Commitment</SelectItem>
                 <SelectItem value="showed_closed">Showed - Closed</SelectItem>
                 <SelectItem value="showed_no_close">Showed - No Close</SelectItem>
               </SelectContent>
