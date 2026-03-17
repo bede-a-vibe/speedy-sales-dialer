@@ -258,38 +258,39 @@ export default function DialerPage() {
         dialpad_call_id: activeDialpadCallId,
       });
 
-      if (activeDialpadCallId) {
-        await linkDialpadCallLog.mutateAsync({
-          dialpad_call_id: activeDialpadCallId,
-          call_log_id: insertedLog.id,
-        });
-      }
-
-      if (needsPipelineAssignment) {
-        await createPipelineItem.mutateAsync({
-          contact_id: currentContact.id,
-          source_call_log_id: insertedLog.id,
-          pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
-          assigned_user_id: assignedRepId,
-          created_by: user.id,
-          scheduled_for: scheduledFor,
-          notes,
-        });
-      }
-
-      await updateContact.mutateAsync({
-        id: currentContact.id,
-        status: "called",
-        last_outcome: outcomeToLog,
-        is_dnc: outcomeToLog === "dnc",
-      });
+      await Promise.all([
+        activeDialpadCallId
+          ? linkDialpadCallLog.mutateAsync({
+              dialpad_call_id: activeDialpadCallId,
+              call_log_id: insertedLog.id,
+            })
+          : Promise.resolve(),
+        needsPipelineAssignment
+          ? createPipelineItem.mutateAsync({
+              contact_id: currentContact.id,
+              source_call_log_id: insertedLog.id,
+              pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
+              assigned_user_id: assignedRepId,
+              created_by: user.id,
+              scheduled_for: scheduledFor,
+              notes,
+            })
+          : Promise.resolve(),
+        updateContact.mutateAsync({
+          id: currentContact.id,
+          status: "called",
+          last_outcome: outcomeToLog,
+          is_dnc: outcomeToLog === "dnc",
+        }),
+      ]);
 
       setCallCount((prev) => prev + 1);
       setSessionOutcomes((prev) => ({
         ...prev,
         [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
       }));
-      await discardContact(currentContact.id, { releaseLock: true });
+      void discardContact(currentContact.id, { releaseLock: true });
+      void ensureBuffer();
 
       toast.success(`Logged: ${OUTCOME_CONFIG[outcomeToLog].label}`);
       activeDialRequestRef.current = null;
@@ -310,6 +311,8 @@ export default function DialerPage() {
       } else if (currentIndex !== null && currentIndex >= nextLength) {
         setCurrentIndex(nextLength - 1);
       }
+
+      leadAdvanceInFlightRef.current = false;
     } catch {
       leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
