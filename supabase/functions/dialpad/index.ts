@@ -162,6 +162,163 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "sync_users": {
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+        const { data: adminRole, error: adminRoleError } = await adminClient
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (adminRoleError) {
+          return new Response(
+            JSON.stringify({ error: "Failed to verify admin access", details: adminRoleError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (!adminRole) {
+          return new Response(
+            JSON.stringify({ error: "Admin access required" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const usersResponse = await fetch(`${DIALPAD_BASE}/users?limit=100`, {
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            Accept: "application/json",
+          },
+        });
+
+        const usersPayload = await usersResponse.json();
+        if (!usersResponse.ok) {
+          return new Response(
+            JSON.stringify({ error: `Dialpad API error [${usersResponse.status}]`, details: usersPayload }),
+            { status: usersResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const dialpadUsers = Array.isArray(usersPayload?.items) ? usersPayload.items : [];
+        const emails = dialpadUsers
+          .flatMap((dialpadUser: { emails?: string[] }) => dialpadUser.emails ?? [])
+          .map((email: string) => email.toLowerCase());
+
+        const { data: existingProfiles, error: profilesError } = await adminClient
+          .from("profiles")
+          .select("user_id, email")
+          .in("email", emails);
+
+        if (profilesError) {
+          return new Response(
+            JSON.stringify({ error: "Failed to load existing profiles", details: profilesError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const profileMap = new Map(
+          (existingProfiles ?? [])
+            .filter((profile) => profile.email)
+            .map((profile) => [profile.email!.toLowerCase(), profile.user_id])
+        );
+
+        const results = [];
+
+        for (const dialpadUser of dialpadUsers) {
+          const email = dialpadUser.emails?.[0]?.toLowerCase();
+          if (!email) continue;
+
+          let appUserId = profileMap.get(email);
+          let invited = false;
+
+          if (!appUserId) {
+            const { data: invitedUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+              data: {
+                display_name: dialpadUser.display_name ?? email.split("@")[0],
+              },
+            });
+
+            if (inviteError) {
+              results.push({
+                email,
+                invited: false,
+                mapped: false,
+                error: inviteError.message,
+              });
+              continue;
+            }
+
+            appUserId = invitedUser.user?.id;
+            invited = true;
+          }
+
+          if (!appUserId) {
+            results.push({
+              email,
+              invited,
+              mapped: false,
+              error: "No app user ID available after invite.",
+            });
+            continue;
+          }
+
+          const phoneNumber = Array.isArray(dialpadUser.phone_numbers) && dialpadUser.phone_numbers.length > 0
+            ? dialpadUser.phone_numbers[0]
+            : null;
+
+          const { error: roleError } = await adminClient
+            .from("user_roles")
+            .upsert({ user_id: appUserId, role: "sales_rep" }, { onConflict: "user_id,role" });
+
+          if (roleError) {
+            results.push({
+              email,
+              invited,
+              mapped: false,
+              error: roleError.message,
+            });
+            continue;
+          }
+
+          const { error: mappingError } = await adminClient
+            .from("dialpad_settings")
+            .upsert(
+              {
+                user_id: appUserId,
+                dialpad_user_id: dialpadUser.id,
+                dialpad_phone_number: phoneNumber,
+                is_active: true,
+              },
+              { onConflict: "user_id" }
+            );
+
+          if (mappingError) {
+            results.push({
+              email,
+              invited,
+              mapped: false,
+              error: mappingError.message,
+            });
+            continue;
+          }
+
+          results.push({
+            email,
+            invited,
+            mapped: true,
+            dialpad_user_id: dialpadUser.id,
+            dialpad_phone_number: phoneNumber,
+          });
+        }
+
+        return new Response(JSON.stringify({ items: results }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
