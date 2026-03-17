@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
+import { CalendarIcon, Phone, PhoneOff, CheckCircle2, Loader2, PhoneCall, SkipForward, BarChart3, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { OutcomeButton } from "@/components/OutcomeButton";
@@ -10,7 +10,7 @@ import { useUncalledContacts, useUpdateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
-import { useDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
+import { useDialpadCall, useCancelDialpadCall, useLinkDialpadCallLog } from "@/hooks/useDialpad";
 import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { useContactNotes } from "@/hooks/useContactNotes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,6 +68,7 @@ export default function DialerPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const dialpadCall = useDialpadCall();
+  const cancelDialpadCall = useCancelDialpadCall();
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
   const currentContact = currentIndex !== null && currentIndex < uncalledContacts.length
@@ -248,6 +249,18 @@ export default function DialerPage() {
     updateContact,
     user,
   ]);
+
+  const cancelActiveCall = useCallback(async () => {
+    if (!activeDialpadCallId) return;
+
+    try {
+      await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+      toast.success("Call cancellation requested.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to cancel the active call.";
+      toast.error(message);
+    }
+  }, [activeDialpadCallId, cancelDialpadCall]);
 
   useEffect(() => {
     if (!isDialing || !currentContact) return;
@@ -523,8 +536,23 @@ export default function DialerPage() {
                 </label>
                 <div className="space-y-3 text-sm">
                   {activeDialpadCallId ? (
-                    <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-                      Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                        Call linked · transcript and AI summary will sync after Dialpad finishes processing.
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={cancelActiveCall}
+                        disabled={cancelDialpadCall.isPending}
+                        className="w-full border-destructive text-destructive hover:bg-destructive/10"
+                      >
+                        {cancelDialpadCall.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <PhoneOff className="mr-2 h-4 w-4" />
+                        )}
+                        Cancel Active Call
+                      </Button>
                     </div>
                   ) : (
                     <p className="text-muted-foreground">

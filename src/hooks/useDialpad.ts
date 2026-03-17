@@ -12,6 +12,10 @@ interface LinkDialpadCallLogParams {
   call_log_id: string;
 }
 
+interface CancelDialpadCallParams {
+  call_id: string;
+}
+
 export function useDialpadCall() {
   return useMutation({
     mutationFn: async (params: DialpadCallParams) => {
@@ -29,6 +33,18 @@ export function useDialpadCallStatus() {
     mutationFn: async (callId: string) => {
       const { data, error } = await supabase.functions.invoke("dialpad", {
         body: { action: "get_call_status", call_id: callId },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCancelDialpadCall() {
+  return useMutation({
+    mutationFn: async ({ call_id }: CancelDialpadCallParams) => {
+      const { data, error } = await supabase.functions.invoke("dialpad", {
+        body: { action: "hangup_call", call_id },
       });
       if (error) throw error;
       return data;

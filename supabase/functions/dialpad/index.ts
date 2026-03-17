@@ -604,6 +604,21 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "hangup_call": {
+        if (!params.call_id) {
+          return jsonResponse({ error: "call_id is required" }, 400);
+        }
+
+        dialpadResponse = await fetch(`${DIALPAD_BASE}/call/${params.call_id}/actions/hangup`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            Accept: "application/json",
+          },
+        });
+        break;
+      }
+
       case "list_calls": {
         const qs = new URLSearchParams();
         if (params.limit) qs.set("limit", params.limit);
