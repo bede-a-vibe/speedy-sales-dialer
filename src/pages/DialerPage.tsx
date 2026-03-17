@@ -1231,6 +1231,14 @@ export default function DialerPage() {
                 </div>
               )}
 
+              {cooldownSecondsLeft !== null && cooldownSecondsLeft > 0 && !selectedOutcome && (
+                <div className="flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Auto-advancing as <span className="font-medium text-foreground">No Answer</span> in{" "}
+                  <span className="font-mono font-semibold text-foreground">{cooldownSecondsLeft}s</span>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Button
                   onClick={() => void logAndNext()}
