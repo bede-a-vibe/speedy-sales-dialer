@@ -115,28 +115,15 @@ export default function DialerPage() {
         [selectedOutcome]: (prev[selectedOutcome] || 0) + 1,
       }));
 
-      // Initiate Dialpad call logging
-      if (myDialpadSettings?.dialpad_user_id) {
-        try {
-          await dialpadLogCall.mutateAsync({
-            phone: currentContact.phone,
-            dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          });
-          toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call initiated`);
-        } catch {
-          toast.warning(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label} · Dialpad call failed`);
-        }
-      } else {
-        toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
-      }
-
+      toast.success(`Logged: ${OUTCOME_CONFIG[selectedOutcome].label}`);
+      activeDialRequestRef.current = null;
       setSelectedOutcome(null);
       setNotes("");
       setFollowUpDate(undefined);
     } catch (err) {
       toast.error("Failed to log call. Try again.");
     }
-  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact, myDialpadSettings, dialpadLogCall]);
+  }, [selectedOutcome, currentContact, user, notes, followUpDate, createCallLog, updateContact]);
 
   // Keyboard shortcuts
   useEffect(() => {
