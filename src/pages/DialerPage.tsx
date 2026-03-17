@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
+import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
