@@ -795,7 +795,7 @@ export default function DialerPage() {
       }
     };
 
-    void attemptDial(2, true);
+    void attemptDial(2);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
