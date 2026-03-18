@@ -1,28 +1,52 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Phone, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import {
+  AUTH_REQUEST_TIMEOUT_MS,
+  createPrimaryStorageAuthClient,
+  withTimeout,
+} from "@/lib/auth";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const navigate = useNavigate();
+  const [ready, setReady] = useState(false);
+  const recoveryClient = useMemo(
+    () => createPrimaryStorageAuthClient({ detectSessionInUrl: true }),
+    [],
+  );
 
   useEffect(() => {
-    // Check for recovery event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // User arrived via recovery link - show the form
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    let isMounted = true;
+
+    void withTimeout(
+      recoveryClient.auth.getSession(),
+      AUTH_REQUEST_TIMEOUT_MS,
+      "Password reset session timed out. Please reopen the link from your email.",
+    )
+      .then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error) throw error;
+        if (!data.session) {
+          throw new Error("Password reset link is invalid or expired. Please request a new one.");
+        }
+
+        setReady(true);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        toast.error(error instanceof Error ? error.message : "Unable to verify reset link.");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [recoveryClient]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,17 +58,34 @@ export default function ResetPasswordPage() {
       toast.error("Password must be at least 6 characters.");
       return;
     }
+    if (!ready) {
+      toast.error("Your reset link is still loading. Please wait a moment and try again.");
+      return;
+    }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      setSuccess(true);
-      toast.success("Password updated successfully!");
-      setTimeout(() => navigate("/"), 2000);
+
+    try {
+      const { error } = await withTimeout(
+        recoveryClient.auth.updateUser({ password }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Updating password timed out. Please try again.",
+      );
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setSuccess(true);
+        toast.success("Password updated successfully!");
+        window.setTimeout(() => {
+          window.location.assign("/");
+        }, 1200);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update password.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -68,6 +109,9 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!ready && (
+              <p className="text-xs text-muted-foreground">Checking your reset link...</p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-xs text-muted-foreground">New Password</Label>
               <Input
@@ -94,7 +138,7 @@ export default function ResetPasswordPage() {
                 className="bg-card border-border"
               />
             </div>
-            <Button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground font-semibold">
+            <Button type="submit" disabled={loading || !ready} className="w-full bg-primary text-primary-foreground font-semibold">
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Update Password
             </Button>
