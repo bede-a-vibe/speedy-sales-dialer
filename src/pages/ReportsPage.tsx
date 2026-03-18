@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users } from "lucide-react";
+import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -16,6 +16,9 @@ import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
+import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
+import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
+import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 
 const ALL_REPS_VALUE = "all";
 
@@ -40,6 +43,7 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
+  const [hourlyDate, setHourlyDate] = useState(today);
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
@@ -83,6 +87,16 @@ export default function ReportsPage() {
   const setterOutcomeItems = useMemo(
     () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.setter, metrics.appointmentPerformance.setter),
     [metrics],
+  );
+
+  const hourlyRows = useMemo(
+    () => getHourlyMetrics(callLogs, bookedAppointments, hourlyDate, activeRepId),
+    [callLogs, bookedAppointments, hourlyDate, activeRepId],
+  );
+
+  const heatMapCells = useMemo(
+    () => getBookingHeatMapData(bookedAppointments),
+    [bookedAppointments],
   );
 
   const closerOutcomeItems = useMemo(
@@ -155,6 +169,7 @@ export default function ReportsPage() {
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
             <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
+            <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings-made" className="space-y-6">
@@ -307,6 +322,32 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="hourly-activity" className="space-y-6">
+            <ReportSection
+              title="Hourly Breakdown"
+              description={`Hour-by-hour activity for ${hourlyDate}${activeRepId ? ` (${selectedRepLabel})` : " across all reps"}.`}
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Date</span>
+                <Input
+                  type="date"
+                  value={hourlyDate}
+                  onChange={(e) => setHourlyDate(e.target.value)}
+                  className="w-[160px] border-border bg-card text-sm"
+                />
+              </div>
+              <HourlyBreakdownTable rows={hourlyRows} />
+            </ReportSection>
+
+            <ReportSection
+              title="Booking Heat Map"
+              description="Booking density by day of week and hour across the selected date range."
+            >
+              <BookingHeatMap cells={heatMapCells} />
             </ReportSection>
           </TabsContent>
         </Tabs>
