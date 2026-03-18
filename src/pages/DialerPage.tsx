@@ -527,7 +527,9 @@ export default function DialerPage() {
         linkDialpadCallLog.mutateAsync({
           dialpad_call_id: activeDialpadCallId,
           call_log_id: insertedLog.id,
-        }).catch(() => { /* non-critical */ });
+        }).catch(() => {
+          // non-critical
+        });
       }
 
       setCallCount((prev) => prev + 1);
@@ -542,8 +544,9 @@ export default function DialerPage() {
         stopSession();
       }
     } catch {
-      leadAdvanceInFlightRef.current = false;
       toast.error("Failed to log call. Try again.");
+    } finally {
+      leadAdvanceInFlightRef.current = false;
     }
   }, [
     activeDialpadCallId,
