@@ -33,14 +33,49 @@ export function DialpadSyncPanel({
     refetchInterval: enabled && contactId ? 15000 : false,
   });
 
+  const isLinking = isResolving && !activeDialpadCallId;
+
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isLinking) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLinking]);
+
   const latestDialpadSummary = contactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-        Dialpad Sync
-      </label>
+      <div className="mb-2 flex items-center justify-between">
+        <label className="block text-[10px] uppercase tracking-widest text-muted-foreground">
+          Dialpad Sync
+        </label>
+        {isLinking && (
+          <Badge variant="secondary" className="animate-pulse gap-1.5 bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] font-medium">
+            <Radio className="h-3 w-3" />
+            Linking… {elapsedSeconds}s
+          </Badge>
+        )}
+        {activeDialpadCallId && activeDialpadCallState !== "hangup" && (
+          <Badge variant="secondary" className="gap-1.5 bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[10px] font-medium">
+            <Radio className="h-3 w-3" />
+            Connected
+          </Badge>
+        )}
+        {activeDialpadCallId && activeDialpadCallState === "hangup" && (
+          <Badge variant="outline" className="gap-1.5 text-[10px] font-medium text-muted-foreground">
+            Ended
+          </Badge>
+        )}
+      </div>
       <div className="space-y-3 text-sm">
         {activeDialpadCallId ? (
           <div className="space-y-3">
@@ -68,9 +103,9 @@ export function DialpadSyncPanel({
           </div>
         ) : isResolving ? (
           <div className="space-y-3">
-            <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 font-mono text-xs text-muted-foreground">
               <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
-              Connecting to Dialpad… waiting for call confirmation.
+              Connecting to Dialpad… waiting for call confirmation ({elapsedSeconds}s).
             </div>
             <Button
               variant="outline"
