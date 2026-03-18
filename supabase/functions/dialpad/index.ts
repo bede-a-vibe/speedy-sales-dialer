@@ -847,6 +847,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
   try {
     const { action, ...params } = await req.json();
 
