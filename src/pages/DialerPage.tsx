@@ -178,7 +178,9 @@ export default function DialerPage() {
     : null;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
-  const isCallTerminal = (!activeDialpadCallId && !isCallResolving) || activeDialpadCallState === "hangup";
+  const hasUnresolvedDialpadCall = !activeDialpadCallId
+    && (isCallResolving || activeDialpadCallState === "connecting" || activeDialpadCallState === "calling" || activeDialpadCallState === "ringing");
+  const isCallTerminal = (!activeDialpadCallId && !hasUnresolvedDialpadCall) || activeDialpadCallState === "hangup";
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
   const requiresBookedSchedule = selectedOutcome === "booked";
@@ -189,7 +191,7 @@ export default function DialerPage() {
   const totalPausedMs = accumulatedPausedMs + livePausedMs;
   const canSubmit = !!selectedOutcome
     && isCallTerminal
-    && !isCallResolving
+    && !hasUnresolvedDialpadCall
     && (!requiresPipelineAssignment || !!assignedRepId)
     && (!requiresAnySchedule || !!followUpDate)
     && (!requiresFollowUpSchedule || !!followUpTime)
@@ -198,7 +200,7 @@ export default function DialerPage() {
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
-  const primaryActionLabel = isCallResolving
+  const primaryActionLabel = hasUnresolvedDialpadCall
     ? "Connecting to Dialpad…"
     : requiresBookedSchedule
       ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")

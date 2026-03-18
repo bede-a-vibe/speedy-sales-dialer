@@ -219,6 +219,95 @@ function isAlreadyEndedDialpadError(status: number, data: unknown) {
     || message.includes("cannot be hung up");
 }
 
+function uniqueNormalizedStrings(values: unknown[]) {
+  const seen = new Set<string>();
+  const normalizedValues: string[] = [];
+
+  for (const value of values) {
+    const normalized = typeof value === "string"
+      ? value.trim()
+      : typeof value === "number"
+        ? String(value)
+        : "";
+
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    normalizedValues.push(normalized);
+  }
+
+  return normalizedValues;
+}
+
+function extractDialpadUserIds(call: JsonRecord) {
+  const target = isRecord(call.target) ? call.target : null;
+  const user = isRecord(call.user) ? call.user : null;
+
+  return uniqueNormalizedStrings([
+    target?.id,
+    target?.user_id,
+    call.user_id,
+    call.operator_id,
+    call.owner_id,
+    user?.id,
+    user?.user_id,
+  ]);
+}
+
+function extractDialpadPhoneNumbers(call: JsonRecord) {
+  const contact = isRecord(call.contact) ? call.contact : null;
+  const customer = isRecord(call.customer) ? call.customer : null;
+  const externalContact = isRecord(call.external_contact) ? call.external_contact : null;
+
+  return uniqueNormalizedStrings([
+    call.external_number,
+    call.phone_number,
+    call.customer_number,
+    call.external_phone_number,
+    contact?.phone,
+    contact?.phone_number,
+    contact?.number,
+    customer?.phone,
+    customer?.phone_number,
+    customer?.number,
+    externalContact?.phone,
+    externalContact?.phone_number,
+    externalContact?.number,
+  ]);
+}
+
+function phoneNumbersLikelyMatch(candidate: string, normalizedPhone: string) {
+  const candidateDigits = candidate.replace(/\D/g, "");
+  const phoneDigits = normalizedPhone.replace(/\D/g, "");
+
+  if (!candidateDigits || !phoneDigits) return false;
+
+  const compareLength = Math.min(8, candidateDigits.length, phoneDigits.length);
+  return compareLength >= 6 && candidateDigits.slice(-compareLength) === phoneDigits.slice(-compareLength);
+}
+
+function findMatchingActiveCall(items: unknown[], dialpadUserId: string, normalizedPhone: string) {
+  const activeCallsForUser = items
+    .filter(isRecord)
+    .filter((call) => {
+      const state = normalizeDialpadState(call.state);
+      return !isTerminalDialpadState(state) && extractDialpadUserIds(call).some((value) => value === String(dialpadUserId));
+    });
+
+  const phoneMatch = activeCallsForUser.find((call) =>
+    extractDialpadPhoneNumbers(call).some((value) => phoneNumbersLikelyMatch(value, normalizedPhone)),
+  );
+
+  if (phoneMatch) {
+    return { call: phoneMatch, matchType: "phone" as const };
+  }
+
+  if (activeCallsForUser.length === 1) {
+    return { call: activeCallsForUser[0], matchType: "single_active_user_call" as const };
+  }
+
+  return null;
+}
+
 function isDialpadCreateCallConflict(status: number, data: unknown) {
   if (status !== 409) return false;
   const message = (extractDialpadErrorMessage(data) ?? "").toLowerCase();
