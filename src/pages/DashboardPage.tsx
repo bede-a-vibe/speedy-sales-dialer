@@ -40,7 +40,7 @@ export default function DashboardPage() {
   }, {});
 
   return (
-    <>
+    <AppLayout title="Dashboard">
       <MilestonePopup todaysCalls={todaysCalls} dailyTarget={dailyTarget} />
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Row 1: Greeting */}
