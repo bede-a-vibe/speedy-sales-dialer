@@ -1,24 +1,42 @@
+import { useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
-import { Target, ChevronUp } from "lucide-react";
+import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
+import { deriveAllTargets } from "@/lib/performanceTargets";
+import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfettiBurst, useConfettiTrigger } from "@/components/dashboard/ConfettiBurst";
 
-const DAILY_TARGET = 50;
+const DEFAULT_DAILY_TARGET = 50;
 const RADIUS = 58;
 const STROKE = 8;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+function useIndividualDialTarget(userId?: string): number {
+  const { data: targets = [] } = usePerformanceTargets();
+  return useMemo(() => {
+    if (!userId) return DEFAULT_DAILY_TARGET;
+    const derived = deriveAllTargets(targets);
+    const dialTarget = derived.individualDaily.find(
+      (t) => t.user_id === userId && t.metric_key === "dials"
+    );
+    return dialTarget?.target_value && dialTarget.target_value > 0
+      ? Math.round(dialTarget.target_value)
+      : DEFAULT_DAILY_TARGET;
+  }, [targets, userId]);
+}
+
 export function DailyProgressRing() {
   const { user } = useAuth();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
+  const dailyTarget = useIndividualDialTarget(user?.id);
   const animatedCalls = useAnimatedCounter(todaysCalls);
 
-  const pct = Math.min(todaysCalls / DAILY_TARGET, 1);
+  const pct = Math.min(todaysCalls / dailyTarget, 1);
   const offset = CIRCUMFERENCE * (1 - pct);
-  const isComplete = todaysCalls >= DAILY_TARGET;
-  const remaining = Math.max(DAILY_TARGET - todaysCalls, 0);
+  const isComplete = todaysCalls >= dailyTarget;
+  const remaining = Math.max(dailyTarget - todaysCalls, 0);
 
   const confettiActive = useConfettiTrigger(isComplete);
 
@@ -80,7 +98,7 @@ export function DailyProgressRing() {
             {animatedCalls}
           </span>
           <span className="text-[10px] text-muted-foreground font-medium">
-            / {DAILY_TARGET} calls
+            / {dailyTarget} calls
           </span>
         </div>
       </div>
