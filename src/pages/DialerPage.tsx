@@ -716,7 +716,6 @@ export default function DialerPage() {
     if (
       activeDialRequestRef.current === requestKey
       || hasActiveDialRequestLock(requestKey)
-      || dialpadCall.isPending
     ) {
       return;
     }
