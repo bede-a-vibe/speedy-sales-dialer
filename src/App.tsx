@@ -85,7 +85,7 @@ function ProtectedRoutes() {
 
 function AuthRoute() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <FullPageLoading />;
   if (user) return <Navigate to="/" replace />;
   return <AuthPage />;
 }
