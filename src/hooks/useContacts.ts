@@ -340,9 +340,20 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     const task = claimIntoBuffer(activeSessionId, contactsRef.current, desiredMinimum)
       .then(async ({ contacts: nextContacts, totalCount: nextTotalCount, claimedCount }) => {
         if (sessionRef.current === activeSessionId) {
-          contactsRef.current = nextContacts;
-          setContacts(nextContacts);
-          setTotalCount(nextTotalCount);
+          // Merge: preserve current buffer (which may have had contacts
+          // discarded while the claim was in flight) and only append
+          // genuinely new contacts from the claim response.
+          const currentIds = new Set(contactsRef.current.map((c) => c.id));
+          const freshContacts = [...contactsRef.current];
+          for (const c of nextContacts) {
+            if (!currentIds.has(c.id)) {
+              freshContacts.push(c);
+              currentIds.add(c.id);
+            }
+          }
+          contactsRef.current = freshContacts;
+          setContacts(freshContacts);
+          setTotalCount(Math.max(nextTotalCount, freshContacts.length));
         } else {
           await cleanupSessionLocks(activeSessionId);
         }
