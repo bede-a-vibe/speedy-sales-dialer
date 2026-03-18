@@ -1,64 +1,16 @@
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Phone, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-
-const AUTH_REQUEST_TIMEOUT_MS = 15000;
-
-function clearLocalAuthStorage() {
-  if (typeof window === "undefined") return;
-
-  const authKeys = Object.keys(window.localStorage).filter(
-    (key) => key.startsWith("sb-") && (key.includes("-auth-token") || key.includes("-code-verifier")),
-  );
-
-  authKeys.forEach((key) => window.localStorage.removeItem(key));
-}
-
-function createIsolatedAuthClient() {
-  return createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        storageKey: `sales-dialer-login-${Date.now()}`,
-      },
-    },
-  );
-}
-
-async function resetLocalAuthState() {
-  try {
-    await supabase.auth.signOut({ scope: "local" });
-  } catch {
-    // Ignore local cleanup failures and continue with storage purge.
-  }
-
-  clearLocalAuthStorage();
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((error) => {
-        window.clearTimeout(timer);
-        reject(error);
-      });
-  });
-}
+import {
+  AUTH_REQUEST_TIMEOUT_MS,
+  createPrimaryStorageAuthClient,
+  createTransientAuthClient,
+  resetLocalAuthState,
+  withTimeout,
+} from "@/lib/auth";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
@@ -75,8 +27,9 @@ export default function AuthPage() {
 
     try {
       if (mode === "forgot") {
+        const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
-          supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          authClient.auth.resetPasswordForEmail(normalizedEmail, {
             redirectTo: `${window.location.origin}/reset-password`,
           }),
           AUTH_REQUEST_TIMEOUT_MS,
@@ -93,8 +46,9 @@ export default function AuthPage() {
       }
 
       if (mode === "signup") {
+        const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
-          supabase.auth.signUp({
+          authClient.auth.signUp({
             email: normalizedEmail,
             password,
             options: {
@@ -116,9 +70,9 @@ export default function AuthPage() {
 
       await resetLocalAuthState();
 
-      const isolatedAuthClient = createIsolatedAuthClient();
-      const { data, error } = await withTimeout(
-        isolatedAuthClient.auth.signInWithPassword({ email: normalizedEmail, password }),
+      const authClient = createPrimaryStorageAuthClient();
+      const { error } = await withTimeout(
+        authClient.auth.signInWithPassword({ email: normalizedEmail, password }),
         AUTH_REQUEST_TIMEOUT_MS,
         "Login timed out. Please try again.",
       );
@@ -128,23 +82,7 @@ export default function AuthPage() {
         return;
       }
 
-      if (!data.session) {
-        toast.error("No session was returned. Please try again.");
-        return;
-      }
-
-      const { error: sessionError } = await withTimeout(
-        supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }),
-        AUTH_REQUEST_TIMEOUT_MS,
-        "Login timed out while restoring your session. Please try again.",
-      );
-
-      if (sessionError) {
-        toast.error(sessionError.message);
-      }
+      window.location.assign("/");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to sign in right now.");
     } finally {

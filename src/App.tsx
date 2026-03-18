@@ -83,11 +83,12 @@ function ProtectedRoutes() {
   );
 }
 
-function AuthRoute() {
-  const { user, loading } = useAuth();
-  if (loading) return <FullPageLoading />;
-  if (user) return <Navigate to="/" replace />;
-  return <AuthPage />;
+function ProtectedApp() {
+  return (
+    <AuthProvider>
+      <ProtectedRoutes />
+    </AuthProvider>
+  );
 }
 
 const App = () => (
@@ -95,15 +96,13 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<AuthRoute />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/*" element={<ProtectedApp />} />
+        </Routes>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
