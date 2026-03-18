@@ -460,6 +460,16 @@ export default function DialerPage() {
       } catch {
         // Continue logging even if hangup fails
       }
+    } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
+      // No call ID yet (still resolving) — force hangup by user+phone
+      try {
+        await forceHangupCall.mutateAsync({
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          phone: currentContact.phone,
+        });
+      } catch {
+        // Continue logging even if force hangup fails
+      }
     }
 
     try {
