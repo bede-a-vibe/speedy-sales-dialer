@@ -1067,28 +1067,21 @@ Deno.serve(async (req) => {
 
         console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
 
-        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/call?limit=25`, {
+        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
           headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
         });
 
         if (resolveCallsResponse.ok) {
           const resolveCallsData = await resolveCallsResponse.json().catch(() => null);
           const resolveItems = Array.isArray(resolveCallsData?.items) ? resolveCallsData.items : Array.isArray(resolveCallsData) ? resolveCallsData : [];
+          const matchedCall = findMatchingActiveCall(resolveItems, String(resolveDialpadUserId), resolvePhone);
 
-          for (const call of resolveItems) {
-            if (!isRecord(call)) continue;
-            const callId = getDialpadCallId(call);
-            const state = normalizeDialpadState(call.state);
-            const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
-            const contactPhone = isRecord(call.contact) && typeof call.contact.phone === "string" ? call.contact.phone : "";
-            const callUserId = isRecord(call.target)
-              ? call.target.id ?? call.target.user_id ?? null
-              : call.user_id ?? call.operator_id ?? null;
-            const isMatchingUser = String(callUserId) === String(resolveDialpadUserId);
-            const normalizedCandidateNumber = externalNumber || contactPhone;
+          if (matchedCall) {
+            const callId = getDialpadCallId(matchedCall.call);
+            const state = normalizeDialpadState(matchedCall.call.state);
 
-            if (callId && !isTerminalDialpadState(state) && isMatchingUser && normalizedCandidateNumber.includes(resolvePhone.slice(-8))) {
-              console.log(`[resolve_call] Found active call_id=${callId} state=${state}`);
+            if (callId) {
+              console.log(`[resolve_call] Found active call_id=${callId} state=${state} via ${matchedCall.matchType}`);
 
               if (params.contact_id) {
                 const adminClient = createClient(supabaseUrl, serviceRoleKey);
