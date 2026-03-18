@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, Loader2, CheckCircle2 } from "lucide-react";
+import { Phone, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AUTH_REQUEST_TIMEOUT_MS,
-  createPrimaryStorageAuthClient,
   resetLocalAuthState,
   withTimeout,
 } from "@/lib/auth";
@@ -38,10 +38,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [ready, setReady] = useState(false);
-  const recoveryClient = useMemo(
-    () => createPrimaryStorageAuthClient({ detectSessionInUrl: true }),
-    [],
-  );
+  const [backendError, setBackendError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,41 +66,38 @@ export default function ResetPasswordPage() {
 
       if (code) {
         const { error } = await withTimeout(
-          recoveryClient.auth.exchangeCodeForSession(code),
+          supabase.auth.exchangeCodeForSession(code),
           AUTH_REQUEST_TIMEOUT_MS,
           "Password reset session timed out. Please reopen the link from your email.",
         );
-
         if (error) throw error;
         clearRecoveryParamsFromUrl();
       } else if (accessToken && refreshToken) {
         const { error } = await withTimeout(
-          recoveryClient.auth.setSession({
+          supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           }),
           AUTH_REQUEST_TIMEOUT_MS,
           "Password reset session timed out. Please reopen the link from your email.",
         );
-
         if (error) throw error;
         clearRecoveryParamsFromUrl();
       } else if (type === "recovery" && tokenHash) {
         const { error } = await withTimeout(
-          recoveryClient.auth.verifyOtp({
+          supabase.auth.verifyOtp({
             type: "recovery",
             token_hash: tokenHash,
           }),
           AUTH_REQUEST_TIMEOUT_MS,
           "Password reset session timed out. Please reopen the link from your email.",
         );
-
         if (error) throw error;
         clearRecoveryParamsFromUrl();
       }
 
       const { data, error } = await withTimeout(
-        recoveryClient.auth.getSession(),
+        supabase.auth.getSession(),
         AUTH_REQUEST_TIMEOUT_MS,
         "Password reset session timed out. Please reopen the link from your email.",
       );
@@ -120,13 +114,18 @@ export default function ResetPasswordPage() {
 
     void initializeRecoverySession().catch((error) => {
       if (!isMounted) return;
-      toast.error(error instanceof Error ? error.message : "Unable to verify reset link.");
+      const message = error instanceof Error ? error.message : "Unable to verify reset link.";
+      if (message.includes("timed out") || message.includes("Failed to fetch")) {
+        setBackendError("The server is temporarily unavailable. Please try again in a moment.");
+      } else {
+        toast.error(message);
+      }
     });
 
     return () => {
       isMounted = false;
     };
-  }, [recoveryClient]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,10 +143,11 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
+    setBackendError(null);
 
     try {
       const { error } = await withTimeout(
-        recoveryClient.auth.updateUser({ password }),
+        supabase.auth.updateUser({ password }),
         AUTH_REQUEST_TIMEOUT_MS,
         "Updating password timed out. Please try again.",
       );
@@ -162,7 +162,12 @@ export default function ResetPasswordPage() {
         }, 1200);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to update password.");
+      const message = error instanceof Error ? error.message : "Unable to update password.";
+      if (message.includes("timed out") || message.includes("Failed to fetch")) {
+        setBackendError("The server is temporarily unavailable. Please try again in a moment.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -181,6 +186,13 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
+        {backendError && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{backendError}</span>
+          </div>
+        )}
+
         {success ? (
           <div className="text-center space-y-3">
             <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
@@ -189,7 +201,7 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!ready && (
+            {!ready && !backendError && (
               <p className="text-xs text-muted-foreground">Checking your reset link...</p>
             )}
             <div className="space-y-2">
