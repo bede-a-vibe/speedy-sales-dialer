@@ -17,6 +17,17 @@ import { cn } from "@/lib/utils";
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: callLogs = [] } = useCallLogs();
+  const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
+  const { data: targets = [] } = usePerformanceTargets();
+
+  const dailyTarget = useMemo(() => {
+    if (!user?.id) return 50;
+    const derived = deriveAllTargets(targets);
+    const dt = derived.individualDaily.find(
+      (t) => t.user_id === user.id && t.metric_key === "dials"
+    );
+    return dt?.target_value && dt.target_value > 0 ? Math.round(dt.target_value) : 50;
+  }, [targets, user?.id]);
 
   const today = new Date().toISOString().slice(0, 10);
   const todaysLogs = callLogs.filter(
