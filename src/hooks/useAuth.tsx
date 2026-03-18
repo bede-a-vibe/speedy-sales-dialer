@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { authBrowserClient } from "@/lib/auth";
 
 interface AuthContextType {
   user: User | null;
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       finishAuthInit();
     }, 8000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    const { data: { subscription } } = authBrowserClient.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) return;
 
       setSession(nextSession);
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    void supabase.auth
+    void authBrowserClient.auth
       .getSession()
       .then(({ data, error }) => {
         if (!isMounted) return;
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!isMounted) return;
 
-        void supabase.auth.signOut({ scope: "local" });
+        void authBrowserClient.auth.signOut({ scope: "local" });
         setSession(null);
         setUser(null);
       })
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await authBrowserClient.auth.signOut();
   };
 
   return (

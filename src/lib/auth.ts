@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 
 export const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
@@ -12,6 +11,73 @@ interface AuthClientOptions {
   persistSession?: boolean;
   storageKey?: string;
 }
+
+function createBrowserSafeFetch(): typeof fetch {
+  return async (input, init) => {
+    if (typeof window === "undefined") {
+      return fetch(input, init);
+    }
+
+    const request = input instanceof Request ? input : new Request(input, init);
+
+    return new Promise<Response>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(request.method, request.url, true);
+
+      request.headers.forEach((value, key) => {
+        xhr.setRequestHeader(key, value);
+      });
+
+      xhr.onload = () => {
+        const headers = new Headers();
+        xhr
+          .getAllResponseHeaders()
+          .trim()
+          .split(/[\r\n]+/)
+          .filter(Boolean)
+          .forEach((line) => {
+            const separatorIndex = line.indexOf(":");
+            if (separatorIndex <= 0) return;
+            const key = line.slice(0, separatorIndex).trim();
+            const value = line.slice(separatorIndex + 1).trim();
+            headers.append(key, value);
+          });
+
+        resolve(
+          new Response(xhr.responseText, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers,
+          }),
+        );
+      };
+
+      xhr.onerror = () => reject(new TypeError("Failed to fetch"));
+      xhr.onabort = () => reject(new DOMException("Request was aborted", "AbortError"));
+
+      if (request.signal) {
+        const abortHandler = () => xhr.abort();
+        if (request.signal.aborted) {
+          xhr.abort();
+          return;
+        }
+        request.signal.addEventListener("abort", abortHandler, { once: true });
+      }
+
+      if (request.method === "GET" || request.method === "HEAD") {
+        xhr.send();
+        return;
+      }
+
+      request
+        .text()
+        .then((body) => xhr.send(body))
+        .catch(reject);
+    });
+  };
+}
+
+const browserSafeFetch = createBrowserSafeFetch();
 
 export function clearLocalAuthStorage() {
   if (typeof window === "undefined") return;
@@ -35,8 +101,22 @@ function createAuthClient({
       detectSessionInUrl,
       storageKey,
     },
+    global: {
+      fetch: browserSafeFetch,
+    },
   });
 }
+
+export const authBrowserClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  global: {
+    fetch: browserSafeFetch,
+  },
+});
 
 export function createTransientAuthClient() {
   return createAuthClient();
@@ -52,7 +132,7 @@ export function createPrimaryStorageAuthClient(options: Pick<AuthClientOptions, 
 
 export async function resetLocalAuthState() {
   try {
-    await supabase.auth.signOut({ scope: "local" });
+    await authBrowserClient.auth.signOut({ scope: "local" });
   } catch {
     // Ignore local cleanup failures and continue with storage purge.
   }
