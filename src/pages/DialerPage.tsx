@@ -730,10 +730,7 @@ export default function DialerPage() {
     setIsCallResolving(false);
     leadAdvanceInFlightRef.current = false;
 
-    const attemptDial = async (retriesLeft: number, isFirstAttempt: boolean): Promise<void> => {
-      if (isFirstAttempt) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+    const attemptDial = async (retriesLeft: number): Promise<void> => {
 
       try {
         const response = await dialpadCall.mutateAsync({
