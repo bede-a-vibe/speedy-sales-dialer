@@ -625,13 +625,9 @@ export default function DialerPage() {
   const skipLead = useCallback(async () => {
     if (currentIndex === null || !currentContact) return;
 
-    // End any active or still-linking Dialpad call before skipping.
+    // Fire-and-forget hangup — don't block skip on Dialpad API latency
     if (!isCallTerminal) {
-      try {
-        await cancelActiveCall();
-      } catch {
-        // Continue with skip even if cancel fails
-      }
+      void cancelActiveCall();
     }
 
     // Bump call_attempt_count so this lead rotates to the back of the queue
