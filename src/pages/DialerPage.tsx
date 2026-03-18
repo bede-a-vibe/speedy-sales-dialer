@@ -190,21 +190,16 @@ export default function DialerPage() {
   const totalDialingMs = accumulatedDialingMs + liveDialingMs;
   const totalPausedMs = accumulatedPausedMs + livePausedMs;
   const canSubmit = !!selectedOutcome
-    && isCallTerminal
-    && !hasUnresolvedDialpadCall
     && (!requiresPipelineAssignment || !!assignedRepId)
     && (!requiresAnySchedule || !!followUpDate)
     && (!requiresFollowUpSchedule || !!followUpTime)
     && !isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
-    && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
-  const primaryActionLabel = hasUnresolvedDialpadCall
-    ? "Connecting to Dialpad…"
-    : requiresBookedSchedule
-      ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
-      : (isCallTerminal ? (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead") : "End or wait for call to finish before logging");
+  const primaryActionLabel = requiresBookedSchedule
+    ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
+    : (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead");
 
   useEffect(() => {
     if (user?.id) {
