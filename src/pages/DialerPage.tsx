@@ -805,7 +805,8 @@ export default function DialerPage() {
     let cancelled = false;
     let timeoutId: number | null = null;
     let attempt = 0;
-    const pollDelays = [150, 300, 500, 750, 1000, 1250, 1500, 2000, 2500, 3000];
+    const MAX_ATTEMPTS = 20;
+    const pollDelays = [150, 300, 500, 750, 1000, 1250, 1500, 2000, 2000, 2500, 2500, 3000];
 
     const attemptResolve = async () => {
       try {
@@ -830,6 +831,14 @@ export default function DialerPage() {
       }
 
       if (!cancelled) {
+        if (attempt >= MAX_ATTEMPTS) {
+          // Dialpad never exposed the call — stop linking spinner and show as live (untracked)
+          console.warn("[Dialer] Resolution polling exhausted — marking call as live (untracked)");
+          setIsCallResolving(false);
+          setActiveDialpadCallState("live");
+          toast.warning("Call is live but couldn't be linked to Dialpad tracking.");
+          return;
+        }
         const nextDelay = pollDelays[Math.min(attempt, pollDelays.length - 1)];
         attempt += 1;
         timeoutId = window.setTimeout(attemptResolve, nextDelay);

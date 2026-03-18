@@ -70,6 +70,12 @@ export function DialpadSyncPanel({
             Connected
           </Badge>
         )}
+        {!activeDialpadCallId && !isLinking && activeDialpadCallState === "live" && (
+          <Badge variant="secondary" className="gap-1.5 bg-blue-500/15 text-blue-600 border-blue-500/30 text-[10px] font-medium">
+            <Radio className="h-3 w-3" />
+            Live (untracked)
+          </Badge>
+        )}
         {activeDialpadCallId && activeDialpadCallState === "hangup" && (
           <Badge variant="outline" className="gap-1.5 text-[10px] font-medium text-muted-foreground">
             Ended
