@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsOverview";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
@@ -5,7 +6,10 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { AchievementBadges } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
+import { useCallLogs, useTodayCallCount } from "@/hooks/useCallLogs";
+import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
+import { deriveAllTargets } from "@/lib/performanceTargets";
 import { useAuth } from "@/hooks/useAuth";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { cn } from "@/lib/utils";
