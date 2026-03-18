@@ -1124,7 +1124,7 @@ Deno.serve(async (req) => {
             console.log(`[resolve_call] Found active call_id=${callId} state=${state} via ${matchedCall.matchType}`);
 
             if (params.contact_id) {
-              const adminClient = createClient(supabaseUrl, serviceRoleKey);
+              
               await adminClient.from("dialpad_calls").upsert({
                 dialpad_call_id: callId,
                 contact_id: params.contact_id,
