@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsOverview";
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
@@ -5,7 +6,10 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { AchievementBadges } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
+import { useCallLogs, useTodayCallCount } from "@/hooks/useCallLogs";
+import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
+import { deriveAllTargets } from "@/lib/performanceTargets";
 import { useAuth } from "@/hooks/useAuth";
 import { OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { cn } from "@/lib/utils";
@@ -13,6 +17,17 @@ import { cn } from "@/lib/utils";
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: callLogs = [] } = useCallLogs();
+  const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
+  const { data: targets = [] } = usePerformanceTargets();
+
+  const dailyTarget = useMemo(() => {
+    if (!user?.id) return 50;
+    const derived = deriveAllTargets(targets);
+    const dt = derived.individualDaily.find(
+      (t) => t.user_id === user.id && t.metric_key === "dials"
+    );
+    return dt?.target_value && dt.target_value > 0 ? Math.round(dt.target_value) : 50;
+  }, [targets, user?.id]);
 
   const today = new Date().toISOString().slice(0, 10);
   const todaysLogs = callLogs.filter(
@@ -26,6 +41,7 @@ export default function DashboardPage() {
 
   return (
     <AppLayout title="Dashboard">
+      <MilestonePopup todaysCalls={todaysCalls} dailyTarget={dailyTarget} />
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Row 1: Greeting */}
         <DashboardGreeting />
