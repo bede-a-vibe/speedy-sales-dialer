@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users } from "lucide-react";
+import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
