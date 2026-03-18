@@ -331,7 +331,7 @@ async function findMatchingActiveCallWithRetries(params: {
       await sleep(delay);
     }
 
-    const response = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
+    const response = await fetch(`${DIALPAD_BASE}/call`, {
       headers: { Authorization: `Bearer ${params.apiKey}`, Accept: "application/json" },
     });
 
@@ -955,7 +955,7 @@ Deno.serve(async (req) => {
           }
 
           const callsResponse = await fetch(
-            `${DIALPAD_BASE}/call?limit=100`,
+            `${DIALPAD_BASE}/call`,
             {
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
