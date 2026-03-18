@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Loader2, PhoneOff } from "lucide-react";
+import { Loader2, PhoneOff, Radio } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useContactNotes } from "@/hooks/useContactNotes";
 
