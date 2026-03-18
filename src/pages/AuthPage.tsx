@@ -6,6 +6,34 @@ import { Label } from "@/components/ui/label";
 import { Phone, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+function clearLocalAuthStorage() {
+  if (typeof window === "undefined") return;
+
+  const authKeys = Object.keys(window.localStorage).filter(
+    (key) => key.startsWith("sb-") && (key.includes("-auth-token") || key.includes("-code-verifier")),
+  );
+
+  authKeys.forEach((key) => window.localStorage.removeItem(key));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
