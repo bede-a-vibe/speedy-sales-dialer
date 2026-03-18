@@ -35,7 +35,7 @@ export function DailyTarget() {
           </span>
         </div>
         <span className="text-sm font-bold font-mono text-foreground">
-          {todaysCalls}/{DAILY_TARGET}
+          {todaysCalls}/{dailyTarget}
         </span>
       </div>
       <div className="h-2 bg-secondary rounded-full overflow-hidden">
