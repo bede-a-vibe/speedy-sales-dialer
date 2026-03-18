@@ -1343,7 +1343,7 @@ Deno.serve(async (req) => {
       }
 
       case "sync_users": {
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
 
         const { data: adminRole, error: adminRoleError } = await adminClient
           .from("user_roles")
