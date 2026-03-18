@@ -1523,7 +1523,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "initiate_call" && params.contact_id) {
-      const adminClient = createClient(supabaseUrl, serviceRoleKey);
+      
       const dialpadCallId = getDialpadCallId(data);
 
       if (dialpadCallId) {
