@@ -662,7 +662,7 @@ export default function DialerPage() {
       if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "INPUT") return;
       const outcomes: CallOutcome[] = [
         "no_answer", "voicemail", "not_interested", "dnc",
-        "follow_up", "booked", "wrong_number",
+        "follow_up", "booked",
       ];
       const idx = parseInt(e.key) - 1;
       if (idx >= 0 && idx < outcomes.length) {
