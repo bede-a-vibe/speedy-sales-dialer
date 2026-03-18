@@ -1,17 +1,18 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "@/pages/DashboardPage";
-import DialerPage from "@/pages/DialerPage";
-import ContactsPage from "@/pages/ContactsPage";
-import PipelinesPage from "@/pages/PipelinesPage";
-import UploadPage from "@/pages/UploadPage";
-import ReportsPage from "@/pages/ReportsPage";
-import DialpadSettingsPage from "@/pages/DialpadSettingsPage";
-import TargetsPage from "@/pages/TargetsPage";
-import FollowUpsPage from "@/pages/FollowUpsPage";
-import NotFound from "@/pages/NotFound";
+
+const DialerPage = lazy(() => import("@/pages/DialerPage"));
+const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
+const PipelinesPage = lazy(() => import("@/pages/PipelinesPage"));
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const UploadPage = lazy(() => import("@/pages/UploadPage"));
+const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
+const TargetsPage = lazy(() => import("@/pages/TargetsPage"));
+const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
   return (
@@ -46,32 +47,34 @@ function ProtectedRoutes() {
   if (!user) return <Navigate to="/auth" replace />;
 
   return (
-    <Routes>
-      <Route path="/" element={<DashboardPage />} />
-      <Route path="/dialer" element={<DialerPage />} />
-      <Route path="/contacts" element={<ContactsPage />} />
-      <Route path="/pipelines" element={<PipelinesPage />} />
-      <Route path="/follow-ups" element={<FollowUpsPage />} />
-      <Route path="/upload" element={<UploadPage />} />
-      <Route path="/reports" element={<ReportsPage />} />
-      <Route
-        path="/targets"
-        element={(
-          <AdminRoute>
-            <TargetsPage />
-          </AdminRoute>
-        )}
-      />
-      <Route
-        path="/dialpad-settings"
-        element={(
-          <AdminRoute>
-            <DialpadSettingsPage />
-          </AdminRoute>
-        )}
-      />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<FullPageLoading />}>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dialer" element={<DialerPage />} />
+        <Route path="/contacts" element={<ContactsPage />} />
+        <Route path="/pipelines" element={<PipelinesPage />} />
+        <Route path="/follow-ups" element={<FollowUpsPage />} />
+        <Route path="/upload" element={<UploadPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route
+          path="/targets"
+          element={(
+            <AdminRoute>
+              <TargetsPage />
+            </AdminRoute>
+          )}
+        />
+        <Route
+          path="/dialpad-settings"
+          element={(
+            <AdminRoute>
+              <DialpadSettingsPage />
+            </AdminRoute>
+          )}
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }
 

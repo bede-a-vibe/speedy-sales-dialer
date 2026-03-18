@@ -2,12 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
-/**
- * The single persistent auth client used across the entire app.
- * This is the auto-generated supabase client — no duplicate clients.
- */
-export const authBrowserClient = supabase;
-
 export function clearLocalAuthStorage() {
   if (typeof window === "undefined") return;
 
@@ -16,24 +10,6 @@ export function clearLocalAuthStorage() {
   );
 
   authKeys.forEach((key) => window.localStorage.removeItem(key));
-}
-
-/**
- * @deprecated Use authBrowserClient (the shared supabase client) directly.
- */
-export function createPrimaryStorageAuthClient(_options: { detectSessionInUrl?: boolean } = {}) {
-  return supabase;
-}
-
-/**
- * For one-off auth operations (forgot password, signup) that should NOT
- * persist a session or fight with the primary client's storage.
- */
-export function createTransientAuthClient() {
-  // We use the shared client for transient ops too — the operations
-  // (resetPasswordForEmail, signUp without auto-confirm) don't create
-  // persistent sessions, so there's no conflict.
-  return supabase;
 }
 
 export async function resetLocalAuthState() {

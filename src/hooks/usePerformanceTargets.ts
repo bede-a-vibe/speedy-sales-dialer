@@ -29,6 +29,7 @@ function performanceTargetsTable() {
 export function usePerformanceTargets() {
   return useQuery({
     queryKey: ["performance-targets"],
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await performanceTargetsTable()
         .select("*")

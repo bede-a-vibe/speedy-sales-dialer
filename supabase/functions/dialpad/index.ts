@@ -847,6 +847,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
   try {
     const { action, ...params } = await req.json();
 
@@ -864,7 +866,7 @@ Deno.serve(async (req) => {
         }
 
         if (params.contact_id) {
-          const adminClient = createClient(supabaseUrl, serviceRoleKey);
+          
           const reusableCall = await findReusableTrackedCall({
             adminClient,
             apiKey: DIALPAD_API_KEY,
@@ -1055,7 +1057,7 @@ Deno.serve(async (req) => {
       }
 
       case "log_call": {
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
 
         const { data: settings, error: settingsError } = await adminClient
           .from("dialpad_settings")
@@ -1122,7 +1124,7 @@ Deno.serve(async (req) => {
             console.log(`[resolve_call] Found active call_id=${callId} state=${state} via ${matchedCall.matchType}`);
 
             if (params.contact_id) {
-              const adminClient = createClient(supabaseUrl, serviceRoleKey);
+              
               await adminClient.from("dialpad_calls").upsert({
                 dialpad_call_id: callId,
                 contact_id: params.contact_id,
@@ -1341,7 +1343,7 @@ Deno.serve(async (req) => {
       }
 
       case "sync_users": {
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
 
         const { data: adminRole, error: adminRoleError } = await adminClient
           .from("user_roles")
@@ -1489,7 +1491,7 @@ Deno.serve(async (req) => {
     const data = await dialpadResponse.json().catch(() => null);
     if (!dialpadResponse.ok) {
       if (action === "initiate_call" && params.contact_id && isDialpadCreateCallConflict(dialpadResponse.status, data)) {
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
         const reusableCall = await findReusableTrackedCall({
           adminClient,
           apiKey: DIALPAD_API_KEY,
@@ -1521,7 +1523,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "initiate_call" && params.contact_id) {
-      const adminClient = createClient(supabaseUrl, serviceRoleKey);
+      
       const dialpadCallId = getDialpadCallId(data);
 
       if (dialpadCallId) {

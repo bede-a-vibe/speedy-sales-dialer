@@ -1,21 +1,5 @@
 import type { ReportCallLog, ReportBookingItem } from "./reportMetrics";
-
-const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
-  "not_interested",
-  "dnc",
-  "follow_up",
-  "booked",
-]);
-
-function getTalkTimeSeconds(callLog: ReportCallLog) {
-  if (typeof callLog.dialpad_talk_time_seconds === "number") {
-    return Math.max(0, callLog.dialpad_talk_time_seconds);
-  }
-  if (typeof callLog.dialpad_total_duration_seconds === "number") {
-    return Math.max(0, callLog.dialpad_total_duration_seconds);
-  }
-  return 0;
-}
+import { ANSWERED_OUTCOMES, getTalkTimeSeconds } from "./reportMetrics";
 
 export interface HourlyRow {
   hour: number;
