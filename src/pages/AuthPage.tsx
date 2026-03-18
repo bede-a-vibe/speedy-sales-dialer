@@ -6,6 +6,34 @@ import { Label } from "@/components/ui/label";
 import { Phone, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+function clearLocalAuthStorage() {
+  if (typeof window === "undefined") return;
+
+  const authKeys = Object.keys(window.localStorage).filter(
+    (key) => key.startsWith("sb-") && (key.includes("-auth-token") || key.includes("-code-verifier")),
+  );
+
+  authKeys.forEach((key) => window.localStorage.removeItem(key));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
@@ -17,11 +45,17 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
+    const normalizedEmail = email.trim();
+
     try {
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
+        const { error } = await withTimeout(
+          supabase.auth.resetPasswordForEmail(normalizedEmail, {
+            redirectTo: `${window.location.origin}/reset-password`,
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Password reset request timed out. Please try again.",
+        );
 
         if (error) {
           toast.error(error.message);
@@ -33,14 +67,18 @@ export default function AuthPage() {
       }
 
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { display_name: displayName },
-            emailRedirectTo: window.location.origin,
-          },
-        });
+        const { error } = await withTimeout(
+          supabase.auth.signUp({
+            email: normalizedEmail,
+            password,
+            options: {
+              data: { display_name: displayName },
+              emailRedirectTo: window.location.origin,
+            },
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Sign up timed out. Please try again.",
+        );
 
         if (error) {
           toast.error(error.message);
@@ -50,8 +88,12 @@ export default function AuthPage() {
         return;
       }
 
-      await supabase.auth.signOut({ scope: "local" });
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      clearLocalAuthStorage();
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Login timed out. Please try again.",
+      );
 
       if (error) {
         toast.error(error.message);
