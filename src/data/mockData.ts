@@ -97,7 +97,6 @@ export const OUTCOME_CONFIG: Record<
   dnc: { label: "Do Not Call", color: "outcome-dnc", bgClass: "bg-[hsl(var(--outcome-dnc))]", icon: "PhoneOff", shortcut: "4" },
   follow_up: { label: "Follow Up", color: "outcome-follow-up", bgClass: "bg-[hsl(var(--outcome-follow-up))]", icon: "CalendarClock", shortcut: "5" },
   booked: { label: "Booked", color: "outcome-booked", bgClass: "bg-[hsl(var(--outcome-booked))]", icon: "CalendarCheck", shortcut: "6" },
-  wrong_number: { label: "Wrong Number", color: "outcome-wrong-number", bgClass: "bg-[hsl(var(--outcome-wrong-number))]", icon: "CircleX", shortcut: "7" },
 };
 
 const names = [

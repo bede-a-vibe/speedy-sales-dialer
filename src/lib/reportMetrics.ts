@@ -112,7 +112,6 @@ function createOutcomeCounts(): OutcomeCounts {
     dnc: 0,
     follow_up: 0,
     booked: 0,
-    wrong_number: 0,
   };
 }
 

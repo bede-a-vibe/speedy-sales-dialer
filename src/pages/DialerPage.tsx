@@ -692,7 +692,7 @@ export default function DialerPage() {
 
   const outcomes: CallOutcome[] = [
     "no_answer", "voicemail", "not_interested", "dnc",
-    "follow_up", "booked", "wrong_number",
+    "follow_up", "booked",
   ];
 
   useEffect(() => {
