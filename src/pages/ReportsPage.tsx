@@ -324,6 +324,32 @@ export default function ReportsPage() {
               </Table>
             </ReportSection>
           </TabsContent>
+
+          <TabsContent value="hourly-activity" className="space-y-6">
+            <ReportSection
+              title="Hourly Breakdown"
+              description={`Hour-by-hour activity for ${hourlyDate}${activeRepId ? ` (${selectedRepLabel})` : " across all reps"}.`}
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Date</span>
+                <Input
+                  type="date"
+                  value={hourlyDate}
+                  onChange={(e) => setHourlyDate(e.target.value)}
+                  className="w-[160px] border-border bg-card text-sm"
+                />
+              </div>
+              <HourlyBreakdownTable rows={hourlyRows} />
+            </ReportSection>
+
+            <ReportSection
+              title="Booking Heat Map"
+              description="Booking density by day of week and hour across the selected date range."
+            >
+              <BookingHeatMap cells={heatMapCells} />
+            </ReportSection>
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
