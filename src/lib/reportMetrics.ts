@@ -14,11 +14,10 @@ const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "dnc",
   "follow_up",
   "booked",
-  "wrong_number",
 ]);
 
 type AppointmentOutcomeKey = NonNullable<ReportBookingItem["appointment_outcome"]>;
-type OutcomeCounts = Record<ReportCallLog["outcome"], number>;
+type OutcomeCounts = Record<Exclude<ReportCallLog["outcome"], "wrong_number">, number>;
 export type AppointmentOutcomeCounts = Record<AppointmentOutcomeKey, number>;
 
 export interface AppointmentPerformanceMetrics {
@@ -113,7 +112,6 @@ function createOutcomeCounts(): OutcomeCounts {
     dnc: 0,
     follow_up: 0,
     booked: 0,
-    wrong_number: 0,
   };
 }
 

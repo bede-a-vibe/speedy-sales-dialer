@@ -486,7 +486,7 @@ export default function DialerPage() {
         updateContact.mutateAsync({
           id: currentContact.id,
           // Terminal outcomes remove the lead from the dialer permanently.
-          // Recyclable outcomes (no_answer, voicemail, not_interested, wrong_number)
+          // Recyclable outcomes (no_answer, voicemail, not_interested)
           // keep status as 'uncalled' so the lead re-enters the queue with an
           // incremented call_attempt_count.
           status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
@@ -662,7 +662,7 @@ export default function DialerPage() {
       if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "INPUT") return;
       const outcomes: CallOutcome[] = [
         "no_answer", "voicemail", "not_interested", "dnc",
-        "follow_up", "booked", "wrong_number",
+        "follow_up", "booked",
       ];
       const idx = parseInt(e.key) - 1;
       if (idx >= 0 && idx < outcomes.length) {
@@ -692,7 +692,7 @@ export default function DialerPage() {
 
   const outcomes: CallOutcome[] = [
     "no_answer", "voicemail", "not_interested", "dnc",
-    "follow_up", "booked", "wrong_number",
+    "follow_up", "booked",
   ];
 
   useEffect(() => {
