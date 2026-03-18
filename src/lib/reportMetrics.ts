@@ -9,7 +9,7 @@ export type ReportBookingItem = Pick<
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome"
 >;
 
-const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
+export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "not_interested",
   "dnc",
   "follow_up",
