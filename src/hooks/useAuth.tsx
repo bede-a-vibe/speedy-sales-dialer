@@ -24,16 +24,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Restore session from storage first
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (!isMounted) return;
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    }).catch(() => {
-      if (!isMounted) return;
-      setLoading(false);
-    });
+    // Safety fallback: force loading=false after 10s no matter what
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 10_000);
+
+    // Wrap getSession with a 5s timeout
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Session fetch timed out")), 5000)
+    );
+
+    Promise.race([sessionPromise, timeoutPromise])
+      .then(({ data: { session: s } }) => {
+        if (!isMounted) return;
+        setSession(s);
+        setUser(s?.user ?? null);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setUser(null);
+        setSession(null);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+        clearTimeout(safetyTimer);
+      });
 
     // Handle subsequent auth changes (sign in/out/token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
