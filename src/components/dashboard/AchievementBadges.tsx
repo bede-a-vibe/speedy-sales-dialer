@@ -6,7 +6,7 @@ import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { deriveAllTargets } from "@/lib/performanceTargets";
 import { Award, Zap, Target, Trophy, Star, Phone, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ConfettiBurst, useConfettiTrigger } from "@/components/dashboard/ConfettiBurst";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Achievement {
   id: string;
@@ -16,7 +16,6 @@ interface Achievement {
   unlocked: boolean;
   progress: number;
   color: string;
-  glowColor: string;
 }
 
 const DEFAULT_DAILY_TARGET = 50;
@@ -47,12 +46,6 @@ export function AchievementBadges() {
   const todaysBookings = callLogs.filter(
     (l: any) => l.user_id === user?.id && l.outcome === "booked" && l.created_at?.slice(0, 10) === today,
   ).length;
-  const todaysAnswered = callLogs.filter(
-    (l: any) =>
-      l.user_id === user?.id &&
-      l.created_at?.slice(0, 10) === today &&
-      ["not_interested", "dnc", "follow_up", "booked"].includes(l.outcome),
-  ).length;
 
   const achievements: Achievement[] = [
     {
@@ -63,7 +56,6 @@ export function AchievementBadges() {
       unlocked: todaysCalls >= 1,
       progress: Math.min(todaysCalls >= 1 ? 100 : 0, 100),
       color: "text-primary",
-      glowColor: "--primary",
     },
     {
       id: "warm-up",
@@ -73,7 +65,6 @@ export function AchievementBadges() {
       unlocked: todaysCalls >= 10,
       progress: Math.min((todaysCalls / 10) * 100, 100),
       color: "text-[hsl(var(--outcome-follow-up))]",
-      glowColor: "--outcome-follow-up",
     },
     {
       id: "on-fire",
@@ -83,7 +74,6 @@ export function AchievementBadges() {
       unlocked: todaysCalls >= 25,
       progress: Math.min((todaysCalls / 25) * 100, 100),
       color: "text-[hsl(var(--outcome-voicemail))]",
-      glowColor: "--outcome-voicemail",
     },
     {
       id: "perfect-day",
@@ -93,7 +83,6 @@ export function AchievementBadges() {
       unlocked: todaysCalls >= dailyTarget,
       progress: Math.min((todaysCalls / dailyTarget) * 100, 100),
       color: "text-[hsl(var(--outcome-booked))]",
-      glowColor: "--outcome-booked",
     },
     {
       id: "closer",
@@ -103,7 +92,6 @@ export function AchievementBadges() {
       unlocked: todaysBookings >= 1,
       progress: Math.min(todaysBookings >= 1 ? 100 : 0, 100),
       color: "text-[hsl(var(--outcome-booked))]",
-      glowColor: "--outcome-booked",
     },
     {
       id: "hot-streak",
@@ -113,7 +101,6 @@ export function AchievementBadges() {
       unlocked: streak >= 3,
       progress: Math.min((streak / 3) * 100, 100),
       color: "text-[hsl(var(--outcome-voicemail))]",
-      glowColor: "--outcome-voicemail",
     },
     {
       id: "centurion",
@@ -123,95 +110,52 @@ export function AchievementBadges() {
       unlocked: myLogs.length >= 100,
       progress: Math.min((myLogs.length / 100) * 100, 100),
       color: "text-primary",
-      glowColor: "--primary",
     },
   ];
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
-  const confettiActive = useConfettiTrigger(unlockedCount > 0);
 
   return (
-    <div className="relative rounded-xl border border-border bg-card p-5 overflow-hidden">
-      <ConfettiBurst active={confettiActive} />
-
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-primary" />
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Today's Achievements
-          </h3>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-mono font-bold text-primary">{unlockedCount}</span>
-          <span className="text-xs text-muted-foreground">/ {achievements.length}</span>
-        </div>
-      </div>
-
-      {/* Progress bar showing overall unlock progress */}
-      <div className="h-1.5 w-full rounded-full bg-secondary mb-5 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
-          style={{ width: `${(unlockedCount / achievements.length) * 100}%` }}
-        />
-      </div>
-
-      <div className="grid grid-cols-7 gap-2">
+    <TooltipProvider delayDuration={200}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground mr-1">
+          {unlockedCount}/{achievements.length}
+        </span>
         {achievements.map((a) => (
-          <AchievementBadge key={a.id} achievement={a} />
+          <Tooltip key={a.id}>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-all text-xs",
+                  a.unlocked
+                    ? "border-primary/25 bg-primary/5"
+                    : "border-border bg-muted/30 opacity-50",
+                )}
+              >
+                <a.Icon
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    a.unlocked ? a.color : "text-muted-foreground/50",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "font-medium",
+                    a.unlocked ? "text-foreground" : "text-muted-foreground/60",
+                  )}
+                >
+                  {a.label}
+                </span>
+                {a.unlocked && <span className="text-[10px]">✓</span>}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              {a.description}
+              {!a.unlocked && ` (${Math.round(a.progress)}%)`}
+            </TooltipContent>
+          </Tooltip>
         ))}
       </div>
-    </div>
-  );
-}
-
-function AchievementBadge({ achievement: a }: { achievement: Achievement }) {
-  return (
-    <div
-      className={cn(
-        "group relative flex flex-col items-center gap-2 rounded-lg border p-3 text-center transition-all duration-500",
-        a.unlocked
-          ? `border-[hsl(var(${a.glowColor})]/30 bg-[hsl(var(${a.glowColor})]/5 shadow-[0_0_16px_-4px_hsl(var(${a.glowColor})/0.35)]`
-          : "border-border bg-muted/20",
-      )}
-    >
-      {/* Icon */}
-      <div
-        className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-500",
-          a.unlocked ? `bg-[hsl(var(${a.glowColor})]/15` : "bg-muted",
-        )}
-      >
-        <a.Icon
-          className={cn(
-            "h-5 w-5 transition-all",
-            a.unlocked ? `${a.color} drop-shadow-sm` : "text-muted-foreground/40",
-          )}
-        />
-      </div>
-
-      {/* Label */}
-      <span
-        className={cn(
-          "text-[10px] font-bold leading-tight tracking-wide uppercase",
-          a.unlocked ? "text-foreground" : "text-muted-foreground/50",
-        )}
-      >
-        {a.label}
-      </span>
-
-      {/* Mini progress ring under each badge */}
-      {!a.unlocked && (
-        <div className="h-1 w-full max-w-[40px] rounded-full bg-secondary overflow-hidden">
-          <div
-            className="h-full rounded-full bg-muted-foreground/30 transition-all duration-500"
-            style={{ width: `${a.progress}%` }}
-          />
-        </div>
-      )}
-
-      {a.unlocked && (
-        <span className="text-[9px] text-muted-foreground">✓ Unlocked</span>
-      )}
-    </div>
+    </TooltipProvider>
   );
 }
