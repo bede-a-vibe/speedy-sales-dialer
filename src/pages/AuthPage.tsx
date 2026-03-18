@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,31 @@ function clearLocalAuthStorage() {
   );
 
   authKeys.forEach((key) => window.localStorage.removeItem(key));
+}
+
+function createIsolatedAuthClient() {
+  return createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: `sales-dialer-login-${Date.now()}`,
+      },
+    },
+  );
+}
+
+async function resetLocalAuthState() {
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    // Ignore local cleanup failures and continue with storage purge.
+  }
+
+  clearLocalAuthStorage();
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
@@ -88,15 +114,36 @@ export default function AuthPage() {
         return;
       }
 
-      clearLocalAuthStorage();
-      const { error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
+      await resetLocalAuthState();
+
+      const isolatedAuthClient = createIsolatedAuthClient();
+      const { data, error } = await withTimeout(
+        isolatedAuthClient.auth.signInWithPassword({ email: normalizedEmail, password }),
         AUTH_REQUEST_TIMEOUT_MS,
         "Login timed out. Please try again.",
       );
 
       if (error) {
         toast.error(error.message);
+        return;
+      }
+
+      if (!data.session) {
+        toast.error("No session was returned. Please try again.");
+        return;
+      }
+
+      const { error: sessionError } = await withTimeout(
+        supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Login timed out while restoring your session. Please try again.",
+      );
+
+      if (sessionError) {
+        toast.error(sessionError.message);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to sign in right now.");
