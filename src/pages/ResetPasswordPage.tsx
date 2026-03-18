@@ -7,8 +7,30 @@ import { toast } from "sonner";
 import {
   AUTH_REQUEST_TIMEOUT_MS,
   createPrimaryStorageAuthClient,
+  resetLocalAuthState,
   withTimeout,
 } from "@/lib/auth";
+
+function readRecoveryParams() {
+  const url = new URL(window.location.href);
+  const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+
+  return {
+    code: url.searchParams.get("code"),
+    type: url.searchParams.get("type") ?? hashParams.get("type"),
+    tokenHash: url.searchParams.get("token_hash") ?? hashParams.get("token_hash"),
+    accessToken: hashParams.get("access_token"),
+    refreshToken: hashParams.get("refresh_token"),
+    errorCode: url.searchParams.get("error_code") ?? hashParams.get("error_code"),
+    errorDescription:
+      url.searchParams.get("error_description") ?? hashParams.get("error_description"),
+  };
+}
+
+function clearRecoveryParamsFromUrl() {
+  const url = new URL(window.location.href);
+  window.history.replaceState({}, document.title, url.pathname);
+}
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -24,24 +46,82 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let isMounted = true;
 
-    void withTimeout(
-      recoveryClient.auth.getSession(),
-      AUTH_REQUEST_TIMEOUT_MS,
-      "Password reset session timed out. Please reopen the link from your email.",
-    )
-      .then(({ data, error }) => {
-        if (!isMounted) return;
-        if (error) throw error;
-        if (!data.session) {
-          throw new Error("Password reset link is invalid or expired. Please request a new one.");
-        }
+    const initializeRecoverySession = async () => {
+      await resetLocalAuthState();
 
+      const {
+        code,
+        type,
+        tokenHash,
+        accessToken,
+        refreshToken,
+        errorCode,
+        errorDescription,
+      } = readRecoveryParams();
+
+      if (errorCode) {
+        throw new Error(
+          decodeURIComponent(
+            errorDescription ?? "Password reset link is invalid or expired. Please request a new one.",
+          ),
+        );
+      }
+
+      if (code) {
+        const { error } = await withTimeout(
+          recoveryClient.auth.exchangeCodeForSession(code),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Password reset session timed out. Please reopen the link from your email.",
+        );
+
+        if (error) throw error;
+        clearRecoveryParamsFromUrl();
+      } else if (accessToken && refreshToken) {
+        const { error } = await withTimeout(
+          recoveryClient.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Password reset session timed out. Please reopen the link from your email.",
+        );
+
+        if (error) throw error;
+        clearRecoveryParamsFromUrl();
+      } else if (type === "recovery" && tokenHash) {
+        const { error } = await withTimeout(
+          recoveryClient.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Password reset session timed out. Please reopen the link from your email.",
+        );
+
+        if (error) throw error;
+        clearRecoveryParamsFromUrl();
+      }
+
+      const { data, error } = await withTimeout(
+        recoveryClient.auth.getSession(),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Password reset session timed out. Please reopen the link from your email.",
+      );
+
+      if (error) throw error;
+      if (!data.session) {
+        throw new Error("Password reset link is invalid or expired. Please request a new one.");
+      }
+
+      if (isMounted) {
         setReady(true);
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        toast.error(error instanceof Error ? error.message : "Unable to verify reset link.");
-      });
+      }
+    };
+
+    void initializeRecoverySession().catch((error) => {
+      if (!isMounted) return;
+      toast.error(error instanceof Error ? error.message : "Unable to verify reset link.");
+    });
 
     return () => {
       isMounted = false;
