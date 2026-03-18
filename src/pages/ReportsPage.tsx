@@ -16,6 +16,9 @@ import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
+import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
+import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
+import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 
 const ALL_REPS_VALUE = "all";
 
