@@ -4,8 +4,7 @@ export type CallOutcome =
   | "not_interested"
   | "dnc"
   | "follow_up"
-  | "booked"
-  | "wrong_number";
+  | "booked";
 
 export interface Contact {
   id: string;
