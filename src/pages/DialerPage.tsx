@@ -477,8 +477,9 @@ export default function DialerPage() {
         ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
         : null;
 
-      // CRITICAL: Update contact status BEFORE releasing the lock or claiming
-      // new leads, otherwise the contact can be re-claimed while still "uncalled".
+      // CRITICAL: Create call log, update contact, AND create pipeline item
+      // all BEFORE advancing the lead. This prevents lost follow-ups/bookings
+      // if the pipeline insert fails after the lead has already moved on.
       const [insertedLog] = await Promise.all([
         createCallLog.mutateAsync({
           contact_id: currentContact.id,
@@ -490,16 +491,27 @@ export default function DialerPage() {
         }),
         updateContact.mutateAsync({
           id: currentContact.id,
-          // Terminal outcomes remove the lead from the dialer permanently.
-          // Recyclable outcomes (no_answer, voicemail, not_interested)
-          // keep status as 'uncalled' so the lead re-enters the queue with an
-          // incremented call_attempt_count.
           status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
           last_outcome: outcomeToLog,
           is_dnc: outcomeToLog === "dnc",
         }),
       ]);
 
+      // Create pipeline item BEFORE advancing — this is the critical write
+      // that was previously happening after lead advance, causing lost follow-ups.
+      if (needsPipelineAssignment) {
+        await createPipelineItem.mutateAsync({
+          contact_id: currentContact.id,
+          source_call_log_id: insertedLog.id,
+          pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
+          assigned_user_id: assignedRepId,
+          created_by: user.id,
+          scheduled_for: scheduledFor,
+          notes,
+        });
+      }
+
+      // Now safe to advance — all critical writes succeeded.
       const nextLength = visibleUncalledContacts.length - 1;
       void discardContact(currentContact.id, { releaseLock: true });
       if (nextLength <= 0) {
@@ -510,25 +522,13 @@ export default function DialerPage() {
       resetLeadState(user.id);
       void ensureBuffer();
 
-      await Promise.all([
-        activeDialpadCallId
-          ? linkDialpadCallLog.mutateAsync({
-              dialpad_call_id: activeDialpadCallId,
-              call_log_id: insertedLog.id,
-            })
-          : Promise.resolve(),
-        needsPipelineAssignment
-          ? createPipelineItem.mutateAsync({
-              contact_id: currentContact.id,
-              source_call_log_id: insertedLog.id,
-              pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
-              assigned_user_id: assignedRepId,
-              created_by: user.id,
-              scheduled_for: scheduledFor,
-              notes,
-            })
-          : Promise.resolve(),
-      ]);
+      // Non-critical: link Dialpad call log (fire-and-forget)
+      if (activeDialpadCallId) {
+        linkDialpadCallLog.mutateAsync({
+          dialpad_call_id: activeDialpadCallId,
+          call_log_id: insertedLog.id,
+        }).catch(() => { /* non-critical */ });
+      }
 
       setCallCount((prev) => prev + 1);
       setSessionOutcomes((prev) => ({
