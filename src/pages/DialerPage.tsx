@@ -463,82 +463,82 @@ export default function DialerPage() {
       }).catch(() => {});
     }
 
-    try {
-      const scheduledFor = followUpDate
-        ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
-        : null;
+    // Capture values needed for background writes BEFORE advancing
+    const contactId = currentContact.id;
+    const contactPhone = currentContact.phone;
+    const userId = user.id;
+    const dialpadCallId = activeDialpadCallId;
+    const scheduledFor = followUpDate
+      ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
+      : null;
+    const pipelineNotes = notes;
+    const repId = assignedRepId;
 
-      // CRITICAL: Create call log, update contact, AND create pipeline item
-      // all BEFORE advancing the lead. This prevents lost follow-ups/bookings
-      // if the pipeline insert fails after the lead has already moved on.
-      const [insertedLog] = await Promise.all([
-        createCallLog.mutateAsync({
-          contact_id: currentContact.id,
-          user_id: user.id,
-          outcome: outcomeToLog,
-          notes: notes || undefined,
-          follow_up_date: scheduledFor,
-          dialpad_call_id: activeDialpadCallId,
-        }),
-        updateContact.mutateAsync({
-          id: currentContact.id,
-          status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
-          last_outcome: outcomeToLog,
-          is_dnc: outcomeToLog === "dnc",
-        }),
-      ]);
-
-      // Create pipeline item BEFORE advancing — this is the critical write
-      // that was previously happening after lead advance, causing lost follow-ups.
-      if (needsPipelineAssignment) {
-        await createPipelineItem.mutateAsync({
-          contact_id: currentContact.id,
-          source_call_log_id: insertedLog.id,
-          pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
-          assigned_user_id: assignedRepId,
-          created_by: user.id,
-          scheduled_for: scheduledFor,
-          notes,
-        });
-      }
-
-      // Now safe to advance — all critical writes succeeded.
-      const nextLength = visibleUncalledContacts.length - 1;
-      void discardContact(currentContact.id, { releaseLock: true });
-      if (nextLength <= 0) {
-        setCurrentIndex(null);
-      } else if (currentIndex !== null && currentIndex >= nextLength) {
-        setCurrentIndex(nextLength - 1);
-      }
-      resetLeadState(user.id);
-      void ensureBuffer();
-
-      // Non-critical: link Dialpad call log (fire-and-forget)
-      if (activeDialpadCallId) {
-        linkDialpadCallLog.mutateAsync({
-          dialpad_call_id: activeDialpadCallId,
-          call_log_id: insertedLog.id,
-        }).catch(() => {
-          // non-critical
-        });
-      }
-
-      setCallCount((prev) => prev + 1);
-      setSessionOutcomes((prev) => ({
-        ...prev,
-        [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
-      }));
-
-      toast.success(`Logged: ${outcomeToLog.replace(/_/g, " ")}`);
-
-      if (nextLength <= 0) {
-        stopSession();
-      }
-    } catch {
-      toast.error("Failed to log call. Try again.");
-    } finally {
-      leadAdvanceInFlightRef.current = false;
+    // ADVANCE IMMEDIATELY — optimistic, don't wait for DB writes
+    const nextLength = visibleUncalledContacts.length - 1;
+    void discardContact(contactId, { releaseLock: true });
+    if (nextLength <= 0) {
+      setCurrentIndex(null);
+    } else if (currentIndex !== null && currentIndex >= nextLength) {
+      setCurrentIndex(nextLength - 1);
     }
+    resetLeadState(userId);
+    void ensureBuffer();
+
+    setCallCount((prev) => prev + 1);
+    setSessionOutcomes((prev) => ({
+      ...prev,
+      [outcomeToLog]: (prev[outcomeToLog] || 0) + 1,
+    }));
+
+    leadAdvanceInFlightRef.current = false;
+
+    if (nextLength <= 0) {
+      stopSession();
+    }
+
+    // Background DB writes — fire-and-forget with error toast
+    (async () => {
+      try {
+        const [insertedLog] = await Promise.all([
+          createCallLog.mutateAsync({
+            contact_id: contactId,
+            user_id: userId,
+            outcome: outcomeToLog,
+            notes: pipelineNotes || undefined,
+            follow_up_date: scheduledFor,
+            dialpad_call_id: dialpadCallId,
+          }),
+          updateContact.mutateAsync({
+            id: contactId,
+            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
+            last_outcome: outcomeToLog,
+            is_dnc: outcomeToLog === "dnc",
+          }),
+        ]);
+
+        if (needsPipelineAssignment) {
+          await createPipelineItem.mutateAsync({
+            contact_id: contactId,
+            source_call_log_id: insertedLog.id,
+            pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
+            assigned_user_id: repId,
+            created_by: userId,
+            scheduled_for: scheduledFor,
+            notes: pipelineNotes,
+          });
+        }
+
+        if (dialpadCallId) {
+          linkDialpadCallLog.mutateAsync({
+            dialpad_call_id: dialpadCallId,
+            call_log_id: insertedLog.id,
+          }).catch(() => {});
+        }
+      } catch {
+        toast.error("Failed to save call log — please check your records.");
+      }
+    })();
   }, [
     activeDialpadCallId,
     activeDialpadCallState,
