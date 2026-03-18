@@ -98,7 +98,7 @@ export function DailyProgressRing() {
             {animatedCalls}
           </span>
           <span className="text-[10px] text-muted-foreground font-medium">
-            / {DAILY_TARGET} calls
+            / {dailyTarget} calls
           </span>
         </div>
       </div>

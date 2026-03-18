@@ -88,10 +88,10 @@ export function AchievementBadges() {
     {
       id: "perfect-day",
       label: "Target Hit",
-      description: `${DAILY_TARGET} calls today`,
+      description: `${dailyTarget} calls today`,
       Icon: Target,
-      unlocked: todaysCalls >= DAILY_TARGET,
-      progress: Math.min((todaysCalls / DAILY_TARGET) * 100, 100),
+      unlocked: todaysCalls >= dailyTarget,
+      progress: Math.min((todaysCalls / dailyTarget) * 100, 100),
       color: "text-[hsl(var(--outcome-booked))]",
       glowColor: "--outcome-booked",
     },
