@@ -743,6 +743,7 @@ export default function DialerPage() {
         } else {
           setIsCallResolving(true);
           setActiveDialpadCallState(response.state ?? "connecting");
+          setRapidStatusPollingUntil(Date.now() + 10000);
           toast.info("Call placed — linking the live Dialpad call in the dialer…");
           return;
         }
@@ -764,11 +765,11 @@ export default function DialerPage() {
         const isAlreadyOnCall = normalized.includes("currently on a call");
         const isRetryable = is409 || is429;
 
-        // If user is already on a call, keep the dialer in live-resolution mode
         if (isAlreadyOnCall) {
           console.log("[Dialer] User already on a call — entering resolution mode");
           setIsCallResolving(true);
           setActiveDialpadCallState("connecting");
+          setRapidStatusPollingUntil(Date.now() + 10000);
           toast.info("Dialpad reports an active call — linking it in the dialer…");
           return;
         }
@@ -797,6 +798,8 @@ export default function DialerPage() {
 
     let cancelled = false;
     let timeoutId: number | null = null;
+    let attempt = 0;
+    const pollDelays = [150, 300, 500, 750, 1000, 1250, 1500, 2000, 2500, 3000];
 
     const attemptResolve = async () => {
       try {
@@ -821,11 +824,13 @@ export default function DialerPage() {
       }
 
       if (!cancelled) {
-        timeoutId = window.setTimeout(attemptResolve, 4000);
+        const nextDelay = pollDelays[Math.min(attempt, pollDelays.length - 1)];
+        attempt += 1;
+        timeoutId = window.setTimeout(attemptResolve, nextDelay);
       }
     };
 
-    timeoutId = window.setTimeout(attemptResolve, 1500);
+    timeoutId = window.setTimeout(attemptResolve, pollDelays[0]);
 
     return () => {
       cancelled = true;
