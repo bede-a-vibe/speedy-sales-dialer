@@ -1,16 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, Loader2, ArrowLeft } from "lucide-react";
+import { Phone, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   AUTH_REQUEST_TIMEOUT_MS,
-  createPrimaryStorageAuthClient,
-  createTransientAuthClient,
   resetLocalAuthState,
   withTimeout,
 } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
@@ -18,29 +17,28 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
 
-  // Clear any stale auth tokens on mount so previous failed attempts don't cause lock contention
-  useState(() => {
+  // Clear stale auth tokens on mount
+  useEffect(() => {
     resetLocalAuthState().catch(() => {});
-  });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setBackendError(null);
 
     const normalizedEmail = email.trim();
 
     try {
       if (mode === "forgot") {
-        await resetLocalAuthState();
-
-        const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
-          authClient.auth.resetPasswordForEmail(normalizedEmail, {
+          supabase.auth.resetPasswordForEmail(normalizedEmail, {
             redirectTo: `${window.location.origin}/reset-password`,
           }),
           AUTH_REQUEST_TIMEOUT_MS,
-          "Password reset request timed out. Please try again.",
+          "Password reset request timed out. The server may be temporarily unavailable.",
         );
 
         if (error) {
@@ -53,11 +51,8 @@ export default function AuthPage() {
       }
 
       if (mode === "signup") {
-        await resetLocalAuthState();
-
-        const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
-          authClient.auth.signUp({
+          supabase.auth.signUp({
             email: normalizedEmail,
             password,
             options: {
@@ -66,7 +61,7 @@ export default function AuthPage() {
             },
           }),
           AUTH_REQUEST_TIMEOUT_MS,
-          "Sign up timed out. Please try again.",
+          "Sign up timed out. The server may be temporarily unavailable.",
         );
 
         if (error) {
@@ -77,13 +72,13 @@ export default function AuthPage() {
         return;
       }
 
+      // Login
       await resetLocalAuthState();
 
-      const authClient = createPrimaryStorageAuthClient();
       const { error } = await withTimeout(
-        authClient.auth.signInWithPassword({ email: normalizedEmail, password }),
+        supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
         AUTH_REQUEST_TIMEOUT_MS,
-        "Login timed out. Please try again.",
+        "Login timed out. The server may be temporarily unavailable.",
       );
 
       if (error) {
@@ -93,7 +88,12 @@ export default function AuthPage() {
 
       window.location.assign("/");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to sign in right now.");
+      const message = error instanceof Error ? error.message : "Unable to sign in right now.";
+      if (message.includes("timed out") || message.includes("Failed to fetch")) {
+        setBackendError("The server is temporarily unavailable. Please try again in a moment.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -111,6 +111,13 @@ export default function AuthPage() {
             {mode === "signup" ? "Create Account" : mode === "forgot" ? "Reset Password" : "Sign In"}
           </p>
         </div>
+
+        {backendError && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{backendError}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "forgot" && (

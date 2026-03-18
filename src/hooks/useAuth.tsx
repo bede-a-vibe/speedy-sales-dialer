@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { User, Session } from "@supabase/supabase-js";
-import { authBrowserClient } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AuthContextType {
   user: User | null;
@@ -23,60 +23,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
-    let hasResolvedAuth = false;
 
-    const finishAuthInit = () => {
-      if (!isMounted || hasResolvedAuth) return;
-      hasResolvedAuth = true;
-      setLoading(false);
-    };
-
-    const fallbackTimer = window.setTimeout(() => {
-      finishAuthInit();
-    }, 8000);
-
-    const { data: { subscription } } = authBrowserClient.auth.onAuthStateChange((event, nextSession) => {
+    // Restore session from storage first
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (!isMounted) return;
-
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-
-      if (event !== "INITIAL_SESSION") {
-        window.clearTimeout(fallbackTimer);
-        finishAuthInit();
-      }
+      setSession(s);
+      setUser(s?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
+      if (!isMounted) return;
+      setLoading(false);
     });
 
-    void authBrowserClient.auth
-      .getSession()
-      .then(({ data, error }) => {
+    // Handle subsequent auth changes (sign in/out/token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
         if (!isMounted) return;
-        if (error) throw error;
-
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-
-        void authBrowserClient.auth.signOut({ scope: "local" });
-        setSession(null);
-        setUser(null);
-      })
-      .finally(() => {
-        window.clearTimeout(fallbackTimer);
-        finishAuthInit();
-      });
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+      }
+    );
 
     return () => {
       isMounted = false;
-      window.clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
 
   const signOut = async () => {
-    await authBrowserClient.auth.signOut();
+    await supabase.auth.signOut();
   };
 
   return (
