@@ -23,36 +23,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    let hasResolvedAuth = false;
+
+    const finishAuthInit = () => {
+      if (!isMounted || hasResolvedAuth) return;
+      hasResolvedAuth = true;
+      setLoading(false);
+    };
+
     const fallbackTimer = window.setTimeout(() => {
-      if (isMounted) {
-        setLoading(false);
-      }
+      finishAuthInit();
     }, 8000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) return;
-      window.clearTimeout(fallbackTimer);
+
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      setLoading(false);
+
+      if (event !== "INITIAL_SESSION") {
+        window.clearTimeout(fallbackTimer);
+        finishAuthInit();
+      }
     });
 
-    supabase.auth
+    void supabase.auth
       .getSession()
-      .then(({ data: { session: currentSession } }) => {
+      .then(({ data, error }) => {
         if (!isMounted) return;
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+        if (error) throw error;
+
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
       })
       .catch(() => {
         if (!isMounted) return;
+
+        void supabase.auth.signOut({ scope: "local" });
         setSession(null);
         setUser(null);
       })
       .finally(() => {
-        if (!isMounted) return;
         window.clearTimeout(fallbackTimer);
-        setLoading(false);
+        finishAuthInit();
       });
 
     return () => {
