@@ -619,8 +619,8 @@ export default function DialerPage() {
   const skipLead = useCallback(async () => {
     if (currentIndex === null || !currentContact) return;
 
-    // Cancel any active Dialpad call before skipping
-    if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
+    // End any active or still-linking Dialpad call before skipping.
+    if (!isCallTerminal) {
       try {
         await cancelActiveCall();
       } catch {
@@ -643,7 +643,7 @@ export default function DialerPage() {
     if (currentIndex >= nextLength) {
       setCurrentIndex(nextLength - 1);
     }
-  }, [activeDialpadCallId, activeDialpadCallState, cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
+  }, [cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, isCallTerminal, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
 
   useEffect(() => {
     if (!isSessionActive || !currentContact) return;
