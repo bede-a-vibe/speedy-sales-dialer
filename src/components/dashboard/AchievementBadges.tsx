@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTodayCallCount, useCallLogs } from "@/hooks/useCallLogs";
 import { useStreak } from "@/hooks/useStreak";
+import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
+import { deriveAllTargets } from "@/lib/performanceTargets";
 import { Award, Zap, Target, Trophy, Star, Phone, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfettiBurst, useConfettiTrigger } from "@/components/dashboard/ConfettiBurst";
@@ -11,18 +14,33 @@ interface Achievement {
   description: string;
   Icon: React.ElementType;
   unlocked: boolean;
-  progress: number; // 0-100
+  progress: number;
   color: string;
   glowColor: string;
 }
 
-const DAILY_TARGET = 50;
+const DEFAULT_DAILY_TARGET = 50;
+
+function useIndividualDialTarget(userId?: string): number {
+  const { data: targets = [] } = usePerformanceTargets();
+  return useMemo(() => {
+    if (!userId) return DEFAULT_DAILY_TARGET;
+    const derived = deriveAllTargets(targets);
+    const dialTarget = derived.individualDaily.find(
+      (t) => t.user_id === userId && t.metric_key === "dials"
+    );
+    return dialTarget?.target_value && dialTarget.target_value > 0
+      ? Math.round(dialTarget.target_value)
+      : DEFAULT_DAILY_TARGET;
+  }, [targets, userId]);
+}
 
 export function AchievementBadges() {
   const { user } = useAuth();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
   const { data: callLogs = [] } = useCallLogs();
   const { data: streak = 0 } = useStreak(user?.id);
+  const dailyTarget = useIndividualDialTarget(user?.id);
 
   const myLogs = callLogs.filter((l: any) => l.user_id === user?.id);
   const today = new Date().toISOString().slice(0, 10);
