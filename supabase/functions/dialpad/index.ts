@@ -947,7 +947,7 @@ Deno.serve(async (req) => {
         if (foundCallId) {
           dialpadResponse = new Response(JSON.stringify({
             call_id: foundCallId,
-            state: "calling",
+            state: foundCallState ?? "calling",
             call_resolved: true,
             ...initiateData,
           }), {
