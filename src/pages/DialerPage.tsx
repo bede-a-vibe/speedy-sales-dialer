@@ -178,7 +178,9 @@ export default function DialerPage() {
     : null;
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
-  const isCallTerminal = (!activeDialpadCallId && !isCallResolving) || activeDialpadCallState === "hangup";
+  const hasUnresolvedDialpadCall = !activeDialpadCallId
+    && (isCallResolving || activeDialpadCallState === "connecting" || activeDialpadCallState === "calling" || activeDialpadCallState === "ringing");
+  const isCallTerminal = (!activeDialpadCallId && !hasUnresolvedDialpadCall) || activeDialpadCallState === "hangup";
   const requiresPipelineAssignment = selectedOutcome === "follow_up" || selectedOutcome === "booked";
   const requiresFollowUpSchedule = selectedOutcome === "follow_up";
   const requiresBookedSchedule = selectedOutcome === "booked";
@@ -189,7 +191,7 @@ export default function DialerPage() {
   const totalPausedMs = accumulatedPausedMs + livePausedMs;
   const canSubmit = !!selectedOutcome
     && isCallTerminal
-    && !isCallResolving
+    && !hasUnresolvedDialpadCall
     && (!requiresPipelineAssignment || !!assignedRepId)
     && (!requiresAnySchedule || !!followUpDate)
     && (!requiresFollowUpSchedule || !!followUpTime)
@@ -198,7 +200,7 @@ export default function DialerPage() {
     && !createPipelineItem.isPending
     && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
-  const primaryActionLabel = isCallResolving
+  const primaryActionLabel = hasUnresolvedDialpadCall
     ? "Connecting to Dialpad…"
     : requiresBookedSchedule
       ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
@@ -735,38 +737,13 @@ export default function DialerPage() {
 
         if (response.dialpad_call_id) {
           setActiveDialpadCallId(response.dialpad_call_id);
-          setActiveDialpadCallState(response.state);
+          setActiveDialpadCallState(response.state ?? "calling");
+          setRapidStatusPollingUntil(Date.now() + 10000);
           setIsCallResolving(false);
         } else {
-          // Call placed but ID not yet discovered — enter resolving state
           setIsCallResolving(true);
-          setActiveDialpadCallState("connecting");
-          toast.info("Call placed — waiting for Dialpad to confirm...");
-
-          // Retry resolution: poll the backend to find the call ID without re-initiating
-          for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            try {
-              const retryResponse = await resolveDialpadCall.mutateAsync({
-                phone: currentContact.phone,
-                dialpad_user_id: myDialpadSettings.dialpad_user_id,
-                contact_id: currentContact.id,
-              });
-              if (retryResponse.dialpad_call_id) {
-                setActiveDialpadCallId(retryResponse.dialpad_call_id);
-                setActiveDialpadCallState(retryResponse.state);
-                setIsCallResolving(false);
-                toast.success(`Call connected via Dialpad`);
-                return;
-              }
-            } catch {
-              // ignore retry errors
-            }
-          }
-
-          // Still unresolved after retries — allow user to proceed manually
-          setIsCallResolving(false);
-          toast.warning("Dialpad call active but couldn't confirm tracking. You can still log the outcome.");
+          setActiveDialpadCallState(response.state ?? "connecting");
+          toast.info("Call placed — linking the live Dialpad call in the dialer…");
           return;
         }
 
@@ -787,35 +764,12 @@ export default function DialerPage() {
         const isAlreadyOnCall = normalized.includes("currently on a call");
         const isRetryable = is409 || is429;
 
-        // If user is already on a call, skip retry and go straight to resolution
+        // If user is already on a call, keep the dialer in live-resolution mode
         if (isAlreadyOnCall) {
           console.log("[Dialer] User already on a call — entering resolution mode");
           setIsCallResolving(true);
           setActiveDialpadCallState("connecting");
-          toast.info("Dialpad reports an active call — locating it...");
-
-          for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            try {
-              const retryResponse = await resolveDialpadCall.mutateAsync({
-                phone: currentContact.phone,
-                dialpad_user_id: myDialpadSettings!.dialpad_user_id,
-                contact_id: currentContact.id,
-              });
-              if (retryResponse.dialpad_call_id) {
-                setActiveDialpadCallId(retryResponse.dialpad_call_id);
-                setActiveDialpadCallState(retryResponse.state);
-                setIsCallResolving(false);
-                toast.success("Active call found and linked.");
-                return;
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          setIsCallResolving(false);
-          toast.warning("Couldn't locate the active call. You can still log the outcome.");
+          toast.info("Dialpad reports an active call — linking it in the dialer…");
           return;
         }
 
@@ -837,6 +791,49 @@ export default function DialerPage() {
 
     void attemptDial(2, true);
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
+
+  useEffect(() => {
+    if (!isCallResolving || activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const attemptResolve = async () => {
+      try {
+        const result = await resolveDialpadCall.mutateAsync({
+          phone: currentContact.phone,
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          contact_id: currentContact.id,
+        });
+
+        if (cancelled) return;
+
+        if (result.dialpad_call_id) {
+          setActiveDialpadCallId(result.dialpad_call_id);
+          setActiveDialpadCallState(result.state ?? "calling");
+          setRapidStatusPollingUntil(Date.now() + 10000);
+          setIsCallResolving(false);
+          toast.success("Active call linked to the dialer.");
+          return;
+        }
+      } catch {
+        // Keep retrying while Dialpad finishes exposing the live call.
+      }
+
+      if (!cancelled) {
+        timeoutId = window.setTimeout(attemptResolve, 4000);
+      }
+    };
+
+    timeoutId = window.setTimeout(attemptResolve, 1500);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
   useEffect(() => {
     if (!activeDialpadCallId) return;
@@ -1126,7 +1123,7 @@ export default function DialerPage() {
                 <DialpadSyncPanel
                   contactId={currentContact.id}
                   activeDialpadCallId={activeDialpadCallId}
-                  activeDialpadCallState={isCallResolving ? "connecting" : activeDialpadCallState}
+                  activeDialpadCallState={activeDialpadCallState ?? (isCallResolving ? "connecting" : null)}
                   onCancelCall={cancelActiveCall}
                   isCancelling={cancelDialpadCall.isPending}
                   isStatusPending={isDialpadCallStatusPending}
