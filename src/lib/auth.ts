@@ -38,7 +38,11 @@ export function createTransientAuthClient() {
 
 export async function resetLocalAuthState() {
   try {
-    await supabase.auth.signOut({ scope: "local" });
+    const signOutPromise = supabase.auth.signOut({ scope: "local" });
+    await Promise.race([
+      signOutPromise,
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
   } catch {
     // Ignore local cleanup failures and continue with storage purge.
   }
