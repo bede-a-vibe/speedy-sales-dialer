@@ -89,6 +89,16 @@ export default function ReportsPage() {
     [metrics],
   );
 
+  const hourlyRows = useMemo(
+    () => getHourlyMetrics(callLogs, bookedAppointments, hourlyDate, activeRepId),
+    [callLogs, bookedAppointments, hourlyDate, activeRepId],
+  );
+
+  const heatMapCells = useMemo(
+    () => getBookingHeatMapData(bookedAppointments),
+    [bookedAppointments],
+  );
+
   const closerOutcomeItems = useMemo(
     () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.closer, metrics.appointmentPerformance.closer),
     [metrics],
