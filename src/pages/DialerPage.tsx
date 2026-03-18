@@ -793,6 +793,49 @@ export default function DialerPage() {
   }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
 
   useEffect(() => {
+    if (!isCallResolving || activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const attemptResolve = async () => {
+      try {
+        const result = await resolveDialpadCall.mutateAsync({
+          phone: currentContact.phone,
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          contact_id: currentContact.id,
+        });
+
+        if (cancelled) return;
+
+        if (result.dialpad_call_id) {
+          setActiveDialpadCallId(result.dialpad_call_id);
+          setActiveDialpadCallState(result.state ?? "calling");
+          setRapidStatusPollingUntil(Date.now() + 10000);
+          setIsCallResolving(false);
+          toast.success("Active call linked to the dialer.");
+          return;
+        }
+      } catch {
+        // Keep retrying while Dialpad finishes exposing the live call.
+      }
+
+      if (!cancelled) {
+        timeoutId = window.setTimeout(attemptResolve, 4000);
+      }
+    };
+
+    timeoutId = window.setTimeout(attemptResolve, 1500);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+
+  useEffect(() => {
     if (!activeDialpadCallId) return;
 
     let cancelled = false;
