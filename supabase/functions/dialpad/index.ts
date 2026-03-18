@@ -314,6 +314,46 @@ function isDialpadCreateCallConflict(status: number, data: unknown) {
   return message.includes("unable to create call") || message.includes("conflict");
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findMatchingActiveCallWithRetries(params: {
+  action: string;
+  apiKey: string;
+  dialpadUserId: string;
+  normalizedPhone: string;
+  delays: number[];
+}) {
+  for (let attempt = 0; attempt < params.delays.length; attempt += 1) {
+    const delay = params.delays[attempt];
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    const response = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
+      headers: { Authorization: `Bearer ${params.apiKey}`, Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      console.log(`[${params.action}] Active call lookup failed on attempt ${attempt + 1} with status=${response.status}`);
+      await response.text().catch(() => null);
+      continue;
+    }
+
+    const data = await response.json().catch(() => null);
+    const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+    const matchedCall = findMatchingActiveCall(items, params.dialpadUserId, params.normalizedPhone);
+
+    if (matchedCall) {
+      console.log(`[${params.action}] Matched active call on attempt ${attempt + 1} via ${matchedCall.matchType}`);
+      return matchedCall;
+    }
+  }
+
+  return null;
+}
+
 async function findReusableTrackedCall(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
@@ -1056,7 +1096,6 @@ Deno.serve(async (req) => {
       }
 
       case "resolve_call": {
-        // Attempt to find an active call for a user+phone without initiating a new one
         const resolveDialpadUserId = params.dialpad_user_id;
         let resolvePhone: string;
         try {
@@ -1067,44 +1106,40 @@ Deno.serve(async (req) => {
 
         console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
 
-        const resolveCallsResponse = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
-          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        const matchedCall = await findMatchingActiveCallWithRetries({
+          action: "resolve_call",
+          apiKey: DIALPAD_API_KEY,
+          dialpadUserId: String(resolveDialpadUserId),
+          normalizedPhone: resolvePhone,
+          delays: [0, 120, 180, 250, 350],
         });
 
-        if (resolveCallsResponse.ok) {
-          const resolveCallsData = await resolveCallsResponse.json().catch(() => null);
-          const resolveItems = Array.isArray(resolveCallsData?.items) ? resolveCallsData.items : Array.isArray(resolveCallsData) ? resolveCallsData : [];
-          const matchedCall = findMatchingActiveCall(resolveItems, String(resolveDialpadUserId), resolvePhone);
+        if (matchedCall) {
+          const callId = getDialpadCallId(matchedCall.call);
+          const state = normalizeDialpadState(matchedCall.call.state);
 
-          if (matchedCall) {
-            const callId = getDialpadCallId(matchedCall.call);
-            const state = normalizeDialpadState(matchedCall.call.state);
+          if (callId) {
+            console.log(`[resolve_call] Found active call_id=${callId} state=${state} via ${matchedCall.matchType}`);
 
-            if (callId) {
-              console.log(`[resolve_call] Found active call_id=${callId} state=${state} via ${matchedCall.matchType}`);
-
-              if (params.contact_id) {
-                const adminClient = createClient(supabaseUrl, serviceRoleKey);
-                await adminClient.from("dialpad_calls").upsert({
-                  dialpad_call_id: callId,
-                  contact_id: params.contact_id,
-                  user_id: user.id,
-                  sync_status: "pending",
-                }, { onConflict: "dialpad_call_id" }).then(() => {});
-              }
-
-              return jsonResponse({
-                ok: true,
-                action: "resolve_call",
-                call_id: callId,
+            if (params.contact_id) {
+              const adminClient = createClient(supabaseUrl, serviceRoleKey);
+              await adminClient.from("dialpad_calls").upsert({
                 dialpad_call_id: callId,
-                state,
-                call_resolved: true,
-              }, 200);
+                contact_id: params.contact_id,
+                user_id: user.id,
+                sync_status: "pending",
+              }, { onConflict: "dialpad_call_id" }).then(() => {});
             }
+
+            return jsonResponse({
+              ok: true,
+              action: "resolve_call",
+              call_id: callId,
+              dialpad_call_id: callId,
+              state,
+              call_resolved: true,
+            }, 200);
           }
-        } else {
-          await resolveCallsResponse.text();
         }
 
         console.log(`[resolve_call] No active call found for user=${resolveDialpadUserId}`);
@@ -1129,7 +1164,6 @@ Deno.serve(async (req) => {
       }
 
       case "force_hangup": {
-        // Hang up an active call by discovering it via user+phone (no call_id needed)
         const fhDialpadUserId = params.dialpad_user_id;
         if (!fhDialpadUserId) {
           return jsonResponse({ error: "dialpad_user_id is required" }, 400);
@@ -1143,57 +1177,53 @@ Deno.serve(async (req) => {
 
         console.log(`[force_hangup] Searching for active call: user=${fhDialpadUserId} phone=${fhPhone}`);
 
-        const fhCallsResponse = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
-          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        const matchedCall = await findMatchingActiveCallWithRetries({
+          action: "force_hangup",
+          apiKey: DIALPAD_API_KEY,
+          dialpadUserId: String(fhDialpadUserId),
+          normalizedPhone: fhPhone,
+          delays: [0, 150, 250, 400, 600, 900, 1200],
         });
 
-        if (fhCallsResponse.ok) {
-          const fhCallsData = await fhCallsResponse.json().catch(() => null);
-          const fhItems = Array.isArray(fhCallsData?.items) ? fhCallsData.items : Array.isArray(fhCallsData) ? fhCallsData : [];
-          const matchedCall = findMatchingActiveCall(fhItems, String(fhDialpadUserId), fhPhone);
+        if (matchedCall) {
+          const callId = getDialpadCallId(matchedCall.call);
 
-          if (matchedCall) {
-            const callId = getDialpadCallId(matchedCall.call);
+          if (callId) {
+            console.log(`[force_hangup] Found active call_id=${callId} via ${matchedCall.matchType}, hanging up`);
 
-            if (callId) {
-              console.log(`[force_hangup] Found active call_id=${callId} via ${matchedCall.matchType}, hanging up`);
+            const fhHangupUrl = `${DIALPAD_BASE}/call/${callId}/actions/hangup`;
+            const fhHangupResponse = await fetch(fhHangupUrl, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+            });
+            const fhHangupData = await fhHangupResponse.json().catch(() => null);
+            console.log(`[force_hangup] Hangup response status=${fhHangupResponse.status}`);
 
-              const fhHangupUrl = `${DIALPAD_BASE}/call/${callId}/actions/hangup`;
-              const fhHangupResponse = await fetch(fhHangupUrl, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
-              });
-              const fhHangupData = await fhHangupResponse.json().catch(() => null);
-              console.log(`[force_hangup] Hangup response status=${fhHangupResponse.status}`);
-
-              if (!fhHangupResponse.ok) {
-                if (isAlreadyEndedDialpadError(fhHangupResponse.status, fhHangupData)) {
-                  return jsonResponse(buildDialpadClientPayload({
-                    action,
-                    data: { state: "hangup" },
-                    dialpadCallId: callId,
-                    alreadyEnded: true,
-                    message: "This call has already ended.",
-                  }), 200);
-                }
-
-                const errorPayload = buildDialpadErrorPayload(fhHangupResponse.status, fhHangupData);
-                return jsonResponse(errorPayload, errorPayload.status_code);
+            if (!fhHangupResponse.ok) {
+              if (isAlreadyEndedDialpadError(fhHangupResponse.status, fhHangupData)) {
+                return jsonResponse(buildDialpadClientPayload({
+                  action,
+                  data: { state: "hangup" },
+                  dialpadCallId: callId,
+                  alreadyEnded: true,
+                  message: "This call has already ended.",
+                }), 200);
               }
 
-              return jsonResponse(buildDialpadClientPayload({
-                action,
-                data: fhHangupData ?? { state: "hangup" },
-                dialpadCallId: callId,
-                message: "Hangup requested. Waiting for Dialpad to confirm the call end.",
-              }), 200);
+              const errorPayload = buildDialpadErrorPayload(fhHangupResponse.status, fhHangupData);
+              return jsonResponse(errorPayload, errorPayload.status_code);
             }
+
+            return jsonResponse(buildDialpadClientPayload({
+              action,
+              data: fhHangupData ?? { state: "hangup" },
+              dialpadCallId: callId,
+              message: "Hangup requested. Waiting for Dialpad to confirm the call end.",
+            }), 200);
           }
-        } else {
-          await fhCallsResponse.text();
         }
 
-        console.log(`[force_hangup] No active call found`);
+        console.log(`[force_hangup] No active call found after retry window`);
         return jsonResponse({
           ok: true,
           action: "force_hangup",
