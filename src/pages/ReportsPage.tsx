@@ -169,6 +169,7 @@ export default function ReportsPage() {
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
             <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
+            <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
           </TabsList>
 
           <TabsContent value="bookings-made" className="space-y-6">
