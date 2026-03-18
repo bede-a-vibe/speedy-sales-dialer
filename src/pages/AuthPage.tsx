@@ -19,6 +19,11 @@ export default function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Clear any stale auth tokens on mount so previous failed attempts don't cause lock contention
+  useState(() => {
+    resetLocalAuthState().catch(() => {});
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
