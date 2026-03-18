@@ -905,6 +905,7 @@ Deno.serve(async (req) => {
         // The initiate_call endpoint doesn't return a call_id directly.
         // Poll with bounded backoff to find the new call by matching user + phone.
         let foundCallId: string | null = null;
+        let foundCallState: string | null = null;
         const pollDelays = [0, 400, 600, 800, 1000, 1200, 1500, 2000]; // ~7.5s total max
         console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
 
@@ -914,7 +915,7 @@ Deno.serve(async (req) => {
           }
 
           const callsResponse = await fetch(
-            `${DIALPAD_BASE}/call?limit=25`,
+            `${DIALPAD_BASE}/call?limit=100`,
             {
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -923,39 +924,23 @@ Deno.serve(async (req) => {
             },
           );
 
-          if (callsResponse.ok) {
-            const callsData = await callsResponse.json().catch(() => null);
-            const items = Array.isArray(callsData?.items) ? callsData.items : Array.isArray(callsData) ? callsData : [];
+          if (!callsResponse.ok) {
+            await callsResponse.text();
+            continue;
+          }
 
-            for (const call of items) {
-              if (!isRecord(call)) continue;
-              const callId = getDialpadCallId(call);
-              const state = normalizeDialpadState(call.state);
-              const externalNumber = typeof call.external_number === "string" ? call.external_number : "";
-              const contactPhone = isRecord(call.contact) && typeof call.contact.phone === "string" ? call.contact.phone : "";
-              const callUserId = isRecord(call.target)
-                ? call.target.id ?? call.target.user_id ?? null
-                : call.user_id ?? call.operator_id ?? null;
-              const isMatchingUser = String(callUserId) === String(params.dialpad_user_id);
-              const normalizedCandidateNumber = externalNumber || contactPhone;
+          const callsData = await callsResponse.json().catch(() => null);
+          const items = Array.isArray(callsData?.items) ? callsData.items : Array.isArray(callsData) ? callsData : [];
+          const matchedCall = findMatchingActiveCall(items, String(params.dialpad_user_id), normalizedPhone);
 
-              if (
-                callId
-                && !isTerminalDialpadState(state)
-                && isMatchingUser
-                && normalizedCandidateNumber.includes(normalizedPhone.slice(-8))
-              ) {
-                foundCallId = callId;
-                break;
-              }
-            }
+          if (matchedCall) {
+            foundCallId = getDialpadCallId(matchedCall.call);
+            foundCallState = normalizeDialpadState(matchedCall.call.state);
 
             if (foundCallId) {
-              console.log(`[initiate_call] Found call_id=${foundCallId} on attempt ${attempt + 1}`);
+              console.log(`[initiate_call] Found call_id=${foundCallId} via ${matchedCall.matchType} on attempt ${attempt + 1}`);
               break;
             }
-          } else {
-            await callsResponse.text();
           }
         }
 
