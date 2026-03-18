@@ -764,35 +764,12 @@ export default function DialerPage() {
         const isAlreadyOnCall = normalized.includes("currently on a call");
         const isRetryable = is409 || is429;
 
-        // If user is already on a call, skip retry and go straight to resolution
+        // If user is already on a call, keep the dialer in live-resolution mode
         if (isAlreadyOnCall) {
           console.log("[Dialer] User already on a call — entering resolution mode");
           setIsCallResolving(true);
           setActiveDialpadCallState("connecting");
-          toast.info("Dialpad reports an active call — locating it...");
-
-          for (let resolveAttempt = 0; resolveAttempt < 5; resolveAttempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            try {
-              const retryResponse = await resolveDialpadCall.mutateAsync({
-                phone: currentContact.phone,
-                dialpad_user_id: myDialpadSettings!.dialpad_user_id,
-                contact_id: currentContact.id,
-              });
-              if (retryResponse.dialpad_call_id) {
-                setActiveDialpadCallId(retryResponse.dialpad_call_id);
-                setActiveDialpadCallState(retryResponse.state);
-                setIsCallResolving(false);
-                toast.success("Active call found and linked.");
-                return;
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          setIsCallResolving(false);
-          toast.warning("Couldn't locate the active call. You can still log the outcome.");
+          toast.info("Dialpad reports an active call — linking it in the dialer…");
           return;
         }
 
