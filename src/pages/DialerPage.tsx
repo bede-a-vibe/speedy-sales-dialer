@@ -783,7 +783,7 @@ export default function DialerPage() {
           const delay = is429 ? 2500 : 1500;
           console.warn(`[Dialer] ${is429 ? "Rate limited" : "409 conflict"}, retrying in ${delay}ms (${retriesLeft} left)`);
           await new Promise((r) => setTimeout(r, delay));
-          return attemptDial(retriesLeft - 1, false);
+          return attemptDial(retriesLeft - 1);
         }
 
         clearActiveDialRequestLock(requestKey);
