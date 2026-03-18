@@ -17,39 +17,50 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (mode === "forgot") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Check your email for a password reset link!");
-        setMode("login");
-      }
-      setLoading(false);
-      return;
-    }
+    try {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
 
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { display_name: displayName } },
-      });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Check your email to confirm your account!");
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Check your email for a password reset link!");
+          setMode("login");
+        }
+        return;
       }
-    } else {
+
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { display_name: displayName },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Check your email to confirm your account!");
+        }
+        return;
+      }
+
+      await supabase.auth.signOut({ scope: "local" });
       const { error } = await supabase.auth.signInWithPassword({ email, password });
+
       if (error) {
         toast.error(error.message);
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to sign in right now.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
