@@ -453,23 +453,14 @@ export default function DialerPage() {
 
     leadAdvanceInFlightRef.current = true;
 
-    // Hang up any active Dialpad call before logging
+    // Fire-and-forget hangup — don't block logging on Dialpad API latency
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
-      try {
-        await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
-      } catch {
-        // Continue logging even if hangup fails
-      }
+      cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId }).catch(() => {});
     } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
-      // No call ID yet (still resolving) — force hangup by user+phone
-      try {
-        await forceHangupCall.mutateAsync({
-          dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          phone: currentContact.phone,
-        });
-      } catch {
-        // Continue logging even if force hangup fails
-      }
+      forceHangupCall.mutateAsync({
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        phone: currentContact.phone,
+      }).catch(() => {});
     }
 
     try {
