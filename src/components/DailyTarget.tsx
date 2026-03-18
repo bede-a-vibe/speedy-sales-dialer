@@ -49,7 +49,7 @@ export function DailyTarget() {
       <p className="text-[10px] text-muted-foreground mt-2">
         {isComplete
           ? "🎉 Target reached! Keep going!"
-          : `${DAILY_TARGET - todaysCalls} more calls to hit today's target`}
+          : `${dailyTarget - todaysCalls} more calls to hit today's target`}
       </p>
     </div>
   );
