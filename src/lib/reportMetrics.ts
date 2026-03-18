@@ -14,7 +14,6 @@ const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "dnc",
   "follow_up",
   "booked",
-  "wrong_number",
 ]);
 
 type AppointmentOutcomeKey = NonNullable<ReportBookingItem["appointment_outcome"]>;
