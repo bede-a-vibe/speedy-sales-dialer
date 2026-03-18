@@ -485,7 +485,11 @@ export default function DialerPage() {
         }),
         updateContact.mutateAsync({
           id: currentContact.id,
-          status: "called",
+          // Terminal outcomes remove the lead from the dialer permanently.
+          // Recyclable outcomes (no_answer, voicemail, not_interested, wrong_number)
+          // keep status as 'uncalled' so the lead re-enters the queue with an
+          // incremented call_attempt_count.
+          status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
           last_outcome: outcomeToLog,
           is_dnc: outcomeToLog === "dnc",
         }),
