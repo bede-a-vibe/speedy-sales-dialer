@@ -628,8 +628,14 @@ export default function DialerPage() {
       }
     }
 
+    // Bump call_attempt_count so this lead rotates to the back of the queue
+    void updateContact.mutateAsync({
+      id: currentContact.id,
+      call_attempt_count: (currentContact.call_attempt_count ?? 0) + 1,
+    }).catch(() => {});
+
     const nextLength = visibleUncalledContacts.length - 1;
-    void discardContact(currentContact.id);
+    void discardContact(currentContact.id, { releaseLock: true });
     setSkippedCount((prev) => prev + 1);
     resetLeadState(user?.id || "");
     void ensureBuffer();
@@ -643,7 +649,7 @@ export default function DialerPage() {
     if (currentIndex >= nextLength) {
       setCurrentIndex(nextLength - 1);
     }
-  }, [cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, isCallTerminal, resetLeadState, stopSession, user?.id, visibleUncalledContacts.length]);
+  }, [cancelActiveCall, currentContact, currentIndex, discardContact, ensureBuffer, isCallTerminal, resetLeadState, stopSession, updateContact, user?.id, visibleUncalledContacts.length]);
 
   useEffect(() => {
     if (!isSessionActive || !currentContact) return;
