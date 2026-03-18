@@ -866,7 +866,7 @@ Deno.serve(async (req) => {
         }
 
         if (params.contact_id) {
-          const adminClient = createClient(supabaseUrl, serviceRoleKey);
+          
           const reusableCall = await findReusableTrackedCall({
             adminClient,
             apiKey: DIALPAD_API_KEY,
