@@ -45,11 +45,17 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
+    const normalizedEmail = email.trim();
+
     try {
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
+        const { error } = await withTimeout(
+          supabase.auth.resetPasswordForEmail(normalizedEmail, {
+            redirectTo: `${window.location.origin}/reset-password`,
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Password reset request timed out. Please try again.",
+        );
 
         if (error) {
           toast.error(error.message);
@@ -61,14 +67,18 @@ export default function AuthPage() {
       }
 
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { display_name: displayName },
-            emailRedirectTo: window.location.origin,
-          },
-        });
+        const { error } = await withTimeout(
+          supabase.auth.signUp({
+            email: normalizedEmail,
+            password,
+            options: {
+              data: { display_name: displayName },
+              emailRedirectTo: window.location.origin,
+            },
+          }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Sign up timed out. Please try again.",
+        );
 
         if (error) {
           toast.error(error.message);
@@ -78,8 +88,12 @@ export default function AuthPage() {
         return;
       }
 
-      await supabase.auth.signOut({ scope: "local" });
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      clearLocalAuthStorage();
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Login timed out. Please try again.",
+      );
 
       if (error) {
         toast.error(error.message);
