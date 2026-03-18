@@ -314,6 +314,46 @@ function isDialpadCreateCallConflict(status: number, data: unknown) {
   return message.includes("unable to create call") || message.includes("conflict");
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findMatchingActiveCallWithRetries(params: {
+  action: string;
+  apiKey: string;
+  dialpadUserId: string;
+  normalizedPhone: string;
+  delays: number[];
+}) {
+  for (let attempt = 0; attempt < params.delays.length; attempt += 1) {
+    const delay = params.delays[attempt];
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    const response = await fetch(`${DIALPAD_BASE}/call?limit=100`, {
+      headers: { Authorization: `Bearer ${params.apiKey}`, Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      console.log(`[${params.action}] Active call lookup failed on attempt ${attempt + 1} with status=${response.status}`);
+      await response.text().catch(() => null);
+      continue;
+    }
+
+    const data = await response.json().catch(() => null);
+    const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+    const matchedCall = findMatchingActiveCall(items, params.dialpadUserId, params.normalizedPhone);
+
+    if (matchedCall) {
+      console.log(`[${params.action}] Matched active call on attempt ${attempt + 1} via ${matchedCall.matchType}`);
+      return matchedCall;
+    }
+  }
+
+  return null;
+}
+
 async function findReusableTrackedCall(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
