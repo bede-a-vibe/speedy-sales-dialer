@@ -190,21 +190,16 @@ export default function DialerPage() {
   const totalDialingMs = accumulatedDialingMs + liveDialingMs;
   const totalPausedMs = accumulatedPausedMs + livePausedMs;
   const canSubmit = !!selectedOutcome
-    && isCallTerminal
-    && !hasUnresolvedDialpadCall
     && (!requiresPipelineAssignment || !!assignedRepId)
     && (!requiresAnySchedule || !!followUpDate)
     && (!requiresFollowUpSchedule || !!followUpTime)
     && !isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
-    && !dialpadCall.isPending
     && !linkDialpadCallLog.isPending;
-  const primaryActionLabel = hasUnresolvedDialpadCall
-    ? "Connecting to Dialpad…"
-    : requiresBookedSchedule
-      ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
-      : (isCallTerminal ? (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead") : "End or wait for call to finish before logging");
+  const primaryActionLabel = requiresBookedSchedule
+    ? (isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
+    : (isSessionPaused ? "Log & Hold Session" : "Log & Next Lead");
 
   useEffect(() => {
     if (user?.id) {
@@ -465,6 +460,16 @@ export default function DialerPage() {
       } catch {
         // Continue logging even if hangup fails
       }
+    } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
+      // No call ID yet (still resolving) — force hangup by user+phone
+      try {
+        await forceHangupCall.mutateAsync({
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          phone: currentContact.phone,
+        });
+      } catch {
+        // Continue logging even if force hangup fails
+      }
     }
 
     try {
@@ -553,7 +558,10 @@ export default function DialerPage() {
     ensureBuffer,
     followUpDate,
     followUpTime,
+    forceHangupCall,
+    isCallTerminal,
     linkDialpadCallLog,
+    myDialpadSettings?.dialpad_user_id,
     notes,
     selectedOutcome,
     stopSession,
