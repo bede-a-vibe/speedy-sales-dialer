@@ -1057,7 +1057,7 @@ Deno.serve(async (req) => {
       }
 
       case "log_call": {
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        
 
         const { data: settings, error: settingsError } = await adminClient
           .from("dialpad_settings")
