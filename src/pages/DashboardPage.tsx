@@ -26,23 +26,22 @@ export default function DashboardPage() {
 
   return (
     <AppLayout title="Dashboard">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Hero: Greeting */}
+      <div className="max-w-6xl mx-auto space-y-5">
+        {/* Row 1: Greeting */}
         <DashboardGreeting />
 
-        {/* Achievements — top of page for motivation */}
+        {/* Row 2: Compact achievement pills */}
         <AchievementBadges />
 
-        {/* Daily ring + today's outcome breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+        {/* Row 3: Progress ring + today's outcomes side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
           <DailyProgressRing />
 
-          {/* Today's outcomes — compact and visual */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
               Today's Outcomes
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {(Object.keys(OUTCOME_CONFIG) as CallOutcome[]).map((outcome) => {
                 const config = OUTCOME_CONFIG[outcome];
                 const count = outcomeCounts[outcome] || 0;
@@ -50,7 +49,7 @@ export default function DashboardPage() {
                   <div
                     key={outcome}
                     className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all",
+                      "flex flex-col items-center gap-1 rounded-lg border p-2 transition-all",
                       count > 0
                         ? "border-primary/20 bg-primary/5"
                         : "border-border bg-muted/20",
@@ -58,13 +57,13 @@ export default function DashboardPage() {
                   >
                     <span
                       className={cn(
-                        "text-2xl font-black font-mono",
+                        "text-xl font-black font-mono leading-none",
                         count > 0 ? "text-foreground" : "text-muted-foreground/40",
                       )}
                     >
                       {count}
                     </span>
-                    <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <span className="text-[8px] font-medium text-muted-foreground uppercase tracking-wider leading-tight text-center">
                       {config.label}
                     </span>
                   </div>
@@ -74,11 +73,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Targets — the main progress tracking */}
+        {/* Row 4: My daily targets (weekly/team collapsed) */}
         <DashboardTargetsOverview />
 
-        {/* Leaderboard + Activity Feed */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Row 5: Leaderboard + Activity Feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
