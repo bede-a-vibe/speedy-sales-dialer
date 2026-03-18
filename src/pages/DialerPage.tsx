@@ -732,7 +732,7 @@ export default function DialerPage() {
 
     const attemptDial = async (retriesLeft: number, isFirstAttempt: boolean): Promise<void> => {
       if (isFirstAttempt) {
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((r) => setTimeout(r, 100));
       }
 
       try {
