@@ -125,7 +125,7 @@ function createAppointmentOutcomeCounts(): AppointmentOutcomeCounts {
   };
 }
 
-function getTalkTimeSeconds(callLog: ReportCallLog) {
+export function getTalkTimeSeconds(callLog: ReportCallLog) {
   if (typeof callLog.dialpad_talk_time_seconds === "number") {
     return Math.max(0, callLog.dialpad_talk_time_seconds);
   }

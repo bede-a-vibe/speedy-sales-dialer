@@ -7,6 +7,7 @@ export function useUserRole() {
 
   return useQuery({
     queryKey: ["user-role", user?.id],
+    staleTime: 30_000,
     queryFn: async () => {
       if (!user) return [] as string[];
       const { data, error } = await supabase
