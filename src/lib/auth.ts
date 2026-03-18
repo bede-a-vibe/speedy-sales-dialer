@@ -122,12 +122,8 @@ export function createTransientAuthClient() {
   return createAuthClient();
 }
 
-export function createPrimaryStorageAuthClient(options: Pick<AuthClientOptions, "detectSessionInUrl"> = {}) {
-  return createAuthClient({
-    persistSession: true,
-    storageKey: PRIMARY_AUTH_STORAGE_KEY,
-    detectSessionInUrl: options.detectSessionInUrl,
-  });
+export function createPrimaryStorageAuthClient(_options: Pick<AuthClientOptions, "detectSessionInUrl"> = {}) {
+  return authBrowserClient;
 }
 
 export async function resetLocalAuthState() {

@@ -27,6 +27,8 @@ export default function AuthPage() {
 
     try {
       if (mode === "forgot") {
+        await resetLocalAuthState();
+
         const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
           authClient.auth.resetPasswordForEmail(normalizedEmail, {
@@ -46,6 +48,8 @@ export default function AuthPage() {
       }
 
       if (mode === "signup") {
+        await resetLocalAuthState();
+
         const authClient = createTransientAuthClient();
         const { error } = await withTimeout(
           authClient.auth.signUp({
