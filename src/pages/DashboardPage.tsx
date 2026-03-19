@@ -53,7 +53,7 @@ export default function DashboardPage() {
         <DashboardGreeting />
 
         {/* Row 2: Achievements with confetti & gamification */}
-        <AchievementBadges />
+        <DailyAchievements />
 
         {/* Row 3: Progress ring + today's outcomes */}
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
