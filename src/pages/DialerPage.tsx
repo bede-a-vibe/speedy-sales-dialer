@@ -137,7 +137,7 @@ export default function DialerPage() {
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
-  const dialpadCallRef = useRef(dialpadCall);
+  const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
 
   const {
     contacts: visibleUncalledContacts,
