@@ -27,7 +27,7 @@ export function useStreak(userId?: string) {
       // Count consecutive days backwards from today
       let streak = 0;
       const d = new Date();
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 365; i++) {
         const key = d.toISOString().slice(0, 10);
         if (uniqueDays.has(key)) {
           streak++;
