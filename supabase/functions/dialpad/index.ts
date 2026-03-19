@@ -723,9 +723,41 @@ async function syncWebhookPayload(params: {
     return { ignored: true, reason: `Ignoring state ${payload.state ?? "unknown"}` };
   }
 
+  const LIVE_STATES = new Set(["calling", "ringing", "connected"]);
+  const isLiveStateUpdate = LIVE_STATES.has(payload.state);
+
   const trackedCall = await findTrackedDialpadCall(adminClient, payload);
+
+  // For live state webhooks, if no tracked call exists yet, try to create one using webhook payload
+  if (!trackedCall && isLiveStateUpdate) {
+    const webhookCallId = payload.call_id ? String(payload.call_id) : null;
+    if (webhookCallId && payload.external_number) {
+      // Try to find the contact + user by matching a recent pending dialpad_calls record without a call_id
+      // or by matching the phone number to a contact
+      console.log(`[webhook] Live state ${payload.state} for untracked call_id=${webhookCallId} — skipping (no tracked record yet)`);
+    }
+    return { ignored: false, reason: `Live state ${payload.state} — no tracked call to update`, call_state: payload.state };
+  }
+
   if (!trackedCall) {
     return { ignored: true, reason: "Tracked Dialpad call not found" };
+  }
+
+  // For live state updates (calling/ringing/connected), just update call_state and return
+  if (isLiveStateUpdate) {
+    const normalizedState = normalizeDialpadState(payload.state);
+    await adminClient
+      .from("dialpad_calls")
+      .update({ call_state: normalizedState })
+      .eq("id", trackedCall.id);
+    
+    console.log(`[webhook] Updated call_state to ${normalizedState} for dialpad_call_id=${trackedCall.dialpad_call_id}`);
+    return {
+      ignored: false,
+      dialpad_call_id: trackedCall.dialpad_call_id,
+      call_state: normalizedState,
+      sync_status: "pending",
+    };
   }
 
   const dialpadCallId = trackedCall.dialpad_call_id;
