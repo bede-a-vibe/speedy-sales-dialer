@@ -1075,47 +1075,18 @@ Deno.serve(async (req) => {
 
         const initiateData = await initiateResponse.json().catch(() => ({}));
 
-        // The initiate_call endpoint doesn't return a call_id directly.
-        // Poll with bounded backoff to find the new call by matching user + phone.
-        let foundCallId: string | null = null;
-        let foundCallState: string | null = null;
-        const pollDelays = [0, 200, 400, 600, 800]; // Aggressive server-side discovery
+        // Use shared discovery helper to find the call by matching user + phone
         console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
+        const matchedCall = await findMatchingActiveCallWithRetries({
+          action: "initiate_call",
+          apiKey: DIALPAD_API_KEY,
+          dialpadUserId: String(params.dialpad_user_id),
+          normalizedPhone,
+          delays: [0, 200, 400, 600, 800],
+        });
 
-        for (let attempt = 0; attempt < pollDelays.length; attempt++) {
-          if (pollDelays[attempt] > 0) {
-            await new Promise((resolve) => setTimeout(resolve, pollDelays[attempt]));
-          }
-
-          const callsResponse = await fetch(
-            `${DIALPAD_BASE}/call`,
-            {
-              headers: {
-                Authorization: `Bearer ${DIALPAD_API_KEY}`,
-                Accept: "application/json",
-              },
-            },
-          );
-
-          if (!callsResponse.ok) {
-            await callsResponse.text();
-            continue;
-          }
-
-          const callsData = await callsResponse.json().catch(() => null);
-          const items = Array.isArray(callsData?.items) ? callsData.items : Array.isArray(callsData) ? callsData : [];
-          const matchedCall = findMatchingActiveCall(items, String(params.dialpad_user_id), normalizedPhone);
-
-          if (matchedCall) {
-            foundCallId = getDialpadCallId(matchedCall.call);
-            foundCallState = normalizeDialpadState(matchedCall.call.state);
-
-            if (foundCallId) {
-              console.log(`[initiate_call] Found call_id=${foundCallId} via ${matchedCall.matchType} on attempt ${attempt + 1}`);
-              break;
-            }
-          }
-        }
+        const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
+        const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
 
         if (foundCallId) {
           // Write call_state + create tracking record immediately
@@ -1140,7 +1111,7 @@ Deno.serve(async (req) => {
           });
         } else {
           // Call was initiated but we couldn't discover the call_id yet.
-          console.warn(`[initiate_call] Could not discover call_id after ${pollDelays.length} attempts for user=${params.dialpad_user_id}`);
+          console.warn(`[initiate_call] Could not discover call_id for user=${params.dialpad_user_id}`);
           dialpadResponse = new Response(JSON.stringify({
             ...initiateData,
             state: "calling",
