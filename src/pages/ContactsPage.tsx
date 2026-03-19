@@ -324,6 +324,10 @@ export default function ContactsPage() {
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="uncalled">Uncalled</SelectItem>
               <SelectItem value="called">Called</SelectItem>
+              <SelectItem value="follow_up">Follow Up</SelectItem>
+              <SelectItem value="booked">Booked</SelectItem>
+              <SelectItem value="not_interested">Not Interested</SelectItem>
+              <SelectItem value="dnc">Do Not Call</SelectItem>
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
