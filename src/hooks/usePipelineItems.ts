@@ -43,6 +43,8 @@ export interface PipelineItemWithRelations {
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
   outcome_notes: string;
+  deal_value: number | null;
+  reschedule_count: number;
   created_at: string;
   updated_at: string;
   contacts: {
