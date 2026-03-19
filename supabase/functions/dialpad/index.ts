@@ -1054,6 +1054,17 @@ Deno.serve(async (req) => {
         }
 
         if (foundCallId) {
+          // Write call_state + create tracking record immediately
+          if (params.contact_id) {
+            await adminClient.from("dialpad_calls").upsert({
+              dialpad_call_id: foundCallId,
+              contact_id: params.contact_id,
+              user_id: user.id,
+              sync_status: "pending",
+              call_state: foundCallState ?? "calling",
+            }, { onConflict: "dialpad_call_id" }).then(() => {});
+          }
+
           dialpadResponse = new Response(JSON.stringify({
             call_id: foundCallId,
             state: foundCallState ?? "calling",
