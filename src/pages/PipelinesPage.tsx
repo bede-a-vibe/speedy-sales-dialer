@@ -337,6 +337,7 @@ export default function PipelinesPage() {
             key={item.id}
             item={item}
             repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
+            setterName={type === "booked" ? (repMap.get(item.created_by) || "Unknown rep") : undefined}
             reps={reps}
             isSaving={updatePipelineItem.isPending || updateContact.isPending}
             onComplete={handleComplete}
