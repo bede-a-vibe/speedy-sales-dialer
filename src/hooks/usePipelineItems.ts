@@ -54,6 +54,8 @@ export interface PipelineItemWithRelations {
     industry: string;
     phone: string;
     state: string | null;
+    website: string | null;
+    gmb_link: string | null;
   } | null;
 }
 
