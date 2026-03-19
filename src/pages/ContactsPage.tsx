@@ -248,6 +248,7 @@ export default function ContactsPage() {
       industry: contact.industry,
       city: contact.city,
       state: contact.state,
+      status: contact.status,
     });
   };
 
