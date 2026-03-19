@@ -271,6 +271,7 @@ export default function PipelinesPage() {
     outcome: AppointmentOutcomeValue,
     notes: string,
     scheduledFor?: string,
+    dealValue?: number,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -297,6 +298,7 @@ export default function PipelinesPage() {
         appointment_outcome: outcome,
         outcome_notes: notes,
         status: "completed",
+        ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
       });
 
       toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
@@ -304,6 +306,22 @@ export default function PipelinesPage() {
       toast.error("Failed to update appointment outcome.");
     }
   };
+
+  const sortedBookedItems = useMemo(() => {
+    // Sort stale appointments (past scheduled date, no outcome, open) to top
+    return [...booked].sort((a, b) => {
+      const now = new Date();
+      const aStale = a.scheduled_for && new Date(a.scheduled_for) < now && !a.appointment_outcome ? 1 : 0;
+      const bStale = b.scheduled_for && new Date(b.scheduled_for) < now && !b.appointment_outcome ? 1 : 0;
+      if (aStale !== bStale) return bStale - aStale; // stale first
+      return 0; // preserve existing sort
+    });
+  }, [booked]);
+
+  const staleCount = useMemo(
+    () => booked.filter((item) => item.scheduled_for && new Date(item.scheduled_for) < new Date() && !item.appointment_outcome).length,
+    [booked],
+  );
 
   const renderOpenItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
     if ((type === "follow_up" && followUpsLoading) || (type === "booked" && bookedLoading)) {
@@ -411,7 +429,7 @@ export default function PipelinesPage() {
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{followUps.length} follow-ups</span>
-            <span>{booked.length} booked</span>
+            <span>{booked.length} booked{staleCount > 0 ? ` (${staleCount} stale)` : ""}</span>
             <span>{completedBooked.length} completed</span>
           </div>
         </div>
@@ -426,7 +444,7 @@ export default function PipelinesPage() {
             {renderOpenItems(followUps, "follow_up")}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
-            {renderOpenItems(booked, "booked")}
+            {renderOpenItems(sortedBookedItems, "booked")}
           </TabsContent>
           <TabsContent value="history" className="mt-4">
             {renderHistory()}

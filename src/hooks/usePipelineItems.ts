@@ -26,6 +26,7 @@ export interface PipelineItemUpdate {
   appointment_outcome?: AppointmentOutcomeValue | null;
   outcome_recorded_at?: string | null;
   outcome_notes?: string;
+  deal_value?: number | null;
 }
 
 export interface PipelineItemWithRelations {
@@ -42,6 +43,8 @@ export interface PipelineItemWithRelations {
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
   outcome_notes: string;
+  deal_value: number | null;
+  reschedule_count: number;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -70,6 +73,8 @@ export interface BookedAppointmentReportItem {
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
   status: PipelineStatus;
+  deal_value: number | null;
+  reschedule_count: number;
 }
 
 export function usePipelineItems(type: PipelineType, status: PipelineStatus = "open") {
@@ -93,6 +98,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           appointment_outcome,
           outcome_recorded_at,
           outcome_notes,
+          deal_value,
+          reschedule_count,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -155,6 +162,8 @@ export function useContactPipelineItems(contactId?: string) {
           appointment_outcome,
           outcome_recorded_at,
           outcome_notes,
+          deal_value,
+          reschedule_count,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -182,7 +191,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count",
         )
         .eq("pipeline_type", "booked")
         .order("created_at", { ascending: false });

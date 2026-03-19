@@ -6,7 +6,7 @@ export type ReportCallLog = Pick<
 >;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
-  "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome"
+  "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
 >;
 
 export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
@@ -31,7 +31,11 @@ export interface AppointmentPerformanceMetrics {
   showUpRate: number;
   closeRate: number;
   verbalCommitmentRate: number;
+  rescheduleRate: number;
   resolvedAppointments: number;
+  pendingOutcome: number;
+  cashCollected: number;
+  averageDealValue: number;
 }
 
 export interface RepDialerMetrics {
@@ -148,14 +152,22 @@ function isSameOrNextDayBooking(item: ReportBookingItem) {
 function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const appointmentOutcomeCounts = createAppointmentOutcomeCounts();
 
+  let cashCollected = 0;
+
   for (const item of items) {
     if (item.appointment_outcome) {
       appointmentOutcomeCounts[item.appointment_outcome] += 1;
+    }
+    if (item.appointment_outcome === "showed_closed" && item.deal_value != null) {
+      cashCollected += item.deal_value;
     }
   }
 
   const resolvedAppointments = items.filter((item) => !!item.appointment_outcome).length;
   const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close + appointmentOutcomeCounts.showed_verbal_commitment;
+  const pendingOutcome = items.filter(
+    (item) => !item.appointment_outcome && item.scheduled_for && new Date(item.scheduled_for) < new Date(),
+  ).length;
 
   return {
     metrics: {
@@ -169,7 +181,11 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       showUpRate: toPercent(showed, items.length),
       closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       verbalCommitmentRate: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, showed),
+      rescheduleRate: toPercent(appointmentOutcomeCounts.rescheduled, items.length),
       resolvedAppointments,
+      pendingOutcome,
+      cashCollected,
+      averageDealValue: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(cashCollected / appointmentOutcomeCounts.showed_closed) : 0,
     } satisfies AppointmentPerformanceMetrics,
     outcomeCounts: appointmentOutcomeCounts,
   };

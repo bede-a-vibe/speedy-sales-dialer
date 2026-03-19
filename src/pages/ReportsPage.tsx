@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock, DollarSign, TrendingDown } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -166,6 +167,7 @@ export default function ReportsPage() {
         <Tabs defaultValue="bookings-made" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
+            <TabsTrigger value="pipeline-funnel" className="rounded-md">Pipeline Funnel</TabsTrigger>
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
             <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
@@ -198,6 +200,82 @@ export default function ReportsPage() {
                   <MetricBarList items={callOutcomeItems} emptyLabel="No call outcomes in this date range." />
                 </div>
               </div>
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="pipeline-funnel" className="space-y-6">
+            <ReportSection
+              title="Pipeline Funnel"
+              description={`End-to-end view from bookings to cash collected${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}
+            >
+              {(() => {
+                const s = metrics.appointmentPerformance.setter;
+                const funnelItems = [
+                  { label: "Appointments Booked", value: s.appointmentsScheduled, pct: 100, indent: 0 },
+                  { label: "Pending (no outcome yet)", value: s.pendingOutcome, pct: s.appointmentsScheduled > 0 ? Math.round((s.pendingOutcome / s.appointmentsScheduled) * 100) : 0, indent: 1 },
+                  { label: "Rescheduled", value: s.rescheduled, pct: s.rescheduleRate, indent: 1 },
+                  { label: "No Show", value: s.noShows, pct: s.appointmentsScheduled > 0 ? Math.round((s.noShows / s.appointmentsScheduled) * 100) : 0, indent: 1 },
+                  { label: "Showed", value: s.showed, pct: s.showUpRate, indent: 1 },
+                  { label: "Verbal Commitment", value: s.showedVerbalCommitment, pct: s.showed > 0 ? Math.round((s.showedVerbalCommitment / s.showed) * 100) : 0, indent: 2 },
+                  { label: "Closed", value: s.showedClosed, pct: s.closeRate, indent: 2 },
+                  { label: "No Close", value: s.showedNoClose, pct: s.showed > 0 ? Math.round((s.showedNoClose / s.showed) * 100) : 0, indent: 2 },
+                ];
+
+                return (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-border bg-background p-4 space-y-2">
+                      {funnelItems.map((row) => (
+                        <div
+                          key={row.label}
+                          className="flex items-center justify-between gap-4 py-1.5"
+                          style={{ paddingLeft: `${row.indent * 24}px` }}
+                        >
+                          <span className={cn("text-sm", row.indent === 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                            {row.indent > 0 && "├─ "}
+                            {row.label}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm font-medium text-foreground">{row.value}</span>
+                            {row.indent > 0 && (
+                              <span className="font-mono text-xs text-muted-foreground w-10 text-right">{row.pct}%</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="h-4 w-4 text-emerald-500" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Cash Collected</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          ${s.cashCollected.toLocaleString("en-AU")}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Avg Deal Value</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          ${s.averageDealValue.toLocaleString("en-AU")}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Reschedule Rate</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          {s.rescheduleRate}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </ReportSection>
           </TabsContent>
 
@@ -280,8 +358,8 @@ export default function ReportsPage() {
                   <TableRow>
                     <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
                     <TableHead colSpan={2} className="text-center">Dialer</TableHead>
-                    <TableHead colSpan={4} className="text-center">Setter</TableHead>
-                    <TableHead colSpan={4} className="text-center">Closer</TableHead>
+                    <TableHead colSpan={5} className="text-center">Setter</TableHead>
+                    <TableHead colSpan={5} className="text-center">Closer</TableHead>
                   </TableRow>
                   <TableRow>
                     <TableHead>Talk Time</TableHead>
@@ -290,16 +368,18 @@ export default function ReportsPage() {
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
                     <TableHead>Close %</TableHead>
+                    <TableHead>Cash</TableHead>
                     <TableHead>Assigned</TableHead>
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
                     <TableHead>Close %</TableHead>
+                    <TableHead>Cash</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={13} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
@@ -313,10 +393,12 @@ export default function ReportsPage() {
                         <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.closeRate}%</TableCell>
+                        <TableCell className="font-mono text-emerald-600">${row.setter.cashCollected.toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.closer.appointmentsScheduled}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.closer.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.closer.showUpRate}%</TableCell>
                         <TableCell className="font-mono text-foreground">{row.closer.closeRate}%</TableCell>
+                        <TableCell className="font-mono text-emerald-600">${row.closer.cashCollected.toLocaleString()}</TableCell>
                       </TableRow>
                     ))
                   )}
