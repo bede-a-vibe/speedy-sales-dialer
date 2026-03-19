@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
