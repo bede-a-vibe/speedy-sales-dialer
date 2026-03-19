@@ -4,7 +4,7 @@ import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsO
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
-import { AchievementBadges } from "@/components/dashboard/AchievementBadges";
+import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
 import { useCallLogs, useTodayCallCount } from "@/hooks/useCallLogs";
@@ -53,7 +53,7 @@ export default function DashboardPage() {
         <DashboardGreeting />
 
         {/* Row 2: Achievements with confetti & gamification */}
-        <AchievementBadges />
+        <DailyAchievements />
 
         {/* Row 3: Progress ring + today's outcomes */}
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
@@ -103,6 +103,9 @@ export default function DashboardPage() {
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
+
+        {/* Row 6: Long-term achievements */}
+        <LongTermAchievements />
       </div>
     </AppLayout>
   );
