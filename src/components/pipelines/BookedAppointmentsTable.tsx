@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, isPast, isToday } from "date-fns";
-import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, Phone, RefreshCw, UserRound } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, ExternalLink, Globe, MapPin, Phone, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
