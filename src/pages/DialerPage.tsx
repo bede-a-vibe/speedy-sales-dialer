@@ -159,6 +159,7 @@ export default function DialerPage() {
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const { data: callerIdOptions = [] } = useDialpadCallerIds(myDialpadSettings?.dialpad_user_id);
   const dialpadCall = useDialpadCall();
+  dialpadCallRef.current = dialpadCall;
   const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const resolveDialpadCall = useResolveDialpadCall();
