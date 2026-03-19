@@ -1150,6 +1150,21 @@ Deno.serve(async (req) => {
             headers: { "Content-Type": "application/json" },
           });
         }
+        } finally {
+          // ── Restore DND if we disabled it ──
+          if (wasDnd) {
+            console.log(`[initiate_call] Restoring DND for user ${params.dialpad_user_id}`);
+            try {
+              const toggleOn = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/togglednd`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+              });
+              await toggleOn.text();
+            } catch (e) {
+              console.warn("[initiate_call] Failed to restore DND:", e);
+            }
+          }
+        }
         break;
       }
 
