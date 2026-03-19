@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useIsAdmin } from "@/hooks/useUserRole";
@@ -200,6 +202,8 @@ export default function ContactsPage() {
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
+  const createPipelineItem = useCreatePipelineItem();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const filtered = useMemo(() => {
@@ -253,10 +257,29 @@ export default function ContactsPage() {
   };
 
   const saveEdit = async () => {
-    if (!editContact) return;
+    if (!editContact || !user) return;
     try {
       await updateContact.mutateAsync({ id: editContact.id, ...editForm });
-      toast.success("Contact updated.");
+
+      // Auto-create a booked pipeline item when status changes to "booked"
+      const statusChanged = editForm.status !== editContact.status;
+      if (statusChanged && editForm.status === "booked") {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(10, 0, 0, 0);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: editContact.id,
+          pipeline_type: "booked",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: tomorrow.toISOString(),
+          notes: "Created from contact status update",
+        });
+        toast.success("Contact updated & booked appointment created.");
+      } else {
+        toast.success("Contact updated.");
+      }
       setEditContact(null);
     } catch {
       toast.error("Failed to update contact.");
