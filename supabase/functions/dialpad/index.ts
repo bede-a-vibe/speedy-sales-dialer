@@ -1686,6 +1686,7 @@ Deno.serve(async (req) => {
           contact_id: params.contact_id,
           user_id: user.id,
           sync_status: "pending",
+          call_state: normalizeDialpadState(isRecord(data) ? data.state : null) ?? "calling",
         });
 
         return jsonResponse(buildDialpadClientPayload({
