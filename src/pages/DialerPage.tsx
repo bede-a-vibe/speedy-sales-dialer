@@ -471,7 +471,7 @@ export default function DialerPage() {
     const contactId = currentContact.id;
     const contactPhone = currentContact.phone;
     const userId = user.id;
-    const dialpadCallId = activeDialpadCallId;
+    const dialpadCallId = activeDialpadCallId || lastDialpadCallIdRef.current;
     const scheduledFor = followUpDate
       ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
       : null;
