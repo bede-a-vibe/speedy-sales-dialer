@@ -308,17 +308,7 @@ export default function PipelinesPage() {
     }
   };
 
-  const sortedBookedItems = useMemo(() => {
-    // Sort stale appointments (past scheduled date, no outcome, open) to top
-    return [...booked].sort((a, b) => {
-      const now = new Date();
-      const aStale = a.scheduled_for && new Date(a.scheduled_for) < now && !a.appointment_outcome ? 1 : 0;
-      const bStale = b.scheduled_for && new Date(b.scheduled_for) < now && !b.appointment_outcome ? 1 : 0;
-      if (aStale !== bStale) return bStale - aStale; // stale first
-      return 0; // preserve existing sort
-    });
-  }, [booked]);
-
+  // Stale count for summary badge
   const staleCount = useMemo(
     () => booked.filter((item) => item.scheduled_for && new Date(item.scheduled_for) < new Date() && !item.appointment_outcome).length,
     [booked],
