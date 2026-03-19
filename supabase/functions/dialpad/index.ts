@@ -831,6 +831,7 @@ async function syncWebhookPayload(params: {
     .from("dialpad_calls")
     .update({
       sync_status: nextStatus,
+      call_state: payload.state === "hangup" ? "hangup" : undefined,
       transcript_synced_at: syncedAt ?? undefined,
       sync_error: null,
     })
