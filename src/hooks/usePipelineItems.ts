@@ -176,7 +176,9 @@ export function useContactPipelineItems(contactId?: string) {
             contact_person,
             industry,
             phone,
-            state
+            state,
+            website,
+            gmb_link
           )
         `)
         .eq("contact_id", contactId!)
