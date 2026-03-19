@@ -1,16 +1,18 @@
 import { lazy, Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { createAppQueryClient } from "@/lib/queryClient";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 const ProtectedApp = lazy(() => import("./components/ProtectedApp"));
 
-const queryClient = new QueryClient();
+const queryClient = createAppQueryClient();
 
 function FullPageLoading() {
   return (
@@ -23,6 +25,7 @@ function FullPageLoading() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <OfflineBanner />
       <Toaster />
       <Sonner />
       <BrowserRouter>

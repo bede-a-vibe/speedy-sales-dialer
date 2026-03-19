@@ -10,6 +10,7 @@ import {
   parseContactUploadFile,
   prepareContactImport,
 } from "@/lib/contactImport";
+import { validateContactRows } from "@/lib/contactValidation";
 
 export default function UploadPage() {
   const { user } = useAuth();
@@ -55,6 +56,19 @@ export default function UploadPage() {
       if (contacts.length === 0) {
         toast.error("No valid contacts found after filtering.");
         return;
+      }
+
+      // Validate rows with Zod before inserting
+      const validation = validateContactRows(contacts);
+      if (validation.invalidCount > 0) {
+        const firstErrors = validation.errors.slice(0, 5);
+        setParseErrors((prev) => [
+          ...prev,
+          `${validation.invalidCount} row(s) failed validation:`,
+          ...firstErrors.map((e) => `Row ${e.row}: ${e.field} — ${e.message}`),
+          ...(validation.errors.length > 5 ? [`...and ${validation.errors.length - 5} more`] : []),
+        ]);
+        toast.warning(`${validation.invalidCount} rows have validation issues — uploading ${validation.validCount} valid rows.`);
       }
 
       const notesByContactId = new Map(contactNotes.map((note) => [note.contact_id, note]));
