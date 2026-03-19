@@ -10,6 +10,7 @@ import {
   parseContactUploadFile,
   prepareContactImport,
 } from "@/lib/contactImport";
+import { validateContactRows } from "@/lib/contactValidation";
 
 export default function UploadPage() {
   const { user } = useAuth();
