@@ -753,6 +753,7 @@ export default function DialerPage() {
 
         if (response.dialpad_call_id) {
           setActiveDialpadCallId(response.dialpad_call_id);
+          lastDialpadCallIdRef.current = response.dialpad_call_id;
           setActiveDialpadCallState(response.state ?? "calling");
           setRapidStatusPollingUntil(Date.now() + 10000);
           setIsCallResolving(false);
