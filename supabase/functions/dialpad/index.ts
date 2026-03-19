@@ -983,9 +983,41 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Use the user-scoped initiate_call endpoint instead of POST /call
-        // This initiates a direct outbound call and works even when the user is in DND mode
-        const initiateResponse = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/initiate_call`, {
+        // ── Auto-disable DND before dialing ──
+        let wasDnd = false;
+        try {
+          const dndCheckRes = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}`, {
+            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+          });
+          if (dndCheckRes.ok) {
+            const dndData = await dndCheckRes.json();
+            wasDnd = dndData?.do_not_disturb === true;
+          } else {
+            await dndCheckRes.text(); // consume body
+          }
+        } catch (e) {
+          console.warn("[initiate_call] DND preflight check failed, proceeding anyway:", e);
+        }
+
+        if (wasDnd) {
+          console.log(`[initiate_call] User ${params.dialpad_user_id} is in DND — temporarily disabling`);
+          try {
+            const toggleOff = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/togglednd`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+            });
+            await toggleOff.text(); // consume body
+            // Brief pause to let DND state propagate
+            await new Promise((r) => setTimeout(r, 300));
+          } catch (e) {
+            console.warn("[initiate_call] Failed to disable DND:", e);
+          }
+        }
+
+        let initiateResponse: Response;
+        try {
+        // Use the user-scoped initiate_call endpoint
+        initiateResponse = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/initiate_call`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${DIALPAD_API_KEY}`,
@@ -1117,6 +1149,21 @@ Deno.serve(async (req) => {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
+        }
+        } finally {
+          // ── Restore DND if we disabled it ──
+          if (wasDnd) {
+            console.log(`[initiate_call] Restoring DND for user ${params.dialpad_user_id}`);
+            try {
+              const toggleOn = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/togglednd`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+              });
+              await toggleOn.text();
+            } catch (e) {
+              console.warn("[initiate_call] Failed to restore DND:", e);
+            }
+          }
         }
         break;
       }
