@@ -26,6 +26,7 @@ export interface PipelineItemUpdate {
   appointment_outcome?: AppointmentOutcomeValue | null;
   outcome_recorded_at?: string | null;
   outcome_notes?: string;
+  deal_value?: number | null;
 }
 
 export interface PipelineItemWithRelations {
