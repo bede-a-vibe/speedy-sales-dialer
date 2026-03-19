@@ -202,6 +202,8 @@ export default function ContactsPage() {
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
+  const createPipelineItem = useCreatePipelineItem();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const filtered = useMemo(() => {
