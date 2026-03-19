@@ -166,6 +166,7 @@ export default function ReportsPage() {
         <Tabs defaultValue="bookings-made" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
+            <TabsTrigger value="pipeline-funnel" className="rounded-md">Pipeline Funnel</TabsTrigger>
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
             <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
