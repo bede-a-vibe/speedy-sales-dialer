@@ -1670,6 +1670,41 @@ Deno.serve(async (req) => {
         }, 200);
       }
 
+      case "check_user_status": {
+        const checkUserId = params.dialpad_user_id;
+        if (!checkUserId) {
+          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        }
+
+        const statusResponse = await fetch(`${DIALPAD_BASE}/users/${checkUserId}`, {
+          headers: {
+            Authorization: `Bearer ${DIALPAD_API_KEY}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (!statusResponse.ok) {
+          return jsonResponse({
+            ok: false,
+            ready: false,
+            reason: "Unable to check Dialpad user status",
+          }, 200);
+        }
+
+        const userData = await statusResponse.json();
+        const isOnCall = userData?.on_call === true;
+        const isDnd = userData?.do_not_disturb === true;
+        const isAvailable = userData?.is_available !== false;
+
+        return jsonResponse({
+          ok: true,
+          ready: true,
+          on_call: isOnCall,
+          do_not_disturb: isDnd,
+          is_available: isAvailable,
+        }, 200);
+      }
+
       default:
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
