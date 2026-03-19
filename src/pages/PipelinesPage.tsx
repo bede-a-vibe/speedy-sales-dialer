@@ -435,7 +435,18 @@ export default function PipelinesPage() {
             {renderOpenItems(followUps, "follow_up")}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
-            {renderOpenItems(sortedBookedItems, "booked")}
+            {bookedLoading ? (
+              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
+            ) : (
+              <BookedAppointmentsTable
+                items={booked}
+                reps={reps}
+                repMap={repMap}
+                isSaving={updatePipelineItem.isPending}
+                onAssign={handleAssign}
+                onRecordOutcome={handleBookedOutcome}
+              />
+            )}
           </TabsContent>
           <TabsContent value="history" className="mt-4">
             {renderHistory()}
