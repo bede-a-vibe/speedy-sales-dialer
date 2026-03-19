@@ -29,10 +29,16 @@ export default function DashboardPage() {
     return dt?.target_value && dt.target_value > 0 ? Math.round(dt.target_value) : 50;
   }, [targets, user?.id]);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todaysLogs = callLogs.filter(
-    (l: any) => l.user_id === user?.id && l.created_at?.slice(0, 10) === today,
-  );
+  const todaysLogs = callLogs.filter((l: any) => {
+    if (l.user_id !== user?.id || !l.created_at) return false;
+    const logDate = new Date(l.created_at);
+    const now = new Date();
+    return (
+      logDate.getFullYear() === now.getFullYear() &&
+      logDate.getMonth() === now.getMonth() &&
+      logDate.getDate() === now.getDate()
+    );
+  });
 
   const outcomeCounts = todaysLogs.reduce<Partial<Record<string, number>>>((acc, log) => {
     acc[log.outcome] = (acc[log.outcome] || 0) + 1;
