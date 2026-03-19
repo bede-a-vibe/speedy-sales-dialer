@@ -1550,6 +1550,81 @@ Deno.serve(async (req) => {
         return jsonResponse({ items: results }, 200);
       }
 
+      case "backfill_talk_time": {
+        // Admin-only action to link unlinked dialpad_calls to call_logs and fetch talk time
+        const { data: adminRole } = await adminClient
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (!adminRole) {
+          return jsonResponse({ error: "Admin access required" }, 403);
+        }
+
+        const { data: unlinked, error: unlinkedError } = await adminClient
+          .from("dialpad_calls")
+          .select("id, dialpad_call_id, contact_id, user_id, created_at")
+          .is("call_log_id", null)
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (unlinkedError) {
+          return jsonResponse({ error: unlinkedError.message }, 500);
+        }
+
+        const results: Array<{ dialpad_call_id: string; linked: boolean; talk_time_seconds?: number | null }> = [];
+
+        for (const record of unlinked ?? []) {
+          const callLogId = await findCallLogByFallback(
+            adminClient,
+            record.contact_id,
+            record.user_id,
+            record.created_at,
+          );
+
+          if (!callLogId) {
+            results.push({ dialpad_call_id: record.dialpad_call_id, linked: false });
+            continue;
+          }
+
+          // Link the records
+          await adminClient
+            .from("dialpad_calls")
+            .update({ call_log_id: callLogId })
+            .eq("id", record.id);
+
+          // Fetch talk time from Dialpad
+          const callInfoData = await fetchDialpadCallInfo(record.dialpad_call_id, DIALPAD_API_KEY);
+          const durations = extractDialpadDurations({} as DialpadWebhookPayload, callInfoData);
+
+          const updateData: Record<string, unknown> = {
+            dialpad_call_id: record.dialpad_call_id,
+          };
+          if (durations.talkTimeSeconds !== null) updateData.dialpad_talk_time_seconds = durations.talkTimeSeconds;
+          if (durations.totalDurationSeconds !== null) updateData.dialpad_total_duration_seconds = durations.totalDurationSeconds;
+
+          await adminClient
+            .from("call_logs")
+            .update(updateData)
+            .eq("id", callLogId);
+
+          results.push({
+            dialpad_call_id: record.dialpad_call_id,
+            linked: true,
+            talk_time_seconds: durations.talkTimeSeconds,
+          });
+        }
+
+        return jsonResponse({
+          ok: true,
+          total_unlinked: unlinked?.length ?? 0,
+          linked: results.filter((r) => r.linked).length,
+          results,
+        }, 200);
+      }
+
       default:
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
