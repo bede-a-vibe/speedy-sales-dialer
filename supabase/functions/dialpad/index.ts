@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const DIALPAD_BASE = "https://dialpad.com/api/v2";
-const SYNC_RELEVANT_STATES = new Set(["hangup", "call_transcription", "recap_summary"]);
+const SYNC_RELEVANT_STATES = new Set(["hangup", "call_transcription", "recap_summary", "calling", "ringing", "connected"]);
 
 type JsonRecord = Record<string, unknown>;
 
