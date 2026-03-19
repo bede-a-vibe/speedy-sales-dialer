@@ -31,7 +31,11 @@ export interface AppointmentPerformanceMetrics {
   showUpRate: number;
   closeRate: number;
   verbalCommitmentRate: number;
+  rescheduleRate: number;
   resolvedAppointments: number;
+  pendingOutcome: number;
+  cashCollected: number;
+  averageDealValue: number;
 }
 
 export interface RepDialerMetrics {
