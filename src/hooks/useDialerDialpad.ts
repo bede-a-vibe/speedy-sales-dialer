@@ -86,7 +86,6 @@ export function useDialerDialpad({
     setActiveDialpadCallState(null);
     lastDialpadCallIdRef.current = null;
     setDialpadPollingBackoffUntil(null);
-    setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
     setIsCallResolving(false);
     setCallStartedAt(null);
