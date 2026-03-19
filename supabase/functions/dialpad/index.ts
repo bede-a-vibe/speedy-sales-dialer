@@ -1111,7 +1111,7 @@ Deno.serve(async (req) => {
           });
         } else {
           // Call was initiated but we couldn't discover the call_id yet.
-          console.warn(`[initiate_call] Could not discover call_id after ${pollDelays.length} attempts for user=${params.dialpad_user_id}`);
+          console.warn(`[initiate_call] Could not discover call_id for user=${params.dialpad_user_id}`);
           dialpadResponse = new Response(JSON.stringify({
             ...initiateData,
             state: "calling",
