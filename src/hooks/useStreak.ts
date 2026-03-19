@@ -7,9 +7,9 @@ export function useStreak(userId?: string) {
     queryFn: async () => {
       if (!userId) return 0;
 
-      // Get distinct dates with calls for this user, last 60 days
+      // Get distinct dates with calls for this user, last 365 days
       const since = new Date();
-      since.setDate(since.getDate() - 60);
+      since.setDate(since.getDate() - 365);
 
       const { data, error } = await supabase
         .from("call_logs")
@@ -27,7 +27,7 @@ export function useStreak(userId?: string) {
       // Count consecutive days backwards from today
       let streak = 0;
       const d = new Date();
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 365; i++) {
         const key = d.toISOString().slice(0, 10);
         if (uniqueDays.has(key)) {
           streak++;
