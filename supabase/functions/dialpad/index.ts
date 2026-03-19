@@ -1208,6 +1208,7 @@ Deno.serve(async (req) => {
                 contact_id: params.contact_id,
                 user_id: user.id,
                 sync_status: "pending",
+                call_state: state ?? "calling",
               }, { onConflict: "dialpad_call_id" }).then(() => {});
             }
 
