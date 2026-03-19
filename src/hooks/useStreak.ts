@@ -7,9 +7,9 @@ export function useStreak(userId?: string) {
     queryFn: async () => {
       if (!userId) return 0;
 
-      // Get distinct dates with calls for this user, last 60 days
+      // Get distinct dates with calls for this user, last 365 days
       const since = new Date();
-      since.setDate(since.getDate() - 60);
+      since.setDate(since.getDate() - 365);
 
       const { data, error } = await supabase
         .from("call_logs")
