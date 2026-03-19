@@ -103,6 +103,9 @@ export default function DashboardPage() {
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
+
+        {/* Row 6: Long-term achievements */}
+        <LongTermAchievements />
       </div>
     </AppLayout>
   );
