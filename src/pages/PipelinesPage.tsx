@@ -6,7 +6,7 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { useUpdateContact } from "@/hooks/useContacts";
+
 import {
   usePipelineItems,
   useSalesReps,
