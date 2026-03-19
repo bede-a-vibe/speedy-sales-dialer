@@ -405,6 +405,7 @@ export default function PipelinesPage() {
                 key={item.id}
                 item={item}
                 repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
+                setterName={repMap.get(item.created_by) || "Unknown rep"}
                 reps={reps}
                 isSaving={false}
                 showActions={false}
