@@ -110,7 +110,9 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
             contact_person,
             industry,
             phone,
-            state
+            state,
+            website,
+            gmb_link
           )
         `)
         .eq("pipeline_type", type)
