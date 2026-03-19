@@ -197,6 +197,8 @@ export default function ContactsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingTime, setBookingTime] = useState("10:00");
   const [page, setPage] = useState(1);
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
@@ -254,26 +256,35 @@ export default function ContactsPage() {
       state: contact.state,
       status: contact.status,
     });
+    setBookingDate("");
+    setBookingTime("10:00");
   };
 
   const saveEdit = async () => {
     if (!editContact || !user) return;
+
+    const statusChanged = editForm.status !== editContact.status;
+    const isBooking = statusChanged && editForm.status === "booked";
+
+    if (isBooking && !bookingDate) {
+      toast.error("Please select a booking date.");
+      return;
+    }
+
     try {
       await updateContact.mutateAsync({ id: editContact.id, ...editForm });
 
-      // Auto-create a booked pipeline item when status changes to "booked"
-      const statusChanged = editForm.status !== editContact.status;
-      if (statusChanged && editForm.status === "booked") {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(10, 0, 0, 0);
+      if (isBooking) {
+        const [hours, minutes] = bookingTime.split(":").map(Number);
+        const scheduled = new Date(bookingDate);
+        scheduled.setHours(hours || 10, minutes || 0, 0, 0);
 
         await createPipelineItem.mutateAsync({
           contact_id: editContact.id,
           pipeline_type: "booked",
           assigned_user_id: user.id,
           created_by: user.id,
-          scheduled_for: tomorrow.toISOString(),
+          scheduled_for: scheduled.toISOString(),
           notes: "Created from contact status update",
         });
         toast.success("Contact updated & booked appointment created.");
@@ -472,6 +483,18 @@ export default function ContactsPage() {
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={editForm.state || ""} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Status</Label><Select value={editForm.status || "uncalled"} onValueChange={(v) => setEditForm({ ...editForm, status: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="uncalled">Uncalled</SelectItem><SelectItem value="called">Called</SelectItem><SelectItem value="follow_up">Follow Up</SelectItem><SelectItem value="booked">Booked</SelectItem><SelectItem value="not_interested">Not Interested</SelectItem><SelectItem value="dnc">Do Not Call</SelectItem></SelectContent></Select></div>
+              {editForm.status === "booked" && editForm.status !== editContact?.status && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Booking Date *</Label>
+                    <Input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="border-border bg-card" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Booking Time</Label>
+                    <Input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="border-border bg-card" />
+                  </div>
+                </>
+              )}
               <div className="col-span-2"><Button onClick={saveEdit} className="w-full font-semibold">Save Changes</Button></div>
             </div>
           </DialogContent>
