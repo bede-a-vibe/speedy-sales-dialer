@@ -1,87 +1,59 @@
-# Multi-Tier Achievement System
-
-## Current State
-
-All 7 achievements are daily-only, hardcoded in `AchievementBadges.tsx`. No weekly, monthly, or lifetime tracking exists. The data hooks (`useCallLogs`, `useStreak`) already fetch enough history to power longer-term achievements without new database tables — call_logs has full history and pipeline_items tracks bookings/outcomes.
-
-## Design
-
-Organize achievements into 4 tiers displayed as **tabbed sections** (Daily / Weekly / Monthly / Lifetime) within the existing achievements card. Each tab shows its own progress bar and badge grid.
-
-### Achievement Definitions
-
-**Daily (7 badges — keep existing + tweak)**
-
-1. First Blood — Make your first call today
-2. Warmed Up — Hit 10 calls
-3. On Fire — Smash 25 calls
-4. Target Hit — Reach daily dial target
-5. Closer — Book 5 appointments today
-6. Perfect Pitch — 15%+ pickup to booking rate today (≥100 calls)
-7. Double Up — Hit 2× daily target
-
-**Weekly (6 badges)**
-
-1. Monday Momentum — Make 100+ calls on Monday
-2. Weekly Warrior — Hit daily target 4 out of 5 days
-3. Week Slayer — 600+ calls this week
-4. Booking Machine — 20+ bookings this week
-5. Iron Will — 5-day streak (no missed days)
-6. Conversion King — 3%+ booking rate this week (≥50 calls)
-
-**Monthly (5 badges)**
-
-1. Thousand Club — 5,000+ calls this month
-2. Monthly MVP — 75+ bookings this month
-3. Consistency Crown — 15+ active days this month
-4. Cash Collector — $10,000+ deal value closed this month
-5. Streak Master — 20-day streak
-
-**Lifetime (5 badges)**
-
-1. Centurion — 100+ total calls (existing)
-2. 1K Club — 1,000+ total calls
-3. 10K Legend — 50,000+ total calls
-4. Grand Closer — 1000+ total bookings
-5. Veteran — 300-day all-time streak
-
-### Data Sources (no new tables needed)
 
 
-| Data                             | Source                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------- |
-| Daily/weekly/monthly call counts | `useCallLogs()` filtered by date range                                                |
-| Bookings                         | `call_logs` where `outcome = 'booked'`                                                |
-| Pickup rate                      | `call_logs` outcomes in `ANSWERED_OUTCOMES`                                           |
-| Streak                           | `useStreak()` (already queries 60 days, extend to all-time for lifetime)              |
-| Cash collected                   | `usePipelineItems()` — sum `deal_value` where `appointment_outcome = 'showed_closed'` |
-| Days active this month           | Distinct dates from `call_logs`                                                       |
+# Strengthen Dialpad–Dialer Connection
 
+## Current Bottlenecks
 
-### UI Changes
+1. **Double-hop polling for call discovery**: `initiate_call` does only 1 backend attempt to find the call_id, then the frontend makes up to 20 separate edge function calls (each calling Dialpad's `/call` API) to resolve it. That's ~20 round-trips through the edge function.
 
-- Replace single flat grid with a **tab bar** (Daily / Weekly / Monthly / Lifetime) inside the achievements card
-- Each tab has its own progress bar ("X / Y unlocked") and badge grid
-- Badge grid adapts columns: 7 cols for daily, 6 for weekly, 5 for monthly/lifetime
-- Tab badges show unlocked count as a small number indicator
+2. **Status polling via edge function**: After linking, the frontend polls `get_call_status` every 2–6 seconds, each time going client → edge function → Dialpad API → back. This is slow and rate-limit-prone.
 
-### New Hook
+3. **Webhook state not leveraged on the client**: The webhook already updates `dialpad_calls` with state/sync info, but the frontend ignores it and polls the Dialpad API directly instead.
 
-Create `useAchievementData(userId)` that fetches and memoizes:
+## Changes
 
-- Total call count, this week's calls, this month's calls
-- Total bookings, weekly bookings, monthly bookings  
-- Days active this month
-- Monthly cash collected from pipeline_items
-- Weekly pickup rate, weekly booking rate
+### 1. Aggressive server-side call discovery (edge function)
 
-This centralizes the queries so `AchievementBadges` stays clean.
+Move retry logic from the frontend into `initiate_call` on the backend. Instead of 1 instant check, do 4–5 retries with short delays (0, 200, 400, 600, 800ms) server-side. This resolves most calls in a single edge function round-trip, eliminating 10–20 subsequent `resolve_call` invocations.
+
+**File**: `supabase/functions/dialpad/index.ts` — expand `pollDelays` in `initiate_call` from `[0]` to `[0, 200, 400, 600, 800]`.
+
+### 2. Realtime subscription for call state (frontend)
+
+Subscribe to `dialpad_calls` table changes via Supabase Realtime instead of polling `get_call_status`. The webhook already writes state updates to this table. When a webhook fires (hangup, transcript, summary), the frontend gets notified instantly without any polling.
+
+- Enable Realtime on `dialpad_calls` table (migration)
+- Add a Realtime subscription in `useDialerDialpad` that listens for changes to the active `dialpad_call_id`
+- Keep the existing status polling as a fallback but reduce frequency to every 15s (safety net only)
+
+**Files**: migration (enable realtime), `src/hooks/useDialerDialpad.ts`
+
+### 3. Reduce frontend resolution polling
+
+Since server-side discovery now handles most cases, reduce `MAX_ATTEMPTS` from 20 to 8 and widen the poll delays (start at 500ms instead of 150ms). The server already tried the fast path.
+
+**File**: `src/hooks/useDialerDialpad.ts`
+
+### 4. Write call state to `dialpad_calls` from webhook
+
+The webhook already writes to `dialpad_calls`, but doesn't store the call `state` field. Add a `call_state` column so the Realtime subscription can read terminal states directly.
+
+**Files**: migration (add `call_state` column), `supabase/functions/dialpad/index.ts` (write state on webhook + on `initiate_call` discovery)
+
+## Summary of Impact
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Edge function calls per dial | 10–25 | 1–3 |
+| Call link latency | 3–15s | 0.5–2s |
+| Status polling frequency | 2–6s via API | Realtime push + 15s fallback |
+| Rate limit risk | High | Low |
 
 ## Files Changed
 
+| File | Change |
+|------|--------|
+| Migration | Add `call_state` column to `dialpad_calls`; enable Realtime on `dialpad_calls` |
+| `supabase/functions/dialpad/index.ts` | Expand `initiate_call` server-side discovery retries; write `call_state` on webhook sync and call discovery |
+| `src/hooks/useDialerDialpad.ts` | Add Realtime subscription for `dialpad_calls`; reduce resolution polling to 8 attempts with wider delays; reduce status polling to 15s fallback |
 
-| File                                             | Change                                                                      |
-| ------------------------------------------------ | --------------------------------------------------------------------------- |
-| `src/hooks/useAchievementData.ts`                | New hook — fetches call stats by period, bookings, cash, days active        |
-| `src/hooks/useStreak.ts`                         | Extend lookback from 60 days to 365 for lifetime streak                     |
-| `src/components/dashboard/AchievementBadges.tsx` | Rewrite — add tabs, define all 23 achievements across 4 tiers, use new hook |
