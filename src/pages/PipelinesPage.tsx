@@ -429,7 +429,7 @@ export default function PipelinesPage() {
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{followUps.length} follow-ups</span>
-            <span>{booked.length} booked</span>
+            <span>{booked.length} booked{staleCount > 0 ? ` (${staleCount} stale)` : ""}</span>
             <span>{completedBooked.length} completed</span>
           </div>
         </div>
