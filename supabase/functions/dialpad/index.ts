@@ -668,7 +668,7 @@ async function findTrackedDialpadCall(adminClient: ReturnType<typeof createClien
   for (const candidateId of candidateIds) {
     const { data, error } = await adminClient
       .from("dialpad_calls")
-      .select("id, user_id, contact_id, call_log_id, dialpad_call_id")
+      .select("id, user_id, contact_id, call_log_id, dialpad_call_id, created_at")
       .eq("dialpad_call_id", candidateId)
       .maybeSingle();
 
@@ -682,6 +682,34 @@ async function findTrackedDialpadCall(adminClient: ReturnType<typeof createClien
   }
 
   return null;
+}
+
+async function findCallLogByFallback(
+  adminClient: ReturnType<typeof createClient>,
+  contactId: string,
+  userId: string,
+  trackedCreatedAt: string,
+) {
+  const windowStart = new Date(new Date(trackedCreatedAt).getTime() - 15 * 60 * 1000).toISOString();
+  const windowEnd = new Date(new Date(trackedCreatedAt).getTime() + 15 * 60 * 1000).toISOString();
+
+  const { data, error } = await adminClient
+    .from("call_logs")
+    .select("id")
+    .eq("contact_id", contactId)
+    .eq("user_id", userId)
+    .gte("created_at", windowStart)
+    .lte("created_at", windowEnd)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[syncWebhookPayload] Fallback call_log query error: ${error.message}`);
+    return null;
+  }
+
+  return data?.id ?? null;
 }
 
 async function syncWebhookPayload(params: {
@@ -715,25 +743,62 @@ async function syncWebhookPayload(params: {
   const hasTranscript = Boolean(transcript);
   const syncedAt = hasSummary || hasTranscript ? new Date().toISOString() : null;
 
-  if (trackedCall.call_log_id || dialpadCallId) {
-    let callLogQuery = adminClient
+  // Resolve the call_log_id — use existing link, then try dialpad_call_id match, then fallback by contact+user+time
+  let resolvedCallLogId = trackedCall.call_log_id;
+
+  if (!resolvedCallLogId) {
+    // Try matching call_logs by dialpad_call_id
+    const { data: byDialpadId } = await adminClient
       .from("call_logs")
-      .update({
-        dialpad_summary: summary ?? undefined,
-        dialpad_transcript: transcript ?? undefined,
-        transcript_synced_at: syncedAt ?? undefined,
-        dialpad_talk_time_seconds: talkTimeSeconds ?? undefined,
-        dialpad_total_duration_seconds: totalDurationSeconds ?? undefined,
-      });
+      .select("id")
+      .eq("dialpad_call_id", dialpadCallId)
+      .limit(1)
+      .maybeSingle();
 
-    callLogQuery = trackedCall.call_log_id
-      ? callLogQuery.eq("id", trackedCall.call_log_id)
-      : callLogQuery.eq("dialpad_call_id", dialpadCallId);
-
-    const { error: callLogError } = await callLogQuery;
-    if (callLogError) {
-      throw new Error(callLogError.message);
+    if (byDialpadId?.id) {
+      resolvedCallLogId = byDialpadId.id;
     }
+  }
+
+  if (!resolvedCallLogId) {
+    // Fallback: match by contact_id + user_id within 15-minute window of tracked call creation
+    resolvedCallLogId = await findCallLogByFallback(
+      adminClient,
+      trackedCall.contact_id,
+      trackedCall.user_id,
+      trackedCall.created_at,
+    );
+
+    if (resolvedCallLogId) {
+      console.log(`[syncWebhookPayload] Fallback matched call_log_id=${resolvedCallLogId} for dialpad_call_id=${dialpadCallId}`);
+      // Link the dialpad_calls record to the found call_log
+      await adminClient
+        .from("dialpad_calls")
+        .update({ call_log_id: resolvedCallLogId })
+        .eq("id", trackedCall.id);
+    }
+  }
+
+  if (resolvedCallLogId) {
+    const updatePayload: Record<string, unknown> = {
+      dialpad_call_id: dialpadCallId,
+    };
+    if (summary !== undefined) updatePayload.dialpad_summary = summary;
+    if (transcript !== undefined) updatePayload.dialpad_transcript = transcript;
+    if (syncedAt) updatePayload.transcript_synced_at = syncedAt;
+    if (talkTimeSeconds !== null) updatePayload.dialpad_talk_time_seconds = talkTimeSeconds;
+    if (totalDurationSeconds !== null) updatePayload.dialpad_total_duration_seconds = totalDurationSeconds;
+
+    const { error: callLogError } = await adminClient
+      .from("call_logs")
+      .update(updatePayload)
+      .eq("id", resolvedCallLogId);
+
+    if (callLogError) {
+      console.warn(`[syncWebhookPayload] call_logs update error: ${callLogError.message}`);
+    }
+  } else {
+    console.warn(`[syncWebhookPayload] No call_log found for dialpad_call_id=${dialpadCallId} — talk time data will be lost`);
   }
 
   if (hasSummary) {
@@ -783,6 +848,7 @@ async function syncWebhookPayload(params: {
     summary_synced: hasSummary,
     talk_time_seconds: talkTimeSeconds,
     total_duration_seconds: totalDurationSeconds,
+    call_log_linked: !!resolvedCallLogId,
   };
 }
 
@@ -1482,6 +1548,81 @@ Deno.serve(async (req) => {
         }
 
         return jsonResponse({ items: results }, 200);
+      }
+
+      case "backfill_talk_time": {
+        // Admin-only action to link unlinked dialpad_calls to call_logs and fetch talk time
+        const { data: adminRole } = await adminClient
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (!adminRole) {
+          return jsonResponse({ error: "Admin access required" }, 403);
+        }
+
+        const { data: unlinked, error: unlinkedError } = await adminClient
+          .from("dialpad_calls")
+          .select("id, dialpad_call_id, contact_id, user_id, created_at")
+          .is("call_log_id", null)
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        if (unlinkedError) {
+          return jsonResponse({ error: unlinkedError.message }, 500);
+        }
+
+        const results: Array<{ dialpad_call_id: string; linked: boolean; talk_time_seconds?: number | null }> = [];
+
+        for (const record of unlinked ?? []) {
+          const callLogId = await findCallLogByFallback(
+            adminClient,
+            record.contact_id,
+            record.user_id,
+            record.created_at,
+          );
+
+          if (!callLogId) {
+            results.push({ dialpad_call_id: record.dialpad_call_id, linked: false });
+            continue;
+          }
+
+          // Link the records
+          await adminClient
+            .from("dialpad_calls")
+            .update({ call_log_id: callLogId })
+            .eq("id", record.id);
+
+          // Fetch talk time from Dialpad
+          const callInfoData = await fetchDialpadCallInfo(record.dialpad_call_id, DIALPAD_API_KEY);
+          const durations = extractDialpadDurations({} as DialpadWebhookPayload, callInfoData);
+
+          const updateData: Record<string, unknown> = {
+            dialpad_call_id: record.dialpad_call_id,
+          };
+          if (durations.talkTimeSeconds !== null) updateData.dialpad_talk_time_seconds = durations.talkTimeSeconds;
+          if (durations.totalDurationSeconds !== null) updateData.dialpad_total_duration_seconds = durations.totalDurationSeconds;
+
+          await adminClient
+            .from("call_logs")
+            .update(updateData)
+            .eq("id", callLogId);
+
+          results.push({
+            dialpad_call_id: record.dialpad_call_id,
+            linked: true,
+            talk_time_seconds: durations.talkTimeSeconds,
+          });
+        }
+
+        return jsonResponse({
+          ok: true,
+          total_unlinked: unlinked?.length ?? 0,
+          linked: results.filter((r) => r.linked).length,
+          results,
+        }, 200);
       }
 
       default:

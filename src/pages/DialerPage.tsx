@@ -138,6 +138,7 @@ export default function DialerPage() {
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
+  const lastDialpadCallIdRef = useRef<string | null>(null);
 
   const {
     contacts: visibleUncalledContacts,
@@ -255,6 +256,7 @@ export default function DialerPage() {
     setIsBookedDateAutoDetected(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
+    lastDialpadCallIdRef.current = null;
     setDialpadPollingBackoffUntil(null);
     setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
@@ -469,7 +471,7 @@ export default function DialerPage() {
     const contactId = currentContact.id;
     const contactPhone = currentContact.phone;
     const userId = user.id;
-    const dialpadCallId = activeDialpadCallId;
+    const dialpadCallId = activeDialpadCallId || lastDialpadCallIdRef.current;
     const scheduledFor = followUpDate
       ? combineDateAndTime(followUpDate, outcomeToLog === "follow_up" ? followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
       : null;
@@ -751,6 +753,7 @@ export default function DialerPage() {
 
         if (response.dialpad_call_id) {
           setActiveDialpadCallId(response.dialpad_call_id);
+          lastDialpadCallIdRef.current = response.dialpad_call_id;
           setActiveDialpadCallState(response.state ?? "calling");
           setRapidStatusPollingUntil(Date.now() + 10000);
           setIsCallResolving(false);
@@ -829,6 +832,7 @@ export default function DialerPage() {
 
         if (result.dialpad_call_id) {
           setActiveDialpadCallId(result.dialpad_call_id);
+          lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setRapidStatusPollingUntil(Date.now() + 10000);
           setIsCallResolving(false);
