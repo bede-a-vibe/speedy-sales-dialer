@@ -30,7 +30,7 @@ function getItemStatus(item: PipelineItemWithRelations): ItemStatus {
   return "upcoming";
 }
 
-function StatusPill({ status }: { status: ReturnType<typeof getItemStatus> }) {
+function StatusPill({ status }: { status: ItemStatus }) {
   const styles: Record<string, string> = {
     stale: "border-amber-500/60 text-amber-600 bg-amber-500/10",
     overdue: "border-destructive/60 text-destructive bg-destructive/10",
