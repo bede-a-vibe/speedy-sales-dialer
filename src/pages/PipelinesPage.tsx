@@ -323,7 +323,7 @@ export default function PipelinesPage() {
             repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
             setterName={type === "booked" ? (repMap.get(item.created_by) || "Unknown rep") : undefined}
             reps={reps}
-            isSaving={updatePipelineItem.isPending || updateContact.isPending}
+            isSaving={updatePipelineItem.isPending}
             onComplete={handleComplete}
             onAssign={handleAssign}
             onReschedule={type === "follow_up" ? handleReschedule : undefined}
