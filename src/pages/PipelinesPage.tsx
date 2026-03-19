@@ -288,14 +288,6 @@ export default function PipelinesPage() {
           completed_at: null,
         });
 
-        await updateContact.mutateAsync({
-          id: item.contact_id,
-          status: "called",
-          latest_appointment_outcome: "rescheduled",
-          latest_appointment_scheduled_for: scheduledFor,
-          latest_appointment_recorded_at: new Date().toISOString(),
-        });
-
         toast.success("Appointment rescheduled.");
         return;
       }
@@ -305,14 +297,6 @@ export default function PipelinesPage() {
         appointment_outcome: outcome,
         outcome_notes: notes,
         status: "completed",
-      });
-
-      await updateContact.mutateAsync({
-        id: item.contact_id,
-        status: "called",
-        latest_appointment_outcome: outcome,
-        latest_appointment_scheduled_for: item.scheduled_for,
-        latest_appointment_recorded_at: new Date().toISOString(),
       });
 
       toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
