@@ -222,7 +222,40 @@ export function useDialerDialpad({
     };
   }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
-  // ── Status polling ──
+  // ── Realtime subscription for call state ──
+  useEffect(() => {
+    if (!activeDialpadCallId) return;
+
+    const channel = supabase
+      .channel(`dialpad-call-${activeDialpadCallId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "dialpad_calls",
+          filter: `dialpad_call_id=eq.${activeDialpadCallId}`,
+        },
+        (payload) => {
+          const newState = (payload.new as { call_state?: string | null })?.call_state;
+          if (newState) {
+            setActiveDialpadCallState(newState);
+            if (newState === "hangup") {
+              setActiveDialpadCallId(null);
+              setDialpadPollingBackoffUntil(null);
+              setRapidStatusPollingUntil(null);
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeDialpadCallId]);
+
+  // ── Status polling (safety fallback — 15s interval) ──
   useEffect(() => {
     if (!activeDialpadCallId) return;
     let cancelled = false;
@@ -250,10 +283,11 @@ export function useDialerDialpad({
       }
     };
 
-    void poll();
-    const intervalMs = rapidStatusPollingUntil && rapidStatusPollingUntil > Date.now() ? 2000 : 6000;
+    // Initial poll after a short delay (Realtime should beat this)
+    const initialTimeout = window.setTimeout(poll, 3000);
+    const intervalMs = rapidStatusPollingUntil && rapidStatusPollingUntil > Date.now() ? 6000 : 15000;
     const id = window.setInterval(poll, intervalMs);
-    return () => { cancelled = true; window.clearInterval(id); };
+    return () => { cancelled = true; window.clearTimeout(initialTimeout); window.clearInterval(id); };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, rapidStatusPollingUntil]);
 
   // ── Cancel / hangup ──
