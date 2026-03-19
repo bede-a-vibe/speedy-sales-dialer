@@ -444,7 +444,7 @@ export default function PipelinesPage() {
             {renderOpenItems(followUps, "follow_up")}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
-            {renderOpenItems(booked, "booked")}
+            {renderOpenItems(sortedBookedItems, "booked")}
           </TabsContent>
           <TabsContent value="history" className="mt-4">
             {renderHistory()}

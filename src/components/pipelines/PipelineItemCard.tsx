@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, isPast, isToday } from "date-fns";
-import { CalendarClock, Check, Clock3, Phone, UserRound } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, Clock3, DollarSign, Phone, RefreshCw, UserRound } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ interface PipelineItemCardProps {
     outcome: AppointmentOutcomeValue,
     notes: string,
     scheduledFor?: string,
+    dealValue?: number,
   ) => Promise<void>;
 }
 
@@ -51,27 +53,44 @@ export function PipelineItemCard({
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
   const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : BOOKED_APPOINTMENT_DEFAULT_TIME);
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
+  const [dealValue, setDealValue] = useState("");
 
   const scheduledDate = item.scheduled_for ? new Date(item.scheduled_for) : null;
   const overdue = !!scheduledDate && isPast(scheduledDate) && !isToday(scheduledDate);
   const today = !!scheduledDate && isToday(scheduledDate);
   const isBooked = item.pipeline_type === "booked";
+  const isStale = isBooked && item.status === "open" && overdue && !item.appointment_outcome;
 
   return (
     <div
       className={cn(
         "flex flex-col gap-4 rounded-lg border bg-card p-4",
-        overdue && item.status === "open" && "border-destructive/40 bg-destructive/5",
-        today && item.status === "open" && "border-primary/40 bg-primary/5",
+        isStale && "border-amber-500/60 bg-amber-500/5",
+        !isStale && overdue && item.status === "open" && "border-destructive/40 bg-destructive/5",
+        !isStale && today && item.status === "open" && "border-primary/40 bg-primary/5",
       )}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
+            {isStale && (
+              <Badge variant="outline" className="border-amber-500/60 text-amber-600 text-[10px]">
+                <AlertTriangle className="mr-1 h-3 w-3" />
+                Needs Outcome
+              </Badge>
+            )}
+            {item.reschedule_count > 0 && (
+              <Badge variant="secondary" className="text-[10px]">
+                <RefreshCw className="mr-1 h-3 w-3" />
+                Rescheduled ×{item.reschedule_count}
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {item.contacts?.contact_person || "No contact"} · {item.contacts?.industry || "Unknown industry"}
           </p>
-          {item.notes && <p className="text-xs italic text-muted-foreground">“{item.notes}”</p>}
+          {item.notes && <p className="text-xs italic text-muted-foreground">"{item.notes}"</p>}
           <a
             href={`tel:${item.contacts?.phone || ""}`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -84,7 +103,8 @@ export function PipelineItemCard({
           {scheduledDate && (
             <div className="text-right">
               <p className="text-xs font-mono text-foreground">{format(scheduledDate, isBooked ? "MMM d, yyyy" : "MMM d, yyyy h:mm a")}</p>
-              {overdue && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive">Overdue</span>}
+              {isStale && <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">Stale</span>}
+              {!isStale && overdue && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive">Overdue</span>}
               {today && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Today</span>}
             </div>
           )}
@@ -105,6 +125,12 @@ export function PipelineItemCard({
           {isBooked && item.appointment_outcome && (
             <span className="rounded bg-secondary px-2 py-1 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground">
               Last update · {getAppointmentOutcomeLabel(item.appointment_outcome)}
+            </span>
+          )}
+          {item.deal_value != null && item.deal_value > 0 && (
+            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-mono font-semibold text-emerald-600">
+              <DollarSign className="h-3 w-3" />
+              {item.deal_value.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </span>
           )}
           {item.completed_at && (
@@ -198,6 +224,19 @@ export function PipelineItemCard({
                 className="min-h-[88px] resize-none bg-background"
               />
 
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={dealValue}
+                  onChange={(event) => setDealValue(event.target.value)}
+                  placeholder="Deal value (for closed deals)"
+                  className="w-full bg-background sm:w-[240px]"
+                />
+              </div>
+
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   variant="secondary"
@@ -239,7 +278,15 @@ export function PipelineItemCard({
                 <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_verbal_commitment", outcomeNotes)} disabled={isSaving}>
                   Verbal Commitment
                 </Button>
-                <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_closed", outcomeNotes)} disabled={isSaving}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const val = dealValue ? parseFloat(dealValue) : undefined;
+                    onRecordBookedOutcome(item, "showed_closed", outcomeNotes, undefined, val);
+                  }}
+                  disabled={isSaving}
+                >
+                  <DollarSign className="h-4 w-4" />
                   Showed - Closed
                 </Button>
                 <Button variant="outline" onClick={() => onRecordBookedOutcome(item, "showed_no_close", outcomeNotes)} disabled={isSaving}>
