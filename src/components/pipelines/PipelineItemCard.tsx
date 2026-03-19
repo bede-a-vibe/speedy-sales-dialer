@@ -21,6 +21,7 @@ function combineDateTime(date: Date, time: string) {
 interface PipelineItemCardProps {
   item: PipelineItemWithRelations;
   repName: string;
+  setterName?: string;
   reps: SalesRepOption[];
   isSaving: boolean;
   showActions?: boolean;
@@ -38,6 +39,7 @@ interface PipelineItemCardProps {
 export function PipelineItemCard({
   item,
   repName,
+  setterName,
   reps,
   isSaving,
   showActions = true,
@@ -86,9 +88,20 @@ export function PipelineItemCard({
               {today && item.status === "open" && <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Today</span>}
             </div>
           )}
-          <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <UserRound className="h-3 w-3" /> {repName}
-          </div>
+          {isBooked && setterName ? (
+            <div className="flex flex-col gap-0.5 text-xs text-muted-foreground lg:items-end">
+              <span className="inline-flex items-center gap-1">
+                <UserRound className="h-3 w-3" /> Setter: {setterName}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <UserRound className="h-3 w-3" /> Closer: {repName}
+              </span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <UserRound className="h-3 w-3" /> {repName}
+            </div>
+          )}
           {isBooked && item.appointment_outcome && (
             <span className="rounded bg-secondary px-2 py-1 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground">
               Last update · {getAppointmentOutcomeLabel(item.appointment_outcome)}
