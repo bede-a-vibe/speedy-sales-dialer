@@ -256,6 +256,8 @@ export default function ContactsPage() {
       state: contact.state,
       status: contact.status,
     });
+    setBookingDate("");
+    setBookingTime("10:00");
   };
 
   const saveEdit = async () => {
