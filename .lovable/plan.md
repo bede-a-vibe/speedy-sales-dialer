@@ -1,27 +1,48 @@
-# Strengthen Dialpad–Dialer Connection
 
-## Status: Implemented
 
-## Changes Made
+# Auto-Disable DND Before Dialing
 
-### 1. Database Migration
-- Added `call_state` column to `dialpad_calls` table
-- Enabled Supabase Realtime on `dialpad_calls` table
+## Problem
 
-### 2. Edge Function (`supabase/functions/dialpad/index.ts`)
-- Expanded `initiate_call` server-side discovery from `[0]` to `[0, 200, 400, 600, 800]` — 5 retries with ~2s total
-- Write `call_state` on: `initiate_call` discovery, `resolve_call` upsert, bottom `initiate_call` insert, and webhook sync (hangup)
+When a Dialpad user has Do Not Disturb (DND) enabled, the `initiate_call` endpoint fails to place outbound calls. Reps use DND intentionally to block inbound callbacks, but this also blocks the dialer from making outbound calls.
 
-### 3. Frontend (`src/hooks/useDialerDialpad.ts`)
-- Added Realtime subscription on `dialpad_calls` filtered by `dialpad_call_id` — instant state updates from webhooks
-- Reduced resolution polling: MAX_ATTEMPTS 20→8, delays start at 500ms instead of 150ms
-- Reduced status polling: 2–6s → 15s fallback (Realtime handles fast path), initial poll at 3s
+## Solution
 
-## Impact
+Automatically disable DND via the Dialpad API before placing each call, then re-enable it immediately after the call is initiated. This gives the dialer a brief window to place the outbound call while keeping DND active for the rest of the time.
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Edge function calls per dial | 10–25 | 1–3 |
-| Call link latency | 3–15s | 0.5–2s |
-| Status polling frequency | 2–6s via API | Realtime push + 15s fallback |
-| Rate limit risk | High | Low |
+The Dialpad API provides `POST /users/{id}/togglednd` to flip DND on/off.
+
+## Flow
+
+```text
+1. Preflight check → detect DND is ON
+2. POST /users/{id}/togglednd → DND OFF
+3. POST /users/{id}/initiate_call → place call
+4. POST /users/{id}/togglednd → DND back ON
+```
+
+If the call initiation fails, DND is still restored. If the user wasn't in DND, steps 2 and 4 are skipped entirely.
+
+## Changes
+
+### Edge Function (`supabase/functions/dialpad/index.ts`)
+
+In the `initiate_call` action, before calling the `initiate_call` endpoint:
+
+1. Check user DND status via `GET /users/{id}` (already implemented in `check_user_status`)
+2. If `do_not_disturb === true`, call `POST /users/{id}/togglednd` to disable it
+3. Place the call as normal
+4. If DND was disabled in step 2, call `POST /users/{id}/togglednd` again to re-enable it (in a `finally` block so it always runs)
+
+This is entirely server-side — no frontend changes needed.
+
+### Frontend (`src/hooks/useDialerDialpad.ts`)
+
+No changes required. The preflight `checkDialpadReady` already runs but doesn't block. The DND handling moves entirely to the edge function.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `supabase/functions/dialpad/index.ts` | Add DND auto-toggle logic around `initiate_call` — check status, disable DND, place call, re-enable DND |
+
