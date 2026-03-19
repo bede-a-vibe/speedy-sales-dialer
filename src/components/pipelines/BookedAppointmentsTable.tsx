@@ -268,6 +268,16 @@ export function BookedAppointmentsTable({
                               </a>
                               <span>{item.contacts?.industry}</span>
                               {item.contacts?.state && <span>{item.contacts.state}</span>}
+                              {item.contacts?.website && (
+                                <a href={item.contacts.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                                  <Globe className="h-3 w-3" /> Website <ExternalLink className="h-2.5 w-2.5" />
+                                </a>
+                              )}
+                              {item.contacts?.gmb_link && (
+                                <a href={item.contacts.gmb_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                                  <MapPin className="h-3 w-3" /> GMB <ExternalLink className="h-2.5 w-2.5" />
+                                </a>
+                              )}
                               {item.deal_value != null && item.deal_value > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 font-mono font-semibold text-emerald-600">
                                   <DollarSign className="h-3 w-3" />
