@@ -180,8 +180,8 @@ export function useDialerDialpad({
     let cancelled = false;
     let timeoutId: number | null = null;
     let attempt = 0;
-    const MAX_ATTEMPTS = 20;
-    const pollDelays = [150, 300, 500, 750, 1000, 1250, 1500, 2000, 2000, 2500, 2500, 3000];
+    const MAX_ATTEMPTS = 8;
+    const pollDelays = [500, 1000, 1500, 2000, 2500, 3000, 3000, 3000];
 
     const attemptResolve = async () => {
       try {
