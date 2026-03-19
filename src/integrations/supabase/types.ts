@@ -357,11 +357,13 @@ export type Database = {
           contact_id: string
           created_at: string
           created_by: string
+          deal_value: number | null
           id: string
           notes: string
           outcome_notes: string
           outcome_recorded_at: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          reschedule_count: number
           scheduled_for: string | null
           source_call_log_id: string | null
           status: Database["public"]["Enums"]["pipeline_status"]
@@ -376,11 +378,13 @@ export type Database = {
           contact_id: string
           created_at?: string
           created_by: string
+          deal_value?: number | null
           id?: string
           notes?: string
           outcome_notes?: string
           outcome_recorded_at?: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          reschedule_count?: number
           scheduled_for?: string | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
@@ -395,11 +399,13 @@ export type Database = {
           contact_id?: string
           created_at?: string
           created_by?: string
+          deal_value?: number | null
           id?: string
           notes?: string
           outcome_notes?: string
           outcome_recorded_at?: string | null
           pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
+          reschedule_count?: number
           scheduled_for?: string | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
