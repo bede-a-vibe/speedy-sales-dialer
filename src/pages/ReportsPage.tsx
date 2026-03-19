@@ -358,8 +358,8 @@ export default function ReportsPage() {
                   <TableRow>
                     <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
                     <TableHead colSpan={2} className="text-center">Dialer</TableHead>
-                    <TableHead colSpan={4} className="text-center">Setter</TableHead>
-                    <TableHead colSpan={4} className="text-center">Closer</TableHead>
+                    <TableHead colSpan={5} className="text-center">Setter</TableHead>
+                    <TableHead colSpan={5} className="text-center">Closer</TableHead>
                   </TableRow>
                   <TableRow>
                     <TableHead>Talk Time</TableHead>
@@ -368,16 +368,18 @@ export default function ReportsPage() {
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
                     <TableHead>Close %</TableHead>
+                    <TableHead>Cash</TableHead>
                     <TableHead>Assigned</TableHead>
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
                     <TableHead>Close %</TableHead>
+                    <TableHead>Cash</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={13} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
@@ -391,10 +393,12 @@ export default function ReportsPage() {
                         <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.closeRate}%</TableCell>
+                        <TableCell className="font-mono text-emerald-600">${row.setter.cashCollected.toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.closer.appointmentsScheduled}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.closer.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.closer.showUpRate}%</TableCell>
                         <TableCell className="font-mono text-foreground">{row.closer.closeRate}%</TableCell>
+                        <TableCell className="font-mono text-emerald-600">${row.closer.cashCollected.toLocaleString()}</TableCell>
                       </TableRow>
                     ))
                   )}
