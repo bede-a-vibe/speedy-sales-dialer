@@ -57,7 +57,6 @@ export function useDialerDialpad({
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
-  const [rapidStatusPollingUntil, setRapidStatusPollingUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [isCallResolving, setIsCallResolving] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
