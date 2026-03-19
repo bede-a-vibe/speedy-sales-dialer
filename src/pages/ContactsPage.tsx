@@ -197,6 +197,8 @@ export default function ContactsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingTime, setBookingTime] = useState("10:00");
   const [page, setPage] = useState(1);
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
