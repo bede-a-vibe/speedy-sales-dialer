@@ -180,6 +180,9 @@ export function useCreatePipelineItem() {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
       queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
     },
+    onError: (error) => {
+      console.error("[useCreatePipelineItem] Failed to create pipeline item:", error);
+    },
   });
 }
 
@@ -194,6 +197,9 @@ export function useUpdatePipelineItem() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
       queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
+    },
+    onError: (error) => {
+      console.error("[useUpdatePipelineItem] Failed to update pipeline item:", error);
     },
   });
 }

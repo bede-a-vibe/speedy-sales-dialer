@@ -219,5 +219,8 @@ export function useCreateCallLog() {
       queryClient.invalidateQueries({ queryKey: ["contact-call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["today-call-count"] });
     },
+    onError: (error) => {
+      console.error("[useCreateCallLog] Failed to save call log:", error);
+    },
   });
 }
