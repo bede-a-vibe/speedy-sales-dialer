@@ -202,6 +202,82 @@ export default function ReportsPage() {
             </ReportSection>
           </TabsContent>
 
+          <TabsContent value="pipeline-funnel" className="space-y-6">
+            <ReportSection
+              title="Pipeline Funnel"
+              description={`End-to-end view from bookings to cash collected${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}
+            >
+              {(() => {
+                const s = metrics.appointmentPerformance.setter;
+                const funnelItems = [
+                  { label: "Appointments Booked", value: s.appointmentsScheduled, pct: 100, indent: 0 },
+                  { label: "Pending (no outcome yet)", value: s.pendingOutcome, pct: s.appointmentsScheduled > 0 ? Math.round((s.pendingOutcome / s.appointmentsScheduled) * 100) : 0, indent: 1 },
+                  { label: "Rescheduled", value: s.rescheduled, pct: s.rescheduleRate, indent: 1 },
+                  { label: "No Show", value: s.noShows, pct: s.appointmentsScheduled > 0 ? Math.round((s.noShows / s.appointmentsScheduled) * 100) : 0, indent: 1 },
+                  { label: "Showed", value: s.showed, pct: s.showUpRate, indent: 1 },
+                  { label: "Verbal Commitment", value: s.showedVerbalCommitment, pct: s.showed > 0 ? Math.round((s.showedVerbalCommitment / s.showed) * 100) : 0, indent: 2 },
+                  { label: "Closed", value: s.showedClosed, pct: s.closeRate, indent: 2 },
+                  { label: "No Close", value: s.showedNoClose, pct: s.showed > 0 ? Math.round((s.showedNoClose / s.showed) * 100) : 0, indent: 2 },
+                ];
+
+                return (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-border bg-background p-4 space-y-2">
+                      {funnelItems.map((row) => (
+                        <div
+                          key={row.label}
+                          className="flex items-center justify-between gap-4 py-1.5"
+                          style={{ paddingLeft: `${row.indent * 24}px` }}
+                        >
+                          <span className={cn("text-sm", row.indent === 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                            {row.indent > 0 && "├─ "}
+                            {row.label}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm font-medium text-foreground">{row.value}</span>
+                            {row.indent > 0 && (
+                              <span className="font-mono text-xs text-muted-foreground w-10 text-right">{row.pct}%</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="h-4 w-4 text-emerald-500" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Cash Collected</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          ${s.cashCollected.toLocaleString("en-AU")}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Avg Deal Value</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          ${s.averageDealValue.toLocaleString("en-AU")}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Reschedule Rate</p>
+                        </div>
+                        <p className="font-mono text-2xl font-bold text-foreground">
+                          {s.rescheduleRate}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </ReportSection>
+          </TabsContent>
+
           <TabsContent value="setter-performance" className="space-y-6">
             <ReportSection
               title="Setter Performance"
