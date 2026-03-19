@@ -54,6 +54,8 @@ export interface PipelineItemWithRelations {
     industry: string;
     phone: string;
     state: string | null;
+    website: string | null;
+    gmb_link: string | null;
   } | null;
 }
 
@@ -108,7 +110,9 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
             contact_person,
             industry,
             phone,
-            state
+            state,
+            website,
+            gmb_link
           )
         `)
         .eq("pipeline_type", type)
@@ -172,7 +176,9 @@ export function useContactPipelineItems(contactId?: string) {
             contact_person,
             industry,
             phone,
-            state
+            state,
+            website,
+            gmb_link
           )
         `)
         .eq("contact_id", contactId!)
