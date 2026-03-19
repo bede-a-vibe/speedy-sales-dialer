@@ -134,6 +134,47 @@ export function useSalesReps() {
   });
 }
 
+export function useContactPipelineItems(contactId?: string) {
+  return useQuery({
+    queryKey: ["pipeline-items", "contact", contactId],
+    enabled: !!contactId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pipeline_items")
+        .select(`
+          id,
+          contact_id,
+          source_call_log_id,
+          pipeline_type,
+          assigned_user_id,
+          created_by,
+          scheduled_for,
+          notes,
+          status,
+          completed_at,
+          appointment_outcome,
+          outcome_recorded_at,
+          outcome_notes,
+          created_at,
+          updated_at,
+          contacts:contacts!pipeline_items_contact_id_fkey (
+            id,
+            business_name,
+            contact_person,
+            industry,
+            phone,
+            state
+          )
+        `)
+        .eq("contact_id", contactId!)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []) as PipelineItemWithRelations[];
+    },
+  });
+}
+
 export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["booked-appointments-range", from, to],

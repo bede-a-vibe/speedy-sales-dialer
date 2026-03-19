@@ -6,7 +6,7 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { useUpdateContact } from "@/hooks/useContacts";
+
 import {
   usePipelineItems,
   useSalesReps,
@@ -209,7 +209,7 @@ export default function PipelinesPage() {
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
-  const updateContact = useUpdateContact();
+  
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -288,14 +288,6 @@ export default function PipelinesPage() {
           completed_at: null,
         });
 
-        await updateContact.mutateAsync({
-          id: item.contact_id,
-          status: "called",
-          latest_appointment_outcome: "rescheduled",
-          latest_appointment_scheduled_for: scheduledFor,
-          latest_appointment_recorded_at: new Date().toISOString(),
-        });
-
         toast.success("Appointment rescheduled.");
         return;
       }
@@ -305,14 +297,6 @@ export default function PipelinesPage() {
         appointment_outcome: outcome,
         outcome_notes: notes,
         status: "completed",
-      });
-
-      await updateContact.mutateAsync({
-        id: item.contact_id,
-        status: "called",
-        latest_appointment_outcome: outcome,
-        latest_appointment_scheduled_for: item.scheduled_for,
-        latest_appointment_recorded_at: new Date().toISOString(),
       });
 
       toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
@@ -339,7 +323,7 @@ export default function PipelinesPage() {
             repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
             setterName={type === "booked" ? (repMap.get(item.created_by) || "Unknown rep") : undefined}
             reps={reps}
-            isSaving={updatePipelineItem.isPending || updateContact.isPending}
+            isSaving={updatePipelineItem.isPending}
             onComplete={handleComplete}
             onAssign={handleAssign}
             onReschedule={type === "follow_up" ? handleReschedule : undefined}

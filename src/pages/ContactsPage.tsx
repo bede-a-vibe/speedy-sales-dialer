@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
-import { useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
@@ -17,10 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
-import { getAppointmentOutcomeLabel } from "@/lib/appointments";
+import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
+import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
 
 const CONTACTS_PER_PAGE = 100;
 
@@ -53,6 +54,36 @@ const NOTE_SOURCE_LABELS = {
   dialpad_transcript: "Dialpad transcript",
 } as const;
 
+const CONTACT_STATUS_OPTIONS = [
+  { value: "all", label: "All Status" },
+  { value: "uncalled", label: "Uncalled" },
+  { value: "called", label: "Called" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "booked", label: "Booked" },
+  { value: "closed", label: "Closed" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "dnc", label: "Do Not Call" },
+] as const;
+
+const APPOINTMENT_OUTCOME_FILTER_OPTIONS = [
+  { value: "all", label: "All Outcomes" },
+  { value: "no_show", label: "No Show" },
+  { value: "rescheduled", label: "Rescheduled" },
+  { value: "showed_verbal_commitment", label: "Verbal Commitment" },
+  { value: "showed_closed", label: "Showed - Closed" },
+  { value: "showed_no_close", label: "Showed - No Close" },
+] as const;
+
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  uncalled: "bg-muted text-muted-foreground",
+  called: "bg-primary/10 text-primary",
+  follow_up: "bg-amber-500/10 text-amber-600",
+  booked: "bg-blue-500/10 text-blue-600",
+  closed: "bg-emerald-500/10 text-emerald-600",
+  not_interested: "bg-muted text-muted-foreground",
+  dnc: "bg-destructive/10 text-destructive",
+};
+
 function getContactStage(contact: Contact) {
   if (contact.latest_appointment_outcome) return getAppointmentOutcomeLabel(contact.latest_appointment_outcome);
   if (contact.latest_appointment_scheduled_for) return "Booked appointment";
@@ -65,6 +96,57 @@ function TimelineSectionSkeleton() {
     <div className="space-y-2">
       <Skeleton className="h-20 w-full rounded border border-border" />
       <Skeleton className="h-20 w-full rounded border border-border" />
+    </div>
+  );
+}
+
+function PipelineTimeline({ contactId }: { contactId: string }) {
+  const { data: items = [], isLoading } = useContactPipelineItems(contactId);
+
+  if (isLoading) return <TimelineSectionSkeleton />;
+  if (items.length === 0) return <p className="text-xs text-muted-foreground">No pipeline items.</p>;
+
+  return (
+    <div className="space-y-2">
+      {items.map((item: PipelineItemWithRelations) => {
+        const isBooked = item.pipeline_type === "booked";
+        const statusColor = item.status === "completed" ? "bg-emerald-500" : item.status === "canceled" ? "bg-muted-foreground" : "bg-blue-500";
+
+        return (
+          <div key={item.id} className="space-y-1.5 rounded border border-border bg-card px-3 py-3">
+            <div className="flex items-center gap-3 text-xs">
+              <div className={`h-2 w-2 rounded-full ${statusColor}`} />
+              <span className="font-medium text-foreground">
+                {isBooked ? "Booked Appointment" : "Follow-up"}
+              </span>
+              <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-secondary-foreground">
+                {item.status}
+              </span>
+              {item.appointment_outcome && (
+                <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
+                  {getAppointmentOutcomeLabel(item.appointment_outcome)}
+                </span>
+              )}
+              <span className="ml-auto shrink-0 font-mono text-muted-foreground">
+                {format(new Date(item.created_at), "MMM d, h:mm a")}
+              </span>
+            </div>
+            {item.scheduled_for && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock3 className="h-3 w-3" />
+                Scheduled: <span className="font-mono">{format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a")}</span>
+              </p>
+            )}
+            {item.notes && <p className="text-xs italic text-muted-foreground">"{item.notes}"</p>}
+            {item.outcome_notes && <p className="text-xs text-muted-foreground">Outcome notes: "{item.outcome_notes}"</p>}
+            {item.completed_at && (
+              <p className="text-[10px] font-mono text-muted-foreground">
+                Completed {format(new Date(item.completed_at), "MMM d, yyyy")}
+              </p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -102,7 +184,7 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
       {(contact.latest_appointment_scheduled_for || contact.latest_appointment_outcome) && (
         <div className="rounded border border-border bg-card px-3 py-3">
           <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
-            <CalendarClock className="h-3 w-3" /> Appointment Status
+            <CalendarClock className="h-3 w-3" /> Current Appointment Status
           </div>
           <div className="space-y-1 text-sm">
             {contact.latest_appointment_scheduled_for && (
@@ -117,6 +199,12 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
           </div>
         </div>
       )}
+
+      {/* Pipeline Items Timeline */}
+      <div>
+        <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Pipeline History</p>
+        <PipelineTimeline contactId={contact.id} />
+      </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -144,7 +232,7 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
                     {hasSyncedTranscript && <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground">Transcript</span>}
                     <span className="ml-auto shrink-0 font-mono text-muted-foreground">{format(new Date(log.created_at), "MMM d, h:mm a")}</span>
                   </div>
-                  {log.notes && <p className="text-xs italic text-muted-foreground">“{log.notes}”</p>}
+                  {log.notes && <p className="text-xs italic text-muted-foreground">"{log.notes}"</p>}
                   {hasSyncedSummary && <div className="whitespace-pre-wrap rounded-md bg-background px-3 py-2 text-xs text-foreground">{log.dialpad_summary}</div>}
                 </div>
               );
@@ -194,17 +282,21 @@ export default function ContactsPage() {
   const [industryFilter, setIndustryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
+  const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("10:00");
   const [page, setPage] = useState(1);
+  const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
+  const [newStatus, setNewStatus] = useState("");
 
   const { data: contacts = [], isLoading } = useContacts(industryFilter);
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const createPipelineItem = useCreatePipelineItem();
+  const { data: reps = [] } = useSalesReps();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -220,9 +312,10 @@ export default function ContactsPage() {
         c.email?.toLowerCase().includes(normalizedSearch);
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;
       const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
-      return matchesSearch && matchesStatus && matchesState;
+      const matchesOutcome = appointmentOutcomeFilter === "all" || c.latest_appointment_outcome === appointmentOutcomeFilter;
+      return matchesSearch && matchesStatus && matchesState && matchesOutcome;
     });
-  }, [contacts, search, statusFilter, stateFilter]);
+  }, [contacts, search, statusFilter, stateFilter, appointmentOutcomeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PER_PAGE));
   const paginatedContacts = useMemo(() => {
@@ -233,7 +326,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [search, industryFilter, statusFilter, stateFilter]);
+  }, [search, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -297,6 +390,62 @@ export default function ContactsPage() {
     }
   };
 
+  const openStatusChange = (contact: Contact, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStatusChangeContact(contact);
+    setNewStatus(contact.status);
+    setBookingDate("");
+    setBookingTime("10:00");
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusChangeContact || !user || newStatus === statusChangeContact.status) return;
+
+    const isBooking = newStatus === "booked";
+    if (isBooking && !bookingDate) {
+      toast.error("Please select a booking date.");
+      return;
+    }
+
+    try {
+      await updateContact.mutateAsync({ id: statusChangeContact.id, status: newStatus });
+
+      if (isBooking) {
+        const [hours, minutes] = bookingTime.split(":").map(Number);
+        const scheduled = new Date(bookingDate);
+        scheduled.setHours(hours || 10, minutes || 0, 0, 0);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: statusChangeContact.id,
+          pipeline_type: "booked",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled.toISOString(),
+          notes: "Created from manual status change",
+        });
+      }
+
+      if (newStatus === "follow_up") {
+        const followUpDate = new Date();
+        followUpDate.setDate(followUpDate.getDate() + 2);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: statusChangeContact.id,
+          pipeline_type: "follow_up",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: followUpDate.toISOString(),
+          notes: "Created from manual status change",
+        });
+      }
+
+      toast.success(`Status changed to ${newStatus}.`);
+      setStatusChangeContact(null);
+    } catch {
+      toast.error("Failed to change status.");
+    }
+  };
+
   const deleteContact = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Delete this contact permanently?")) return;
@@ -355,13 +504,17 @@ export default function ContactsPage() {
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[140px] border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="uncalled">Uncalled</SelectItem>
-              <SelectItem value="called">Called</SelectItem>
-              <SelectItem value="follow_up">Follow Up</SelectItem>
-              <SelectItem value="booked">Booked</SelectItem>
-              <SelectItem value="not_interested">Not Interested</SelectItem>
-              <SelectItem value="dnc">Do Not Call</SelectItem>
+              {CONTACT_STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={appointmentOutcomeFilter} onValueChange={setAppointmentOutcomeFilter}>
+            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Appt. Outcome" /></SelectTrigger>
+            <SelectContent>
+              {APPOINTMENT_OUTCOME_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
@@ -387,7 +540,7 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
-                    <th className="w-24 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
+                    <th className="w-28 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -404,9 +557,14 @@ export default function ContactsPage() {
                           <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
                           <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
                           <td className="px-4 py-3">
-                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${contact.status === "called" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                            <button
+                              onClick={(e) => openStatusChange(contact, e)}
+                              className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium transition-colors hover:ring-1 hover:ring-border ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}
+                              title="Click to change status"
+                            >
                               {contact.status}
-                            </span>
+                              <ArrowRight className="h-3 w-3 opacity-50" />
+                            </button>
                           </td>
                           <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                           <td className="px-4 py-3">
@@ -469,6 +627,7 @@ export default function ContactsPage() {
           </>
         )}
 
+        {/* Edit Contact Dialog */}
         <Dialog open={!!editContact} onOpenChange={(open) => !open && setEditContact(null)}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Edit Contact</DialogTitle></DialogHeader>
@@ -482,7 +641,7 @@ export default function ContactsPage() {
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={editForm.gmb_link || ""} onChange={(e) => setEditForm({ ...editForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={editForm.state || ""} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="border-border bg-card" /></div>
-              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Status</Label><Select value={editForm.status || "uncalled"} onValueChange={(v) => setEditForm({ ...editForm, status: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="uncalled">Uncalled</SelectItem><SelectItem value="called">Called</SelectItem><SelectItem value="follow_up">Follow Up</SelectItem><SelectItem value="booked">Booked</SelectItem><SelectItem value="not_interested">Not Interested</SelectItem><SelectItem value="dnc">Do Not Call</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Status</Label><Select value={editForm.status || "uncalled"} onValueChange={(v) => setEditForm({ ...editForm, status: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent>{CONTACT_STATUS_OPTIONS.filter(o => o.value !== "all").map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
               {editForm.status === "booked" && editForm.status !== editContact?.status && (
                 <>
                   <div className="space-y-1.5">
@@ -497,6 +656,60 @@ export default function ContactsPage() {
               )}
               <div className="col-span-2"><Button onClick={saveEdit} className="w-full font-semibold">Save Changes</Button></div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Quick Status Change Dialog */}
+        <Dialog open={!!statusChangeContact} onOpenChange={(open) => !open && setStatusChangeContact(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Change Status</DialogTitle>
+            </DialogHeader>
+            {statusChangeContact && (
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">{statusChangeContact.business_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Current: <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_BADGE_CLASSES[statusChangeContact.status] || "bg-muted text-muted-foreground"}`}>{statusChangeContact.status}</span>
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">New Status</Label>
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTACT_STATUS_OPTIONS.filter(o => o.value !== "all").map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {newStatus === "booked" && newStatus !== statusChangeContact.status && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Booking Date *</Label>
+                      <Input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="border-border bg-card" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Booking Time</Label>
+                      <Input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="border-border bg-card" />
+                    </div>
+                  </div>
+                )}
+                {newStatus === "follow_up" && newStatus !== statusChangeContact.status && (
+                  <p className="rounded border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                    A follow-up task will be automatically created (scheduled in 2 days).
+                  </p>
+                )}
+                <Button
+                  onClick={confirmStatusChange}
+                  disabled={newStatus === statusChangeContact.status || updateContact.isPending}
+                  className="w-full font-semibold"
+                >
+                  {updateContact.isPending ? "Saving…" : "Confirm Status Change"}
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
