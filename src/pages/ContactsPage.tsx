@@ -262,22 +262,29 @@ export default function ContactsPage() {
 
   const saveEdit = async () => {
     if (!editContact || !user) return;
+
+    const statusChanged = editForm.status !== editContact.status;
+    const isBooking = statusChanged && editForm.status === "booked";
+
+    if (isBooking && !bookingDate) {
+      toast.error("Please select a booking date.");
+      return;
+    }
+
     try {
       await updateContact.mutateAsync({ id: editContact.id, ...editForm });
 
-      // Auto-create a booked pipeline item when status changes to "booked"
-      const statusChanged = editForm.status !== editContact.status;
-      if (statusChanged && editForm.status === "booked") {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(10, 0, 0, 0);
+      if (isBooking) {
+        const [hours, minutes] = bookingTime.split(":").map(Number);
+        const scheduled = new Date(bookingDate);
+        scheduled.setHours(hours || 10, minutes || 0, 0, 0);
 
         await createPipelineItem.mutateAsync({
           contact_id: editContact.id,
           pipeline_type: "booked",
           assigned_user_id: user.id,
           created_by: user.id,
-          scheduled_for: tomorrow.toISOString(),
+          scheduled_for: scheduled.toISOString(),
           notes: "Created from contact status update",
         });
         toast.success("Contact updated & booked appointment created.");
