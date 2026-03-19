@@ -12,6 +12,7 @@ import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // ── Storage lock helpers ──
 function getDialRequestStorageKey(requestKey: string) {
@@ -59,9 +60,11 @@ export function useDialerDialpad({
   const [rapidStatusPollingUntil, setRapidStatusPollingUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [isCallResolving, setIsCallResolving] = useState(false);
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
   const lastDialpadCallIdRef = useRef<string | null>(null);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const { data: callerIdOptions = [] } = useDialpadCallerIds(myDialpadSettings?.dialpad_user_id);
@@ -87,12 +90,30 @@ export function useDialerDialpad({
     setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
     setIsCallResolving(false);
+    setCallStartedAt(null);
     activeDialRequestRef.current = null;
   }, []);
 
   const getDialpadCallIdForLog = useCallback(() => {
     return activeDialpadCallId || lastDialpadCallIdRef.current;
   }, [activeDialpadCallId]);
+
+  // ── Preflight health check ──
+  const checkDialpadReady = useCallback(async (dialpadUserId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("dialpad", {
+        body: { action: "check_user_status", dialpad_user_id: dialpadUserId },
+      });
+      if (error || !data?.ok) return true; // If check fails, proceed anyway
+      if (data.on_call) {
+        // User is already on a call — this is normal for sequential dialing
+        return true;
+      }
+      return true;
+    } catch {
+      return true; // Don't block dialing on failed preflight
+    }
+  }, []);
 
   // ── Place call effect ──
   useEffect(() => {
@@ -108,10 +129,14 @@ export function useDialerDialpad({
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     setIsCallResolving(false);
+    setCallStartedAt(Date.now());
 
     const mutation = dialpadCallRef.current;
 
     const attemptDial = async (retriesLeft: number): Promise<void> => {
+      // Run preflight check (non-blocking — won't prevent dialing)
+      await checkDialpadReady(myDialpadSettings.dialpad_user_id);
+
       try {
         const response = await mutation!.mutateAsync({
           phone: currentContact.phone,
@@ -165,6 +190,7 @@ export function useDialerDialpad({
         setActiveDialpadCallId(null);
         setActiveDialpadCallState(null);
         setIsCallResolving(false);
+        setCallStartedAt(null);
         toast.error(message);
       }
     };
@@ -222,36 +248,64 @@ export function useDialerDialpad({
     };
   }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
-  // ── Realtime subscription for call state ──
+  // ── Realtime subscription for call state (with resilience) ──
   useEffect(() => {
-    if (!activeDialpadCallId) return;
+    if (!activeDialpadCallId) {
+      // Clean up any existing channel
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+      return;
+    }
 
-    const channel = supabase
-      .channel(`dialpad-call-${activeDialpadCallId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "dialpad_calls",
-          filter: `dialpad_call_id=eq.${activeDialpadCallId}`,
-        },
-        (payload) => {
-          const newState = (payload.new as { call_state?: string | null })?.call_state;
-          if (newState) {
-            setActiveDialpadCallState(newState);
-            if (newState === "hangup") {
-              setActiveDialpadCallId(null);
-              setDialpadPollingBackoffUntil(null);
-              setRapidStatusPollingUntil(null);
+    const setupChannel = () => {
+      // Remove old channel first
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+      }
+
+      const channel = supabase
+        .channel(`dialpad-call-${activeDialpadCallId}-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "dialpad_calls",
+            filter: `dialpad_call_id=eq.${activeDialpadCallId}`,
+          },
+          (payload) => {
+            const newRow = payload.new as { call_state?: string | null; sync_status?: string | null };
+            const newState = newRow?.call_state;
+            if (newState) {
+              setActiveDialpadCallState(newState);
+              if (newState === "hangup") {
+                setActiveDialpadCallId(null);
+                setDialpadPollingBackoffUntil(null);
+                setRapidStatusPollingUntil(null);
+              }
             }
+          },
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            // Auto-reconnect after a short delay
+            console.warn("[Realtime] Channel error — reconnecting in 2s");
+            setTimeout(setupChannel, 2000);
           }
-        },
-      )
-      .subscribe();
+        });
+
+      realtimeChannelRef.current = channel;
+    };
+
+    setupChannel();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
     };
   }, [activeDialpadCallId]);
 
@@ -306,6 +360,7 @@ export function useDialerDialpad({
           setDialpadPollingBackoffUntil(null);
           setRapidStatusPollingUntil(null);
           setIsCallResolving(false);
+          setCallStartedAt(null);
           toast.info("This call has already ended.");
           return;
         }
@@ -320,6 +375,7 @@ export function useDialerDialpad({
         setDialpadPollingBackoffUntil(null);
         setRapidStatusPollingUntil(null);
         setIsCallResolving(false);
+        setCallStartedAt(null);
         toast.success("Call ended.");
       } else {
         toast.info("No active call to cancel.");
@@ -346,6 +402,7 @@ export function useDialerDialpad({
         phone: currentContact.phone,
       }).catch(() => {});
     }
+    setCallStartedAt(null);
   }, [activeDialpadCallId, activeDialpadCallState, cancelDialpadCall, currentContact, forceHangupCall, isCallTerminal, myDialpadSettings]);
 
   return {
@@ -361,6 +418,7 @@ export function useDialerDialpad({
     isCallResolving,
     isDialpadCallStatusPending,
     dialpadPollingBackoffUntil,
+    callStartedAt,
     // Mutations
     dialpadCall,
     cancelDialpadCall,
