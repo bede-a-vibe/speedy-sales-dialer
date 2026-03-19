@@ -6,7 +6,7 @@ export type ReportCallLog = Pick<
 >;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
-  "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome"
+  "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
 >;
 
 export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
