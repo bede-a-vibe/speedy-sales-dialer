@@ -832,6 +832,7 @@ export default function DialerPage() {
 
         if (result.dialpad_call_id) {
           setActiveDialpadCallId(result.dialpad_call_id);
+          lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setRapidStatusPollingUntil(Date.now() + 10000);
           setIsCallResolving(false);
