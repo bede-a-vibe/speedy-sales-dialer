@@ -98,6 +98,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           appointment_outcome,
           outcome_recorded_at,
           outcome_notes,
+          deal_value,
+          reschedule_count,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
