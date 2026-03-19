@@ -137,6 +137,7 @@ export default function DialerPage() {
   const activeDialRequestRef = useRef<string | null>(null);
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
+  const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
 
   const {
     contacts: visibleUncalledContacts,
@@ -158,6 +159,7 @@ export default function DialerPage() {
   const { data: myDialpadSettings } = useMyDialpadSettings();
   const { data: callerIdOptions = [] } = useDialpadCallerIds(myDialpadSettings?.dialpad_user_id);
   const dialpadCall = useDialpadCall();
+  dialpadCallRef.current = dialpadCall;
   const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
   const cancelDialpadCall = useCancelDialpadCall();
   const resolveDialpadCall = useResolveDialpadCall();
@@ -710,15 +712,21 @@ export default function DialerPage() {
   }, [visibleUncalledContacts.length, isBootstrappingSession, isSessionActive, currentIndex, isPrefetching, stopSession]);
 
   useEffect(() => {
-    if (!isDialing || isSessionPaused || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+    if (!isDialing || isSessionPaused || !currentContact || !myDialpadSettings?.dialpad_user_id) {
+      console.log("[Dialer] Dial effect skipped:", { isDialing, isSessionPaused, hasContact: !!currentContact, hasDialpadUserId: !!myDialpadSettings?.dialpad_user_id });
+      return;
+    }
 
     const requestKey = `${currentContact.id}:${currentContact.phone}`;
     if (
       activeDialRequestRef.current === requestKey
       || hasActiveDialRequestLock(requestKey)
     ) {
+      console.log("[Dialer] Dial effect blocked by lock:", { requestKey, refKey: activeDialRequestRef.current, hasStorageLock: hasActiveDialRequestLock(requestKey) });
       return;
     }
+
+    console.log("[Dialer] Dial effect firing for:", currentContact.business_name, currentContact.phone);
 
     activeDialRequestRef.current = requestKey;
     setActiveDialRequestLock(requestKey);
@@ -729,10 +737,12 @@ export default function DialerPage() {
     setIsCallResolving(false);
     leadAdvanceInFlightRef.current = false;
 
+    const mutation = dialpadCallRef.current;
+
     const attemptDial = async (retriesLeft: number): Promise<void> => {
 
       try {
-        const response = await dialpadCall.mutateAsync({
+        const response = await mutation!.mutateAsync({
           phone: currentContact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           contact_id: currentContact.id,
@@ -795,7 +805,8 @@ export default function DialerPage() {
     };
 
     void attemptDial(2);
-  }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, dialpadCall]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
 
   useEffect(() => {
     if (!isCallResolving || activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
