@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
@@ -25,18 +26,20 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="/*"
-            element={
-              <Suspense fallback={<FullPageLoading />}>
-                <ProtectedApp />
-              </Suspense>
-            }
-          />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route
+              path="/*"
+              element={
+                <Suspense fallback={<FullPageLoading />}>
+                  <ProtectedApp />
+                </Suspense>
+              }
+            />
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
