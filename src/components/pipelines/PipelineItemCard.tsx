@@ -39,6 +39,7 @@ interface PipelineItemCardProps {
 export function PipelineItemCard({
   item,
   repName,
+  setterName,
   reps,
   isSaving,
   showActions = true,
