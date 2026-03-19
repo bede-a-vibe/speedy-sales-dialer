@@ -17,7 +17,9 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
 }
 
-function getItemStatus(item: PipelineItemWithRelations) {
+type ItemStatus = "stale" | "overdue" | "today" | "upcoming";
+
+function getItemStatus(item: PipelineItemWithRelations): ItemStatus {
   const scheduledDate = item.scheduled_for ? new Date(item.scheduled_for) : null;
   if (!scheduledDate) return "upcoming";
   const past = isPast(scheduledDate) && !isToday(scheduledDate);
