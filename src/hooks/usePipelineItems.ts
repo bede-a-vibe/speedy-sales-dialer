@@ -76,6 +76,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
   return useQuery({
     queryKey: ["pipeline-items", type, status],
     queryFn: async () => {
+      const isCompleted = status === "completed";
       const query = supabase
         .from("pipeline_items")
         .select(`
@@ -105,7 +106,11 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
         `)
         .eq("pipeline_type", type)
         .eq("status", status)
-        .order(status === "completed" ? "completed_at" : "scheduled_for", { ascending: false, nullsFirst: false });
+        .order(isCompleted ? "completed_at" : "scheduled_for", {
+          ascending: !isCompleted,
+          nullsFirst: false,
+        })
+        .order("created_at", { ascending: false });
 
       const { data, error } = await query;
       if (error) throw error;
