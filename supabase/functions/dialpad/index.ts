@@ -831,6 +831,7 @@ async function syncWebhookPayload(params: {
     .from("dialpad_calls")
     .update({
       sync_status: nextStatus,
+      call_state: payload.state === "hangup" ? "hangup" : undefined,
       transcript_synced_at: syncedAt ?? undefined,
       sync_error: null,
     })
@@ -1014,7 +1015,7 @@ Deno.serve(async (req) => {
         // Poll with bounded backoff to find the new call by matching user + phone.
         let foundCallId: string | null = null;
         let foundCallState: string | null = null;
-        const pollDelays = [0]; // Single instant check — frontend resolution polling handles discovery
+        const pollDelays = [0, 200, 400, 600, 800]; // Aggressive server-side discovery
         console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
 
         for (let attempt = 0; attempt < pollDelays.length; attempt++) {
@@ -1053,6 +1054,17 @@ Deno.serve(async (req) => {
         }
 
         if (foundCallId) {
+          // Write call_state + create tracking record immediately
+          if (params.contact_id) {
+            await adminClient.from("dialpad_calls").upsert({
+              dialpad_call_id: foundCallId,
+              contact_id: params.contact_id,
+              user_id: user.id,
+              sync_status: "pending",
+              call_state: foundCallState ?? "calling",
+            }, { onConflict: "dialpad_call_id" }).then(() => {});
+          }
+
           dialpadResponse = new Response(JSON.stringify({
             call_id: foundCallId,
             state: foundCallState ?? "calling",
@@ -1196,6 +1208,7 @@ Deno.serve(async (req) => {
                 contact_id: params.contact_id,
                 user_id: user.id,
                 sync_status: "pending",
+                call_state: state ?? "calling",
               }, { onConflict: "dialpad_call_id" }).then(() => {});
             }
 
@@ -1673,6 +1686,7 @@ Deno.serve(async (req) => {
           contact_id: params.contact_id,
           user_id: user.id,
           sync_status: "pending",
+          call_state: normalizeDialpadState(isRecord(data) ? data.state : null) ?? "calling",
         });
 
         return jsonResponse(buildDialpadClientPayload({

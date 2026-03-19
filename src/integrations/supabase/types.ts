@@ -233,6 +233,7 @@ export type Database = {
       dialpad_calls: {
         Row: {
           call_log_id: string | null
+          call_state: string | null
           contact_id: string
           created_at: string
           dialpad_call_id: string
@@ -245,6 +246,7 @@ export type Database = {
         }
         Insert: {
           call_log_id?: string | null
+          call_state?: string | null
           contact_id: string
           created_at?: string
           dialpad_call_id: string
@@ -257,6 +259,7 @@ export type Database = {
         }
         Update: {
           call_log_id?: string | null
+          call_state?: string | null
           contact_id?: string
           created_at?: string
           dialpad_call_id?: string
