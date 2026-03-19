@@ -256,6 +256,7 @@ export default function DialerPage() {
     setIsBookedDateAutoDetected(false);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
+    lastDialpadCallIdRef.current = null;
     setDialpadPollingBackoffUntil(null);
     setRapidStatusPollingUntil(null);
     setIsEndingCall(false);
