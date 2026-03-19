@@ -21,6 +21,7 @@ function combineDateTime(date: Date, time: string) {
 interface PipelineItemCardProps {
   item: PipelineItemWithRelations;
   repName: string;
+  setterName?: string;
   reps: SalesRepOption[];
   isSaving: boolean;
   showActions?: boolean;
