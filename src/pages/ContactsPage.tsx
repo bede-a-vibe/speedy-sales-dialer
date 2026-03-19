@@ -257,10 +257,29 @@ export default function ContactsPage() {
   };
 
   const saveEdit = async () => {
-    if (!editContact) return;
+    if (!editContact || !user) return;
     try {
       await updateContact.mutateAsync({ id: editContact.id, ...editForm });
-      toast.success("Contact updated.");
+
+      // Auto-create a booked pipeline item when status changes to "booked"
+      const statusChanged = editForm.status !== editContact.status;
+      if (statusChanged && editForm.status === "booked") {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(10, 0, 0, 0);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: editContact.id,
+          pipeline_type: "booked",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: tomorrow.toISOString(),
+          notes: "Created from contact status update",
+        });
+        toast.success("Contact updated & booked appointment created.");
+      } else {
+        toast.success("Contact updated.");
+      }
       setEditContact(null);
     } catch {
       toast.error("Failed to update contact.");
