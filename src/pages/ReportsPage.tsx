@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock, DollarSign, TrendingDown } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
