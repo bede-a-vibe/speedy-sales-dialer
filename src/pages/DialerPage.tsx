@@ -138,6 +138,7 @@ export default function DialerPage() {
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
+  const lastDialpadCallIdRef = useRef<string | null>(null);
 
   const {
     contacts: visibleUncalledContacts,
