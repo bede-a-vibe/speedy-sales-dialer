@@ -1014,7 +1014,7 @@ Deno.serve(async (req) => {
         // Poll with bounded backoff to find the new call by matching user + phone.
         let foundCallId: string | null = null;
         let foundCallState: string | null = null;
-        const pollDelays = [0]; // Single instant check — frontend resolution polling handles discovery
+        const pollDelays = [0, 200, 400, 600, 800]; // Aggressive server-side discovery
         console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
 
         for (let attempt = 0; attempt < pollDelays.length; attempt++) {
