@@ -271,6 +271,7 @@ export default function PipelinesPage() {
     outcome: AppointmentOutcomeValue,
     notes: string,
     scheduledFor?: string,
+    dealValue?: number,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -297,6 +298,7 @@ export default function PipelinesPage() {
         appointment_outcome: outcome,
         outcome_notes: notes,
         status: "completed",
+        ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
       });
 
       toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
