@@ -186,6 +186,18 @@ export function BookedAppointmentsTable({
                   <a href={`tel:${item.contacts?.phone || ""}`} className="inline-flex items-center gap-1 hover:text-foreground">
                     <Phone className="h-3 w-3" /> {item.contacts?.phone}
                   </a>
+                  <div className="flex flex-wrap gap-3">
+                    {item.contacts?.website && (
+                      <a href={item.contacts.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                        <Globe className="h-3 w-3" /> Website <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    )}
+                    {item.contacts?.gmb_link && (
+                      <a href={item.contacts.gmb_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                        <MapPin className="h-3 w-3" /> GMB <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    )}
+                  </div>
                   {item.notes && <p className="italic">"{item.notes}"</p>}
                 </div>
                 <BookedOutcomePanel item={item} reps={reps} isSaving={isSaving} onAssign={onAssign} onRecordOutcome={onRecordOutcome} />
