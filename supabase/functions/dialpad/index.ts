@@ -668,7 +668,7 @@ async function findTrackedDialpadCall(adminClient: ReturnType<typeof createClien
   for (const candidateId of candidateIds) {
     const { data, error } = await adminClient
       .from("dialpad_calls")
-      .select("id, user_id, contact_id, call_log_id, dialpad_call_id")
+      .select("id, user_id, contact_id, call_log_id, dialpad_call_id, created_at")
       .eq("dialpad_call_id", candidateId)
       .maybeSingle();
 
