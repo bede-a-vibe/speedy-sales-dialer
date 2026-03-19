@@ -73,6 +73,8 @@ export interface BookedAppointmentReportItem {
   appointment_outcome: AppointmentOutcomeValue | null;
   outcome_recorded_at: string | null;
   status: PipelineStatus;
+  deal_value: number | null;
+  reschedule_count: number;
 }
 
 export function usePipelineItems(type: PipelineType, status: PipelineStatus = "open") {
