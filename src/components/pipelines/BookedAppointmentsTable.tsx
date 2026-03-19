@@ -267,7 +267,7 @@ export function BookedAppointmentsTable({
                                 <Phone className="h-3 w-3" /> {item.contacts?.phone}
                               </a>
                               <span>{item.contacts?.industry}</span>
-                              {item.contacts?.city && <span>{item.contacts.city}{item.contacts.state ? `, ${item.contacts.state}` : ""}</span>}
+                              {item.contacts?.state && <span>{item.contacts.state}</span>}
                               {item.deal_value != null && item.deal_value > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 font-mono font-semibold text-emerald-600">
                                   <DollarSign className="h-3 w-3" />
