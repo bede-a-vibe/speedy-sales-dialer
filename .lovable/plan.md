@@ -1,26 +1,35 @@
-# Auto-Disable DND Before Dialing
 
-## Status: Implemented
 
-## Changes Made
+# Mark Non-Mobile Australian Numbers as Do Not Call
 
-### Edge Function (`supabase/functions/dialpad/index.ts`)
+## What Changes
 
-In the `initiate_call` action:
+A single SQL UPDATE marks all contacts whose phone number is **not** an Australian mobile (starting with `04` or `+614`) as `is_dnc = true`. This removes them from the dialer queue immediately — no code changes needed since the dialer already filters out `is_dnc = true` contacts.
 
-1. **DND preflight check**: Before placing the call, fetches `GET /users/{id}` to check `do_not_disturb` status
-2. **Auto-disable DND**: If DND is active, calls `POST /users/{id}/togglednd` to temporarily disable it with a 300ms propagation delay
-3. **Place call**: Initiates the outbound call as normal
-4. **Restore DND in `finally` block**: If DND was disabled, re-enables it via `POST /users/{id}/togglednd` — always runs even if the call fails
+## Scope
 
-### Frontend
+- **~14,400 contacts** will be set to `is_dnc = true`
+- **~37,400 mobile contacts** remain untouched
+- Contacts already marked DNC stay unchanged
 
-No changes required — DND handling is entirely server-side.
+## Implementation
 
-## Impact
+Run a single data update (via the insert/update tool, not a migration):
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Rep in DND tries to dial | Call fails | Call succeeds, DND restored after |
-| Rep not in DND | Normal | No change (DND toggle skipped) |
-| Call initiation fails | DND stays off (manual) | DND auto-restored via `finally` |
+```sql
+UPDATE contacts
+SET is_dnc = true, updated_at = now()
+WHERE is_dnc = false
+  AND NOT (REGEXP_REPLACE(phone, '[^0-9]', '', 'g') ~ '^(04|614)');
+```
+
+This matches landlines (02, 03, 07, 08), 1300/1800 numbers, international numbers, and any other non-mobile format.
+
+## No Code Changes Required
+
+The dialer, contacts page, and all queries already filter on `is_dnc = false`. These contacts will simply disappear from the active queue.
+
+## Reversibility
+
+If needed, these contacts can be un-DNC'd later by filtering on `is_dnc = true` and checking phone patterns — no data is deleted.
+
