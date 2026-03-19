@@ -92,10 +92,10 @@ export function AchievementBadges() {
     {
       id: "closer",
       label: "Closer",
-      description: "Book an appointment",
+      description: "Book 5 appointments",
       Icon: Star,
-      unlocked: todaysBookings >= 1,
-      progress: Math.min(todaysBookings >= 1 ? 100 : 0, 100),
+      unlocked: todaysBookings >= 5,
+      progress: Math.min((todaysBookings / 5) * 100, 100),
       iconColor: "text-[hsl(var(--outcome-booked))]",
       glowColor: "--outcome-booked",
     },
