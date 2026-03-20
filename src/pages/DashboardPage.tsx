@@ -53,7 +53,10 @@ export default function DashboardPage() {
         {/* Row 1: Greeting */}
         <DashboardGreeting />
 
-        {/* Row 2: Achievements with confetti & gamification */}
+        {/* Row 2: Quick Stats */}
+        <DashboardQuickStats />
+
+        {/* Row 3: Achievements with confetti & gamification */}
         <DailyAchievements />
 
         {/* Row 3: Progress ring + today's outcomes */}
