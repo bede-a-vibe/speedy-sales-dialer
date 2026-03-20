@@ -37,17 +37,6 @@ const AUSTRALIAN_STATE_OPTIONS = [
   { value: "NT", label: "Northern Territory" },
 ] as const;
 
-const AUSTRALIAN_STATE_ALIASES: Record<string, string[]> = {
-  NSW: ["nsw", "new south wales"],
-  VIC: ["vic", "victoria"],
-  QLD: ["qld", "queensland"],
-  WA: ["wa", "western australia"],
-  SA: ["sa", "south australia"],
-  TAS: ["tas", "tasmania"],
-  ACT: ["act", "australian capital territory"],
-  NT: ["nt", "northern territory"],
-};
-
 const NOTE_SOURCE_LABELS = {
   manual: "Manual note",
   dialpad_summary: "Dialpad summary",
