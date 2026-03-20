@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useState } from "react";
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { useWeeklyCallLogs } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +22,7 @@ const MEDAL_COLORS = [
 
 export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
   const { user } = useAuth();
-  const { data: callLogs = [], isLoading } = useCallLogs();
+  const { data: callLogs = [], isLoading } = useWeeklyCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
       <div ref={ref} className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Trophy className="h-4 w-4 text-primary" />
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Weekly Leaderboard</h3>
         </div>
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, index) => (
@@ -84,7 +84,7 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
       <div ref={ref} className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Trophy className="h-4 w-4 text-primary" />
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Weekly Leaderboard</h3>
         </div>
         <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-8 text-center">
           <p className="text-sm font-medium text-foreground">No team activity yet</p>
@@ -98,7 +98,7 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
     <div ref={ref} className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
         <Trophy className="h-4 w-4 text-primary" />
-        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Weekly Leaderboard</h3>
       </div>
       <div className="space-y-2">
         {reps.slice(0, 5).map((rep, i) => {
