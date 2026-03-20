@@ -375,7 +375,6 @@ export default function ContactsPage() {
       }
     }
   };
-  const queryClient = useQueryClient();
 
   // Reset page when filters change
   useEffect(() => {
