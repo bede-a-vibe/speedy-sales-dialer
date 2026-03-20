@@ -542,7 +542,7 @@ export default function ContactsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedContacts.map((contact) => {
+                  {contacts.map((contact) => {
                     const isExpanded = expandedId === contact.id;
 
                     return (
