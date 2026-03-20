@@ -60,7 +60,7 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
       <div ref={ref} className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Trophy className="h-4 w-4 text-primary" />
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Team Leaderboard</h3>
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Weekly Leaderboard</h3>
         </div>
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, index) => (
