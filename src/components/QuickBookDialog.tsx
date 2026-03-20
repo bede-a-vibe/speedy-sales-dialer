@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
+import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
