@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type CallLog = Tables<"call_logs">;
+type CallLogWithContact = CallLog & { contacts?: Tables<"contacts"> | null };
 
 const CONTACT_CALL_LOGS_PAGE_SIZE = 5;
+const CALL_LOGS_CACHE_LIMIT = 500;
 const BATCH_SIZE = 1000;
 
 type ContactCallLogsPage = {
@@ -16,6 +18,26 @@ type ContactCallLogsPage = {
 };
 
 export const getContactCallLogsQueryKey = (contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE) => ["contact-call-logs", contactId, pageSize] as const;
+
+function getLocalDayKey(date: Date = new Date()) {
+  const localDate = new Date(date);
+  localDate.setHours(0, 0, 0, 0);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function injectCallLogIntoCache(queryClient: QueryClient, callLog: CallLogWithContact) {
+  queryClient.setQueryData<CallLogWithContact[]>(["call-logs"], (current = []) => {
+    const next = [callLog, ...current.filter((item) => item.id !== callLog.id)];
+
+    return next
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, CALL_LOGS_CACHE_LIMIT);
+  });
+
+  if (getLocalDayKey(new Date(callLog.created_at)) === getLocalDayKey()) {
+    queryClient.setQueryData<number>(["today-call-count", callLog.user_id, getLocalDayKey()], (current = 0) => current + 1);
+  }
+}
 
 async function fetchContactCallLogsPage(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE, pageParam = 0) {
   if (!contactId) {
@@ -58,12 +80,11 @@ export async function prefetchContactCallLogs(queryClient: QueryClient, contactI
 }
 
 /**
- * Dashboard / live feed — uses Realtime subscription instead of polling.
+ * Dashboard data is realtime-first, with polling as a fallback if a subscription misses an event.
  */
 export function useCallLogs() {
   const queryClient = useQueryClient();
 
-  // Realtime subscription to invalidate cache on new inserts
   useEffect(() => {
     const channel = supabase
       .channel("call-logs-realtime")
@@ -89,11 +110,11 @@ export function useCallLogs() {
         .from("call_logs")
         .select("*, contacts(*)")
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(CALL_LOGS_CACHE_LIMIT);
       if (error) throw error;
       return data;
     },
-    // No polling — realtime handles freshness
+    refetchInterval: 15_000,
   });
 }
 
@@ -120,7 +141,7 @@ export function useTodayCallCount(userId?: string) {
       return count ?? 0;
     },
     enabled: !!userId,
-    refetchInterval: 15_000, // Keep 15s — small query, user-scoped
+    refetchInterval: 15_000,
   });
 }
 
@@ -164,14 +185,14 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
         const rows = data ?? [];
         allRows.push(...rows);
 
-        if (rows.length < BATCH_SIZE) break; // Last page
+        if (rows.length < BATCH_SIZE) break;
         page++;
       }
 
       return allRows;
     },
     enabled: true,
-    refetchInterval: 60_000, // Reports don't need near-real-time — 60s is sufficient
+    refetchInterval: 60_000,
   });
 }
 
@@ -185,16 +206,17 @@ export function useFollowUps() {
         .eq("outcome", "follow_up")
         .not("follow_up_date", "is", null)
         .order("follow_up_date", { ascending: true })
-        .limit(2000); // Safety net against silent truncation
+        .limit(2000);
       if (error) throw error;
       return data;
     },
-    refetchInterval: 60_000, // Reports cadence — 60s
+    refetchInterval: 60_000,
   });
 }
 
 export function useCreateCallLog() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (log: {
       contact_id: string;
@@ -207,12 +229,13 @@ export function useCreateCallLog() {
       const { data, error } = await supabase
         .from("call_logs")
         .insert([log])
-        .select("id")
+        .select("*")
         .single();
       if (error) throw error;
-      return data;
+      return data as CallLogWithContact;
     },
-    onSuccess: () => {
+    onSuccess: (createdLog) => {
+      injectCallLogIntoCache(queryClient, createdLog);
       queryClient.invalidateQueries({ queryKey: ["call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["call-logs-range"] });
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
