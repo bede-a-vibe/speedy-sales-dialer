@@ -208,7 +208,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, onOpenChange]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange]);
 
   const isBooked = pipelineType === "booked";
 
