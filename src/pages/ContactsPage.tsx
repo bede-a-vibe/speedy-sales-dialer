@@ -281,6 +281,28 @@ export default function ContactsPage() {
   const [page, setPage] = useState(1);
   const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
   const [newStatus, setNewStatus] = useState("");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState<{
+    business_name: string;
+    contact_person: string;
+    phone: string;
+    email: string;
+    industry: string;
+    website: string;
+    gmb_link: string;
+    city: string;
+    state: string;
+  }>({
+    business_name: "",
+    contact_person: "",
+    phone: "",
+    email: "",
+    industry: "",
+    website: "",
+    gmb_link: "",
+    city: "",
+    state: "",
+  });
 
   // Debounce search input
   useEffect(() => {
