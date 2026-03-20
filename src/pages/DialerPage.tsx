@@ -156,6 +156,7 @@ export default function DialerPage() {
     // Capture values before advancing
     const contactId = session.currentContact.id;
     const userId = session.user.id;
+    const contactFollowUpNote = session.currentContact.follow_up_note;
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
       ? combineDateAndTime(session.followUpDate, outcomeToLog === "follow_up" ? session.followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
