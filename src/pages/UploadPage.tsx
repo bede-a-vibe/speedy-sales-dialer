@@ -80,7 +80,7 @@ export default function UploadPage() {
 
       for (let i = 0; i < contacts.length; i += chunkSize) {
         const chunk = contacts.slice(i, i + chunkSize);
-        const { error } = await supabase.from("contacts").insert(chunk);
+        const { error, data: inserted } = await supabase.from("contacts").upsert(chunk, { onConflict: "business_name,phone", ignoreDuplicates: true }).select("id");
 
         if (error) {
           errors += chunk.length;
