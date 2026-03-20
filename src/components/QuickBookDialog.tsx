@@ -186,6 +186,16 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         notes: notes.trim() || "",
       });
 
+      // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
+      const callOutcome = pipelineType === "booked" ? "booked" : "follow_up";
+      await createCallLog.mutateAsync({
+        contact_id: selectedContact.id,
+        user_id: user.id,
+        outcome: callOutcome,
+        notes: notes.trim() || `Quick ${pipelineType === "booked" ? "Book" : "Follow-up"}: ${selectedContact.business_name}`,
+        follow_up_date: pipelineType === "follow_up" ? scheduledFor.toISOString() : null,
+      });
+
       const newStatus = pipelineType === "booked" ? "booked" : "follow_up";
       await supabase
         .from("contacts")
