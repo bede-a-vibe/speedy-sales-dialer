@@ -95,8 +95,9 @@ export default function UploadPage() {
 
         const chunkNotes = chunk
           .map((contact) => contact.id)
+          .filter((id): id is string => !!id && insertedIds.has(id))
           .flatMap((contactId) => {
-            const note = contactId ? notesByContactId.get(contactId) : undefined;
+            const note = notesByContactId.get(contactId);
             return note ? [note] : [];
           });
 
