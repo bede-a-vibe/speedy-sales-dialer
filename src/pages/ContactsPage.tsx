@@ -772,6 +772,25 @@ export default function ContactsPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Create Contact Dialog */}
+        <Dialog open={showCreateDialog} onOpenChange={(open) => !open && setShowCreateDialog(false)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader><DialogTitle>New Contact</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Business Name *</Label><Input value={createForm.business_name} onChange={(e) => setCreateForm({ ...createForm, business_name: e.target.value })} className="border-border bg-card" placeholder="Acme Plumbing" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Contact Person</Label><Input value={createForm.contact_person} onChange={(e) => setCreateForm({ ...createForm, contact_person: e.target.value })} className="border-border bg-card" placeholder="John Smith" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone *</Label><Input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} className="border-border bg-card font-mono" placeholder="+61 400 000 000" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Email</Label><Input value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} className="border-border bg-card" placeholder="john@acme.com" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Industry *</Label><Select value={createForm.industry} onValueChange={(v) => setCreateForm({ ...createForm, industry: v })}><SelectTrigger className="border-border bg-card"><SelectValue placeholder="Select industry" /></SelectTrigger><SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Website</Label><Input value={createForm.website} onChange={(e) => setCreateForm({ ...createForm, website: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={createForm.gmb_link} onChange={(e) => setCreateForm({ ...createForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} className="border-border bg-card" /></div>
+              <div className="col-span-2"><Button onClick={saveNewContact} disabled={createContact.isPending} className="w-full font-semibold">{createContact.isPending ? "Creating…" : "Create Contact"}</Button></div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
