@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useState } from "react";
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { useWeeklyCallLogs } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -80,6 +80,59 @@ export async function prefetchContactCallLogs(queryClient: QueryClient, contactI
 }
 
 /**
+ * Weekly call logs for Team Leaderboard — server-filtered to current week (Monday–Sunday local time).
+ */
+export function useWeeklyCallLogs() {
+  const queryClient = useQueryClient();
+
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun … 6=Sat
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const mondayISO = monday.toISOString();
+  const sundayISO = sunday.toISOString();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("weekly-call-logs-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "call_logs" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["weekly-call-logs"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return useQuery({
+    queryKey: ["weekly-call-logs", mondayISO.slice(0, 10)],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("call_logs")
+        .select("id, user_id, outcome, created_at")
+        .gte("created_at", mondayISO)
+        .lte("created_at", sundayISO)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+/**
  * Dashboard data is realtime-first, with polling as a fallback if a subscription misses an event.
  */
 export function useCallLogs() {
