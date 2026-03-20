@@ -182,6 +182,116 @@ function isDialpadRateLimitError(data: unknown) {
   return typeof message === "string" && message.toLowerCase().includes("rate_limit_exceeded");
 }
 
+function isDialpadDndAvailabilityError(data: unknown) {
+  const message = extractDialpadErrorMessage(data);
+  if (typeof message !== "string") return false;
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("do not disturb")
+    || normalized.includes("user unavailable")
+    || normalized.includes("user is unavailable")
+    || normalized.includes("not available")
+    || normalized.includes("currently unavailable");
+}
+
+async function fetchDialpadUserDetails(apiKey: string, dialpadUserId: string) {
+  const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+  };
+}
+
+async function toggleDialpadDoNotDisturb(apiKey: string, dialpadUserId: string) {
+  const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/togglednd`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  const body = await response.text().catch(() => null);
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+  };
+}
+
+async function waitForDialpadDndState(params: {
+  apiKey: string;
+  dialpadUserId: string;
+  expectedEnabled: boolean;
+  attempts?: number;
+  delayMs?: number;
+}) {
+  const attempts = params.attempts ?? 8;
+  const delayMs = params.delayMs ?? 250;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(delayMs);
+    }
+
+    const userDetails = await fetchDialpadUserDetails(params.apiKey, params.dialpadUserId).catch(() => null);
+    if (!userDetails?.ok || !isRecord(userDetails.data)) {
+      continue;
+    }
+
+    if (userDetails.data.do_not_disturb === params.expectedEnabled) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function scheduleDialpadDndRestore(params: {
+  apiKey: string;
+  dialpadUserId: string;
+  delayMs?: number;
+}) {
+  const restoreTask = (async () => {
+    await sleep(params.delayMs ?? 1500);
+    console.log(`[initiate_call] Restoring DND for user ${params.dialpadUserId}`);
+
+    const restoreResult = await toggleDialpadDoNotDisturb(params.apiKey, params.dialpadUserId);
+    if (!restoreResult.ok) {
+      console.warn(`[initiate_call] Failed to restore DND: status=${restoreResult.status}`);
+      return;
+    }
+
+    const restored = await waitForDialpadDndState({
+      apiKey: params.apiKey,
+      dialpadUserId: params.dialpadUserId,
+      expectedEnabled: true,
+      attempts: 6,
+      delayMs: 300,
+    });
+
+    if (!restored) {
+      console.warn(`[initiate_call] DND restore could not be confirmed for user ${params.dialpadUserId}`);
+    }
+  })().catch((error) => {
+    console.warn("[initiate_call] Failed to restore DND:", error);
+  });
+
+  const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+  if (edgeRuntime?.waitUntil) {
+    edgeRuntime.waitUntil(restoreTask);
+    return;
+  }
+}
+
 function getDialpadCallId(data: unknown) {
   if (!isRecord(data)) return null;
 
@@ -983,157 +1093,168 @@ Deno.serve(async (req) => {
           }
         }
 
-        // ── Auto-disable DND before dialing ──
+        // ── Auto-disable DND before dialing and restore it after call creation has had time to settle ──
+        const dialpadUserId = String(params.dialpad_user_id);
         let wasDnd = false;
+        let dndTemporarilyDisabled = false;
+
         try {
-          const dndCheckRes = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}`, {
-            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
-          });
-          if (dndCheckRes.ok) {
-            const dndData = await dndCheckRes.json();
-            wasDnd = dndData?.do_not_disturb === true;
-          } else {
-            await dndCheckRes.text(); // consume body
+          const userDetails = await fetchDialpadUserDetails(DIALPAD_API_KEY, dialpadUserId).catch(() => null);
+          if (userDetails?.ok && isRecord(userDetails.data)) {
+            wasDnd = userDetails.data.do_not_disturb === true;
+          } else if (userDetails && !userDetails.ok) {
+            console.warn(`[initiate_call] DND preflight check failed with status=${userDetails.status}, proceeding anyway`);
           }
-        } catch (e) {
-          console.warn("[initiate_call] DND preflight check failed, proceeding anyway:", e);
-        }
 
-        if (wasDnd) {
-          console.log(`[initiate_call] User ${params.dialpad_user_id} is in DND — temporarily disabling`);
-          try {
-            const toggleOff = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/togglednd`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
-            });
-            await toggleOff.text(); // consume body
-            // Brief pause to let DND state propagate
-            await new Promise((r) => setTimeout(r, 300));
-          } catch (e) {
-            console.warn("[initiate_call] Failed to disable DND:", e);
-          }
-        }
-
-        let initiateResponse: Response;
-        try {
-        // Use the user-scoped initiate_call endpoint
-        initiateResponse = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/initiate_call`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${DIALPAD_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            phone_number: normalizedPhone,
-            ...(params.caller_id ? { caller_id: params.caller_id } : {}),
-            custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
-          }),
-        });
-
-         if (!initiateResponse.ok) {
-          const initiateData = await initiateResponse.json().catch(() => null);
-          const initiateMessage = extractDialpadErrorMessage(initiateData) ?? "";
-          const lowerMessage = initiateMessage.toLowerCase();
-
-          // If user has no active Dialpad app, fall back to the ring-based POST /call endpoint
-          const isNoAppsError = lowerMessage.includes("no apps available");
-          if (isNoAppsError) {
-            const fallbackBody: Record<string, unknown> = {
-              phone_number: normalizedPhone,
-              user_id: params.dialpad_user_id,
-            };
-            if (params.caller_id) fallbackBody.caller_id = params.caller_id;
-            if (params.contact_id) {
-              fallbackBody.custom_data = JSON.stringify({ contact_id: params.contact_id, user_id: user.id });
+          if (wasDnd) {
+            console.log(`[initiate_call] User ${dialpadUserId} is in DND — temporarily disabling`);
+            const toggleOff = await toggleDialpadDoNotDisturb(DIALPAD_API_KEY, dialpadUserId);
+            if (!toggleOff.ok) {
+              return jsonResponse({
+                ok: false,
+                error: "Unable to disable Dialpad DND before placing the call.",
+                message: toggleOff.body,
+                status_code: 502,
+              }, 502);
             }
 
-            dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+            const disabled = await waitForDialpadDndState({
+              apiKey: DIALPAD_API_KEY,
+              dialpadUserId,
+              expectedEnabled: false,
+              attempts: 8,
+              delayMs: 300,
+            });
+
+            if (!disabled) {
+              return jsonResponse({
+                ok: false,
+                error: "Dialpad DND did not switch off in time.",
+                message: "Please try again in a second.",
+                status_code: 409,
+              }, 409);
+            }
+
+            dndTemporarilyDisabled = true;
+          }
+
+          let initiateResponse: Response;
+          let initiateData: unknown;
+
+          const runInitiateCall = async () => {
+            const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/initiate_call`, {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${DIALPAD_API_KEY}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(fallbackBody),
+              body: JSON.stringify({
+                phone_number: normalizedPhone,
+                ...(params.caller_id ? { caller_id: params.caller_id } : {}),
+                custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
+              }),
             });
-            break;
+
+            const data = await response.json().catch(() => null);
+            return { response, data };
+          };
+
+          ({ response: initiateResponse, data: initiateData } = await runInitiateCall());
+
+          if (!initiateResponse.ok && dndTemporarilyDisabled && isDialpadDndAvailabilityError(initiateData)) {
+            console.warn(`[initiate_call] Dialpad still reports DND/unavailable after disable for user=${dialpadUserId}; retrying once`);
+            await sleep(700);
+            ({ response: initiateResponse, data: initiateData } = await runInitiateCall());
           }
 
-          // "User is currently on a call" means the call was already placed — try to discover it
-          const isAlreadyOnCall = lowerMessage.includes("currently on a call");
-          if (isAlreadyOnCall) {
-            console.log(`[initiate_call] User already on a call — running call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
-            // Fall through to the call discovery loop below
-          } else {
-            // Reconstruct a failed Response so the downstream error handler works
-            dialpadResponse = new Response(JSON.stringify(initiateData), {
-              status: initiateResponse.status,
+          if (!initiateResponse.ok) {
+            const initiateMessage = extractDialpadErrorMessage(initiateData) ?? "";
+            const lowerMessage = initiateMessage.toLowerCase();
+
+            const isNoAppsError = lowerMessage.includes("no apps available");
+            if (isNoAppsError) {
+              const fallbackBody: Record<string, unknown> = {
+                phone_number: normalizedPhone,
+                user_id: dialpadUserId,
+              };
+              if (params.caller_id) fallbackBody.caller_id = params.caller_id;
+              if (params.contact_id) {
+                fallbackBody.custom_data = JSON.stringify({ contact_id: params.contact_id, user_id: user.id });
+              }
+
+              dialpadResponse = await fetch(`${DIALPAD_BASE}/call`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${DIALPAD_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(fallbackBody),
+              });
+              break;
+            }
+
+            const isAlreadyOnCall = lowerMessage.includes("currently on a call");
+            if (isAlreadyOnCall) {
+              console.log(`[initiate_call] User already on a call — running call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
+            } else {
+              dialpadResponse = new Response(JSON.stringify(initiateData), {
+                status: initiateResponse.status,
+                headers: { "Content-Type": "application/json" },
+              });
+              break;
+            }
+          }
+
+          console.log(`[initiate_call] Starting call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
+          const matchedCall = await findMatchingActiveCallWithRetries({
+            action: "initiate_call",
+            apiKey: DIALPAD_API_KEY,
+            dialpadUserId,
+            normalizedPhone,
+            delays: [0, 200, 400, 800, 1200, 1600],
+          });
+
+          const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
+          const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
+
+          if (foundCallId) {
+            if (params.contact_id) {
+              await adminClient.from("dialpad_calls").upsert({
+                dialpad_call_id: foundCallId,
+                contact_id: params.contact_id,
+                user_id: user.id,
+                sync_status: "pending",
+                call_state: foundCallState ?? "calling",
+              }, { onConflict: "dialpad_call_id" }).then(() => {});
+            }
+
+            dialpadResponse = new Response(JSON.stringify({
+              call_id: foundCallId,
+              state: foundCallState ?? "calling",
+              call_resolved: true,
+              ...initiateData,
+            }), {
+              status: 200,
               headers: { "Content-Type": "application/json" },
             });
-            break;
+          } else {
+            console.warn(`[initiate_call] Could not discover call_id for user=${dialpadUserId}`);
+            dialpadResponse = new Response(JSON.stringify({
+              ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
+              state: "calling",
+              call_resolved: false,
+            }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
           }
-        }
-
-        const initiateData = await initiateResponse.json().catch(() => ({}));
-
-        // Use shared discovery helper to find the call by matching user + phone
-        console.log(`[initiate_call] Starting call discovery for user=${params.dialpad_user_id} phone=${normalizedPhone}`);
-        const matchedCall = await findMatchingActiveCallWithRetries({
-          action: "initiate_call",
-          apiKey: DIALPAD_API_KEY,
-          dialpadUserId: String(params.dialpad_user_id),
-          normalizedPhone,
-          delays: [0, 200, 400, 600, 800],
-        });
-
-        const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
-        const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
-
-        if (foundCallId) {
-          // Write call_state + create tracking record immediately
-          if (params.contact_id) {
-            await adminClient.from("dialpad_calls").upsert({
-              dialpad_call_id: foundCallId,
-              contact_id: params.contact_id,
-              user_id: user.id,
-              sync_status: "pending",
-              call_state: foundCallState ?? "calling",
-            }, { onConflict: "dialpad_call_id" }).then(() => {});
-          }
-
-          dialpadResponse = new Response(JSON.stringify({
-            call_id: foundCallId,
-            state: foundCallState ?? "calling",
-            call_resolved: true,
-            ...initiateData,
-          }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else {
-          // Call was initiated but we couldn't discover the call_id yet.
-          console.warn(`[initiate_call] Could not discover call_id for user=${params.dialpad_user_id}`);
-          dialpadResponse = new Response(JSON.stringify({
-            ...initiateData,
-            state: "calling",
-            call_resolved: false,
-          }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
         } finally {
-          // ── Restore DND if we disabled it ──
-          if (wasDnd) {
-            console.log(`[initiate_call] Restoring DND for user ${params.dialpad_user_id}`);
-            try {
-              const toggleOn = await fetch(`${DIALPAD_BASE}/users/${params.dialpad_user_id}/togglednd`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
-              });
-              await toggleOn.text();
-            } catch (e) {
-              console.warn("[initiate_call] Failed to restore DND:", e);
-            }
+          if (dndTemporarilyDisabled) {
+            scheduleDialpadDndRestore({
+              apiKey: DIALPAD_API_KEY,
+              dialpadUserId,
+              delayMs: 1800,
+            });
           }
         }
         break;
