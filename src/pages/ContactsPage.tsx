@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
@@ -611,7 +612,9 @@ export default function ContactsPage() {
                       <React.Fragment key={contact.id}>
                         <tr className="cursor-pointer border-b border-border transition-colors hover:bg-muted/30" onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
                           <td className="px-4 py-3">
-                            <p className="font-medium text-foreground">{contact.business_name}</p>
+                            <Link to={`/contacts/${contact.id}`} className="font-medium text-foreground hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+                              {contact.business_name}
+                            </Link>
                             <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
