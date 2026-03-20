@@ -525,7 +525,7 @@ export default function ContactsPage() {
 
         {isLoading ? (
           <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : contacts.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
           <>
