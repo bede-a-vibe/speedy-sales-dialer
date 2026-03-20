@@ -182,6 +182,116 @@ function isDialpadRateLimitError(data: unknown) {
   return typeof message === "string" && message.toLowerCase().includes("rate_limit_exceeded");
 }
 
+function isDialpadDndAvailabilityError(data: unknown) {
+  const message = extractDialpadErrorMessage(data);
+  if (typeof message !== "string") return false;
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("do not disturb")
+    || normalized.includes("user unavailable")
+    || normalized.includes("user is unavailable")
+    || normalized.includes("not available")
+    || normalized.includes("currently unavailable");
+}
+
+async function fetchDialpadUserDetails(apiKey: string, dialpadUserId: string) {
+  const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+  };
+}
+
+async function toggleDialpadDoNotDisturb(apiKey: string, dialpadUserId: string) {
+  const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/togglednd`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  });
+
+  const body = await response.text().catch(() => null);
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+  };
+}
+
+async function waitForDialpadDndState(params: {
+  apiKey: string;
+  dialpadUserId: string;
+  expectedEnabled: boolean;
+  attempts?: number;
+  delayMs?: number;
+}) {
+  const attempts = params.attempts ?? 8;
+  const delayMs = params.delayMs ?? 250;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(delayMs);
+    }
+
+    const userDetails = await fetchDialpadUserDetails(params.apiKey, params.dialpadUserId).catch(() => null);
+    if (!userDetails?.ok || !isRecord(userDetails.data)) {
+      continue;
+    }
+
+    if (userDetails.data.do_not_disturb === params.expectedEnabled) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function scheduleDialpadDndRestore(params: {
+  apiKey: string;
+  dialpadUserId: string;
+  delayMs?: number;
+}) {
+  const restoreTask = (async () => {
+    await sleep(params.delayMs ?? 1500);
+    console.log(`[initiate_call] Restoring DND for user ${params.dialpadUserId}`);
+
+    const restoreResult = await toggleDialpadDoNotDisturb(params.apiKey, params.dialpadUserId);
+    if (!restoreResult.ok) {
+      console.warn(`[initiate_call] Failed to restore DND: status=${restoreResult.status}`);
+      return;
+    }
+
+    const restored = await waitForDialpadDndState({
+      apiKey: params.apiKey,
+      dialpadUserId: params.dialpadUserId,
+      expectedEnabled: true,
+      attempts: 6,
+      delayMs: 300,
+    });
+
+    if (!restored) {
+      console.warn(`[initiate_call] DND restore could not be confirmed for user ${params.dialpadUserId}`);
+    }
+  })().catch((error) => {
+    console.warn("[initiate_call] Failed to restore DND:", error);
+  });
+
+  const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+  if (edgeRuntime?.waitUntil) {
+    edgeRuntime.waitUntil(restoreTask);
+    return;
+  }
+}
+
 function getDialpadCallId(data: unknown) {
   if (!isRecord(data)) return null;
 
