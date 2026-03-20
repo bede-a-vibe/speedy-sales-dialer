@@ -88,7 +88,10 @@ export default function UploadPage() {
           continue;
         }
 
-        success += chunk.length;
+        const insertedIds = new Set((inserted || []).map((r) => r.id));
+        const skipped = chunk.length - insertedIds.size;
+        success += insertedIds.size;
+        if (skipped > 0) errors += skipped;
 
         const chunkNotes = chunk
           .map((contact) => contact.id)
