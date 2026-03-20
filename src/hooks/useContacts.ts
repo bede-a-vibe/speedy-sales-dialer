@@ -633,6 +633,7 @@ export function useUpdateContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
