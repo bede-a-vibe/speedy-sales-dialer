@@ -480,7 +480,7 @@ export default function ContactsPage() {
     a.download = `contacts-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filtered.length} contacts.`);
+    toast.success(`Exported ${contacts.length} contacts (current page).`);
   };
 
   return (
