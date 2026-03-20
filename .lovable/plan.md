@@ -1,50 +1,57 @@
 
 
-## Follow-Up Auto-Requeueing Plan
+## Deduplicate Contacts
 
-**Goal**: When a follow-up's scheduled time arrives, automatically transition the contact back into the dialer queue with the follow-up notes visible, so the rep gets prompted to call them.
-
-### How it works today
-- Follow-ups create a `pipeline_items` record with `pipeline_type = 'follow_up'` and set the contact status to `follow_up`
-- The dialer queue only claims contacts with `status = 'uncalled'`, so follow-ups are excluded
-- Follow-ups sit on the Pipelines page until manually actioned
+**Problem**: 20,881 duplicate rows (40% of 51,898 contacts) based on matching `business_name` + `phone`.
 
 ### Approach
 
-**1. Database: Scheduled job to requeue due follow-ups**
+Run a single database migration that keeps the oldest record per `(business_name, phone)` group (preserving any that have been called/actioned) and deletes the rest.
 
-Create a `pg_cron` job (runs every 5 minutes) that:
-- Finds open follow-up pipeline items where `scheduled_for <= now()`
-- Updates the contact's `status` back to `'uncalled'` so it re-enters the dialer queue
-- Marks the pipeline item as `status = 'completed'` with `completed_at = now()`
-- This means the lead automatically appears in the next dialer session claim
+### Steps
 
-Use the insert tool (not migration) to schedule this via `cron.schedule`.
+**1. Migration: Delete duplicate contacts**
 
-**2. Database migration: Add `follow_up_note` column to contacts**
+SQL logic:
+- For each duplicate group, keep the row that has activity (non-`uncalled` status, or call logs) — if none have activity, keep the oldest (`min(created_at)`)
+- Delete all other rows in each group
+- Before deleting, verify no `call_logs`, `pipeline_items`, or `contact_notes` reference the rows being removed (orphan safety)
 
-Add a `follow_up_note text` column to the `contacts` table. The cron job copies the pipeline item's `notes` into this field when requeueing, so the dialer can display it.
+```sql
+-- Delete duplicates, keeping the "best" row per (business_name, phone)
+DELETE FROM contacts
+WHERE id IN (
+  SELECT id FROM (
+    SELECT id,
+      ROW_NUMBER() OVER (
+        PARTITION BY business_name, phone
+        ORDER BY
+          CASE WHEN status != 'uncalled' THEN 0 ELSE 1 END,
+          created_at ASC
+      ) AS rn
+    FROM contacts
+  ) ranked
+  WHERE rn > 1
+    AND id NOT IN (SELECT DISTINCT contact_id FROM call_logs)
+    AND id NOT IN (SELECT DISTINCT contact_id FROM pipeline_items)
+    AND id NOT IN (SELECT DISTINCT contact_id FROM contact_notes)
+);
+```
 
-**3. Update `claim_dialer_leads` function** (migration)
+**2. Migration: Add unique constraint to prevent future duplicates**
 
-No changes needed — it already selects all contact columns. The new `follow_up_note` column will automatically be included.
+```sql
+CREATE UNIQUE INDEX idx_contacts_business_phone
+ON contacts (business_name, phone);
+```
 
-**4. Frontend: Show follow-up note in dialer**
+This prevents the same contact from being imported again.
 
-Update `ContactCard.tsx` to display the `follow_up_note` field when present, with a distinct visual callout (e.g., a yellow/amber banner) so the rep knows this is a follow-up callback and can see the context.
+**3. Update import logic** (minor)
 
-**5. Frontend: Show follow-up note on Contacts page**
+Update `src/pages/UploadPage.tsx` to use `ON CONFLICT` (or catch unique-violation errors gracefully) so future uploads skip existing contacts instead of failing.
 
-Display the follow-up note in the contact row/detail so it's visible during manual browsing too.
-
-**6. Clear follow-up note after call**
-
-When a call outcome is logged in the dialer (`logAndNext`), clear the `follow_up_note` on the contact so it doesn't persist after the follow-up call is made.
-
-### Summary of changes
-- **1 migration**: Add `follow_up_note` column to `contacts`
-- **1 cron job** (insert tool): Requeue due follow-ups every 5 minutes
-- **Edit `ContactCard.tsx`**: Show follow-up note banner
-- **Edit `DialerPage.tsx`**: Clear follow-up note after outcome logged
-- **Edit `ContactsPage.tsx`**: Show follow-up note if present
+### Summary
+- **1 migration**: Delete ~20,881 duplicate rows + add unique index
+- **1 file edit**: `UploadPage.tsx` — handle unique constraint on import
 
