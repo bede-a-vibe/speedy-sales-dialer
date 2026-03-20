@@ -109,7 +109,16 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        <Button
+          variant="outline"
+          size={collapsed ? "icon" : "default"}
+          onClick={() => setQuickBookOpen(true)}
+          className="w-full border-primary/30 text-primary hover:bg-primary/10"
+        >
+          <CalendarPlus className={cn("h-4 w-4", !collapsed && "mr-2")} />
+          {!collapsed && "Quick Book"}
+        </Button>
         {!collapsed && (
           <div className="text-[10px] text-sidebar-foreground/40 font-mono">
             v1.0 · Desktop Mode
@@ -117,5 +126,7 @@ export function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
+    <QuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
+    </>
   );
 }
