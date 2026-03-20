@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon } from "lucide-react";
+import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -15,10 +15,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InlineBookingEmbed } from "@/components/dialer/InlineBookingEmbed";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts">;
+type PipelineType = "booked" | "follow_up";
 
 interface QuickBookDialogProps {
   open: boolean;
@@ -39,10 +41,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
-  // Booking fields
+  const [pipelineType, setPipelineType] = useState<PipelineType>("booked");
   const [assignedRepId, setAssignedRepId] = useState("");
-  const [bookedDate, setBookedDate] = useState<Date | undefined>();
-  const [bookedTime, setBookedTime] = useState("09:00");
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+  const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
   const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
 
@@ -59,8 +61,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setQuery("");
       setResults([]);
       setSelectedContact(null);
-      setBookedDate(undefined);
-      setBookedTime("09:00");
+      setPipelineType("booked");
+      setScheduledDate(undefined);
+      setScheduledTime("09:00");
       setNotes("");
       setAssignedRepId(user?.id || "");
       setIsBookedDateAutoDetected(false);
@@ -105,47 +108,50 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   }, [query, open]);
 
   const handleBookedDateDetected = useCallback((date: Date) => {
-    setBookedDate(date);
+    setScheduledDate(date);
     setIsBookedDateAutoDetected(true);
   }, []);
 
   const canSubmit = useMemo(
-    () => !!selectedContact && !!assignedRepId && !!bookedDate,
-    [selectedContact, assignedRepId, bookedDate],
+    () => !!selectedContact && !!assignedRepId && !!scheduledDate,
+    [selectedContact, assignedRepId, scheduledDate],
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedContact || !assignedRepId || !bookedDate || !user) return;
+    if (!selectedContact || !assignedRepId || !scheduledDate || !user) return;
 
     const scheduledFor = new Date(
-      bookedDate.getFullYear(),
-      bookedDate.getMonth(),
-      bookedDate.getDate(),
-      ...bookedTime.split(":").map(Number) as [number, number],
+      scheduledDate.getFullYear(),
+      scheduledDate.getMonth(),
+      scheduledDate.getDate(),
+      ...scheduledTime.split(":").map(Number) as [number, number],
     );
 
     try {
       await createPipelineItem.mutateAsync({
         contact_id: selectedContact.id,
-        pipeline_type: "booked",
+        pipeline_type: pipelineType,
         assigned_user_id: assignedRepId,
         created_by: user.id,
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
       });
 
-      // Update contact status to booked
+      const newStatus = pipelineType === "booked" ? "booked" : "follow_up";
       await supabase
         .from("contacts")
-        .update({ status: "booked", updated_at: new Date().toISOString() })
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", selectedContact.id);
 
-      toast.success(`Booking created for ${selectedContact.business_name}`);
+      const label = pipelineType === "booked" ? "Booking" : "Follow-up";
+      toast.success(`${label} created for ${selectedContact.business_name}`);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create booking");
+      toast.error(err instanceof Error ? err.message : "Failed to create item");
     }
-  }, [selectedContact, assignedRepId, bookedDate, bookedTime, notes, user, createPipelineItem, onOpenChange]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, onOpenChange]);
+
+  const isBooked = pipelineType === "booked";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,9 +159,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-primary" />
-            Quick Book Appointment
+            Quick Create
           </DialogTitle>
-          <DialogDescription>Search for a contact and create a booking.</DialogDescription>
+          <DialogDescription>Search for a contact and create a booking or follow-up.</DialogDescription>
         </DialogHeader>
 
         {!selectedContact ? (
@@ -181,7 +187,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
               {!isSearching && query.length >= 2 && results.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
-                  No contacts found for "{query}"
+                  No contacts found for &ldquo;{query}&rdquo;
                 </div>
               )}
 
@@ -259,6 +265,20 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </div>
               </div>
 
+              {/* Type toggle */}
+              <Tabs value={pipelineType} onValueChange={(v) => setPipelineType(v as PipelineType)}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="booked" className="flex-1 gap-1.5">
+                    <CalendarPlus className="h-3.5 w-3.5" />
+                    Book Appointment
+                  </TabsTrigger>
+                  <TabsTrigger value="follow_up" className="flex-1 gap-1.5">
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Follow-up
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
               {/* Assigned rep */}
               <div>
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -278,13 +298,13 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </Select>
               </div>
 
-              {/* Inline booking embed */}
-              <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />
+              {/* Inline booking embed — only for booked type */}
+              {isBooked && <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />}
 
-              {/* Confirm booked date */}
+              {/* Date / time */}
               <div>
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Confirm Booked Date
+                  {isBooked ? "Confirm Booked Date" : "Follow-up Date"}
                 </label>
                 <div className="space-y-2">
                   <Popover>
@@ -293,19 +313,23 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                         variant="outline"
                         className={cn(
                           "w-full justify-start border-border bg-background text-left font-normal",
-                          !bookedDate && "text-muted-foreground",
+                          !scheduledDate && "text-muted-foreground",
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {bookedDate ? format(bookedDate, "PPP") : "Confirm appointment date"}
+                        {scheduledDate
+                          ? format(scheduledDate, "PPP")
+                          : isBooked
+                            ? "Confirm appointment date"
+                            : "Pick follow-up date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={bookedDate}
+                        selected={scheduledDate}
                         onSelect={(d) => {
-                          setBookedDate(d);
+                          setScheduledDate(d);
                           setIsBookedDateAutoDetected(false);
                         }}
                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
@@ -316,17 +340,19 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   </Popover>
                   <Input
                     type="time"
-                    value={bookedTime}
-                    onChange={(e) => setBookedTime(e.target.value)}
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
                     className="border-border bg-background"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {bookedDate
-                      ? isBookedDateAutoDetected
-                        ? "Date auto-detected from the booking widget — adjust if needed."
-                        : "Date confirmed manually."
-                      : "Choose the booked appointment day."}
-                  </p>
+                  {isBooked && (
+                    <p className="text-xs text-muted-foreground">
+                      {scheduledDate
+                        ? isBookedDateAutoDetected
+                          ? "Date auto-detected from the booking widget — adjust if needed."
+                          : "Date confirmed manually."
+                        : "Choose the booked appointment day."}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -338,7 +364,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Any booking notes..."
+                  placeholder={isBooked ? "Any booking notes..." : "Follow-up details..."}
                   className="min-h-[60px] resize-none border-border bg-background text-sm"
                 />
               </div>
@@ -351,10 +377,12 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
               >
                 {createPipelineItem.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+                ) : isBooked ? (
                   <CalendarPlus className="mr-2 h-4 w-4" />
+                ) : (
+                  <ClipboardList className="mr-2 h-4 w-4" />
                 )}
-                Create Booking
+                {isBooked ? "Create Booking" : "Create Follow-up"}
               </Button>
             </div>
           </ScrollArea>
