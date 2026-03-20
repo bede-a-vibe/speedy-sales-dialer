@@ -211,17 +211,24 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
           <DialogDescription>Search for a contact and create a booking or follow-up.</DialogDescription>
         </DialogHeader>
 
-        {!selectedContact ? (
+        {!selectedContact && !showCreateForm ? (
           <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by business name, phone, or contact person..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-10"
-                autoFocus
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by business name, phone, or contact person..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="pl-10"
+                  autoFocus
+                />
+              </div>
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setShowCreateForm(true)} className="shrink-0">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />New
+                </Button>
+              )}
             </div>
 
             <ScrollArea className="max-h-[400px]">
@@ -234,7 +241,15 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
               {!isSearching && query.length >= 2 && results.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
-                  No contacts found for &ldquo;{query}&rdquo;
+                  <p>No contacts found for &ldquo;{query}&rdquo;</p>
+                  {isAdmin && (
+                    <Button variant="link" size="sm" className="mt-2" onClick={() => {
+                      setNewContact((prev) => ({ ...prev, business_name: query }));
+                      setShowCreateForm(true);
+                    }}>
+                      <Plus className="mr-1 h-3.5 w-3.5" />Create &ldquo;{query}&rdquo; as a new contact
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -285,6 +300,27 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
               </div>
             </ScrollArea>
           </div>
+        ) : !selectedContact && showCreateForm ? (
+          <ScrollArea className="max-h-[400px]">
+            <div className="space-y-4 pr-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Create New Contact</h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)}>Back to Search</Button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Business Name *</Label><Input value={newContact.business_name} onChange={(e) => setNewContact({ ...newContact, business_name: e.target.value })} className="border-border bg-card" placeholder="Acme Plumbing" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Contact Person</Label><Input value={newContact.contact_person} onChange={(e) => setNewContact({ ...newContact, contact_person: e.target.value })} className="border-border bg-card" placeholder="John Smith" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone *</Label><Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} className="border-border bg-card font-mono" placeholder="+61 400 000 000" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Email</Label><Input value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} className="border-border bg-card" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Industry *</Label><Select value={newContact.industry} onValueChange={(v) => setNewContact({ ...newContact, industry: v })}><SelectTrigger className="border-border bg-card"><SelectValue placeholder="Select industry" /></SelectTrigger><SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={newContact.city} onChange={(e) => setNewContact({ ...newContact, city: e.target.value })} className="border-border bg-card" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={newContact.state} onChange={(e) => setNewContact({ ...newContact, state: e.target.value })} className="border-border bg-card" /></div>
+              </div>
+              <Button onClick={handleCreateContact} disabled={createContactMutation.isPending} className="w-full font-semibold">
+                {createContactMutation.isPending ? "Creating…" : "Create Contact & Continue"}
+              </Button>
+            </div>
+          </ScrollArea>
         ) : (
           <ScrollArea className="flex-1 max-h-[calc(90vh-120px)]">
             <div className="space-y-4 pr-2">
