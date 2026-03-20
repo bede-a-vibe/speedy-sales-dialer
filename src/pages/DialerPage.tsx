@@ -216,6 +216,27 @@ export default function DialerPage() {
           });
         }
 
+        // If this was a requeued follow-up and got no_answer, schedule again for same time tomorrow
+        if (outcomeToLog === "no_answer" && contactFollowUpNote) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          // Preserve the original scheduled hour by using current time as fallback
+          const nextScheduled = tomorrow.toISOString();
+          await createPipelineItem.mutateAsync({
+            contact_id: contactId,
+            source_call_log_id: insertedLog.id,
+            pipeline_type: "follow_up",
+            assigned_user_id: userId,
+            created_by: userId,
+            scheduled_for: nextScheduled,
+            notes: contactFollowUpNote,
+          });
+          // Set status back to follow_up so the cron job will requeue it tomorrow
+          await updateContact.mutateAsync({
+            id: contactId,
+            status: "follow_up",
+          });
+
         if (dialpadCallId) {
           dialpad.linkDialpadCallLog.mutateAsync({
             dialpad_call_id: dialpadCallId,
