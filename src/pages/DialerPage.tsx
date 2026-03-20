@@ -236,6 +236,7 @@ export default function DialerPage() {
             id: contactId,
             status: "follow_up",
           });
+        }
 
         if (dialpadCallId) {
           dialpad.linkDialpadCallLog.mutateAsync({
