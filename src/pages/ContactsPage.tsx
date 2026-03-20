@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-import { useContacts, useUpdateContact } from "@/hooks/useContacts";
+import { useUpdateContact, usePaginatedContacts } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -36,17 +36,6 @@ const AUSTRALIAN_STATE_OPTIONS = [
   { value: "ACT", label: "Australian Capital Territory" },
   { value: "NT", label: "Northern Territory" },
 ] as const;
-
-const AUSTRALIAN_STATE_ALIASES: Record<string, string[]> = {
-  NSW: ["nsw", "new south wales"],
-  VIC: ["vic", "victoria"],
-  QLD: ["qld", "queensland"],
-  WA: ["wa", "western australia"],
-  SA: ["sa", "south australia"],
-  TAS: ["tas", "tasmania"],
-  ACT: ["act", "australian capital territory"],
-  NT: ["nt", "northern territory"],
-};
 
 const NOTE_SOURCE_LABELS = {
   manual: "Manual note",
@@ -279,6 +268,7 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
@@ -292,7 +282,26 @@ export default function ContactsPage() {
   const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
   const [newStatus, setNewStatus] = useState("");
 
-  const { data: contacts = [], isLoading } = useContacts(industryFilter);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data, isLoading } = usePaginatedContacts({
+    industry: industryFilter,
+    status: statusFilter,
+    state: stateFilter,
+    appointmentOutcome: appointmentOutcomeFilter,
+    search: debouncedSearch,
+    page,
+    pageSize: CONTACTS_PER_PAGE,
+  });
+
+  const contacts = data?.contacts ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
+
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const createPipelineItem = useCreatePipelineItem();
@@ -300,33 +309,11 @@ export default function ContactsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const filtered = useMemo(() => {
-    return contacts.filter((c) => {
-      const normalizedState = c.state?.trim().toLowerCase() ?? "";
-      const normalizedSearch = search.toLowerCase();
-      const matchesSearch =
-        !search ||
-        c.business_name.toLowerCase().includes(normalizedSearch) ||
-        c.contact_person?.toLowerCase().includes(normalizedSearch) ||
-        c.phone.includes(search) ||
-        c.email?.toLowerCase().includes(normalizedSearch);
-      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-      const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
-      const matchesOutcome = appointmentOutcomeFilter === "all" || c.latest_appointment_outcome === appointmentOutcomeFilter;
-      return matchesSearch && matchesStatus && matchesState && matchesOutcome;
-    });
-  }, [contacts, search, statusFilter, stateFilter, appointmentOutcomeFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PER_PAGE));
-  const paginatedContacts = useMemo(() => {
-    const start = (page - 1) * CONTACTS_PER_PAGE;
-    return filtered.slice(start, start + CONTACTS_PER_PAGE);
-  }, [filtered, page]);
-
+  // Reset page when filters change
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [search, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -454,6 +441,7 @@ export default function ContactsPage() {
       toast.error("Failed to delete contact.");
     } else {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       toast.success("Contact deleted.");
     }
@@ -461,7 +449,7 @@ export default function ContactsPage() {
 
   const exportCSV = () => {
     const headers = ["Business Name", "Contact Person", "Phone", "Email", "Industry", "City", "State", "Status", "Last Outcome", "Appointment Stage", "Appointment Day"];
-    const rows = filtered.map((c) => [
+    const rows = contacts.map((c) => [
       c.business_name,
       c.contact_person || "",
       c.phone,
@@ -482,7 +470,7 @@ export default function ContactsPage() {
     a.download = `contacts-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filtered.length} contacts.`);
+    toast.success(`Exported ${contacts.length} contacts (current page).`);
   };
 
   return (
@@ -518,7 +506,7 @@ export default function ContactsPage() {
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">{filtered.length} contacts · page {page} of {totalPages}</span>
+            <span className="text-xs font-mono text-muted-foreground">{totalCount} contacts · page {page} of {totalPages}</span>
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
@@ -527,7 +515,7 @@ export default function ContactsPage() {
 
         {isLoading ? (
           <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : contacts.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
           <>
@@ -544,7 +532,7 @@ export default function ContactsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedContacts.map((contact) => {
+                  {contacts.map((contact) => {
                     const isExpanded = expandedId === contact.id;
 
                     return (

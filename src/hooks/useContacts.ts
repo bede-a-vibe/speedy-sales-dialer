@@ -199,6 +199,82 @@ export function useContacts(industry?: string) {
   return useQuery({
     queryKey: ["contacts", industry],
     queryFn: () => fetchContactsInBatches({ industry }),
+    staleTime: 30_000,
+  });
+}
+
+export type PaginatedContactsFilters = {
+  industry?: string;
+  status?: string;
+  state?: string;
+  appointmentOutcome?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type PaginatedContactsResult = {
+  contacts: Contact[];
+  totalCount: number;
+};
+
+async function fetchPaginatedContacts({
+  industry,
+  status,
+  state,
+  appointmentOutcome,
+  search,
+  page = 1,
+  pageSize = 100,
+}: PaginatedContactsFilters): Promise<PaginatedContactsResult> {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("contacts")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: true })
+    .range(from, to);
+
+  if (industry && industry !== "all") {
+    query = query.eq("industry", industry);
+  }
+  if (status && status !== "all") {
+    if (status === "dnc") {
+      query = query.eq("is_dnc", true);
+    } else {
+      query = query.eq("status", status);
+    }
+  }
+  if (state && state !== "all") {
+    // Match state case-insensitively using ilike
+    query = query.ilike("state", state);
+  }
+  if (appointmentOutcome && appointmentOutcome !== "all") {
+    query = query.eq("latest_appointment_outcome", appointmentOutcome as AppointmentOutcomeValue);
+  }
+  if (search && search.trim().length > 0) {
+    const s = search.trim();
+    query = query.or(
+      `business_name.ilike.%${s}%,phone.ilike.%${s}%,contact_person.ilike.%${s}%,email.ilike.%${s}%`
+    );
+  }
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+
+  return {
+    contacts: (data ?? []) as Contact[],
+    totalCount: count ?? 0,
+  };
+}
+
+export function usePaginatedContacts(filters: PaginatedContactsFilters) {
+  return useQuery({
+    queryKey: ["contacts-paginated", filters],
+    queryFn: () => fetchPaginatedContacts(filters),
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -557,6 +633,7 @@ export function useUpdateContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
@@ -573,6 +650,7 @@ export function useDeleteContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
