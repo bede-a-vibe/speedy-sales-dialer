@@ -251,7 +251,7 @@ async function fetchPaginatedContacts({
     query = query.ilike("state", state);
   }
   if (appointmentOutcome && appointmentOutcome !== "all") {
-    query = query.eq("latest_appointment_outcome", appointmentOutcome);
+    query = query.eq("latest_appointment_outcome", appointmentOutcome as AppointmentOutcomeValue);
   }
   if (search && search.trim().length > 0) {
     const s = search.trim();
