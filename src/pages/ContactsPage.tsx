@@ -459,7 +459,7 @@ export default function ContactsPage() {
 
   const exportCSV = () => {
     const headers = ["Business Name", "Contact Person", "Phone", "Email", "Industry", "City", "State", "Status", "Last Outcome", "Appointment Stage", "Appointment Day"];
-    const rows = filtered.map((c) => [
+    const rows = contacts.map((c) => [
       c.business_name,
       c.contact_person || "",
       c.phone,
