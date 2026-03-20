@@ -1,29 +1,55 @@
 
 
-## Add Create Contact + Enhance Edit Contact
+## CRM Improvements: Contact Detail Page + Dashboard Quick Stats
 
-### What exists today
-- An **Edit Contact** dialog already lets users update all fields including `contact_person`, phone, email, etc.
-- Only **admins** can insert new contacts (per RLS policy). All authenticated users can update.
+### 1. Contact Detail Page (`/contacts/:id`)
 
-### Changes
+Create a dedicated full-page view for a single contact that consolidates all information in one place.
 
-**1. Add "Create Contact" button and dialog to ContactsPage**
+**New file: `src/pages/ContactDetailPage.tsx`**
+- Fetch contact by ID from URL param using `supabase.from("contacts").select("*").eq("id", id).single()`
+- Layout sections:
+  - **Header**: Business name, industry badge, status badge, contact person, phone (click-to-call), email, website, GMB link, location
+  - **Actions bar**: Edit button (opens existing edit dialog logic), Mark DNC toggle, Quick Book button
+  - **Two-column layout below**:
+    - **Left column**: Call history (reuse `useContactCallLogs`), Notes timeline (reuse `usePaginatedContactNotes`) with inline "add note" textarea
+    - **Right column**: Pipeline items timeline (reuse `useContactPipelineItems`), contact metadata (created date, call attempt count, last outcome)
+- Back button to return to `/contacts`
 
-Add a "+ New Contact" button next to the Export button (visible to admins only). Clicking it opens a dialog with the same form fields as the edit dialog (business name, contact person, phone, email, industry, website, GMB link, city, state). On submit, insert into `contacts` via Supabase. Required fields: business_name, phone, industry.
+**Routing (`src/components/ProtectedApp.tsx`)**:
+- Add route: `<Route path="/contacts/:id" element={<ContactDetailPage />} />`
 
-**2. Add a `useCreateContact` mutation hook to `useContacts.ts`**
+**Link from ContactsPage**:
+- Make the business name in each contact row a clickable `<Link to={/contacts/${id}>` so users can navigate to the detail page
 
-A simple mutation that inserts a new contact row and invalidates relevant query keys.
+### 2. Dashboard Quick Stats
 
-**3. Minor edit dialog improvements**
+Add an actionable stats row to the dashboard between the greeting and achievements sections.
 
-The edit dialog already has all the fields. No structural changes needed — it already supports changing `contact_person` (the "boss"). Just ensure it's clearly labeled.
+**New file: `src/components/dashboard/DashboardQuickStats.tsx`**
+- Fetch data using existing hooks:
+  - `usePipelineItems("follow_up", "open")` — count items where `scheduled_for <= today`
+  - `usePipelineItems("booked", "open")` — count items where `scheduled_for <= today` (overdue) or today
+  - `useCallLogs()` — derive "calls today" count (already available via `useTodayCallCount`)
+- Display 3-4 cards:
+  - **Follow-ups Due Today** — count + link to `/pipelines?tab=follow_up`
+  - **Overdue Appointments** — count + link to `/pipelines?tab=booked`
+  - **Today's Bookings** — count of booked items scheduled today
+  - **Calls Made Today** — already shown in progress ring, but a quick numeric card links to `/reports`
+- Each card is clickable, navigating to the relevant page
 
-### Technical details
+**Integration (`src/pages/DashboardPage.tsx`)**:
+- Insert `<DashboardQuickStats />` between `<DashboardGreeting />` and `<DailyAchievements />`
 
-- **RLS**: Admins can insert contacts (existing policy). The create button will only show for admins.
-- **Unique constraint**: `(business_name, phone)` exists — the insert will fail gracefully if a duplicate is attempted; we'll show a toast error.
-- **New hook**: `useCreateContact()` in `src/hooks/useContacts.ts`
-- **Files changed**: `src/hooks/useContacts.ts` (add hook), `src/pages/ContactsPage.tsx` (add button + dialog)
+### Files to create/edit
+
+| File | Action |
+|------|--------|
+| `src/pages/ContactDetailPage.tsx` | Create — full contact detail page |
+| `src/components/dashboard/DashboardQuickStats.tsx` | Create — quick stats row |
+| `src/components/ProtectedApp.tsx` | Edit — add `/contacts/:id` route |
+| `src/pages/ContactsPage.tsx` | Edit — link business names to detail page |
+| `src/pages/DashboardPage.tsx` | Edit — add DashboardQuickStats component |
+
+No database changes required — all data is already available via existing tables and hooks.
 
