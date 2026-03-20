@@ -4,6 +4,7 @@ import { DashboardTargetsOverview } from "@/components/targets/DashboardTargetsO
 import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
+import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
