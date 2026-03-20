@@ -452,6 +452,7 @@ export default function ContactsPage() {
       toast.error("Failed to delete contact.");
     } else {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
       toast.success("Contact deleted.");
     }
