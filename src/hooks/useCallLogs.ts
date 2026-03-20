@@ -294,6 +294,7 @@ export function useCreateCallLog() {
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
       queryClient.invalidateQueries({ queryKey: ["contact-call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["today-call-count"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-call-logs"] });
     },
     onError: (error) => {
       console.error("[useCreateCallLog] Failed to save call log:", error);
