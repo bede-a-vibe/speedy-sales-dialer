@@ -40,6 +40,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { user } = useAuth();
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
+  const createCallLog = useCreateCallLog();
 
   const isAdmin = useIsAdmin();
   const createContactMutation = useCreateContact();
