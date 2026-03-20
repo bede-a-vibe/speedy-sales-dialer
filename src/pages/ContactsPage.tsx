@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-import { useUpdateContact, usePaginatedContacts } from "@/hooks/useContacts";
+import { useUpdateContact, useCreateContact, usePaginatedContacts } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
