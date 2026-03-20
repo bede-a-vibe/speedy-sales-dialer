@@ -1,5 +1,9 @@
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
+import { QuickBookDialog } from "@/components/QuickBookDialog";
+import { Button } from "@/components/ui/button";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import {
   Sidebar,
@@ -33,8 +37,10 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const isAdmin = useIsAdmin();
+  const [quickBookOpen, setQuickBookOpen] = useState(false);
 
   return (
+    <>
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
@@ -104,7 +110,16 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        <Button
+          variant="outline"
+          size={collapsed ? "icon" : "default"}
+          onClick={() => setQuickBookOpen(true)}
+          className="w-full border-primary/30 text-primary hover:bg-primary/10"
+        >
+          <CalendarPlus className={cn("h-4 w-4", !collapsed && "mr-2")} />
+          {!collapsed && "Quick Book"}
+        </Button>
         {!collapsed && (
           <div className="text-[10px] text-sidebar-foreground/40 font-mono">
             v1.0 · Desktop Mode
@@ -112,5 +127,7 @@ export function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
+    <QuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
+    </>
   );
 }
