@@ -326,9 +326,55 @@ export default function ContactsPage() {
 
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
+  const createContact = useCreateContact();
   const createPipelineItem = useCreatePipelineItem();
   const { data: reps = [] } = useSalesReps();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      business_name: "",
+      contact_person: "",
+      phone: "",
+      email: "",
+      industry: "",
+      website: "",
+      gmb_link: "",
+      city: "",
+      state: "",
+    });
+  };
+
+  const saveNewContact = async () => {
+    if (!createForm.business_name.trim() || !createForm.phone.trim() || !createForm.industry) {
+      toast.error("Business name, phone, and industry are required.");
+      return;
+    }
+    try {
+      await createContact.mutateAsync({
+        business_name: createForm.business_name.trim(),
+        phone: createForm.phone.trim(),
+        industry: createForm.industry,
+        contact_person: createForm.contact_person.trim() || null,
+        email: createForm.email.trim() || null,
+        website: createForm.website.trim() || null,
+        gmb_link: createForm.gmb_link.trim() || null,
+        city: createForm.city.trim() || null,
+        state: createForm.state.trim() || null,
+      });
+      toast.success("Contact created.");
+      setShowCreateDialog(false);
+      resetCreateForm();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create contact.";
+      if (msg.includes("idx_contacts_business_phone") || msg.includes("duplicate key")) {
+        toast.error("A contact with this business name and phone already exists.");
+      } else {
+        toast.error(msg);
+      }
+    }
+  };
   const queryClient = useQueryClient();
 
   // Reset page when filters change
