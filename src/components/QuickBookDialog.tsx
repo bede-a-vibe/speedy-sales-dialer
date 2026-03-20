@@ -10,6 +10,7 @@ import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
 import { useSalesReps, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { INDUSTRIES } from "@/data/mockData";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
