@@ -574,6 +574,11 @@ export default function ContactsPage() {
           </Select>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground">{totalCount} contacts · page {page} of {totalPages}</span>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => { resetCreateForm(); setShowCreateDialog(true); }} className="border-border">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />New Contact
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
