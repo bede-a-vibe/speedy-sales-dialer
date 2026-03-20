@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
+import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { user } = useAuth();
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
+  const createCallLog = useCreateCallLog();
 
   const isAdmin = useIsAdmin();
   const createContactMutation = useCreateContact();
@@ -184,6 +186,16 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         notes: notes.trim() || "",
       });
 
+      // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
+      const callOutcome = pipelineType === "booked" ? "booked" : "follow_up";
+      await createCallLog.mutateAsync({
+        contact_id: selectedContact.id,
+        user_id: user.id,
+        outcome: callOutcome,
+        notes: notes.trim() || `Quick ${pipelineType === "booked" ? "Book" : "Follow-up"}: ${selectedContact.business_name}`,
+        follow_up_date: pipelineType === "follow_up" ? scheduledFor.toISOString() : null,
+      });
+
       const newStatus = pipelineType === "booked" ? "booked" : "follow_up";
       await supabase
         .from("contacts")
@@ -196,7 +208,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, onOpenChange]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange]);
 
   const isBooked = pipelineType === "booked";
 
