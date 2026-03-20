@@ -80,7 +80,7 @@ export default function UploadPage() {
 
       for (let i = 0; i < contacts.length; i += chunkSize) {
         const chunk = contacts.slice(i, i + chunkSize);
-        const { error } = await supabase.from("contacts").insert(chunk);
+        const { error, data: inserted } = await supabase.from("contacts").upsert(chunk, { onConflict: "business_name,phone", ignoreDuplicates: true }).select("id");
 
         if (error) {
           errors += chunk.length;
@@ -88,12 +88,16 @@ export default function UploadPage() {
           continue;
         }
 
-        success += chunk.length;
+        const insertedIds = new Set((inserted || []).map((r) => r.id));
+        const skipped = chunk.length - insertedIds.size;
+        success += insertedIds.size;
+        if (skipped > 0) errors += skipped;
 
         const chunkNotes = chunk
           .map((contact) => contact.id)
+          .filter((id): id is string => !!id && insertedIds.has(id))
           .flatMap((contactId) => {
-            const note = contactId ? notesByContactId.get(contactId) : undefined;
+            const note = notesByContactId.get(contactId);
             return note ? [note] : [];
           });
 
