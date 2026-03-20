@@ -1,5 +1,8 @@
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { QuickBookDialog } from "@/components/QuickBookDialog";
+import { Button } from "@/components/ui/button";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import {
   Sidebar,
