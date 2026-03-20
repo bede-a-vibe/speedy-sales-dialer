@@ -22,7 +22,7 @@ const MEDAL_COLORS = [
 
 export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
   const { user } = useAuth();
-  const { data: callLogs = [], isLoading } = useCallLogs();
+  const { data: callLogs = [], isLoading } = useWeeklyCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
