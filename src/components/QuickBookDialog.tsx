@@ -1,12 +1,15 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList } from "lucide-react";
+import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useUserRole";
+import { useCreateContact } from "@/hooks/useContacts";
 import { useSalesReps, useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { INDUSTRIES } from "@/data/mockData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
