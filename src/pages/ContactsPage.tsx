@@ -279,6 +279,7 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
@@ -292,7 +293,26 @@ export default function ContactsPage() {
   const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
   const [newStatus, setNewStatus] = useState("");
 
-  const { data: contacts = [], isLoading } = useContacts(industryFilter);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data, isLoading } = usePaginatedContacts({
+    industry: industryFilter,
+    status: statusFilter,
+    state: stateFilter,
+    appointmentOutcome: appointmentOutcomeFilter,
+    search: debouncedSearch,
+    page,
+    pageSize: CONTACTS_PER_PAGE,
+  });
+
+  const contacts = data?.contacts ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
+
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
   const createPipelineItem = useCreatePipelineItem();
@@ -300,33 +320,11 @@ export default function ContactsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const filtered = useMemo(() => {
-    return contacts.filter((c) => {
-      const normalizedState = c.state?.trim().toLowerCase() ?? "";
-      const normalizedSearch = search.toLowerCase();
-      const matchesSearch =
-        !search ||
-        c.business_name.toLowerCase().includes(normalizedSearch) ||
-        c.contact_person?.toLowerCase().includes(normalizedSearch) ||
-        c.phone.includes(search) ||
-        c.email?.toLowerCase().includes(normalizedSearch);
-      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-      const matchesState = stateFilter === "all" || AUSTRALIAN_STATE_ALIASES[stateFilter]?.includes(normalizedState);
-      const matchesOutcome = appointmentOutcomeFilter === "all" || c.latest_appointment_outcome === appointmentOutcomeFilter;
-      return matchesSearch && matchesStatus && matchesState && matchesOutcome;
-    });
-  }, [contacts, search, statusFilter, stateFilter, appointmentOutcomeFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PER_PAGE));
-  const paginatedContacts = useMemo(() => {
-    const start = (page - 1) * CONTACTS_PER_PAGE;
-    return filtered.slice(start, start + CONTACTS_PER_PAGE);
-  }, [filtered, page]);
-
+  // Reset page when filters change
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [search, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
 
   useEffect(() => {
     if (page > totalPages) {
