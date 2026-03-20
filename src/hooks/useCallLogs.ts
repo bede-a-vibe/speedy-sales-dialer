@@ -267,6 +267,14 @@ export function useFollowUps() {
   });
 }
 
+// Client-side deduplication to prevent double-inserts from the dialer's fire-and-forget pattern
+const recentInserts = new Map<string, number>();
+const DEDUP_WINDOW_MS = 5_000;
+
+function deduplicationKey(contactId: string, userId: string) {
+  return `${contactId}::${userId}`;
+}
+
 export function useCreateCallLog() {
   const queryClient = useQueryClient();
 
@@ -279,6 +287,30 @@ export function useCreateCallLog() {
       follow_up_date?: string | null;
       dialpad_call_id?: string | null;
     }) => {
+      const key = deduplicationKey(log.contact_id, log.user_id);
+      const lastInsert = recentInserts.get(key);
+      const now = Date.now();
+
+      if (lastInsert && now - lastInsert < DEDUP_WINDOW_MS) {
+        console.warn("[useCreateCallLog] Duplicate insert suppressed for", key);
+        // Return a minimal object so onSuccess still runs without error
+        const { data: existing } = await supabase
+          .from("call_logs")
+          .select("*")
+          .eq("contact_id", log.contact_id)
+          .eq("user_id", log.user_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (existing) return existing as CallLogWithContact;
+      }
+
+      recentInserts.set(key, now);
+      // Prune old entries
+      for (const [k, ts] of recentInserts) {
+        if (now - ts > DEDUP_WINDOW_MS * 2) recentInserts.delete(k);
+      }
+
       const { data, error } = await supabase
         .from("call_logs")
         .insert([log])
@@ -288,7 +320,9 @@ export function useCreateCallLog() {
       return data as CallLogWithContact;
     },
     onSuccess: (createdLog) => {
-      injectCallLogIntoCache(queryClient, createdLog);
+      if (createdLog) {
+        injectCallLogIntoCache(queryClient, createdLog);
+      }
       queryClient.invalidateQueries({ queryKey: ["call-logs"] });
       queryClient.invalidateQueries({ queryKey: ["call-logs-range"] });
       queryClient.invalidateQueries({ queryKey: ["follow-ups"] });
