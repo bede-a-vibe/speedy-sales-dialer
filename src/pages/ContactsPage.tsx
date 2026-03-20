@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3 } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-import { useUpdateContact, usePaginatedContacts } from "@/hooks/useContacts";
+import { useUpdateContact, useCreateContact, usePaginatedContacts } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -281,6 +281,28 @@ export default function ContactsPage() {
   const [page, setPage] = useState(1);
   const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
   const [newStatus, setNewStatus] = useState("");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState<{
+    business_name: string;
+    contact_person: string;
+    phone: string;
+    email: string;
+    industry: string;
+    website: string;
+    gmb_link: string;
+    city: string;
+    state: string;
+  }>({
+    business_name: "",
+    contact_person: "",
+    phone: "",
+    email: "",
+    industry: "",
+    website: "",
+    gmb_link: "",
+    city: "",
+    state: "",
+  });
 
   // Debounce search input
   useEffect(() => {
@@ -304,10 +326,55 @@ export default function ContactsPage() {
 
   const isAdmin = useIsAdmin();
   const updateContact = useUpdateContact();
+  const createContact = useCreateContact();
   const createPipelineItem = useCreatePipelineItem();
   const { data: reps = [] } = useSalesReps();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      business_name: "",
+      contact_person: "",
+      phone: "",
+      email: "",
+      industry: "",
+      website: "",
+      gmb_link: "",
+      city: "",
+      state: "",
+    });
+  };
+
+  const saveNewContact = async () => {
+    if (!createForm.business_name.trim() || !createForm.phone.trim() || !createForm.industry) {
+      toast.error("Business name, phone, and industry are required.");
+      return;
+    }
+    try {
+      await createContact.mutateAsync({
+        business_name: createForm.business_name.trim(),
+        phone: createForm.phone.trim(),
+        industry: createForm.industry,
+        contact_person: createForm.contact_person.trim() || null,
+        email: createForm.email.trim() || null,
+        website: createForm.website.trim() || null,
+        gmb_link: createForm.gmb_link.trim() || null,
+        city: createForm.city.trim() || null,
+        state: createForm.state.trim() || null,
+      });
+      toast.success("Contact created.");
+      setShowCreateDialog(false);
+      resetCreateForm();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create contact.";
+      if (msg.includes("idx_contacts_business_phone") || msg.includes("duplicate key")) {
+        toast.error("A contact with this business name and phone already exists.");
+      } else {
+        toast.error(msg);
+      }
+    }
+  };
 
   // Reset page when filters change
   useEffect(() => {
@@ -507,6 +574,11 @@ export default function ContactsPage() {
           </Select>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground">{totalCount} contacts · page {page} of {totalPages}</span>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => { resetCreateForm(); setShowCreateDialog(true); }} className="border-border">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />New Contact
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
@@ -698,6 +770,25 @@ export default function ContactsPage() {
                 </Button>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Contact Dialog */}
+        <Dialog open={showCreateDialog} onOpenChange={(open) => !open && setShowCreateDialog(false)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader><DialogTitle>New Contact</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Business Name *</Label><Input value={createForm.business_name} onChange={(e) => setCreateForm({ ...createForm, business_name: e.target.value })} className="border-border bg-card" placeholder="Acme Plumbing" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Contact Person</Label><Input value={createForm.contact_person} onChange={(e) => setCreateForm({ ...createForm, contact_person: e.target.value })} className="border-border bg-card" placeholder="John Smith" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone *</Label><Input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} className="border-border bg-card font-mono" placeholder="+61 400 000 000" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Email</Label><Input value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} className="border-border bg-card" placeholder="john@acme.com" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Industry *</Label><Select value={createForm.industry} onValueChange={(v) => setCreateForm({ ...createForm, industry: v })}><SelectTrigger className="border-border bg-card"><SelectValue placeholder="Select industry" /></SelectTrigger><SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Website</Label><Input value={createForm.website} onChange={(e) => setCreateForm({ ...createForm, website: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={createForm.gmb_link} onChange={(e) => setCreateForm({ ...createForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} className="border-border bg-card" /></div>
+              <div className="col-span-2"><Button onClick={saveNewContact} disabled={createContact.isPending} className="w-full font-semibold">{createContact.isPending ? "Creating…" : "Create Contact"}</Button></div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

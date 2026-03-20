@@ -658,6 +658,37 @@ export function useDeleteContact() {
   });
 }
 
+export function useCreateContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (contact: {
+      business_name: string;
+      phone: string;
+      industry: string;
+      contact_person?: string | null;
+      email?: string | null;
+      website?: string | null;
+      gmb_link?: string | null;
+      city?: string | null;
+      state?: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .insert(contact)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+    },
+  });
+}
+
 export function useClearOwnDialerLeadLocks() {
   const queryClient = useQueryClient();
 
