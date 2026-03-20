@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { Button } from "@/components/ui/button";
