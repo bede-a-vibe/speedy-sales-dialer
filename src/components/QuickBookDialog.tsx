@@ -126,6 +126,34 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     };
   }, [query, open]);
 
+  const handleCreateContact = useCallback(async () => {
+    if (!newContact.business_name.trim() || !newContact.phone.trim() || !newContact.industry) {
+      toast.error("Business name, phone, and industry are required.");
+      return;
+    }
+    try {
+      const created = await createContactMutation.mutateAsync({
+        business_name: newContact.business_name.trim(),
+        phone: newContact.phone.trim(),
+        industry: newContact.industry,
+        contact_person: newContact.contact_person.trim() || null,
+        email: newContact.email.trim() || null,
+        city: newContact.city.trim() || null,
+        state: newContact.state.trim() || null,
+      });
+      toast.success("Contact created.");
+      setSelectedContact(created as Contact);
+      setShowCreateForm(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create contact.";
+      if (msg.includes("idx_contacts_business_phone") || msg.includes("duplicate key")) {
+        toast.error("A contact with this business name and phone already exists.");
+      } else {
+        toast.error(msg);
+      }
+    }
+  }, [newContact, createContactMutation]);
+
   const handleBookedDateDetected = useCallback((date: Date) => {
     setScheduledDate(date);
     setIsBookedDateAutoDetected(true);
