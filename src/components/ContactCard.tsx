@@ -1,4 +1,4 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText } from "lucide-react";
 
 interface ContactCardProps {
   contact: {
@@ -11,12 +11,23 @@ interface ContactCardProps {
     industry: string;
     city: string | null;
     state: string | null;
+    follow_up_note?: string | null;
   };
 }
 
 export function ContactCard({ contact }: ContactCardProps) {
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      {contact.follow_up_note && (
+        <div className="flex items-start gap-2.5 bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-200">
+          <MessageSquareText className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
+          <div>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-amber-400 mb-0.5">Follow-up Note</p>
+            <p className="text-sm leading-snug">{contact.follow_up_note}</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-lg font-bold text-foreground">{contact.business_name}</h3>

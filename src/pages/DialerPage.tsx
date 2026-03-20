@@ -199,6 +199,7 @@ export default function DialerPage() {
             status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
+            follow_up_note: null,
           }),
         ]);
 
