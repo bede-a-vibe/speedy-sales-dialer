@@ -1,57 +1,29 @@
 
 
-## Deduplicate Contacts
+## Add Create Contact + Enhance Edit Contact
 
-**Problem**: 20,881 duplicate rows (40% of 51,898 contacts) based on matching `business_name` + `phone`.
+### What exists today
+- An **Edit Contact** dialog already lets users update all fields including `contact_person`, phone, email, etc.
+- Only **admins** can insert new contacts (per RLS policy). All authenticated users can update.
 
-### Approach
+### Changes
 
-Run a single database migration that keeps the oldest record per `(business_name, phone)` group (preserving any that have been called/actioned) and deletes the rest.
+**1. Add "Create Contact" button and dialog to ContactsPage**
 
-### Steps
+Add a "+ New Contact" button next to the Export button (visible to admins only). Clicking it opens a dialog with the same form fields as the edit dialog (business name, contact person, phone, email, industry, website, GMB link, city, state). On submit, insert into `contacts` via Supabase. Required fields: business_name, phone, industry.
 
-**1. Migration: Delete duplicate contacts**
+**2. Add a `useCreateContact` mutation hook to `useContacts.ts`**
 
-SQL logic:
-- For each duplicate group, keep the row that has activity (non-`uncalled` status, or call logs) — if none have activity, keep the oldest (`min(created_at)`)
-- Delete all other rows in each group
-- Before deleting, verify no `call_logs`, `pipeline_items`, or `contact_notes` reference the rows being removed (orphan safety)
+A simple mutation that inserts a new contact row and invalidates relevant query keys.
 
-```sql
--- Delete duplicates, keeping the "best" row per (business_name, phone)
-DELETE FROM contacts
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id,
-      ROW_NUMBER() OVER (
-        PARTITION BY business_name, phone
-        ORDER BY
-          CASE WHEN status != 'uncalled' THEN 0 ELSE 1 END,
-          created_at ASC
-      ) AS rn
-    FROM contacts
-  ) ranked
-  WHERE rn > 1
-    AND id NOT IN (SELECT DISTINCT contact_id FROM call_logs)
-    AND id NOT IN (SELECT DISTINCT contact_id FROM pipeline_items)
-    AND id NOT IN (SELECT DISTINCT contact_id FROM contact_notes)
-);
-```
+**3. Minor edit dialog improvements**
 
-**2. Migration: Add unique constraint to prevent future duplicates**
+The edit dialog already has all the fields. No structural changes needed — it already supports changing `contact_person` (the "boss"). Just ensure it's clearly labeled.
 
-```sql
-CREATE UNIQUE INDEX idx_contacts_business_phone
-ON contacts (business_name, phone);
-```
+### Technical details
 
-This prevents the same contact from being imported again.
-
-**3. Update import logic** (minor)
-
-Update `src/pages/UploadPage.tsx` to use `ON CONFLICT` (or catch unique-violation errors gracefully) so future uploads skip existing contacts instead of failing.
-
-### Summary
-- **1 migration**: Delete ~20,881 duplicate rows + add unique index
-- **1 file edit**: `UploadPage.tsx` — handle unique constraint on import
+- **RLS**: Admins can insert contacts (existing policy). The create button will only show for admins.
+- **Unique constraint**: `(business_name, phone)` exists — the insert will fail gracefully if a duplicate is attempted; we'll show a toast error.
+- **New hook**: `useCreateContact()` in `src/hooks/useContacts.ts`
+- **Files changed**: `src/hooks/useContacts.ts` (add hook), `src/pages/ContactsPage.tsx` (add button + dialog)
 
