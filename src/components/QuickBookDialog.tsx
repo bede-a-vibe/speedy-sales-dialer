@@ -40,10 +40,23 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
 
+  const isAdmin = useIsAdmin();
+  const createContactMutation = useCreateContact();
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Contact[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newContact, setNewContact] = useState({
+    business_name: "",
+    contact_person: "",
+    phone: "",
+    email: "",
+    industry: "",
+    city: "",
+    state: "",
+  });
 
   const [pipelineType, setPipelineType] = useState<PipelineType>("booked");
   const [assignedRepId, setAssignedRepId] = useState("");
