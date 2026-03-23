@@ -35,6 +35,7 @@ interface PipelineItemCardProps {
     notes: string,
     scheduledFor?: string,
     dealValue?: number,
+    followUpDate?: string,
   ) => Promise<void>;
 }
 
