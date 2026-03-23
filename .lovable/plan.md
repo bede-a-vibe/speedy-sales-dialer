@@ -1,55 +1,55 @@
 
 
-## CRM Improvements: Contact Detail Page + Dashboard Quick Stats
+## Problem Analysis
 
-### 1. Contact Detail Page (`/contacts/:id`)
+Two issues identified from the screenshot and your description:
 
-Create a dedicated full-page view for a single contact that consolidates all information in one place.
+1. **Outcome buttons not working correctly** — When clicking "No Show", "Verbal Commitment", "Showed - Closed", or "Showed - No Close", the appointment is immediately marked as `completed` and disappears from the Booked tab into the History tab. There's no confirmation step and no way to add follow-up actions before the item vanishes.
 
-**New file: `src/pages/ContactDetailPage.tsx`**
-- Fetch contact by ID from URL param using `supabase.from("contacts").select("*").eq("id", id).single()`
-- Layout sections:
-  - **Header**: Business name, industry badge, status badge, contact person, phone (click-to-call), email, website, GMB link, location
-  - **Actions bar**: Edit button (opens existing edit dialog logic), Mark DNC toggle, Quick Book button
-  - **Two-column layout below**:
-    - **Left column**: Call history (reuse `useContactCallLogs`), Notes timeline (reuse `usePaginatedContactNotes`) with inline "add note" textarea
-    - **Right column**: Pipeline items timeline (reuse `useContactPipelineItems`), contact metadata (created date, call attempt count, last outcome)
-- Back button to return to `/contacts`
+2. **No follow-up scheduling per scenario** — After recording an outcome (e.g., No Show → schedule a callback, Verbal Commitment → follow up in 2 days, Showed - No Close → follow up next week), there's no way to create a follow-up pipeline item tied to that appointment.
 
-**Routing (`src/components/ProtectedApp.tsx`)**:
-- Add route: `<Route path="/contacts/:id" element={<ContactDetailPage />} />`
+## Plan
 
-**Link from ContactsPage**:
-- Make the business name in each contact row a clickable `<Link to={/contacts/${id}>` so users can navigate to the detail page
+### 1. Add follow-up scheduling to the BookedOutcomePanel
 
-### 2. Dashboard Quick Stats
+Modify `BookedOutcomePanel.tsx` to include an optional follow-up date/time picker that appears for all outcome types (not just reschedule). When a follow-up date is set alongside an outcome, the system will create a new `follow_up` pipeline item for that contact after recording the outcome.
 
-Add an actionable stats row to the dashboard between the greeting and achievements sections.
+- Add a "Schedule Follow-up" toggle/section with a date picker and optional time
+- This is independent of the outcome — you can mark "No Show" AND schedule a follow-up call
 
-**New file: `src/components/dashboard/DashboardQuickStats.tsx`**
-- Fetch data using existing hooks:
-  - `usePipelineItems("follow_up", "open")` — count items where `scheduled_for <= today`
-  - `usePipelineItems("booked", "open")` — count items where `scheduled_for <= today` (overdue) or today
-  - `useCallLogs()` — derive "calls today" count (already available via `useTodayCallCount`)
-- Display 3-4 cards:
-  - **Follow-ups Due Today** — count + link to `/pipelines?tab=follow_up`
-  - **Overdue Appointments** — count + link to `/pipelines?tab=booked`
-  - **Today's Bookings** — count of booked items scheduled today
-  - **Calls Made Today** — already shown in progress ring, but a quick numeric card links to `/reports`
-- Each card is clickable, navigating to the relevant page
+### 2. Update the outcome handler to create follow-up items
 
-**Integration (`src/pages/DashboardPage.tsx`)**:
-- Insert `<DashboardQuickStats />` between `<DashboardGreeting />` and `<DailyAchievements />`
+Modify `handleBookedOutcome` in `PipelinesPage.tsx` to:
+- Accept an optional `followUpDate` parameter
+- After recording the outcome, create a new `follow_up` pipeline item via `useCreatePipelineItem` if a follow-up date was provided
+- The follow-up will reference the same contact and carry the outcome notes forward
 
-### Files to create/edit
+### 3. Wire up the BookedOutcomePanel callback
 
-| File | Action |
-|------|--------|
-| `src/pages/ContactDetailPage.tsx` | Create — full contact detail page |
-| `src/components/dashboard/DashboardQuickStats.tsx` | Create — quick stats row |
-| `src/components/ProtectedApp.tsx` | Edit — add `/contacts/:id` route |
-| `src/pages/ContactsPage.tsx` | Edit — link business names to detail page |
-| `src/pages/DashboardPage.tsx` | Edit — add DashboardQuickStats component |
+Update the `onRecordOutcome` prop signature and `BookedOutcomePanelProps` to pass through the follow-up date. The `BookedOutcomePanel` will collect the follow-up date locally and pass it when any outcome button is clicked.
 
-No database changes required — all data is already available via existing tables and hooks.
+### Technical Details
+
+**Files to modify:**
+- `src/components/pipelines/BookedOutcomePanel.tsx` — Add follow-up date picker UI, pass follow-up date in callback
+- `src/components/pipelines/BookedAppointmentsTable.tsx` — Update prop types to include follow-up date
+- `src/pages/PipelinesPage.tsx` — Import `useCreatePipelineItem`, update `handleBookedOutcome` to create a follow-up item when date is provided, get current user ID from `useAuth`
+- `src/lib/appointments.ts` — Update the `onRecordOutcome` type if needed
+
+**New UI flow:**
+```text
+┌─────────────────────────────────────────────┐
+│ [Notes textarea]                            │
+│ [$] Deal value                              │
+│ ☐ Schedule follow-up  [Pick date] [Time]    │
+│                                             │
+│ [Reschedule] [Mar 23] [No Show]             │
+│ [Verbal Commitment] [$ Closed] [No Close]   │
+└─────────────────────────────────────────────┘
+```
+
+When "Schedule follow-up" is checked and a date is picked, clicking any outcome button will:
+1. Record the outcome on the booked appointment (mark completed)
+2. Create a new `follow_up` pipeline item for that contact with the selected date
+3. Show a toast confirming both actions
 
