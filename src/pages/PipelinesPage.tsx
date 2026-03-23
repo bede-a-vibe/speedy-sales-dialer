@@ -212,7 +212,8 @@ export default function PipelinesPage() {
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
-  
+  const createPipelineItem = useCreatePipelineItem();
+  const { user } = useAuth();
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
