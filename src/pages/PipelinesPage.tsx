@@ -276,6 +276,7 @@ export default function PipelinesPage() {
     notes: string,
     scheduledFor?: string,
     dealValue?: number,
+    followUpDate?: string,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -294,18 +295,31 @@ export default function PipelinesPage() {
         });
 
         toast.success("Appointment rescheduled.");
-        return;
+      } else {
+        await updatePipelineItem.mutateAsync({
+          id: item.id,
+          appointment_outcome: outcome,
+          outcome_notes: notes,
+          status: "completed",
+          ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
+        });
+
+        toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
       }
 
-      await updatePipelineItem.mutateAsync({
-        id: item.id,
-        appointment_outcome: outcome,
-        outcome_notes: notes,
-        status: "completed",
-        ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
-      });
-
-      toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
+      // Create a follow-up pipeline item if requested
+      if (followUpDate && user) {
+        await createPipelineItem.mutateAsync({
+          contact_id: item.contact_id,
+          pipeline_type: "follow_up",
+          assigned_user_id: item.assigned_user_id,
+          created_by: user.id,
+          scheduled_for: followUpDate,
+          notes: notes ? `Follow-up: ${notes}` : `Follow-up after ${getAppointmentOutcomeLabel(outcome)}`,
+          status: "open",
+        });
+        toast.success("Follow-up scheduled.");
+      }
     } catch {
       toast.error("Failed to update appointment outcome.");
     }
