@@ -12,8 +12,10 @@ import {
   usePipelineItems,
   useSalesReps,
   useUpdatePipelineItem,
+  useCreatePipelineItem,
   type PipelineItemWithRelations,
 } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
