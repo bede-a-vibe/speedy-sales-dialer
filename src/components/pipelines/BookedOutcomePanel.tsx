@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,6 +30,7 @@ interface BookedOutcomePanelProps {
     notes: string,
     scheduledFor?: string,
     dealValue?: number,
+    followUpDate?: string,
   ) => Promise<void>;
 }
 
@@ -38,6 +40,23 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   );
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
   const [dealValue, setDealValue] = useState("");
+  const [wantsFollowUp, setWantsFollowUp] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [followUpTime, setFollowUpTime] = useState("09:00");
+
+  const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
+
+  const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
+    const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
+    onRecordOutcome(
+      item,
+      outcome,
+      outcomeNotes,
+      scheduledFor,
+      val,
+      wantsFollowUp && followUpIso ? followUpIso : undefined,
+    );
+  };
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-background/60 p-4">
@@ -79,12 +98,53 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         />
       </div>
 
+      {/* Follow-up scheduling */}
+      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Checkbox
+            checked={wantsFollowUp}
+            onCheckedChange={(checked) => setWantsFollowUp(checked === true)}
+          />
+          <CalendarPlus className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">Schedule follow-up</span>
+        </label>
+
+        {wantsFollowUp && (
+          <div className="flex flex-wrap items-center gap-2 pl-6">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
+                  <CalendarPlus className="h-4 w-4" />
+                  {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={followUpDate}
+                  onSelect={setFollowUpDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={followUpTime}
+              onChange={(e) => setFollowUpTime(e.target.value)}
+              className="w-[120px] bg-background"
+            />
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
           variant="secondary"
           onClick={() =>
             rescheduleDate &&
-            onRecordOutcome(item, "rescheduled", outcomeNotes, combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME))
+            fireOutcome("rescheduled", combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME))
           }
           disabled={!rescheduleDate || isSaving}
           size="sm"
@@ -110,25 +170,22 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             />
           </PopoverContent>
         </Popover>
-        <Button variant="outline" size="sm" onClick={() => onRecordOutcome(item, "no_show", outcomeNotes)} disabled={isSaving}>
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("no_show")} disabled={isSaving}>
           No Show
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onRecordOutcome(item, "showed_verbal_commitment", outcomeNotes)} disabled={isSaving}>
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_verbal_commitment")} disabled={isSaving}>
           Verbal Commitment
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            const val = dealValue ? parseFloat(dealValue) : undefined;
-            onRecordOutcome(item, "showed_closed", outcomeNotes, undefined, val);
-          }}
+          onClick={() => fireOutcome("showed_closed")}
           disabled={isSaving}
         >
           <DollarSign className="h-4 w-4" />
           Showed - Closed
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onRecordOutcome(item, "showed_no_close", outcomeNotes)} disabled={isSaving}>
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_no_close")} disabled={isSaving}>
           Showed - No Close
         </Button>
       </div>

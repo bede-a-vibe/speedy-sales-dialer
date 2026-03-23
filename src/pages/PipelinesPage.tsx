@@ -12,8 +12,10 @@ import {
   usePipelineItems,
   useSalesReps,
   useUpdatePipelineItem,
+  useCreatePipelineItem,
   type PipelineItemWithRelations,
 } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -210,7 +212,8 @@ export default function PipelinesPage() {
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
-  
+  const createPipelineItem = useCreatePipelineItem();
+  const { user } = useAuth();
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -273,6 +276,7 @@ export default function PipelinesPage() {
     notes: string,
     scheduledFor?: string,
     dealValue?: number,
+    followUpDate?: string,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -291,18 +295,31 @@ export default function PipelinesPage() {
         });
 
         toast.success("Appointment rescheduled.");
-        return;
+      } else {
+        await updatePipelineItem.mutateAsync({
+          id: item.id,
+          appointment_outcome: outcome,
+          outcome_notes: notes,
+          status: "completed",
+          ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
+        });
+
+        toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
       }
 
-      await updatePipelineItem.mutateAsync({
-        id: item.id,
-        appointment_outcome: outcome,
-        outcome_notes: notes,
-        status: "completed",
-        ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
-      });
-
-      toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
+      // Create a follow-up pipeline item if requested
+      if (followUpDate && user) {
+        await createPipelineItem.mutateAsync({
+          contact_id: item.contact_id,
+          pipeline_type: "follow_up",
+          assigned_user_id: item.assigned_user_id,
+          created_by: user.id,
+          scheduled_for: followUpDate,
+          notes: notes ? `Follow-up: ${notes}` : `Follow-up after ${getAppointmentOutcomeLabel(outcome)}`,
+          status: "open",
+        });
+        toast.success("Follow-up scheduled.");
+      }
     } catch {
       toast.error("Failed to update appointment outcome.");
     }
