@@ -487,42 +487,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_dialer_leads:
-        | {
-            Args: {
-              _claim_size?: number
-              _industry?: string
-              _lock_minutes?: number
-              _session_id: string
-              _state?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _claim_size?: number
-              _cooldown_minutes?: number
-              _industry?: string
-              _lock_minutes?: number
-              _session_id: string
-              _state?: string
-            }
-            Returns: Json
-          }
-      get_dialer_queue_count:
-        | {
-            Args: { _industry?: string; _session_id: string; _state?: string }
-            Returns: number
-          }
-        | {
-            Args: {
-              _cooldown_minutes?: number
-              _industry?: string
-              _session_id: string
-              _state?: string
-            }
-            Returns: number
-          }
+      claim_dialer_leads: {
+        Args: {
+          _claim_size?: number
+          _cooldown_minutes?: number
+          _industry?: string
+          _lock_minutes?: number
+          _session_id: string
+          _state?: string
+        }
+        Returns: Json
+      }
+      get_dialer_queue_count: {
+        Args: {
+          _cooldown_minutes?: number
+          _industry?: string
+          _session_id: string
+          _state?: string
+        }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
