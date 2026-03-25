@@ -138,14 +138,14 @@ export function InlineBookingEmbed({ className, onDetectedDate }: InlineBookingE
   }, [onDetectedDate]);
 
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border bg-background", className)}>
+    <div className={cn("overflow-auto rounded-lg border border-border bg-background", className)} style={{ maxHeight: "80vh" }}>
       <iframe
         id={iframeId}
         title="Appointment booking calendar"
         src={LEADCONNECTOR_BOOKING_SRC}
         className="w-full border-0"
-        style={{ minHeight: "720px", overflow: "hidden" }}
-        scrolling="no"
+        style={{ minHeight: "720px" }}
+        allow="clipboard-write"
       />
     </div>
   );
