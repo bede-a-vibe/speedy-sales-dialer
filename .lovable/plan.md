@@ -1,55 +1,76 @@
 
 
-## Problem Analysis
+## Diagnosis
 
-Two issues identified from the screenshot and your description:
+The dialer queue is working as designed, but the design lacks a **recency cooldown**. Here's what happens:
 
-1. **Outcome buttons not working correctly** — When clicking "No Show", "Verbal Commitment", "Showed - Closed", or "Showed - No Close", the appointment is immediately marked as `completed` and disappears from the Booked tab into the History tab. There's no confirmation step and no way to add follow-up actions before the item vanishes.
+1. You call a lead with `call_attempt_count = 1` and log "No Answer"
+2. The lead stays `status = 'uncalled'` and its `call_attempt_count` increments to `2`
+3. The lock is released immediately when you log the outcome
+4. On the next buffer refill, if most remaining leads have `call_attempt_count >= 2`, that same lead is eligible again — potentially within minutes
 
-2. **No follow-up scheduling per scenario** — After recording an outcome (e.g., No Show → schedule a callback, Verbal Commitment → follow up in 2 days, Showed - No Close → follow up next week), there's no way to create a follow-up pipeline item tied to that appointment.
+There is no `last_called_at` timestamp or cooldown window, so recently-called leads can be re-served in the same session.
 
 ## Plan
 
-### 1. Add follow-up scheduling to the BookedOutcomePanel
+### 1. Add a `last_called_at` column to `contacts`
 
-Modify `BookedOutcomePanel.tsx` to include an optional follow-up date/time picker that appears for all outcome types (not just reschedule). When a follow-up date is set alongside an outcome, the system will create a new `follow_up` pipeline item for that contact after recording the outcome.
+Add a migration to create a `last_called_at` timestamp column on `contacts`, and update the existing `sync_contact_call_attempt_count` trigger to also set `last_called_at = now()` on INSERT.
 
-- Add a "Schedule Follow-up" toggle/section with a date picker and optional time
-- This is independent of the outcome — you can mark "No Show" AND schedule a follow-up call
+### 2. Update `claim_dialer_leads` to enforce a cooldown
 
-### 2. Update the outcome handler to create follow-up items
+Modify the SQL function to exclude contacts where `last_called_at` is within a configurable cooldown window (e.g., 2 hours). Add a new parameter `_cooldown_minutes` (default 120) and filter: `AND (c.last_called_at IS NULL OR c.last_called_at < now() - make_interval(mins => _cooldown_minutes))`.
 
-Modify `handleBookedOutcome` in `PipelinesPage.tsx` to:
-- Accept an optional `followUpDate` parameter
-- After recording the outcome, create a new `follow_up` pipeline item via `useCreatePipelineItem` if a follow-up date was provided
-- The follow-up will reference the same contact and carry the outcome notes forward
+### 3. Update `get_dialer_queue_count` to match
 
-### 3. Wire up the BookedOutcomePanel callback
+Apply the same cooldown filter to the queue count function so the preview count accurately reflects available leads.
 
-Update the `onRecordOutcome` prop signature and `BookedOutcomePanelProps` to pass through the follow-up date. The `BookedOutcomePanel` will collect the follow-up date locally and pass it when any outcome button is clicked.
+### 4. Pass cooldown parameter from the frontend (optional)
+
+The default of 120 minutes will work without frontend changes. If you want it configurable, add a UI control on the dialer settings page.
 
 ### Technical Details
 
-**Files to modify:**
-- `src/components/pipelines/BookedOutcomePanel.tsx` — Add follow-up date picker UI, pass follow-up date in callback
-- `src/components/pipelines/BookedAppointmentsTable.tsx` — Update prop types to include follow-up date
-- `src/pages/PipelinesPage.tsx` — Import `useCreatePipelineItem`, update `handleBookedOutcome` to create a follow-up item when date is provided, get current user ID from `useAuth`
-- `src/lib/appointments.ts` — Update the `onRecordOutcome` type if needed
+**Migration SQL (new column + updated trigger):**
+```sql
+ALTER TABLE public.contacts
+ADD COLUMN IF NOT EXISTS last_called_at timestamptz;
 
-**New UI flow:**
-```text
-┌─────────────────────────────────────────────┐
-│ [Notes textarea]                            │
-│ [$] Deal value                              │
-│ ☐ Schedule follow-up  [Pick date] [Time]    │
-│                                             │
-│ [Reschedule] [Mar 23] [No Show]             │
-│ [Verbal Commitment] [$ Closed] [No Close]   │
-└─────────────────────────────────────────────┘
+-- Backfill from most recent call_log
+UPDATE public.contacts c
+SET last_called_at = sub.max_created
+FROM (
+  SELECT contact_id, MAX(created_at) AS max_created
+  FROM public.call_logs
+  GROUP BY contact_id
+) sub
+WHERE c.id = sub.contact_id;
+
+-- Update trigger to set last_called_at
+CREATE OR REPLACE FUNCTION public.sync_contact_call_attempt_count()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = 'public' AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE public.contacts
+    SET call_attempt_count = COALESCE(call_attempt_count, 0) + 1,
+        last_called_at = now(),
+        updated_at = now()
+    WHERE id = NEW.contact_id;
+  -- ... keep existing DELETE/UPDATE logic
+  END IF;
+  RETURN NULL;
+END;
+$$;
 ```
 
-When "Schedule follow-up" is checked and a date is picked, clicking any outcome button will:
-1. Record the outcome on the booked appointment (mark completed)
-2. Create a new `follow_up` pipeline item for that contact with the selected date
-3. Show a toast confirming both actions
+**Updated `claim_dialer_leads` filter (add to the `visible_contacts` CTE WHERE clause):**
+```sql
+AND (c.last_called_at IS NULL
+     OR c.last_called_at < now() - make_interval(mins => _cooldown_minutes))
+```
+
+**Files to modify:**
+- New database migration (add column, backfill, update trigger, update both RPC functions)
+- No frontend code changes needed — the cooldown is enforced server-side
 
