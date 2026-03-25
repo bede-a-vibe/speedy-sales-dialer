@@ -334,8 +334,8 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             </div>
           </ScrollArea>
         ) : (
-          <ScrollArea className="flex-1 max-h-[calc(90vh-120px)]">
-            <div className="space-y-4 pr-2">
+          <div className="flex-1 overflow-y-auto pr-2">
+            <div className="space-y-4 pb-1">
               {/* Selected contact summary */}
               <div className="rounded-lg border border-border bg-card p-4">
                 <div className="flex items-start justify-between">
@@ -480,7 +480,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 {isBooked ? "Create Booking" : "Create Follow-up"}
               </Button>
             </div>
-          </ScrollArea>
+          </div>
         )}
       </DialogContent>
     </Dialog>
