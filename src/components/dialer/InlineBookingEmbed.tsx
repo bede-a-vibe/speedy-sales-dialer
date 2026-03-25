@@ -144,8 +144,9 @@ export function InlineBookingEmbed({ className, onDetectedDate }: InlineBookingE
         title="Appointment booking calendar"
         src={LEADCONNECTOR_BOOKING_SRC}
         className="w-full border-0"
-        style={{ minHeight: "720px" }}
+        style={{ height: "1200px" }}
         allow="clipboard-write"
+        scrolling="auto"
       />
     </div>
   );
