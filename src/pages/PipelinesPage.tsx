@@ -339,38 +339,7 @@ export default function PipelinesPage() {
     [booked],
   );
 
-  const renderOpenItems = (items: PipelineItemWithRelations[], type: "follow_up" | "booked") => {
-    if ((type === "follow_up" && followUpsLoading) || (type === "booked" && bookedLoading)) {
-      return <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>;
-    }
-
-    if (items.length === 0) {
-      return <div className="py-20 text-center text-sm text-muted-foreground">No open {type === "follow_up" ? "follow-ups" : "booked appointments"}.</div>;
-    }
-
-    return (
-      <div className="space-y-3">
-        {items.map((item) => (
-          <PipelineItemCard
-            key={item.id}
-            item={item}
-            repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
-            setterName={type === "booked" ? (repMap.get(item.created_by) || "Unknown rep") : undefined}
-            reps={reps}
-            isSaving={updatePipelineItem.isPending}
-            onComplete={handleComplete}
-            onAssign={handleAssign}
-            onReschedule={type === "follow_up" ? handleReschedule : undefined}
-            onRecordBookedOutcome={type === "booked" ? handleBookedOutcome : undefined}
-            onChangeMethod={type === "follow_up" ? async (id, method) => {
-              await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
-              toast.success(`Follow-up type changed to ${method}`);
-            } : undefined}
-          />
-        ))}
-      </div>
-    );
-  };
+  
 
   const renderHistory = () => {
     if (historyLoading) {
