@@ -15,6 +15,7 @@ export interface PipelineItemInsert {
   scheduled_for?: string | null;
   notes?: string;
   status?: PipelineStatus;
+  follow_up_method?: FollowUpMethod;
 }
 
 export interface PipelineItemUpdate {
