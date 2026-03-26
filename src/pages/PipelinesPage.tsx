@@ -219,10 +219,7 @@ export default function PipelinesPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
 
-  const filteredFollowUps = useMemo(() => {
-    if (followUpMethodFilter === "all") return followUps;
-    return followUps.filter((item) => (item.follow_up_method || "call") === followUpMethodFilter);
-  }, [followUps, followUpMethodFilter]);
+  
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
