@@ -38,6 +38,7 @@ interface PipelineItemCardProps {
     dealValue?: number,
     followUpDate?: string,
   ) => Promise<void>;
+  onChangeMethod?: (id: string, method: FollowUpMethod) => Promise<void>;
 }
 
 export function PipelineItemCard({
