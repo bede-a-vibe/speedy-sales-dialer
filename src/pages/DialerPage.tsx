@@ -216,6 +216,7 @@ export default function DialerPage() {
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
+            ...(outcomeToLog === "follow_up" ? { follow_up_method: method } : {}),
           });
         }
 
