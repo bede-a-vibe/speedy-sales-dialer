@@ -177,6 +177,7 @@ export default function DialerPage() {
     }
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
+    setFollowUpMethod("call");
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
