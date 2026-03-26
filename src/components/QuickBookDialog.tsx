@@ -9,7 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
-import { useSalesReps, useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
+import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -61,6 +62,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   });
 
   const [pipelineType, setPipelineType] = useState<PipelineType>("booked");
+  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
   const [assignedRepId, setAssignedRepId] = useState("");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
@@ -83,6 +85,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setShowCreateForm(false);
       setNewContact({ business_name: "", contact_person: "", phone: "", email: "", industry: "", city: "", state: "" });
       setPipelineType("booked");
+      setFollowUpMethod("call");
       setScheduledDate(undefined);
       setScheduledTime("09:00");
       setNotes("");
@@ -184,6 +187,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         created_by: user.id,
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
+        ...(pipelineType === "follow_up" ? { follow_up_method: followUpMethod } : {}),
       });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
@@ -373,6 +377,16 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+
+              {/* Follow-up method selector — only for follow-up type */}
+              {pipelineType === "follow_up" && (
+                <div>
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Follow-up Type
+                  </label>
+                  <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                </div>
+              )}
 
               {/* Assigned rep */}
               <div>

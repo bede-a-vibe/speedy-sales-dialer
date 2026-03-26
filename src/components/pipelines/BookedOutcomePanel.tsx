@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
-import type { PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipelineItems";
+import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
+import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -31,6 +32,7 @@ interface BookedOutcomePanelProps {
     scheduledFor?: string,
     dealValue?: number,
     followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
   ) => Promise<void>;
 }
 
@@ -43,6 +45,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [followUpTime, setFollowUpTime] = useState("09:00");
+  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
 
@@ -55,6 +58,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       scheduledFor,
       val,
       wantsFollowUp && followUpIso ? followUpIso : undefined,
+      wantsFollowUp ? followUpMethod : undefined,
     );
   };
 
@@ -110,31 +114,34 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </label>
 
         {wantsFollowUp && (
-          <div className="flex flex-wrap items-center gap-2 pl-6">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
-                  <CalendarPlus className="h-4 w-4" />
-                  {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={followUpDate}
-                  onSelect={setFollowUpDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={followUpTime}
-              onChange={(e) => setFollowUpTime(e.target.value)}
-              className="w-[120px] bg-background"
-            />
+          <div className="flex flex-col gap-2 pl-6">
+            <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
+                    <CalendarPlus className="h-4 w-4" />
+                    {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={followUpDate}
+                    onSelect={setFollowUpDate}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                type="time"
+                value={followUpTime}
+                onChange={(e) => setFollowUpTime(e.target.value)}
+                className="w-[120px] bg-background"
+              />
+            </div>
           </div>
         )}
       </div>

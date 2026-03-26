@@ -367,6 +367,7 @@ export type Database = {
           created_at: string
           created_by: string
           deal_value: number | null
+          follow_up_method: string
           id: string
           notes: string
           outcome_notes: string
@@ -388,6 +389,7 @@ export type Database = {
           created_at?: string
           created_by: string
           deal_value?: number | null
+          follow_up_method?: string
           id?: string
           notes?: string
           outcome_notes?: string
@@ -409,6 +411,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           deal_value?: number | null
+          follow_up_method?: string
           id?: string
           notes?: string
           outcome_notes?: string

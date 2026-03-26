@@ -18,7 +18,8 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
-import { useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
+import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
+import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
@@ -61,6 +62,7 @@ export default function DialerPage() {
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
+  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
   const session = useDialerSession({ industry, stateFilter });
   const dialpad = useDialerDialpad({
@@ -163,6 +165,7 @@ export default function DialerPage() {
       : null;
     const pipelineNotes = session.notes;
     const repId = session.assignedRepId;
+    const method = followUpMethod;
 
     // Advance immediately
     const nextLength = session.queue.contacts.length - 1;
@@ -174,6 +177,7 @@ export default function DialerPage() {
     }
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
+    setFollowUpMethod("call");
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
@@ -213,6 +217,7 @@ export default function DialerPage() {
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
+            ...(outcomeToLog === "follow_up" ? { follow_up_method: method } : {}),
           });
         }
 
@@ -673,16 +678,24 @@ export default function DialerPage() {
               )}
 
               {session.selectedOutcome === "follow_up" && (
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Follow-up Notes
-                  </label>
-                  <Textarea
-                    value={session.notes}
-                    onChange={(e) => session.setNotes(e.target.value)}
-                    placeholder="Enter follow-up details..."
-                    className="min-h-[80px] resize-none border-border bg-background text-sm"
-                  />
+                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Follow-up Type
+                    </label>
+                    <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Follow-up Notes
+                    </label>
+                    <Textarea
+                      value={session.notes}
+                      onChange={(e) => session.setNotes(e.target.value)}
+                      placeholder="Enter follow-up details..."
+                      className="min-h-[80px] resize-none border-border bg-background text-sm"
+                    />
+                  </div>
                 </div>
               )}
 

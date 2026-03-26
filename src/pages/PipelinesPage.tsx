@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
+import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -14,6 +15,7 @@ import {
   useUpdatePipelineItem,
   useCreatePipelineItem,
   type PipelineItemWithRelations,
+  type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -206,6 +208,8 @@ export default function PipelinesPage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
+  const [followUpMethodFilter, setFollowUpMethodFilter] = useState<FollowUpMethod | "all">("all");
+  
   const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
@@ -214,6 +218,11 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
+
+  const filteredFollowUps = useMemo(() => {
+    if (followUpMethodFilter === "all") return followUps;
+    return followUps.filter((item) => (item.follow_up_method || "call") === followUpMethodFilter);
+  }, [followUps, followUpMethodFilter]);
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -277,6 +286,7 @@ export default function PipelinesPage() {
     scheduledFor?: string,
     dealValue?: number,
     followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -317,6 +327,7 @@ export default function PipelinesPage() {
           scheduled_for: followUpDate,
           notes: notes ? `Follow-up: ${notes}` : `Follow-up after ${getAppointmentOutcomeLabel(outcome)}`,
           status: "open",
+          follow_up_method: followUpMethod || "call",
         });
         toast.success("Follow-up scheduled.");
       }
@@ -449,7 +460,24 @@ export default function PipelinesPage() {
             <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
           <TabsContent value="follow_up" className="mt-4">
-            {renderOpenItems(followUps, "follow_up")}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground mr-1">Filter</span>
+              {(["all", "call", "email", "prospecting"] as const).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => setFollowUpMethodFilter(method)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    followUpMethodFilter === method
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  }`}
+                >
+                  {method === "all" ? `All (${followUps.length})` : `${method.charAt(0).toUpperCase() + method.slice(1)} (${followUps.filter((i) => (i.follow_up_method || "call") === method).length})`}
+                </button>
+              ))}
+            </div>
+            {renderOpenItems(filteredFollowUps, "follow_up")}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
             {bookedLoading ? (

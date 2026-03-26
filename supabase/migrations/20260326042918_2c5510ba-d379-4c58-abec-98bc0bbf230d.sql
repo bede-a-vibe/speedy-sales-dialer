@@ -1,0 +1,1 @@
+ALTER TABLE public.pipeline_items ADD COLUMN follow_up_method text NOT NULL DEFAULT 'call';

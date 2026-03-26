@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
       .select("id, contact_id, notes")
       .eq("pipeline_type", "follow_up")
       .eq("status", "open")
+      .eq("follow_up_method", "call")
       .lte("scheduled_for", new Date().toISOString());
 
     if (fetchError) throw fetchError;

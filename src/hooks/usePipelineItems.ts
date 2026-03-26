@@ -4,6 +4,7 @@ import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
+export type FollowUpMethod = "call" | "email" | "prospecting";
 
 export interface PipelineItemInsert {
   contact_id: string;
@@ -14,6 +15,7 @@ export interface PipelineItemInsert {
   scheduled_for?: string | null;
   notes?: string;
   status?: PipelineStatus;
+  follow_up_method?: FollowUpMethod;
 }
 
 export interface PipelineItemUpdate {
@@ -27,6 +29,7 @@ export interface PipelineItemUpdate {
   outcome_recorded_at?: string | null;
   outcome_notes?: string;
   deal_value?: number | null;
+  follow_up_method?: FollowUpMethod;
 }
 
 export interface PipelineItemWithRelations {
@@ -44,6 +47,7 @@ export interface PipelineItemWithRelations {
   outcome_recorded_at: string | null;
   outcome_notes: string;
   deal_value: number | null;
+  follow_up_method: FollowUpMethod;
   reschedule_count: number;
   created_at: string;
   updated_at: string;
@@ -101,6 +105,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_recorded_at,
           outcome_notes,
           deal_value,
+          follow_up_method,
           reschedule_count,
           created_at,
           updated_at,
@@ -167,6 +172,7 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_recorded_at,
           outcome_notes,
           deal_value,
+          follow_up_method,
           reschedule_count,
           created_at,
           updated_at,
