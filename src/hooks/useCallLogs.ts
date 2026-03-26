@@ -212,12 +212,45 @@ export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_L
 /**
  * Batched fetching — loops in 1000-row pages to avoid Supabase's silent 1000-row cap.
  */
+/**
+ * Returns the user's local timezone offset as a string like "+10:00" or "-05:00".
+ */
+function getLocalTimezoneOffset(): string {
+  const offset = new Date().getTimezoneOffset(); // minutes, positive = behind UTC
+  const sign = offset <= 0 ? "+" : "-";
+  const abs = Math.abs(offset);
+  const hours = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mins = String(abs % 60).padStart(2, "0");
+  return `${sign}${hours}:${mins}`;
+}
+
+/**
+ * Converts a local date string like "2026-03-26" into a UTC ISO timestamp
+ * representing the start of that day in the user's local timezone.
+ */
+function localDateToUtcStart(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toISOString();
+}
+
+/**
+ * Converts a local date string like "2026-03-26" into a UTC ISO timestamp
+ * representing the end of that day in the user's local timezone.
+ */
+function localDateToUtcEnd(dateStr: string): string {
+  const d = new Date(`${dateStr}T23:59:59.999`);
+  return d.toISOString();
+}
+
 export function useCallLogsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["call-logs-range", from, to],
     queryFn: async () => {
       const allRows: any[] = [];
       let page = 0;
+
+      const utcFrom = from ? localDateToUtcStart(from) : undefined;
+      const utcTo = to ? localDateToUtcEnd(to) : undefined;
 
       while (true) {
         const rangeFrom = page * BATCH_SIZE;
@@ -229,8 +262,8 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
           .order("created_at", { ascending: false })
           .range(rangeFrom, rangeTo);
 
-        if (from) query = query.gte("created_at", from);
-        if (to) query = query.lte("created_at", `${to}T23:59:59`);
+        if (utcFrom) query = query.gte("created_at", utcFrom);
+        if (utcTo) query = query.lte("created_at", utcTo);
 
         const { data, error } = await query;
         if (error) throw error;

@@ -212,8 +212,13 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
 
       const items = (data ?? []) as BookedAppointmentReportItem[];
       return items.filter((item) => {
-        const createdDate = item.created_at.slice(0, 10);
-        const scheduledDate = item.scheduled_for?.slice(0, 10) ?? null;
+        // Compare using local date representations for timezone correctness
+        const toLocalDate = (iso: string) => {
+          const d = new Date(iso);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        };
+        const createdDate = toLocalDate(item.created_at);
+        const scheduledDate = item.scheduled_for ? toLocalDate(item.scheduled_for) : null;
 
         const matchesCreatedRange = (!from || createdDate >= from) && (!to || createdDate <= to);
         const matchesScheduledRange =
