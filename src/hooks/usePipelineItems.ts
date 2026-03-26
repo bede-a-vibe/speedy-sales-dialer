@@ -29,6 +29,7 @@ export interface PipelineItemUpdate {
   outcome_recorded_at?: string | null;
   outcome_notes?: string;
   deal_value?: number | null;
+  follow_up_method?: FollowUpMethod;
 }
 
 export interface PipelineItemWithRelations {
