@@ -165,6 +165,7 @@ export default function DialerPage() {
       : null;
     const pipelineNotes = session.notes;
     const repId = session.assignedRepId;
+    const method = followUpMethod;
 
     // Advance immediately
     const nextLength = session.queue.contacts.length - 1;
