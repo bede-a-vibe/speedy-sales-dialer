@@ -45,6 +45,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [followUpTime, setFollowUpTime] = useState("09:00");
+  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
 
