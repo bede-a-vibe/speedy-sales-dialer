@@ -430,24 +430,23 @@ export default function PipelinesPage() {
             <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
           <TabsContent value="follow_up" className="mt-4">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground mr-1">Filter</span>
-              {(["all", "call", "email", "prospecting"] as const).map((method) => (
-                <button
-                  key={method}
-                  type="button"
-                  onClick={() => setFollowUpMethodFilter(method)}
-                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    followUpMethodFilter === method
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                >
-                  {method === "all" ? `All (${followUps.length})` : `${method.charAt(0).toUpperCase() + method.slice(1)} (${followUps.filter((i) => (i.follow_up_method || "call") === method).length})`}
-                </button>
-              ))}
-            </div>
-            {renderOpenItems(filteredFollowUps, "follow_up")}
+            {followUpsLoading ? (
+              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
+            ) : (
+              <FollowUpTable
+                items={followUps}
+                reps={reps}
+                repMap={repMap}
+                isSaving={updatePipelineItem.isPending}
+                onComplete={handleComplete}
+                onAssign={handleAssign}
+                onReschedule={handleReschedule}
+                onChangeMethod={async (id, method) => {
+                  await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
+                  toast.success(`Follow-up type changed to ${method}`);
+                }}
+              />
+            )}
           </TabsContent>
           <TabsContent value="booked" className="mt-4">
             {bookedLoading ? (
