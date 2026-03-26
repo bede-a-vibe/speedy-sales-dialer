@@ -357,13 +357,15 @@ export default function ReportsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
-                    <TableHead colSpan={2} className="text-center">Dialer</TableHead>
-                    <TableHead colSpan={5} className="text-center">Setter</TableHead>
-                    <TableHead colSpan={5} className="text-center">Closer</TableHead>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Talk Time</TableHead>
-                    <TableHead>Avg Talk</TableHead>
+                     <TableHead colSpan={4} className="text-center">Dialer</TableHead>
+                     <TableHead colSpan={5} className="text-center">Setter</TableHead>
+                     <TableHead colSpan={5} className="text-center">Closer</TableHead>
+                   </TableRow>
+                   <TableRow>
+                     <TableHead>Dials</TableHead>
+                     <TableHead>Pick-ups</TableHead>
+                     <TableHead>Talk Time</TableHead>
+                     <TableHead>Avg Talk</TableHead>
                     <TableHead>Set</TableHead>
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
