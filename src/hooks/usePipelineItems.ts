@@ -4,6 +4,7 @@ import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
+export type FollowUpMethod = "call" | "email" | "prospecting";
 
 export interface PipelineItemInsert {
   contact_id: string;
