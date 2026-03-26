@@ -209,7 +209,7 @@ export default function PipelinesPage() {
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [followUpMethodFilter, setFollowUpMethodFilter] = useState<FollowUpMethod | "all">("all");
-  const [followUpMethodForCreate, setFollowUpMethodForCreate] = useState<FollowUpMethod>("call");
+  
   const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
