@@ -208,6 +208,8 @@ export default function PipelinesPage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
+  const [followUpMethodFilter, setFollowUpMethodFilter] = useState<FollowUpMethod | "all">("all");
+  const [followUpMethodForCreate, setFollowUpMethodForCreate] = useState<FollowUpMethod>("call");
   const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
@@ -216,6 +218,11 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
+
+  const filteredFollowUps = useMemo(() => {
+    if (followUpMethodFilter === "all") return followUps;
+    return followUps.filter((item) => (item.follow_up_method || "call") === followUpMethodFilter);
+  }, [followUps, followUpMethodFilter]);
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
