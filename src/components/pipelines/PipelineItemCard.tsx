@@ -76,6 +76,9 @@ export function PipelineItemCard({
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
+            {item.pipeline_type === "follow_up" && (
+              <FollowUpMethodBadge method={item.follow_up_method || "call"} />
+            )}
             {isStale && (
               <Badge variant="outline" className="border-amber-500/60 text-amber-600 text-[10px]">
                 <AlertTriangle className="mr-1 h-3 w-3" />
