@@ -1,76 +1,57 @@
 
 
-## Diagnosis
+## Add Follow-up Types: Call, Email, and Prospecting
 
-The dialer queue is working as designed, but the design lacks a **recency cooldown**. Here's what happens:
+Currently all follow-ups are treated the same. This plan adds a `follow_up_method` column so each follow-up (or prospecting item) gets a tag, and the Follow-ups tab gets a filter bar to switch between them.
 
-1. You call a lead with `call_attempt_count = 1` and log "No Answer"
-2. The lead stays `status = 'uncalled'` and its `call_attempt_count` increments to `2`
-3. The lock is released immediately when you log the outcome
-4. On the next buffer refill, if most remaining leads have `call_attempt_count >= 2`, that same lead is eligible again — potentially within minutes
+### Database change
 
-There is no `last_called_at` timestamp or cooldown window, so recently-called leads can be re-served in the same session.
+Add a `follow_up_method` column to `pipeline_items`:
 
-## Plan
-
-### 1. Add a `last_called_at` column to `contacts`
-
-Add a migration to create a `last_called_at` timestamp column on `contacts`, and update the existing `sync_contact_call_attempt_count` trigger to also set `last_called_at = now()` on INSERT.
-
-### 2. Update `claim_dialer_leads` to enforce a cooldown
-
-Modify the SQL function to exclude contacts where `last_called_at` is within a configurable cooldown window (e.g., 2 hours). Add a new parameter `_cooldown_minutes` (default 120) and filter: `AND (c.last_called_at IS NULL OR c.last_called_at < now() - make_interval(mins => _cooldown_minutes))`.
-
-### 3. Update `get_dialer_queue_count` to match
-
-Apply the same cooldown filter to the queue count function so the preview count accurately reflects available leads.
-
-### 4. Pass cooldown parameter from the frontend (optional)
-
-The default of 120 minutes will work without frontend changes. If you want it configurable, add a UI control on the dialer settings page.
-
-### Technical Details
-
-**Migration SQL (new column + updated trigger):**
 ```sql
-ALTER TABLE public.contacts
-ADD COLUMN IF NOT EXISTS last_called_at timestamptz;
-
--- Backfill from most recent call_log
-UPDATE public.contacts c
-SET last_called_at = sub.max_created
-FROM (
-  SELECT contact_id, MAX(created_at) AS max_created
-  FROM public.call_logs
-  GROUP BY contact_id
-) sub
-WHERE c.id = sub.contact_id;
-
--- Update trigger to set last_called_at
-CREATE OR REPLACE FUNCTION public.sync_contact_call_attempt_count()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = 'public' AS $$
-BEGIN
-  IF TG_OP = 'INSERT' THEN
-    UPDATE public.contacts
-    SET call_attempt_count = COALESCE(call_attempt_count, 0) + 1,
-        last_called_at = now(),
-        updated_at = now()
-    WHERE id = NEW.contact_id;
-  -- ... keep existing DELETE/UPDATE logic
-  END IF;
-  RETURN NULL;
-END;
-$$;
+ALTER TABLE public.pipeline_items
+  ADD COLUMN follow_up_method text NOT NULL DEFAULT 'call';
 ```
 
-**Updated `claim_dialer_leads` filter (add to the `visible_contacts` CTE WHERE clause):**
-```sql
-AND (c.last_called_at IS NULL
-     OR c.last_called_at < now() - make_interval(mins => _cooldown_minutes))
-```
+Valid values: `call`, `email`, `prospecting`. Default `call` so all existing follow-ups remain unchanged.
 
-**Files to modify:**
-- New database migration (add column, backfill, update trigger, update both RPC functions)
-- No frontend code changes needed — the cooldown is enforced server-side
+No new enum type needed — a text column with application-level validation keeps it simple and extensible.
+
+### Frontend changes
+
+1. **Types** (`usePipelineItems.ts`)
+   - Add `follow_up_method` (`"call" | "email" | "prospecting"`) to `PipelineItemInsert`, `PipelineItemUpdate`, and `PipelineItemWithRelations`.
+   - Include `follow_up_method` in all select queries.
+
+2. **Follow-ups tab filter bar** (`PipelinesPage.tsx`)
+   - Add a filter row above the follow-up list with buttons/select: All | Call | Email | Prospecting.
+   - Filter the `followUps` array client-side by `follow_up_method`.
+
+3. **Pipeline item card** (`PipelineItemCard.tsx`)
+   - Show a small badge/tag on each card: "Call", "Email", or "Prospecting" with distinct colors (e.g. blue/purple/orange).
+   - For email follow-ups, hide the "Mark complete" phone-centric language — keep it but relabel contextually.
+
+4. **QuickBookDialog + DialerPage**
+   - When creating a follow-up, add a `follow_up_method` selector (radio or small toggle): Call | Email | Prospecting.
+   - Default to "call" to preserve current behavior.
+   - Pass the selected method through to `useCreatePipelineItem`.
+
+5. **BookedOutcomePanel** follow-up creation
+   - When "Schedule follow-up" is checked after an outcome, add the same method selector so the user can choose call/email/prospecting for the auto-created follow-up.
+
+6. **Requeue edge function** (`requeue-follow-ups/index.ts`)
+   - Only requeue items where `follow_up_method = 'call'`. Email and prospecting follow-ups should stay in the pipeline until manually completed — they don't go back into the dialer queue.
+
+### Summary of files changed
+
+| File | Change |
+|---|---|
+| Migration SQL | Add `follow_up_method` column |
+| `usePipelineItems.ts` | Add field to types + select queries |
+| `PipelinesPage.tsx` | Add filter bar on follow-ups tab |
+| `PipelineItemCard.tsx` | Show method badge |
+| `QuickBookDialog.tsx` | Add method selector when creating follow-up |
+| `DialerPage.tsx` | Add method selector for follow-up outcome |
+| `BookedOutcomePanel.tsx` | Add method selector for follow-up after outcome |
+| `requeue-follow-ups/index.ts` | Filter to only requeue `call` method |
 
