@@ -381,7 +381,7 @@ export default function ReportsPage() {
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={15} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
