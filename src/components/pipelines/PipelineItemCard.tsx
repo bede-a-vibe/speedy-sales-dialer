@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME, getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipelineItems";
+import { FollowUpMethodBadge } from "@/components/pipelines/FollowUpMethodSelector";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
