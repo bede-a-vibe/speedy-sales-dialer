@@ -357,13 +357,15 @@ export default function ReportsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
-                    <TableHead colSpan={2} className="text-center">Dialer</TableHead>
-                    <TableHead colSpan={5} className="text-center">Setter</TableHead>
-                    <TableHead colSpan={5} className="text-center">Closer</TableHead>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead>Talk Time</TableHead>
-                    <TableHead>Avg Talk</TableHead>
+                     <TableHead colSpan={4} className="text-center">Dialer</TableHead>
+                     <TableHead colSpan={5} className="text-center">Setter</TableHead>
+                     <TableHead colSpan={5} className="text-center">Closer</TableHead>
+                   </TableRow>
+                   <TableRow>
+                     <TableHead>Dials</TableHead>
+                     <TableHead>Pick-ups</TableHead>
+                     <TableHead>Talk Time</TableHead>
+                     <TableHead>Avg Talk</TableHead>
                     <TableHead>Set</TableHead>
                     <TableHead>Showed</TableHead>
                     <TableHead>Show %</TableHead>
@@ -379,16 +381,18 @@ export default function ReportsPage() {
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={15} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
                   ) : (
                     metrics.repComparison.map((row) => (
                       <TableRow key={row.repUserId}>
-                        <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
-                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
-                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
+                         <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                         <TableCell className="font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
+                         <TableCell className="font-mono text-foreground">{row.dialer.pickUps}</TableCell>
+                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
+                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.appointmentsScheduled}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
