@@ -172,6 +172,7 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_recorded_at,
           outcome_notes,
           deal_value,
+          follow_up_method,
           reschedule_count,
           created_at,
           updated_at,
