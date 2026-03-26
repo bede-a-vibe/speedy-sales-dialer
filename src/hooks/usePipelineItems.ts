@@ -47,6 +47,7 @@ export interface PipelineItemWithRelations {
   outcome_recorded_at: string | null;
   outcome_notes: string;
   deal_value: number | null;
+  follow_up_method: FollowUpMethod;
   reschedule_count: number;
   created_at: string;
   updated_at: string;
