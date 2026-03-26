@@ -58,6 +58,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       scheduledFor,
       val,
       wantsFollowUp && followUpIso ? followUpIso : undefined,
+      wantsFollowUp ? followUpMethod : undefined,
     );
   };
 
