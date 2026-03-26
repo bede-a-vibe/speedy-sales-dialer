@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME, getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
-import type { PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipelineItems";
-import { FollowUpMethodBadge } from "@/components/pipelines/FollowUpMethodSelector";
+import type { FollowUpMethod, PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipelineItems";
+import { FollowUpMethodBadge, FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -38,6 +38,7 @@ interface PipelineItemCardProps {
     dealValue?: number,
     followUpDate?: string,
   ) => Promise<void>;
+  onChangeMethod?: (id: string, method: FollowUpMethod) => Promise<void>;
 }
 
 export function PipelineItemCard({
@@ -51,6 +52,7 @@ export function PipelineItemCard({
   onAssign,
   onReschedule,
   onRecordBookedOutcome,
+  onChangeMethod,
 }: PipelineItemCardProps) {
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
   const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : BOOKED_APPOINTMENT_DEFAULT_TIME);
@@ -207,8 +209,16 @@ export function PipelineItemCard({
               </div>
             )}
 
+            {!isBooked && onChangeMethod && (
+              <FollowUpMethodSelector
+                value={item.follow_up_method || "call"}
+                onChange={(method) => onChangeMethod(item.id, method)}
+                className="lg:ml-auto"
+              />
+            )}
+
             {!isBooked && onComplete && (
-              <Button variant="outline" onClick={() => onComplete(item.id)} className="lg:ml-auto" disabled={isSaving}>
+              <Button variant="outline" onClick={() => onComplete(item.id)} disabled={isSaving}>
                 <Check className="h-4 w-4" />
                 Mark complete
               </Button>
