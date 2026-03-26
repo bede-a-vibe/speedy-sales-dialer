@@ -62,6 +62,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   });
 
   const [pipelineType, setPipelineType] = useState<PipelineType>("booked");
+  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
   const [assignedRepId, setAssignedRepId] = useState("");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
