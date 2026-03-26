@@ -388,9 +388,11 @@ export default function ReportsPage() {
                   ) : (
                     metrics.repComparison.map((row) => (
                       <TableRow key={row.repUserId}>
-                        <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
-                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
-                        <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
+                         <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                         <TableCell className="font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
+                         <TableCell className="font-mono text-foreground">{row.dialer.pickUps}</TableCell>
+                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
+                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.appointmentsScheduled}</TableCell>
                         <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
                         <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
