@@ -32,6 +32,7 @@ interface BookedOutcomePanelProps {
     scheduledFor?: string,
     dealValue?: number,
     followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
   ) => Promise<void>;
 }
 
