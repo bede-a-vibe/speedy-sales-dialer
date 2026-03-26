@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
+import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -14,6 +15,7 @@ import {
   useUpdatePipelineItem,
   useCreatePipelineItem,
   type PipelineItemWithRelations,
+  type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 
