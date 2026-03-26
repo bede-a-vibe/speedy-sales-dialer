@@ -678,16 +678,24 @@ export default function DialerPage() {
               )}
 
               {session.selectedOutcome === "follow_up" && (
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Follow-up Notes
-                  </label>
-                  <Textarea
-                    value={session.notes}
-                    onChange={(e) => session.setNotes(e.target.value)}
-                    placeholder="Enter follow-up details..."
-                    className="min-h-[80px] resize-none border-border bg-background text-sm"
-                  />
+                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Follow-up Type
+                    </label>
+                    <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Follow-up Notes
+                    </label>
+                    <Textarea
+                      value={session.notes}
+                      onChange={(e) => session.setNotes(e.target.value)}
+                      placeholder="Enter follow-up details..."
+                      className="min-h-[80px] resize-none border-border bg-background text-sm"
+                    />
+                  </div>
                 </div>
               )}
 

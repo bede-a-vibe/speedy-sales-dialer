@@ -114,31 +114,34 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </label>
 
         {wantsFollowUp && (
-          <div className="flex flex-wrap items-center gap-2 pl-6">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
-                  <CalendarPlus className="h-4 w-4" />
-                  {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={followUpDate}
-                  onSelect={setFollowUpDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={followUpTime}
-              onChange={(e) => setFollowUpTime(e.target.value)}
-              className="w-[120px] bg-background"
-            />
+          <div className="flex flex-col gap-2 pl-6">
+            <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
+                    <CalendarPlus className="h-4 w-4" />
+                    {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={followUpDate}
+                    onSelect={setFollowUpDate}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                type="time"
+                value={followUpTime}
+                onChange={(e) => setFollowUpTime(e.target.value)}
+                className="w-[120px] bg-background"
+              />
+            </div>
           </div>
         )}
       </div>

@@ -378,6 +378,16 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </TabsList>
               </Tabs>
 
+              {/* Follow-up method selector — only for follow-up type */}
+              {pipelineType === "follow_up" && (
+                <div>
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Follow-up Type
+                  </label>
+                  <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                </div>
+              )}
+
               {/* Assigned rep */}
               <div>
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
