@@ -286,6 +286,7 @@ export default function PipelinesPage() {
     scheduledFor?: string,
     dealValue?: number,
     followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
   ) => {
     try {
       if (outcome === "rescheduled") {
