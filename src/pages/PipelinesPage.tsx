@@ -326,6 +326,7 @@ export default function PipelinesPage() {
           scheduled_for: followUpDate,
           notes: notes ? `Follow-up: ${notes}` : `Follow-up after ${getAppointmentOutcomeLabel(outcome)}`,
           status: "open",
+          follow_up_method: followUpMethodForCreate,
         });
         toast.success("Follow-up scheduled.");
       }
