@@ -85,6 +85,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setShowCreateForm(false);
       setNewContact({ business_name: "", contact_person: "", phone: "", email: "", industry: "", city: "", state: "" });
       setPipelineType("booked");
+      setFollowUpMethod("call");
       setScheduledDate(undefined);
       setScheduledTime("09:00");
       setNotes("");
