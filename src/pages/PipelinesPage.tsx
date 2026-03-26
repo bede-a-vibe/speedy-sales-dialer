@@ -365,6 +365,10 @@ export default function PipelinesPage() {
             onAssign={handleAssign}
             onReschedule={type === "follow_up" ? handleReschedule : undefined}
             onRecordBookedOutcome={type === "booked" ? handleBookedOutcome : undefined}
+            onChangeMethod={type === "follow_up" ? async (id, method) => {
+              await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
+              toast.success(`Follow-up type changed to ${method}`);
+            } : undefined}
           />
         ))}
       </div>
