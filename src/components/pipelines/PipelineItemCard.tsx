@@ -52,6 +52,7 @@ export function PipelineItemCard({
   onAssign,
   onReschedule,
   onRecordBookedOutcome,
+  onChangeMethod,
 }: PipelineItemCardProps) {
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
   const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : BOOKED_APPOINTMENT_DEFAULT_TIME);
