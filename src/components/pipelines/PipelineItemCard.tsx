@@ -209,8 +209,16 @@ export function PipelineItemCard({
               </div>
             )}
 
+            {!isBooked && onChangeMethod && (
+              <FollowUpMethodSelector
+                value={item.follow_up_method || "call"}
+                onChange={(method) => onChangeMethod(item.id, method)}
+                className="lg:ml-auto"
+              />
+            )}
+
             {!isBooked && onComplete && (
-              <Button variant="outline" onClick={() => onComplete(item.id)} className="lg:ml-auto" disabled={isSaving}>
+              <Button variant="outline" onClick={() => onComplete(item.id)} disabled={isSaving}>
                 <Check className="h-4 w-4" />
                 Mark complete
               </Button>
