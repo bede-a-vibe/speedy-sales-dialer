@@ -187,6 +187,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         created_by: user.id,
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
+        ...(pipelineType === "follow_up" ? { follow_up_method: followUpMethod } : {}),
       });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
