@@ -84,10 +84,16 @@ export async function ghlUpdateContactFields(
   contactId: string,
   customFields: Record<string, string>,
 ) {
+  // Edge function expects customFields at top level as an array of { id, field_value }
+  // Convert key-value Record to the array format GHL expects
+  const customFieldsArray = Object.entries(customFields).map(([key, value]) => ({
+    id: key,
+    field_value: value,
+  }));
   return invokeGHL({
     action: "update_contact_fields",
     contactId,
-    payload: { customFields },
+    customFields: customFieldsArray,
   });
 }
 

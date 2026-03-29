@@ -759,7 +759,7 @@ export default function DialerPage() {
               <DecisionMakerCapture
                 contactId={session.currentContact.id}
                 businessName={session.currentContact.business_name || ""}
-                ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.ghlContactId}
+                ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
                 existingDmName={(session.currentContact as any).dm_name}
                 existingDmTitle={(session.currentContact as any).dm_title}
                 existingDmPhone={(session.currentContact as any).dm_phone}

@@ -12,6 +12,7 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
@@ -45,6 +46,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
   const ghlSync = useGHLSync();
+  const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
@@ -226,7 +228,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       toast.success(`${label} created for ${selectedContact.business_name}`);
 
       // ── GHL Sync (fire-and-forget) ──
-      const contactGhlId = (selectedContact as Record<string, unknown>).ghl_contact_id as string | null;
+      // Auto-link contact to GHL if not already linked, then sync
+      const contactGhlId =
+        (selectedContact as Record<string, unknown>).ghl_contact_id as string | null
+        ?? await ghlLink.ensureGHLLink(selectedContact as any).catch(() => null);
+
       if (contactGhlId) {
         const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
         if (pipelineType === "booked" && ghlCalendarId) {
@@ -254,7 +260,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod]);
 
   const isBooked = pipelineType === "booked";
 

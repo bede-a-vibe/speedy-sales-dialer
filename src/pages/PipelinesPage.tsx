@@ -19,6 +19,7 @@ import {
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -220,6 +221,7 @@ export default function PipelinesPage() {
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
   const ghlSync = useGHLSync();
+  const ghlLink = useGHLContactLink();
 
   
 
@@ -332,7 +334,10 @@ export default function PipelinesPage() {
       }
 
       // ── GHL Sync for booking outcomes (fire-and-forget) ──
-      const contactGhlId = item.contacts?.ghl_contact_id;
+      // Auto-link contact to GHL if not already linked
+      const contactGhlId =
+        item.contacts?.ghl_contact_id
+        ?? (item.contacts ? await ghlLink.ensureGHLLink(item.contacts as any).catch(() => null) : null);
       if (contactGhlId) {
         // Push outcome note to GHL
         const outcomeLabel = getAppointmentOutcomeLabel(outcome);
