@@ -186,6 +186,165 @@ async function updateContactFields(
   });
 }
 
+async function upsertContact(
+  apiKey: string,
+  locationId: string,
+  payload: {
+    phone: string;
+    companyName?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    website?: string;
+    city?: string;
+    state?: string;
+    tags?: string[];
+    source?: string;
+    country?: string;
+  },
+) {
+  const body: Record<string, unknown> = {
+    locationId,
+    phone: payload.phone,
+    country: payload.country ?? "AU",
+    source: payload.source ?? "Speedy Sales Dialer",
+  };
+
+  // Set name fields — prefer firstName/lastName, fall back to splitting name
+  if (payload.firstName) {
+    body.firstName = payload.firstName;
+    if (payload.lastName) body.lastName = payload.lastName;
+  } else if (payload.name) {
+    const parts = payload.name.trim().split(/\s+/);
+    body.firstName = parts[0];
+    if (parts.length > 1) body.lastName = parts.slice(1).join(" ");
+  }
+
+  if (payload.companyName) body.companyName = payload.companyName;
+  if (payload.email) body.email = payload.email;
+  if (payload.website) body.website = payload.website;
+  if (payload.city) body.city = payload.city;
+  if (payload.state) body.state = payload.state;
+
+  // Always include "dialer-linked" tag
+  const tags = [...(payload.tags ?? []), "dialer-linked"];
+  body.tags = [...new Set(tags)]; // deduplicate
+
+  const data = await ghlFetch("/contacts/upsert", apiKey, {
+    method: "POST",
+    body,
+  });
+
+  return {
+    ghlContactId: data.contact?.id,
+    isNew: data.new ?? false,
+    contact: data.contact,
+  };
+}
+
+async function bulkLinkContacts(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 50,
+  delayMs = 6000,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  // Get all contacts without ghl_contact_id
+  const { data: unlinked, error: fetchError } = await supabase
+    .from("contacts")
+    .select("id, phone, business_name, contact_person, email, website, city, state, industry")
+    .or("ghl_contact_id.is.null,ghl_contact_id.eq.")
+    .not("phone", "is", null)
+    .order("created_at", { ascending: true });
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch unlinked contacts: ${fetchError.message}`);
+  }
+
+  if (!unlinked || unlinked.length === 0) {
+    return { linked: 0, failed: 0, skipped: 0, total: 0 };
+  }
+
+  let linked = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: Array<{ contactId: string; error: string }> = [];
+
+  for (let i = 0; i < unlinked.length; i += batchSize) {
+    const batch = unlinked.slice(i, i + batchSize);
+
+    for (const contact of batch) {
+      if (!contact.phone || contact.phone.trim() === "") {
+        skipped++;
+        continue;
+      }
+
+      try {
+        const tags: string[] = [];
+        if (contact.industry) tags.push(`industry:${contact.industry.toLowerCase().replace(/\s+/g, "-")}`);
+
+        const result = await upsertContact(apiKey, locationId, {
+          phone: contact.phone,
+          companyName: contact.business_name || undefined,
+          name: contact.contact_person || contact.business_name || undefined,
+          email: contact.email || undefined,
+          website: contact.website || undefined,
+          city: contact.city || undefined,
+          state: contact.state || undefined,
+          tags,
+        });
+
+        if (result.ghlContactId) {
+          const { error: updateError } = await supabase
+            .from("contacts")
+            .update({ ghl_contact_id: result.ghlContactId })
+            .eq("id", contact.id);
+
+          if (updateError) {
+            console.error(`[Bulk Link] Failed to update contact ${contact.id}:`, updateError);
+            failed++;
+            errors.push({ contactId: contact.id, error: updateError.message });
+          } else {
+            linked++;
+          }
+        } else {
+          failed++;
+          errors.push({ contactId: contact.id, error: "No ghlContactId returned" });
+        }
+      } catch (err) {
+        failed++;
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push({ contactId: contact.id, error: msg });
+
+        // If rate limited, wait longer
+        if (msg.includes("429")) {
+          console.warn("[Bulk Link] Rate limited, waiting 15s...");
+          await new Promise((r) => setTimeout(r, 15000));
+        }
+      }
+    }
+
+    // Rate limit pause between batches (skip on last batch)
+    if (i + batchSize < unlinked.length) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    console.log(`[Bulk Link] Progress: ${linked + failed + skipped}/${unlinked.length} (linked=${linked}, failed=${failed}, skipped=${skipped})`);
+  }
+
+  return {
+    total: unlinked.length,
+    linked,
+    failed,
+    skipped,
+    errors: errors.slice(0, 50), // Cap error list at 50
+  };
+}
+
 async function createFollowUpTask(
   apiKey: string,
   contactId: string,
@@ -329,6 +488,40 @@ Deno.serve(async (req) => {
         if (!body.customFields || !Array.isArray(body.customFields)) return json({ error: "Missing or invalid customFields array" }, 400);
         result = await updateContactFields(GHL_API_KEY, body.contactId, body.customFields);
         break;
+
+      case "upsert_contact": {
+        if (!body.payload?.phone) return json({ error: "Missing payload.phone" }, 400);
+        result = await upsertContact(GHL_API_KEY, GHL_LOCATION_ID, body.payload);
+
+        // If supabaseContactId is provided, also update the Supabase contact
+        if (body.supabaseContactId && (result as Record<string, unknown>).ghlContactId) {
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+            const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+            const sb = createClient(supabaseUrl, svcKey);
+            await sb.from("contacts").update({
+              ghl_contact_id: (result as Record<string, unknown>).ghlContactId,
+            }).eq("id", body.supabaseContactId);
+          } catch (linkErr) {
+            console.error("[GHL] Failed to save ghl_contact_id to Supabase:", linkErr);
+          }
+        }
+        break;
+      }
+
+      case "bulk_link_contacts": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await bulkLinkContacts(
+          GHL_API_KEY,
+          GHL_LOCATION_ID,
+          supabaseUrl,
+          svcKey,
+          body.batchSize ?? 50,
+          body.delayMs ?? 6000,
+        );
+        break;
+      }
 
       case "create_followup_task":
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);

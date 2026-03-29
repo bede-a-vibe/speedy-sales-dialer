@@ -38,10 +38,23 @@ type ClaimDialerLeadsResponse = {
   total_available_count: number;
 };
 
+export type DialerFilterOptions = {
+  tradeType?: string;
+  workType?: string;
+  businessSize?: string;
+  prospectTier?: string;
+  minGbpRating?: number | null;
+  minReviewCount?: number | null;
+  hasGoogleAds?: string;
+  hasFacebookAds?: string;
+  buyingSignalStrength?: string;
+};
+
 type RollingDialerQueueOptions = {
   industry?: string;
   state?: string;
   userId?: string | null;
+  filters?: DialerFilterOptions;
 };
 
 type DiscardDialerContactOptions = {
@@ -137,11 +150,13 @@ async function claimDialerLeads({
   industry,
   state,
   claimSize,
+  filters,
 }: {
   sessionId: string;
   industry?: string;
   state?: string;
   claimSize: number;
+  filters?: DialerFilterOptions;
 }) {
   return invokeDialerRpc<ClaimDialerLeadsResponse>("claim_dialer_leads", {
     _session_id: sessionId,
@@ -149,6 +164,15 @@ async function claimDialerLeads({
     _state: state && state !== "all" ? state : null,
     _claim_size: claimSize,
     _lock_minutes: DIALER_LOCK_MINUTES,
+    _trade_type: filters?.tradeType && filters.tradeType !== "all" ? filters.tradeType : null,
+    _work_type: filters?.workType && filters.workType !== "all" ? filters.workType : null,
+    _business_size: filters?.businessSize && filters.businessSize !== "all" ? filters.businessSize : null,
+    _prospect_tier: filters?.prospectTier && filters.prospectTier !== "all" ? filters.prospectTier : null,
+    _min_gbp_rating: filters?.minGbpRating && filters.minGbpRating > 0 ? filters.minGbpRating : null,
+    _min_review_count: filters?.minReviewCount && filters.minReviewCount > 0 ? filters.minReviewCount : null,
+    _has_google_ads: filters?.hasGoogleAds && filters.hasGoogleAds !== "all" ? filters.hasGoogleAds : null,
+    _has_facebook_ads: filters?.hasFacebookAds && filters.hasFacebookAds !== "all" ? filters.hasFacebookAds : null,
+    _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
   });
 }
 
@@ -183,15 +207,26 @@ async function getDialerQueueCount({
   sessionId,
   industry,
   state,
+  filters,
 }: {
   sessionId: string;
   industry?: string;
   state?: string;
+  filters?: DialerFilterOptions;
 }) {
   return invokeDialerRpc<number>("get_dialer_queue_count", {
     _session_id: sessionId,
     _industry: industry && industry !== "all" ? industry : null,
     _state: state && state !== "all" ? state : null,
+    _trade_type: filters?.tradeType && filters.tradeType !== "all" ? filters.tradeType : null,
+    _work_type: filters?.workType && filters.workType !== "all" ? filters.workType : null,
+    _business_size: filters?.businessSize && filters.businessSize !== "all" ? filters.businessSize : null,
+    _prospect_tier: filters?.prospectTier && filters.prospectTier !== "all" ? filters.prospectTier : null,
+    _min_gbp_rating: filters?.minGbpRating && filters.minGbpRating > 0 ? filters.minGbpRating : null,
+    _min_review_count: filters?.minReviewCount && filters.minReviewCount > 0 ? filters.minReviewCount : null,
+    _has_google_ads: filters?.hasGoogleAds && filters.hasGoogleAds !== "all" ? filters.hasGoogleAds : null,
+    _has_facebook_ads: filters?.hasFacebookAds && filters.hasFacebookAds !== "all" ? filters.hasFacebookAds : null,
+    _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
   });
 }
 
@@ -302,7 +337,7 @@ export function useDialerContacts(industry?: string, state?: string, hiddenCount
   });
 }
 
-export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOptions) {
+export function useRollingDialerQueue({ industry, state, filters }: RollingDialerQueueOptions) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -328,12 +363,13 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
     let emptyRetries = 0;
 
     while (mergedContacts.length < desiredMinimum) {
-      console.log("[DialerQueue] Claiming leads: session=", activeSessionId, "industry=", industry, "state=", state, "claimSize=", DIALER_CLAIM_SIZE, "buffer=", mergedContacts.length, "/", desiredMinimum);
+      console.log("[DialerQueue] Claiming leads: session=", activeSessionId, "industry=", industry, "state=", state, "filters=", filters, "claimSize=", DIALER_CLAIM_SIZE, "buffer=", mergedContacts.length, "/", desiredMinimum);
       const response = await claimDialerLeads({
         sessionId: activeSessionId,
         industry,
         state,
         claimSize: DIALER_CLAIM_SIZE,
+        filters,
       });
 
       console.log("[DialerQueue] Claim response: total_available=", response.total_available_count, "claimed=", response.claimed_contacts?.length);
@@ -365,7 +401,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
       totalCount: Math.max(latestTotalCount, mergedContacts.length),
       claimedCount: mergedContacts.length - seedContacts.length,
     };
-  }, [industry, state]);
+  }, [industry, state, filters]);
 
   const cleanupSessionLocks = useCallback(async (staleSessionId: string | null) => {
     if (!staleSessionId) return;
@@ -563,6 +599,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         sessionId: previewSessionIdRef.current,
         industry,
         state,
+        filters,
       });
 
       if (!sessionRef.current) {
@@ -577,7 +614,7 @@ export function useRollingDialerQueue({ industry, state }: RollingDialerQueueOpt
         setIsLoading(false);
       }
     }
-  }, [industry, state]);
+  }, [industry, state, filters]);
 
   useEffect(() => {
     if (sessionRef.current) return;

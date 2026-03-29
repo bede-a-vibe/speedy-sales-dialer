@@ -60,6 +60,98 @@ export function normalizeIndustryValue(value: string | null | undefined) {
   return INDUSTRY_ALIASES[normalizeIndustryKey(trimmed)] ?? trimmed;
 }
 
+// ── Dialer Filter Options ──
+
+export const TRADE_TYPES = [
+  "Plumbers",
+  "HVAC",
+  "Electricians",
+  "Builders",
+  "Renovators",
+  "Roofers",
+  "Landscaping",
+  "Pest Control",
+  "Auto Repair",
+  "Painters",
+  "Concreters",
+  "Fencing",
+  "Tilers",
+  "Carpet Cleaning",
+  "Locksmiths",
+  "Garage Doors",
+  "Pool Builders",
+  "Solar Installers",
+  "Tree Services",
+  "Cleaning Services",
+  "Removalists",
+  "Demolition",
+];
+
+export const WORK_TYPES = [
+  "Residential Only",
+  "Mostly Residential",
+  "Mixed",
+  "Mostly Commercial",
+  "Commercial Only",
+];
+
+export const BUSINESS_SIZES = [
+  "Sole Trader",
+  "2-5 Employees",
+  "6-15 Employees",
+  "16-30 Employees",
+  "31-50 Employees",
+  "50+ Employees",
+];
+
+export const PROSPECT_TIERS = [
+  "Tier 1 - Hot",
+  "Tier 2 - Warm",
+  "Tier 3 - Nurture",
+  "Tier 4 - Long Shot",
+];
+
+export const AD_STATUS_OPTIONS = [
+  "Yes - Active",
+  "Yes - Paused",
+  "No",
+  "Unknown",
+];
+
+export const BUYING_SIGNAL_OPTIONS = [
+  "Strong",
+  "Moderate",
+  "Weak",
+  "None",
+];
+
+export const GBP_RATING_OPTIONS = [
+  { label: "4.5+ Stars", value: 4.5 },
+  { label: "4.0+ Stars", value: 4.0 },
+  { label: "3.5+ Stars", value: 3.5 },
+  { label: "3.0+ Stars", value: 3.0 },
+  { label: "Any Rating", value: 0 },
+];
+
+export const REVIEW_COUNT_OPTIONS = [
+  { label: "100+ Reviews", value: 100 },
+  { label: "50+ Reviews", value: 50 },
+  { label: "20+ Reviews", value: 20 },
+  { label: "10+ Reviews", value: 10 },
+  { label: "Any", value: 0 },
+];
+
+export const AUSTRALIAN_STATES = [
+  "ACT",
+  "NSW",
+  "NT",
+  "QLD",
+  "SA",
+  "TAS",
+  "VIC",
+  "WA",
+];
+
 export const OUTCOME_CONFIG: Record<
   CallOutcome,
   { label: string; color: string; bgClass: string; icon: string; shortcut: string }

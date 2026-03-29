@@ -1,11 +1,12 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
+import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -21,13 +22,24 @@ import { useDialerDialpad } from "@/hooks/useDialerDialpad";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
+import {
+  TRADE_TYPES,
+  WORK_TYPES,
+  BUSINESS_SIZES,
+  PROSPECT_TIERS,
+  AD_STATUS_OPTIONS,
+  BUYING_SIGNAL_OPTIONS,
+  GBP_RATING_OPTIONS,
+  REVIEW_COUNT_OPTIONS,
+  AUSTRALIAN_STATES,
+} from "@/data/constants";
+import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { toast } from "sonner";
-
-const AUSTRALIAN_STATE_OPTIONS = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"];
 
 const loadDialpadSyncPanel = () =>
   import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
@@ -68,8 +80,58 @@ export default function DialerPage() {
   const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const session = useDialerSession({ industry, stateFilter });
+  // Advanced dialer filters
+  const [tradeType, setTradeType] = useState<string>("all");
+  const [workType, setWorkType] = useState<string>("all");
+  const [businessSize, setBusinessSize] = useState<string>("all");
+  const [prospectTier, setProspectTier] = useState<string>("all");
+  const [minGbpRating, setMinGbpRating] = useState<number | null>(null);
+  const [minReviewCount, setMinReviewCount] = useState<number | null>(null);
+  const [hasGoogleAds, setHasGoogleAds] = useState<string>("all");
+  const [hasFacebookAds, setHasFacebookAds] = useState<string>("all");
+  const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>("all");
+
+  const advancedFilters = useMemo<DialerFilterOptions>(() => ({
+    tradeType,
+    workType,
+    businessSize,
+    prospectTier,
+    minGbpRating,
+    minReviewCount,
+    hasGoogleAds,
+    hasFacebookAds,
+    buyingSignalStrength,
+  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (tradeType !== "all") count++;
+    if (workType !== "all") count++;
+    if (businessSize !== "all") count++;
+    if (prospectTier !== "all") count++;
+    if (minGbpRating && minGbpRating > 0) count++;
+    if (minReviewCount && minReviewCount > 0) count++;
+    if (hasGoogleAds !== "all") count++;
+    if (hasFacebookAds !== "all") count++;
+    if (buyingSignalStrength !== "all") count++;
+    return count;
+  }, [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength]);
+
+  const resetAdvancedFilters = useCallback(() => {
+    setTradeType("all");
+    setWorkType("all");
+    setBusinessSize("all");
+    setProspectTier("all");
+    setMinGbpRating(null);
+    setMinReviewCount(null);
+    setHasGoogleAds("all");
+    setHasFacebookAds("all");
+    setBuyingSignalStrength("all");
+  }, []);
+
+  const session = useDialerSession({ industry, stateFilter, filters: advancedFilters });
   const dialpad = useDialerDialpad({
     isDialing: session.isDialing,
     isSessionPaused: session.isSessionPaused,
@@ -82,6 +144,7 @@ export default function DialerPage() {
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
   const ghlSync = useGHLSync();
+  const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
@@ -134,6 +197,26 @@ export default function DialerPage() {
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
 
+  // Auto-link current contact to GHL when presented in the dialer
+  // This ensures ghl_contact_id is available before any GHL sync happens
+  useEffect(() => {
+    if (!session.currentContact || !session.isSessionActive) return;
+    const c = session.currentContact;
+    const raw = c as Record<string, unknown>;
+    ghlLink.ensureGHLLink({
+      id: c.id,
+      phone: c.phone,
+      business_name: c.business_name,
+      contact_person: (raw.contact_person as string) ?? null,
+      email: (raw.email as string) ?? null,
+      website: (raw.website as string) ?? null,
+      city: (raw.city as string) ?? null,
+      state: (raw.state as string) ?? null,
+      industry: (raw.industry as string) ?? null,
+      ghl_contact_id: (raw.ghl_contact_id as string) ?? null,
+    }).catch(() => {});
+  }, [session.currentContact?.id, session.isSessionActive]);
+
   const handleBookedDateDetected = useCallback((date: Date) => {
     session.setFollowUpDate((current) => {
       const currentKey = current ? format(current, "yyyy-MM-dd") : null;
@@ -172,7 +255,8 @@ export default function DialerPage() {
     const contactId = session.currentContact.id;
     const userId = session.user.id;
     const contactFollowUpNote = session.currentContact.follow_up_note;
-    const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null;
+    const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null
+      ?? ghlLink.getCachedGHLId(session.currentContact.id);
     const contactName = session.currentContact.business_name;
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
@@ -310,7 +394,7 @@ export default function DialerPage() {
         }
       }
     })();
-  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
+  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, ghlLink, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
@@ -408,11 +492,27 @@ export default function DialerPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All States</SelectItem>
-              {AUSTRALIAN_STATE_OPTIONS.map((state) => (
+              {AUSTRALIAN_STATES.map((state) => (
                 <SelectItem key={state} value={state}>{state}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            variant={showAdvancedFilters ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            disabled={session.isSessionActive}
+            className="relative gap-1.5"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
 
           <div className="flex flex-1 flex-wrap items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
@@ -588,6 +688,31 @@ export default function DialerPage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {showAdvancedFilters && (
+          <AdvancedFilters
+            tradeType={tradeType}
+            setTradeType={setTradeType}
+            workType={workType}
+            setWorkType={setWorkType}
+            businessSize={businessSize}
+            setBusinessSize={setBusinessSize}
+            prospectTier={prospectTier}
+            setProspectTier={setProspectTier}
+            minGbpRating={minGbpRating}
+            setMinGbpRating={setMinGbpRating}
+            minReviewCount={minReviewCount}
+            setMinReviewCount={setMinReviewCount}
+            hasGoogleAds={hasGoogleAds}
+            setHasGoogleAds={setHasGoogleAds}
+            hasFacebookAds={hasFacebookAds}
+            setHasFacebookAds={setHasFacebookAds}
+            buyingSignalStrength={buyingSignalStrength}
+            setBuyingSignalStrength={setBuyingSignalStrength}
+            onReset={resetAdvancedFilters}
+            disabled={session.isSessionActive}
+          />
+        )}
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (

@@ -83,3 +83,50 @@ export async function ghlGetCustomFields() {
 export async function ghlGetUsers() {
   return invokeGHL({ action: "get_users" });
 }
+
+export interface GHLUpsertResult {
+  ghlContactId: string;
+  isNew: boolean;
+  contact: Record<string, unknown>;
+}
+
+export async function ghlUpsertContact(
+  payload: {
+    phone: string;
+    companyName?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    website?: string;
+    city?: string;
+    state?: string;
+    tags?: string[];
+  },
+  supabaseContactId?: string,
+): Promise<GHLUpsertResult> {
+  return invokeGHL<GHLUpsertResult>({
+    action: "upsert_contact",
+    payload,
+    ...(supabaseContactId ? { supabaseContactId } : {}),
+  });
+}
+
+export interface GHLBulkLinkResult {
+  total: number;
+  linked: number;
+  failed: number;
+  skipped: number;
+  errors?: Array<{ contactId: string; error: string }>;
+}
+
+export async function ghlBulkLinkContacts(
+  batchSize?: number,
+  delayMs?: number,
+): Promise<GHLBulkLinkResult> {
+  return invokeGHL<GHLBulkLinkResult>({
+    action: "bulk_link_contacts",
+    ...(batchSize ? { batchSize } : {}),
+    ...(delayMs ? { delayMs } : {}),
+  });
+}

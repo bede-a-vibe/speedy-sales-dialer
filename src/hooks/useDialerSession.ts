@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useClearOwnDialerLeadLocks, useRollingDialerQueue } from "@/hooks/useContacts";
+import { useClearOwnDialerLeadLocks, useRollingDialerQueue, type DialerFilterOptions } from "@/hooks/useContacts";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { CallOutcome } from "@/data/mockData";
 import { toast } from "sonner";
@@ -16,9 +16,10 @@ function formatDuration(durationMs: number) {
 export interface UseDialerSessionOptions {
   industry: string;
   stateFilter: string;
+  filters?: DialerFilterOptions;
 }
 
-export function useDialerSession({ industry, stateFilter }: UseDialerSessionOptions) {
+export function useDialerSession({ industry, stateFilter, filters }: UseDialerSessionOptions) {
   const { user } = useAuth();
 
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
@@ -47,7 +48,7 @@ export function useDialerSession({ industry, stateFilter }: UseDialerSessionOpti
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
 
-  const queue = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id });
+  const queue = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id, filters });
   const clearOwnDialerLeadLocks = useClearOwnDialerLeadLocks();
 
   const isSessionActive = isDialing || isSessionPaused;
@@ -126,7 +127,7 @@ export function useDialerSession({ industry, stateFilter }: UseDialerSessionOpti
     setIsSessionPaused(false);
     resetLeadState(user?.id || "");
     resetSessionTimers();
-  }, [industry, stateFilter, isStartingSession, queue.sessionId, resetLeadState, resetSessionTimers, user?.id]);
+  }, [industry, stateFilter, filters, isStartingSession, queue.sessionId, resetLeadState, resetSessionTimers, user?.id]);
 
   const startDialing = useCallback(async () => {
     if (isStartingSession) return;
