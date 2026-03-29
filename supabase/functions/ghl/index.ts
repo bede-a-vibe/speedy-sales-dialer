@@ -175,6 +175,39 @@ async function getUsers(apiKey: string, locationId: string) {
   });
 }
 
+async function updateContactFields(
+  apiKey: string,
+  contactId: string,
+  customFields: Array<{ id: string; field_value: unknown }>,
+) {
+  return ghlFetch(`/contacts/${contactId}`, apiKey, {
+    method: "PUT",
+    body: { customFields },
+  });
+}
+
+async function createFollowUpTask(
+  apiKey: string,
+  contactId: string,
+  params: {
+    title: string;
+    description?: string;
+    dueDate: string;
+    assignedTo?: string;
+  },
+) {
+  return ghlFetch(`/contacts/${contactId}/tasks`, apiKey, {
+    method: "POST",
+    body: {
+      title: params.title,
+      body: params.description ?? "",
+      dueDate: params.dueDate,
+      completed: false,
+      ...(params.assignedTo ? { assignedTo: params.assignedTo } : {}),
+    },
+  });
+}
+
 // ── Main handler ───────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -189,21 +222,35 @@ Deno.serve(async (req) => {
     const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
     if (!GHL_LOCATION_ID) return json({ error: "GHL_LOCATION_ID not configured" }, 500);
 
-    // Authenticate the caller via Supabase JWT
+    // Authenticate the caller via Supabase JWT or service role key
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const token = authHeader.replace("Bearer ", "");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const isServiceRole = serviceRoleKey && token === serviceRoleKey;
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return json({ error: "Unauthorized" }, 401);
+    let user: { id: string } | null = null;
+
+    if (isServiceRole) {
+      // Server-to-server call (from database triggers, other edge functions, etc.)
+      // Use a system user ID for audit purposes
+      user = { id: "system" };
+    } else {
+      // Standard JWT auth from frontend
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: { user: jwtUser }, error: userError } = await supabase.auth.getUser();
+      if (userError || !jwtUser) {
+        return json({ error: "Unauthorized" }, 401);
+      }
+      user = jwtUser;
     }
 
     const body = await req.json().catch(() => ({}));
@@ -275,6 +322,23 @@ Deno.serve(async (req) => {
 
       case "get_users":
         result = await getUsers(GHL_API_KEY, GHL_LOCATION_ID);
+        break;
+
+      case "update_contact_fields":
+        if (!body.contactId) return json({ error: "Missing contactId" }, 400);
+        if (!body.customFields || !Array.isArray(body.customFields)) return json({ error: "Missing or invalid customFields array" }, 400);
+        result = await updateContactFields(GHL_API_KEY, body.contactId, body.customFields);
+        break;
+
+      case "create_followup_task":
+        if (!body.contactId) return json({ error: "Missing contactId" }, 400);
+        if (!body.payload?.dueDate) return json({ error: "Missing payload.dueDate" }, 400);
+        result = await createFollowUpTask(GHL_API_KEY, body.contactId, {
+          title: body.payload.title ?? "Follow-Up Call",
+          description: body.payload.description,
+          dueDate: body.payload.dueDate,
+          assignedTo: body.payload.assignedTo,
+        });
         break;
 
       default:

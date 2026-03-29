@@ -18,6 +18,7 @@ import {
   type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
+import { useGHLSync } from "@/hooks/useGHLSync";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -218,6 +219,7 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
+  const ghlSync = useGHLSync();
 
   
 
@@ -327,6 +329,34 @@ export default function PipelinesPage() {
           follow_up_method: followUpMethod || "call",
         });
         toast.success("Follow-up scheduled.");
+      }
+
+      // ── GHL Sync for booking outcomes (fire-and-forget) ──
+      const contactGhlId = item.contacts?.ghl_contact_id;
+      if (contactGhlId) {
+        // Push outcome note to GHL
+        const outcomeLabel = getAppointmentOutcomeLabel(outcome);
+        const noteParts = [`\uD83D\uDCCB Appointment Result: ${outcomeLabel}`];
+        if (notes) noteParts.push(`Notes: ${notes}`);
+        if (dealValue != null && outcome === "showed_closed") noteParts.push(`Deal Value: $${dealValue.toLocaleString()}`);
+        if (outcome === "rescheduled" && scheduledFor) noteParts.push(`Rescheduled to: ${new Date(scheduledFor).toLocaleString("en-AU")}`);
+        noteParts.push(`Recorded via Speedy Sales Dialer at ${new Date().toLocaleString("en-AU")}`);
+        ghlSync.pushCallNote({
+          ghlContactId: contactGhlId,
+          outcome: outcome === "showed_closed" ? "booked" : outcome === "no_show" ? "follow_up" : "not_interested",
+          notes: noteParts.join("\n"),
+        }).catch(() => {});
+
+        // Push follow-up task to GHL if one was created
+        if (followUpDate) {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor: followUpDate,
+            title: `Follow-up after ${outcomeLabel}`,
+            description: notes || undefined,
+            method: followUpMethod || "call",
+          }).catch(() => {});
+        }
       }
     } catch {
       toast.error("Failed to update appointment outcome.");

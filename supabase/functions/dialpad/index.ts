@@ -587,6 +587,488 @@ function buildTranscriptText(transcriptPayload: unknown) {
   return ["Dialpad Transcript", ...formattedLines].join("\n");
 }
 
+// ── GHL Field Key → ID Mapping ──────────────────────────────────────────
+const GHL_FIELD_MAP: Record<string, string> = {
+  ai_call_summary: "IL1bpfoLPz0sPlU7ucbe",
+  call_disposition: "3mJ0ao8qgLzeFSXFOUpc",
+  prospect_tier: "D4OdcFIL4E9Z3SZ5pSUp",
+  best_time_to_call: "2tWhYqYune00tdwivyIg",
+  preferred_contact_method: "eWChuREzCpOa0vTm0Gaw",
+  last_contacted_date: "NOtFzQKRUmiTlMdtglJr",
+  total_call_attempts: "qpovJ9Z24WizTYL85y2S",
+  next_followup_date: "rJw13EVt9XTlBBlJFl9V",
+  gatekeeper_name: "BWHUzUPcHH1GbCXBhKGu",
+  gatekeeper_role: "O3NUAQLOiMaWuU0idtNC",
+  gatekeeper_notes: "RgpWvJFkLEluXf3dAXQy",
+  decision_maker_name: "ag8hSUhF7BSXWc03mkT1",
+  decision_maker_direct_line: "hQ87Eplr5vyoVgZfdX8k",
+  decision_maker_email: "AsH9iB1xrRGgIgNU59m4",
+  decision_maker_linkedin: "ejn4GXAzVIoPcIx6GLFS",
+  best_route_to_dm: "KQH4FTojsIVvOcmtBBnI",
+  business_size: "8OmWwJo4j712X0RHLv0i",
+  years_in_business: "rOgbGgGLgO0FrcOne8UY",
+  estimated_annual_revenue: "NJIhcBMLmOC35oqXLKz8",
+  number_of_trucksvans: "2a8aKsqp8hbpR6atzkqm",
+  service_area: "PLnazAPRoj1vF6oWzWAt",
+  work_type: "rqLROJ9hMIBVzNtWhhUY",
+  current_marketing_agency: "1xv4gYR7hfXawtJo0Y9D",
+  current_monthly_ad_spend: "9xUGCIB7u03aLq97nVFR",
+  current_marketing_channels: "CnbfdfgDfSq7fBtugY1F",
+  has_google_ads: "0JFrMj78LxbVZUbm9Y36",
+  has_facebookmeta_ads: "H25fGwTofPJoWONu8uMF",
+  seo_visibility: "lVQFlv6qQywpz8iWJruS",
+  social_media_presence: "DWDe40ohy7zbjWlOrkEE",
+  marketing_pain_points: "ZgMZ8T8lpfjNu0TpJpVC",
+  agency_satisfaction: "PXKt81Km2hczS7HcI3A1",
+  lead_source_dependency: "OkoXjyFTP5lBlMnaGqcS",
+  budget_indication: "Pzpt97a6OX8yGvt0yA81",
+  authority_level: "4cFkzARHaqisnkYD66ZE",
+  need_identified: "uxUmw1fvMaqB3PaY616L",
+  buying_timeline: "7eQnEUwjJyS1xHAsWyH9",
+  current_solution_satisfaction: "tNP34vNiUOxMSCiVDW1q",
+  key_objection: "IC81cpHYCU1H1uMYAtZz",
+  objection_notes: "Lp7PJyf414Gh8oIrWfuo",
+  buying_signal_strength: "wJEveppptnLy1hXMU0MP",
+  contractlockin_status: "zCvTLQ0ZSVF2KGWZHJVI",
+  last_call_sentiment: "OZ1i5SuCRyzDIS2R8Ws9",
+  problem_resonance: "2lkCsBJkkiFPJfK81oOY",
+  key_quote: "sVV6lPbArgky8tMBOAu8",
+  rep_coaching_notes: "891RFxHknXy5FK8G3Lvv",
+  competitive_intel: "iAMPbwmiQXXbXSgmGgUC",
+  agreed_next_steps: "bHOf7gs4tvdT55ceMQFt",
+  trade_type: "yt3N3TSYK6hKWHfChjvM",
+  website_url: "PMzSkSeg2HX6OLw3Llsi",
+  website_quality: "DrpNKbTVavczJgIpIVct",
+};
+
+// ── AI Summary System Prompt ────────────────────────────────────────────
+const AI_SYSTEM_PROMPT = `You are an expert sales manager and call reviewer for a digital marketing agency that sells to blue collar trades businesses (HVAC, plumbing, electrical, roofing, landscaping, etc.). You are deeply trained in the methodologies of "Fanatical Prospecting" by Jeb Blount and "Cold Calling Sucks (And That's Why It Works)" by Armand Farrokh & Nick Cegelski.
+
+Your task is to analyse a raw sales call transcript and extract actionable sales intelligence.
+
+You MUST return a valid JSON object with two keys:
+1. "fields" — structured key/value pairs for CRM custom fields
+2. "note" — a formatted rich text summary for the CRM contact note
+
+Core Methodologies to Look For:
+1. Openers: Did the rep use a context-led opener (e.g., "Heard the name tossed around" or tailored permission) instead of banned openers like "How's your day going?"
+2. Problem Proposition: Did the rep focus on a specific, triggering problem rather than a generic value proposition? Did they use an interest-based CTA?
+3. Objection Handling: Did the rep use a pattern interrupt? (e.g., "Agree > Incentivise > Test Drive" or "Ledge > Disrupt > Ask"). Did they avoid arguing with reflexive brush-offs?
+4. Qualification: Look for BANT (Budget, Authority, Need, Timeline) and buying window signals.
+5. Next Steps: Did the rep secure a firm commitment, confirm email, and ask for calendar invite acceptance?
+
+IMPORTANT RULES:
+- Only include fields where meaningful information was found in the transcript. Do NOT include fields with no data.
+- Use EXACTLY the option values listed below for dropdown fields.
+- For CHECKBOX fields, use an array of strings.
+- For NUMERICAL fields, use a number.
+- For DATE fields, use YYYY-MM-DD format.
+- For TEXT and LARGE_TEXT fields, use concise, specific strings.
+- The "note" field contains the full formatted summary as a single string with \n for line breaks.
+- Use Australian English spelling throughout.
+
+Available fields and their valid options:
+
+call_disposition: "Connected" | "No Answer" | "Voicemail" | "Gatekeeper" | "Wrong Number" | "Disconnected" | "Busy"
+prospect_tier: "Hot - Showing Interest" | "Warm - Engaged" | "Neutral - Listening" | "Cold - Not Interested" | "Dead - DNC"
+best_time_to_call: "Morning (9-12)" | "Afternoon (12-3)" | "Late Afternoon (3-5)" | "Evening (5-7)" | "Unknown"
+preferred_contact_method: "Phone" | "Email" | "SMS" | "LinkedIn" | "In Person"
+gatekeeper_name: (text)
+gatekeeper_role: (text)
+gatekeeper_notes: (large text)
+decision_maker_name: (text)
+decision_maker_direct_line: (phone)
+decision_maker_email: (text)
+decision_maker_linkedin: (text)
+best_route_to_dm: "Direct Dial" | "Ask for by Name" | "Call Back at Specific Time" | "Email First" | "LinkedIn" | "Other"
+business_size: "Solo (1)" | "Micro (2-5)" | "Small (6-15)" | "Medium (16-50)" | "Large (50+)"
+years_in_business: "New (<2 Years)" | "Established (2-5 Years)" | "Mature (5-10 Years)" | "Legacy (10+ Years)"
+estimated_annual_revenue: "<$500K" | "$500K-$1M" | "$1M-$2M" | "$2M-$5M" | "$5M+"
+number_of_trucksvans: (number)
+service_area: (text)
+work_type: "Residential Only" | "Mostly Residential" | "Mixed (Residential & Commercial)" | "Mostly Commercial" | "Commercial Only"
+current_marketing_agency: (text)
+current_monthly_ad_spend: "None" | "<$500" | "$500-$1K" | "$1K-$2K" | "$2K-$5K" | "$5K-$10K" | "$10K+"
+current_marketing_channels: ["Google Ads", "Facebook/Meta Ads", "SEO", "Google Business", "Website", "Social Media", "Word of Mouth", "Print/Flyers", "Vehicle Wraps", "Radio/TV"]
+has_google_ads: "Yes - Active" | "Yes - Paused" | "No" | "Unknown"
+has_facebookmeta_ads: "Yes - Active" | "Yes - Paused" | "No" | "Unknown"
+seo_visibility: "Strong" | "Moderate" | "Weak" | "None" | "Unknown"
+social_media_presence: "Active" | "Moderate" | "Minimal" | "None" | "Unknown"
+marketing_pain_points: (large text)
+agency_satisfaction: "Very Happy" | "Satisfied" | "Neutral" | "Frustrated" | "Very Unhappy" | "No Agency"
+lead_source_dependency: "Highly Dependent on Referrals" | "Mostly Referrals" | "Mixed" | "Mostly Digital" | "Fully Digital"
+budget_indication: "Has Budget" | "Budget Constrained" | "No Budget" | "Unknown"
+authority_level: "Decision Maker" | "Influencer" | "Gatekeeper" | "Unknown"
+need_identified: "Strong Need" | "Moderate Need" | "Low Need" | "No Need" | "Unknown"
+buying_timeline: "Immediate (< 1 month)" | "Short-term (1-3 months)" | "Medium-term (3-6 months)" | "Long-term (6+ months)" | "No Timeline"
+current_solution_satisfaction: "Very Happy" | "Satisfied" | "Neutral" | "Frustrated" | "Very Unhappy" | "No Solution"
+key_objection: "Happy with Current" | "No Budget" | "Bad Timing" | "Need to Think" | "Bad Experience" | "Too Busy" | "Not the DM" | "No Objection"
+objection_notes: (large text)
+buying_signal_strength: "Strong - Ready to Buy" | "Moderate - Interested" | "Weak - Curious" | "None - Not Interested"
+contractlockin_status: "No Contract" | "Month-to-Month" | "Locked In (<6 months left)" | "Locked In (6+ months left)" | "Unknown"
+last_call_sentiment: "Enthusiastic" | "Warm" | "Curious" | "Neutral" | "Guarded" | "Cold" | "Hostile"
+problem_resonance: "Strong - Pain Acknowledged" | "Moderate - Some Interest" | "Weak - Dismissive" | "None - No Engagement"
+key_quote: (large text - verbatim quote from prospect)
+rep_coaching_notes: (large text - constructive feedback)
+competitive_intel: (large text)
+agreed_next_steps: (large text)
+next_followup_date: (date YYYY-MM-DD)
+trade_type: (use the appropriate trade from the call context)
+
+Note format:
+\u{1F4DE} CALL SUMMARY — [Date] [Time]
+Rep: [Rep Name] | Duration: [Duration] | Number: [Phone Number]
+
+\u{1F3AF} OUTCOME: [Meeting Booked / Follow-Up Agreed / Info Gathered / Familiarity Built / Objection / Not Interested / Voicemail / Gatekeeper]
+
+\u{1F4CA} QUALIFICATION
+\u2022 Budget: [Details]
+\u2022 Authority: [Details]
+\u2022 Need: [Details]
+\u2022 Timeline: [Details]
+\u2022 Current Solution: [Details]
+
+\u{1F4AC} PROBLEM RESONANCE
+\u2022 [Details]
+
+\u{1F6E1}\uFE0F OBJECTIONS
+\u2022 Objection: [What they said]
+\u2022 Handling: [How the rep responded]
+\u2022 Result: [Outcome]
+
+\u{1F321}\uFE0F SENTIMENT: [Warm / Neutral / Cold / Hostile / Curious]
+\u2022 [Brief description]
+
+\u{1F3E2} COMPETITIVE INTEL
+\u2022 [Details]
+
+\u2705 NEXT STEPS
+\u2022 [Specific actions with dates]
+
+\u{1F4CD} PYRAMID POSITION: [Unqualified / Qualified-No Window / Qualified-In Window / Conquest]
+
+\u{1F4A1} KEY QUOTES
+\u2022 "[Verbatim quote]"
+
+\u{1F527} REP COACHING NOTES
+\u2022 [Observations on opener, pitch, objection handling, tone]
+
+Only include sections where meaningful information exists. Omit empty sections entirely.`;
+
+// ── AI Summary Generation ───────────────────────────────────────────────
+async function generateAiSummary(params: {
+  transcript: string;
+  repName?: string;
+  phoneNumber?: string;
+  callDurationSeconds?: number | null;
+  callDate?: string | null;
+}) {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  const OPENAI_BASE_URL = Deno.env.get("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
+
+  if (!OPENAI_API_KEY) {
+    console.warn("[AI Summary] OPENAI_API_KEY not configured — skipping AI summary");
+    return null;
+  }
+
+  const durationStr = params.callDurationSeconds != null
+    ? `${Math.floor(params.callDurationSeconds / 60)}m ${params.callDurationSeconds % 60}s`
+    : "Unknown";
+
+  const callDate = params.callDate ?? new Date().toLocaleDateString("en-AU");
+  const callTime = new Date().toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+
+  const userPrompt = `Please analyse the following call transcript and generate the CRM note and structured JSON.
+
+Call Metadata:
+Date: ${callDate}
+Time: ${callTime}
+Rep: ${params.repName ?? "Unknown"}
+Duration: ${durationStr}
+Phone: ${params.phoneNumber ?? "Unknown"}
+
+Transcript:
+${params.transcript}`;
+
+  try {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: AI_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[AI Summary] OpenAI API error: ${response.status} ${errBody}`);
+      return null;
+    }
+
+    const result = await response.json();
+    const content = result?.choices?.[0]?.message?.content;
+    if (!content) {
+      console.warn("[AI Summary] No content in OpenAI response");
+      return null;
+    }
+
+    const parsed = JSON.parse(content);
+    return parsed as { fields?: Record<string, unknown>; note?: string };
+  } catch (err) {
+    console.error("[AI Summary] Failed to generate AI summary:", err);
+    return null;
+  }
+}
+
+// ── GHL API Helpers (server-side, used by webhook handler) ──────────────
+const GHL_BASE_URL = "https://services.leadconnectorhq.com";
+const GHL_API_VERSION = "2021-07-28";
+
+function ghlApiHeaders(apiKey: string) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    Version: GHL_API_VERSION,
+  };
+}
+
+async function pushNoteToGhl(params: {
+  ghlApiKey: string;
+  ghlContactId: string;
+  noteBody: string;
+}) {
+  try {
+    const response = await fetch(
+      `${GHL_BASE_URL}/contacts/${params.ghlContactId}/notes`,
+      {
+        method: "POST",
+        headers: ghlApiHeaders(params.ghlApiKey),
+        body: JSON.stringify({ body: params.noteBody }),
+      },
+    );
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[GHL Push Note] Failed: ${response.status} ${errBody}`);
+      return false;
+    }
+
+    console.log(`[GHL Push Note] Note pushed to contact ${params.ghlContactId}`);
+    return true;
+  } catch (err) {
+    console.error("[GHL Push Note] Error:", err);
+    return false;
+  }
+}
+
+async function pushFieldsToGhl(params: {
+  ghlApiKey: string;
+  ghlContactId: string;
+  fields: Record<string, unknown>;
+  existingCustomFields?: Record<string, unknown>;
+}) {
+  // Map AI field keys to GHL custom field IDs
+  const customFieldUpdates: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(params.fields)) {
+    if (value === null || value === undefined || value === "") continue;
+
+    const ghlFieldId = GHL_FIELD_MAP[key];
+    if (!ghlFieldId) {
+      console.warn(`[GHL Push Fields] No GHL field ID mapping for key: ${key}`);
+      continue;
+    }
+
+    // Handle append-style fields (gatekeeper_notes, marketing_pain_points, objection_notes, competitive_intel)
+    const APPEND_FIELDS = new Set(["gatekeeper_notes", "marketing_pain_points", "objection_notes", "competitive_intel"]);
+    if (APPEND_FIELDS.has(key) && params.existingCustomFields) {
+      const existingValue = params.existingCustomFields[ghlFieldId];
+      if (typeof existingValue === "string" && existingValue.trim()) {
+        customFieldUpdates[ghlFieldId] = `${existingValue.trim()}\n---\n${String(value)}`;
+        continue;
+      }
+    }
+
+    customFieldUpdates[ghlFieldId] = value;
+  }
+
+  // Handle total_call_attempts increment
+  const callAttemptsFieldId = GHL_FIELD_MAP.total_call_attempts;
+  if (callAttemptsFieldId) {
+    const existingAttempts = params.existingCustomFields?.[callAttemptsFieldId];
+    const currentCount = typeof existingAttempts === "number" ? existingAttempts : 0;
+    customFieldUpdates[callAttemptsFieldId] = currentCount + 1;
+  }
+
+  // Set last_contacted_date to today
+  const lastContactedFieldId = GHL_FIELD_MAP.last_contacted_date;
+  if (lastContactedFieldId) {
+    customFieldUpdates[lastContactedFieldId] = new Date().toISOString().split("T")[0];
+  }
+
+  if (Object.keys(customFieldUpdates).length === 0) {
+    console.log("[GHL Push Fields] No fields to update");
+    return true;
+  }
+
+  try {
+    const response = await fetch(
+      `${GHL_BASE_URL}/contacts/${params.ghlContactId}`,
+      {
+        method: "PUT",
+        headers: ghlApiHeaders(params.ghlApiKey),
+        body: JSON.stringify({ customFields: Object.entries(customFieldUpdates).map(([id, value]) => ({ id, field_value: value })) }),
+      },
+    );
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      console.error(`[GHL Push Fields] Failed: ${response.status} ${errBody}`);
+      return false;
+    }
+
+    console.log(`[GHL Push Fields] Updated ${Object.keys(customFieldUpdates).length} fields on contact ${params.ghlContactId}`);
+    return true;
+  } catch (err) {
+    console.error("[GHL Push Fields] Error:", err);
+    return false;
+  }
+}
+
+async function fetchGhlContactCustomFields(ghlApiKey: string, ghlContactId: string) {
+  try {
+    const response = await fetch(
+      `${GHL_BASE_URL}/contacts/${ghlContactId}`,
+      {
+        method: "GET",
+        headers: ghlApiHeaders(ghlApiKey),
+      },
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const contact = data?.contact ?? data;
+    if (!isRecord(contact)) return null;
+
+    // Build a map of custom field ID -> value
+    const customFields: Record<string, unknown> = {};
+    if (Array.isArray(contact.customFields)) {
+      for (const cf of contact.customFields) {
+        if (isRecord(cf) && typeof cf.id === "string") {
+          customFields[cf.id] = cf.value;
+        }
+      }
+    }
+
+    return customFields;
+  } catch {
+    return null;
+  }
+}
+
+// ── Process AI Summary and Push to GHL ──────────────────────────────────
+async function processAiSummaryAndPushToGhl(params: {
+  adminClient: ReturnType<typeof createClient>;
+  contactId: string;
+  userId: string;
+  dialpadCallId: string;
+  transcript: string;
+  phoneNumber?: string;
+  callDurationSeconds?: number | null;
+  callDate?: string | null;
+}) {
+  const GHL_API_KEY = Deno.env.get("GHL_API_KEY");
+  if (!GHL_API_KEY) {
+    console.warn("[AI→GHL] GHL_API_KEY not configured — skipping GHL push");
+  }
+
+  // Look up rep name from profiles
+  const { data: profile } = await params.adminClient
+    .from("profiles")
+    .select("display_name, email")
+    .eq("user_id", params.userId)
+    .maybeSingle();
+
+  const repName = profile?.display_name ?? profile?.email?.split("@")[0] ?? "Unknown";
+
+  // Generate AI summary
+  const aiResult = await generateAiSummary({
+    transcript: params.transcript,
+    repName,
+    phoneNumber: params.phoneNumber,
+    callDurationSeconds: params.callDurationSeconds,
+    callDate: params.callDate,
+  });
+
+  if (!aiResult) {
+    console.warn("[AI→GHL] AI summary generation failed — skipping");
+    return { aiGenerated: false, ghlNotePushed: false, ghlFieldsPushed: false };
+  }
+
+  // Save AI summary to contact_notes in Supabase
+  if (aiResult.note) {
+    await upsertContactNote(params.adminClient, {
+      contactId: params.contactId,
+      createdBy: params.userId,
+      dialpadCallId: params.dialpadCallId,
+      source: "dialpad_summary",
+      content: aiResult.note,
+    }).catch((err: unknown) => {
+      console.error("[AI→GHL] Failed to save AI note to Supabase:", err);
+    });
+  }
+
+  // Look up ghl_contact_id from contacts table
+  const { data: contact } = await params.adminClient
+    .from("contacts")
+    .select("ghl_contact_id, phone")
+    .eq("id", params.contactId)
+    .maybeSingle();
+
+  const ghlContactId = contact?.ghl_contact_id;
+  let ghlNotePushed = false;
+  let ghlFieldsPushed = false;
+
+  if (ghlContactId && GHL_API_KEY) {
+    // Push the formatted note to GHL
+    if (aiResult.note) {
+      ghlNotePushed = await pushNoteToGhl({
+        ghlApiKey: GHL_API_KEY,
+        ghlContactId,
+        noteBody: aiResult.note,
+      });
+    }
+
+    // Push structured fields to GHL custom fields
+    if (aiResult.fields && Object.keys(aiResult.fields).length > 0) {
+      // Fetch existing custom fields for append logic
+      const existingCustomFields = await fetchGhlContactCustomFields(GHL_API_KEY, ghlContactId);
+
+      ghlFieldsPushed = await pushFieldsToGhl({
+        ghlApiKey: GHL_API_KEY,
+        ghlContactId,
+        fields: aiResult.fields,
+        existingCustomFields: existingCustomFields ?? undefined,
+      });
+    }
+  } else if (!ghlContactId) {
+    console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — skipping GHL push`);
+  }
+
+  return { aiGenerated: true, ghlNotePushed, ghlFieldsPushed, fieldsExtracted: Object.keys(aiResult.fields ?? {}).length };
+}
+
 async function fetchDialpadTranscript(callId: string, apiKey: string) {
   const response = await fetch(`${DIALPAD_BASE}/transcripts/${callId}`, {
     headers: {
@@ -963,6 +1445,31 @@ async function syncWebhookPayload(params: {
     });
   }
 
+  // ── AI Summary Processing & GHL Push ──────────────────────────────────
+  // Trigger when we have a transcript (connected call that ended)
+  let aiResult: { aiGenerated: boolean; ghlNotePushed: boolean; ghlFieldsPushed: boolean; fieldsExtracted?: number } | null = null;
+  if (hasTranscript && transcript && talkTimeSeconds != null && talkTimeSeconds > 15) {
+    // Only process calls with >15 seconds of talk time (skip voicemails, no-answers, etc.)
+    console.log(`[syncWebhookPayload] Triggering AI summary for dialpad_call_id=${dialpadCallId} (talk_time=${talkTimeSeconds}s)`);
+    try {
+      aiResult = await processAiSummaryAndPushToGhl({
+        adminClient,
+        contactId: trackedCall.contact_id,
+        userId: trackedCall.user_id,
+        dialpadCallId,
+        transcript,
+        phoneNumber: payload.external_number ?? undefined,
+        callDurationSeconds: talkTimeSeconds,
+        callDate: new Date().toLocaleDateString("en-AU"),
+      });
+      console.log(`[syncWebhookPayload] AI summary result: generated=${aiResult.aiGenerated} ghlNote=${aiResult.ghlNotePushed} ghlFields=${aiResult.ghlFieldsPushed} fieldsExtracted=${aiResult.fieldsExtracted ?? 0}`);
+    } catch (aiErr) {
+      console.error(`[syncWebhookPayload] AI summary processing failed:`, aiErr);
+    }
+  } else if (hasTranscript) {
+    console.log(`[syncWebhookPayload] Skipping AI summary for dialpad_call_id=${dialpadCallId} — talk_time=${talkTimeSeconds ?? 'null'}s (below 15s threshold)`);
+  }
+
   const nextStatus = hasSummary || hasTranscript
     ? "synced"
     : payload.state === "hangup"
@@ -992,6 +1499,10 @@ async function syncWebhookPayload(params: {
     talk_time_seconds: talkTimeSeconds,
     total_duration_seconds: totalDurationSeconds,
     call_log_linked: !!resolvedCallLogId,
+    ai_summary_generated: aiResult?.aiGenerated ?? false,
+    ghl_note_pushed: aiResult?.ghlNotePushed ?? false,
+    ghl_fields_pushed: aiResult?.ghlFieldsPushed ?? false,
+    ghl_fields_extracted: aiResult?.fieldsExtracted ?? 0,
   };
 }
 
