@@ -44,6 +44,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
+  const ghlSync = useGHLSync();
+  const { data: ghlCalendars = [] } = useGHLCalendars();
+  const { data: ghlPipelines = [] } = useGHLPipelines();
 
   const isAdmin = useIsAdmin();
   const createContactMutation = useCreateContact();
