@@ -1,4 +1,11 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2 } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff } from "lucide-react";
+
+const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
+  confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
+  unconfirmed: { label: "Unconfirmed", color: "text-muted-foreground bg-accent border-border", icon: Phone },
+  suspect: { label: "Suspect", color: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30", icon: AlertTriangle },
+  dead: { label: "Dead", color: "text-red-400 bg-red-500/15 border-red-500/30", icon: PhoneOff },
+};
 
 const PHONE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   mobile: { label: "Mobile", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Smartphone },
@@ -27,12 +34,16 @@ interface ContactCardProps {
     dm_email?: string | null;
     gatekeeper_name?: string | null;
     best_time_to_call?: string | null;
+    phone_number_quality?: string | null;
+    call_attempt_count?: number | null;
+    voicemail_count?: number | null;
   };
+  onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
   onCallDM?: (phone: string) => void;
 }
 
-export function ContactCard({ contact, onAddDM, onCallDM }: ContactCardProps) {
+export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: ContactCardProps) {
   const phoneType = PHONE_TYPE_CONFIG[contact.phone_type || "unknown"] || PHONE_TYPE_CONFIG.unknown;
   const PhoneIcon = phoneType.icon;
   const hasDM = contact.dm_name || contact.dm_phone;
@@ -99,6 +110,41 @@ export function ContactCard({ contact, onAddDM, onCallDM }: ContactCardProps) {
           <span className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1.5 rounded border ${phoneType.color}`}>
             {phoneType.label}
           </span>
+        </div>
+
+        {/* Call Stats & Phone Quality */}
+        <div className="flex items-center gap-2 text-xs">
+          {(contact.call_attempt_count ?? 0) > 0 && (
+            <span className="font-mono text-muted-foreground bg-accent px-2 py-1 rounded border border-border">
+              {contact.call_attempt_count} attempt{(contact.call_attempt_count ?? 0) !== 1 ? 's' : ''}
+            </span>
+          )}
+          {(contact.voicemail_count ?? 0) > 0 && (
+            <span className="font-mono text-amber-400 bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
+              {contact.voicemail_count} VM{(contact.voicemail_count ?? 0) !== 1 ? 's' : ''}
+            </span>
+          )}
+          {onMarkPhoneQuality && (
+            <div className="flex items-center gap-1 ml-auto">
+              {['confirmed', 'suspect', 'dead'].map((q) => {
+                const cfg = PHONE_QUALITY_CONFIG[q];
+                const QIcon = cfg.icon;
+                const isActive = contact.phone_number_quality === q;
+                return (
+                  <button
+                    key={q}
+                    onClick={() => onMarkPhoneQuality(q)}
+                    title={`Mark as ${cfg.label}`}
+                    className={`p-1 rounded border transition-colors ${
+                      isActive ? cfg.color + ' ring-1 ring-offset-1 ring-offset-background' : 'text-muted-foreground/50 bg-transparent border-transparent hover:' + cfg.color
+                    }`}
+                  >
+                    <QIcon className="h-3 w-3" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

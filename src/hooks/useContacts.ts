@@ -35,6 +35,7 @@ export type DialerFilterOptions = {
   buyingSignalStrength?: string;
   phoneType?: string;
   hasDmPhone?: string;
+  contactOwner?: string;
 };
 
 type RollingDialerQueueOptions = {
@@ -88,6 +89,7 @@ async function claimDialerLeads({
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
+    _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
   });
 }
 
@@ -144,6 +146,7 @@ async function getDialerQueueCount({
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
+    _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
   });
 }
 

@@ -11,9 +11,24 @@ import {
   REVIEW_COUNT_OPTIONS,
   PHONE_TYPE_OPTIONS,
   DM_STATUS_OPTIONS,
+  INDUSTRIES,
+  AUSTRALIAN_STATES,
 } from "@/data/constants";
 
+export interface SalesRepOption {
+  user_id: string;
+  display_name: string | null;
+  email: string | null;
+}
+
 interface AdvancedFiltersProps {
+  industry: string;
+  setIndustry: (v: string) => void;
+  stateFilter: string;
+  setStateFilter: (v: string) => void;
+  contactOwner: string;
+  setContactOwner: (v: string) => void;
+  salesReps: SalesRepOption[];
   tradeType: string;
   setTradeType: (v: string) => void;
   workType: string;
@@ -47,7 +62,15 @@ const PHONE_TYPE_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
+function getRepLabel(rep: SalesRepOption) {
+  return rep.display_name?.trim() || rep.email || "Unknown";
+}
+
 export function AdvancedFilters({
+  industry, setIndustry,
+  stateFilter, setStateFilter,
+  contactOwner, setContactOwner,
+  salesReps,
   tradeType, setTradeType,
   workType, setWorkType,
   businessSize, setBusinessSize,
@@ -65,10 +88,59 @@ export function AdvancedFilters({
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Advanced Filters</h3>
+        <h3 className="text-sm font-semibold text-foreground">Filters</h3>
         <Button variant="ghost" size="sm" onClick={onReset} disabled={disabled} className="text-xs text-muted-foreground">
           Reset All
         </Button>
+      </div>
+
+      {/* Row 0: Core Filters — Industry, State, Contact Owner */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Industry</label>
+          <Select value={industry} onValueChange={setIndustry} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All Industries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Industries</SelectItem>
+              {INDUSTRIES.map((ind) => (
+                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">State</label>
+          <Select value={stateFilter} onValueChange={setStateFilter} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All States" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All States</SelectItem>
+              {AUSTRALIAN_STATES.map((state) => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Contact Owner</label>
+          <Select value={contactOwner} onValueChange={setContactOwner} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All Reps" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Reps</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {salesReps.map((rep) => (
+                <SelectItem key={rep.user_id} value={rep.user_id}>{getRepLabel(rep)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Row 1: Phone & Contact Filters */}

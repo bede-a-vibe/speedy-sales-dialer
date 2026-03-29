@@ -75,6 +75,7 @@ PanelSkeleton.displayName = "PanelSkeleton";
 export default function DialerPage() {
   const [industry, setIndustry] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
+  const [contactOwner, setContactOwner] = useState<string>("all");
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
@@ -113,10 +114,14 @@ export default function DialerPage() {
     buyingSignalStrength,
     phoneType,
     hasDmPhone,
-  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
+    contactOwner,
+  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
+    if (industry !== "all") count++;
+    if (stateFilter !== "all") count++;
+    if (contactOwner !== "all") count++;
     if (tradeType !== "all") count++;
     if (workType !== "all") count++;
     if (businessSize !== "all") count++;
@@ -129,9 +134,12 @@ export default function DialerPage() {
     if (phoneType !== "all") count++;
     if (hasDmPhone !== "all") count++;
     return count;
-  }, [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
+  }, [industry, stateFilter, contactOwner, tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
 
   const resetAdvancedFilters = useCallback(() => {
+    setIndustry("all");
+    setStateFilter("all");
+    setContactOwner("all");
     setTradeType("all");
     setWorkType("all");
     setBusinessSize("all");
@@ -217,9 +225,7 @@ export default function DialerPage() {
       session.setFollowUpDate(undefined);
       session.setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     }
-    if (!requiresBookedSchedule) {
-      session.setIsBookedDateAutoDetected(false);
-    }
+
   }, [requiresAnySchedule, requiresBookedSchedule, requiresPipelineAssignment, session.user?.id]);
 
   // Preload lazy panels when session starts
@@ -333,6 +339,7 @@ export default function DialerPage() {
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
             follow_up_note: null,
+            ...(outcomeToLog === "voicemail" ? { voicemail_count: ((session.currentContact as any)?.voicemail_count ?? 0) + 1 } : {}),
           }),
         ]);
 
@@ -496,30 +503,6 @@ export default function DialerPage() {
 
         {/* ── Filters & Controls ── */}
         <div className="flex flex-wrap items-center gap-4">
-          <Select value={industry} onValueChange={setIndustry} disabled={session.isSessionActive}>
-            <SelectTrigger className="w-[200px] border-border bg-card">
-              <SelectValue placeholder="Filter by industry" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Industries</SelectItem>
-              {INDUSTRIES.map((ind) => (
-                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={stateFilter} onValueChange={setStateFilter} disabled={session.isSessionActive}>
-            <SelectTrigger className="w-[180px] border-border bg-card">
-              <SelectValue placeholder="Filter by state" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All States</SelectItem>
-              {AUSTRALIAN_STATES.map((state) => (
-                <SelectItem key={state} value={state}>{state}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button
             variant={showAdvancedFilters ? "secondary" : "outline"}
             size="sm"
@@ -591,6 +574,9 @@ export default function DialerPage() {
                 </span>
                 <span className="text-xs font-mono text-muted-foreground">
                   Active {session.formatDuration(session.totalDialingMs)}
+                  {session.totalDialingMs > 60000 && (
+                    <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
+                  )}
                 </span>
                 <span className="text-xs font-mono text-muted-foreground">
                   Paused {session.formatDuration(session.totalPausedMs)}
@@ -725,6 +711,13 @@ export default function DialerPage() {
 
         {showAdvancedFilters && (
           <AdvancedFilters
+            industry={industry}
+            setIndustry={setIndustry}
+            stateFilter={stateFilter}
+            setStateFilter={setStateFilter}
+            contactOwner={contactOwner}
+            setContactOwner={setContactOwner}
+            salesReps={salesReps}
             tradeType={tradeType}
             setTradeType={setTradeType}
             workType={workType}
@@ -762,7 +755,15 @@ export default function DialerPage() {
                 </div>
               )}
 
-              <ContactCard contact={session.currentContact} />
+              <ContactCard
+                contact={session.currentContact}
+                onMarkPhoneQuality={(quality) => {
+                  updateContact.mutateAsync({
+                    id: session.currentContact!.id,
+                    phone_number_quality: quality,
+                  }).catch(() => {});
+                }}
+              />
 
               <DecisionMakerCapture
                 contactId={session.currentContact.id}

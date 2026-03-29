@@ -28,7 +28,6 @@ export function useDialerSession({ industry, stateFilter, filters }: UseDialerSe
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>();
   const [followUpTime, setFollowUpTime] = useState(BOOKED_APPOINTMENT_DEFAULT_TIME);
   const [assignedRepId, setAssignedRepId] = useState("");
-  const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
   const [isDialing, setIsDialing] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
@@ -71,7 +70,6 @@ export function useDialerSession({ industry, stateFilter, filters }: UseDialerSe
     setFollowUpDate(undefined);
     setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
     setAssignedRepId(assignedUserId || "");
-    setIsBookedDateAutoDetected(false);
     leadAdvanceInFlightRef.current = false;
   }, []);
 
@@ -257,7 +255,6 @@ export function useDialerSession({ industry, stateFilter, filters }: UseDialerSe
     followUpDate, setFollowUpDate,
     followUpTime, setFollowUpTime,
     assignedRepId, setAssignedRepId,
-    isBookedDateAutoDetected, setIsBookedDateAutoDetected,
     // Session state
     isDialing, isSessionPaused, isSessionActive,
     isStartingSession, isRecoveringQueue, isBootstrappingSession,
