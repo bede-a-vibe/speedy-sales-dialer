@@ -11,6 +11,8 @@ import { useCreateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
+import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -42,6 +44,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
+  const ghlSync = useGHLSync();
+  const { data: ghlCalendars = [] } = useGHLCalendars();
+  const { data: ghlPipelines = [] } = useGHLPipelines();
 
   const isAdmin = useIsAdmin();
   const createContactMutation = useCreateContact();
@@ -68,6 +73,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
   const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
+  const [ghlCalendarId, setGhlCalendarId] = useState("");
+  const [ghlPipelineId, setGhlPipelineId] = useState("");
+  const [ghlStageId, setGhlStageId] = useState("");
+
+  const ghlSelectedPipelineStages = useMemo(
+    () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
+    [ghlPipelines, ghlPipelineId],
+  );
 
   // Set default rep to current user
   useEffect(() => {
@@ -91,6 +104,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setNotes("");
       setAssignedRepId(user?.id || "");
       setIsBookedDateAutoDetected(false);
+      setGhlCalendarId("");
+      setGhlPipelineId("");
+      setGhlStageId("");
     }
   }, [open, user?.id]);
 
@@ -208,6 +224,32 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
       toast.success(`${label} created for ${selectedContact.business_name}`);
+
+      // ── GHL Sync (fire-and-forget) ──
+      const contactGhlId = (selectedContact as Record<string, unknown>).ghl_contact_id as string | null;
+      if (contactGhlId) {
+        const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
+        if (pipelineType === "booked" && ghlCalendarId) {
+          ghlSync.pushBooking({
+            ghlContactId: contactGhlId,
+            calendarId: ghlCalendarId,
+            scheduledFor: scheduledFor.toISOString(),
+            contactName: selectedContact.business_name,
+            repName,
+            notes: notes.trim() || undefined,
+            pipelineId: ghlPipelineId || undefined,
+            pipelineStageId: ghlStageId || undefined,
+          }).catch(() => {});
+        }
+        if (pipelineType === "follow_up") {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor: scheduledFor.toISOString(),
+            method: followUpMethod,
+          }).catch(() => {});
+        }
+      }
+
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
@@ -409,6 +451,59 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
               {/* Inline booking embed — only for booked type */}
               {isBooked && <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />}
+
+              {/* GHL Calendar + Pipeline selectors — only for booked type */}
+              {isBooked && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      GHL Calendar
+                    </label>
+                    <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
+                      <SelectTrigger className="w-full border-border bg-background">
+                        <SelectValue placeholder="Select GHL calendar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ghlCalendars.map((cal) => (
+                          <SelectItem key={cal.id} value={cal.id}>{cal.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      GHL Pipeline (optional)
+                    </label>
+                    <Select value={ghlPipelineId} onValueChange={(v) => { setGhlPipelineId(v); setGhlStageId(""); }}>
+                      <SelectTrigger className="w-full border-border bg-background">
+                        <SelectValue placeholder="Select pipeline" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ghlPipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
+                    <div>
+                      <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Pipeline Stage
+                      </label>
+                      <Select value={ghlStageId} onValueChange={setGhlStageId}>
+                        <SelectTrigger className="w-full border-border bg-background">
+                          <SelectValue placeholder="Select stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ghlSelectedPipelineStages.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Date / time */}
               <div>

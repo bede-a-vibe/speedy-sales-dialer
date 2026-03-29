@@ -20,6 +20,8 @@ import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
+import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
@@ -63,6 +65,9 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
+  const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
+  const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
+  const [ghlStageId, setGhlStageId] = useState<string>("");
 
   const session = useDialerSession({ industry, stateFilter });
   const dialpad = useDialerDialpad({
@@ -76,6 +81,14 @@ export default function DialerPage() {
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
+  const ghlSync = useGHLSync();
+  const { data: ghlCalendars = [] } = useGHLCalendars();
+  const { data: ghlPipelines = [] } = useGHLPipelines();
+
+  const ghlSelectedPipelineStages = useMemo(
+    () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
+    [ghlPipelines, ghlPipelineId],
+  );
 
   const queueLeadCount = useMemo(
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
@@ -159,6 +172,8 @@ export default function DialerPage() {
     const contactId = session.currentContact.id;
     const userId = session.user.id;
     const contactFollowUpNote = session.currentContact.follow_up_note;
+    const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null;
+    const contactName = session.currentContact.business_name;
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
       ? combineDateAndTime(session.followUpDate, outcomeToLog === "follow_up" ? session.followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
@@ -166,6 +181,10 @@ export default function DialerPage() {
     const pipelineNotes = session.notes;
     const repId = session.assignedRepId;
     const method = followUpMethod;
+    const calendarId = ghlCalendarId;
+    const pipelineId = ghlPipelineId;
+    const stageId = ghlStageId;
+    const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
 
     // Advance immediately
     const nextLength = session.queue.contacts.length - 1;
@@ -178,6 +197,9 @@ export default function DialerPage() {
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
     setFollowUpMethod("call");
+    setGhlCalendarId("");
+    setGhlPipelineId("");
+    setGhlStageId("");
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
@@ -252,8 +274,43 @@ export default function DialerPage() {
       } catch {
         toast.error("Failed to save call log — please check your records.");
       }
+
+      // ── GHL Sync (fire-and-forget) ──
+      if (contactGhlId) {
+        ghlSync.pushCallNote({
+          ghlContactId: contactGhlId,
+          outcome: outcomeToLog,
+          notes: pipelineNotes || undefined,
+          repName,
+        }).catch(() => {});
+
+        if (outcomeToLog === "booked" && scheduledFor && calendarId) {
+          ghlSync.pushBooking({
+            ghlContactId: contactGhlId,
+            calendarId,
+            scheduledFor,
+            contactName,
+            repName,
+            notes: pipelineNotes || undefined,
+            pipelineId: pipelineId || undefined,
+            pipelineStageId: stageId || undefined,
+          }).catch(() => {});
+        }
+
+        if (outcomeToLog === "follow_up" && scheduledFor) {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor,
+            method,
+          }).catch(() => {});
+        }
+
+        if (outcomeToLog === "dnc") {
+          ghlSync.pushDNC({ ghlContactId: contactGhlId }).catch(() => {});
+        }
+      }
     })();
-  }, [session, dialpad, createCallLog, createPipelineItem, updateContact]);
+  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
@@ -672,6 +729,59 @@ export default function DialerPage() {
                           </p>
                         </div>
                       </div>
+
+                      {/* GHL Calendar selector */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          GHL Calendar
+                        </label>
+                        <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
+                          <SelectTrigger className="w-full border-border bg-background">
+                            <SelectValue placeholder="Select GHL calendar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ghlCalendars.map((cal) => (
+                              <SelectItem key={cal.id} value={cal.id}>{cal.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* GHL Pipeline selector */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          GHL Pipeline (optional)
+                        </label>
+                        <Select value={ghlPipelineId} onValueChange={(v) => { setGhlPipelineId(v); setGhlStageId(""); }}>
+                          <SelectTrigger className="w-full border-border bg-background">
+                            <SelectValue placeholder="Select pipeline" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ghlPipelines.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* GHL Stage selector */}
+                      {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
+                        <div>
+                          <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                            Pipeline Stage
+                          </label>
+                          <Select value={ghlStageId} onValueChange={setGhlStageId}>
+                            <SelectTrigger className="w-full border-border bg-background">
+                              <SelectValue placeholder="Select stage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ghlSelectedPipelineStages.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
