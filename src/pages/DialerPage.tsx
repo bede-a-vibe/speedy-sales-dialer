@@ -197,6 +197,9 @@ export default function DialerPage() {
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
     setFollowUpMethod("call");
+    setGhlCalendarId("");
+    setGhlPipelineId("");
+    setGhlStageId("");
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
