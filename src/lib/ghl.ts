@@ -80,6 +80,17 @@ export async function ghlGetCustomFields() {
   return invokeGHL({ action: "get_custom_fields" });
 }
 
+export async function ghlUpdateContactFields(
+  contactId: string,
+  customFields: Record<string, string>,
+) {
+  return invokeGHL({
+    action: "update_contact_fields",
+    contactId,
+    payload: { customFields },
+  });
+}
+
 export async function ghlGetUsers() {
   return invokeGHL({ action: "get_users" });
 }

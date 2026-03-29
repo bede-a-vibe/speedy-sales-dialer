@@ -7,6 +7,7 @@ import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
 import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
+import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -97,6 +98,8 @@ export default function DialerPage() {
   const [hasGoogleAds, setHasGoogleAds] = useState<string>("all");
   const [hasFacebookAds, setHasFacebookAds] = useState<string>("all");
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>("all");
+  const [phoneType, setPhoneType] = useState<string>("all");
+  const [hasDmPhone, setHasDmPhone] = useState<string>("all");
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     tradeType,
@@ -108,7 +111,9 @@ export default function DialerPage() {
     hasGoogleAds,
     hasFacebookAds,
     buyingSignalStrength,
-  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength]);
+    phoneType,
+    hasDmPhone,
+  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -121,8 +126,10 @@ export default function DialerPage() {
     if (hasGoogleAds !== "all") count++;
     if (hasFacebookAds !== "all") count++;
     if (buyingSignalStrength !== "all") count++;
+    if (phoneType !== "all") count++;
+    if (hasDmPhone !== "all") count++;
     return count;
-  }, [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength]);
+  }, [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
 
   const resetAdvancedFilters = useCallback(() => {
     setTradeType("all");
@@ -134,6 +141,8 @@ export default function DialerPage() {
     setHasGoogleAds("all");
     setHasFacebookAds("all");
     setBuyingSignalStrength("all");
+    setPhoneType("all");
+    setHasDmPhone("all");
   }, []);
 
   const session = useDialerSession({ industry, stateFilter, filters: advancedFilters });
@@ -726,6 +735,10 @@ export default function DialerPage() {
             setHasFacebookAds={setHasFacebookAds}
             buyingSignalStrength={buyingSignalStrength}
             setBuyingSignalStrength={setBuyingSignalStrength}
+            phoneType={phoneType}
+            setPhoneType={setPhoneType}
+            hasDmPhone={hasDmPhone}
+            setHasDmPhone={setHasDmPhone}
             onReset={resetAdvancedFilters}
             disabled={session.isSessionActive}
           />
@@ -742,6 +755,20 @@ export default function DialerPage() {
               )}
 
               <ContactCard contact={session.currentContact} />
+
+              <DecisionMakerCapture
+                contactId={session.currentContact.id}
+                businessName={session.currentContact.business_name || ""}
+                ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.ghlContactId}
+                existingDmName={(session.currentContact as any).dm_name}
+                existingDmTitle={(session.currentContact as any).dm_title}
+                existingDmPhone={(session.currentContact as any).dm_phone}
+                existingDmEmail={(session.currentContact as any).dm_email}
+                existingDmLinkedin={(session.currentContact as any).dm_linkedin}
+                existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
+                existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
+                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_dm}
+              />
 
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
                 <DialpadSyncPanel

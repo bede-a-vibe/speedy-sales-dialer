@@ -9,6 +9,8 @@ import {
   BUYING_SIGNAL_OPTIONS,
   GBP_RATING_OPTIONS,
   REVIEW_COUNT_OPTIONS,
+  PHONE_TYPE_OPTIONS,
+  DM_STATUS_OPTIONS,
 } from "@/data/constants";
 
 interface AdvancedFiltersProps {
@@ -30,9 +32,20 @@ interface AdvancedFiltersProps {
   setHasFacebookAds: (v: string) => void;
   buyingSignalStrength: string;
   setBuyingSignalStrength: (v: string) => void;
+  phoneType: string;
+  setPhoneType: (v: string) => void;
+  hasDmPhone: string;
+  setHasDmPhone: (v: string) => void;
   onReset: () => void;
   disabled?: boolean;
 }
+
+const PHONE_TYPE_LABELS: Record<string, string> = {
+  mobile: "Mobile",
+  landline: "Landline",
+  business_line: "Business Line",
+  unknown: "Unknown",
+};
 
 export function AdvancedFilters({
   tradeType, setTradeType,
@@ -44,6 +57,8 @@ export function AdvancedFilters({
   hasGoogleAds, setHasGoogleAds,
   hasFacebookAds, setHasFacebookAds,
   buyingSignalStrength, setBuyingSignalStrength,
+  phoneType, setPhoneType,
+  hasDmPhone, setHasDmPhone,
   onReset,
   disabled = false,
 }: AdvancedFiltersProps) {
@@ -56,8 +71,38 @@ export function AdvancedFilters({
         </Button>
       </div>
 
-      {/* Row 1: Business Qualification */}
+      {/* Row 1: Phone & Contact Filters */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Phone Type</label>
+          <Select value={phoneType} onValueChange={setPhoneType} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {PHONE_TYPE_OPTIONS.map((t) => (
+                <SelectItem key={t} value={t}>{PHONE_TYPE_LABELS[t] || t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Decision Maker</label>
+          <Select value={hasDmPhone} onValueChange={setHasDmPhone} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="Any" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any</SelectItem>
+              {DM_STATUS_OPTIONS.map((d) => (
+                <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Trade Type</label>
           <Select value={tradeType} onValueChange={setTradeType} disabled={disabled}>
@@ -102,7 +147,10 @@ export function AdvancedFilters({
             </SelectContent>
           </Select>
         </div>
+      </div>
 
+      {/* Row 2: Qualification & Signals */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Prospect Tier</label>
           <Select value={prospectTier} onValueChange={setProspectTier} disabled={disabled}>
@@ -132,10 +180,7 @@ export function AdvancedFilters({
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      {/* Row 2: Digital Presence & GBP */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">GBP Rating</label>
           <Select
@@ -173,7 +218,10 @@ export function AdvancedFilters({
             </SelectContent>
           </Select>
         </div>
+      </div>
 
+      {/* Row 3: Ad Status */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Google Ads</label>
           <Select value={hasGoogleAds} onValueChange={setHasGoogleAds} disabled={disabled}>

@@ -48,6 +48,8 @@ export type DialerFilterOptions = {
   hasGoogleAds?: string;
   hasFacebookAds?: string;
   buyingSignalStrength?: string;
+  phoneType?: string;
+  hasDmPhone?: string;
 };
 
 type RollingDialerQueueOptions = {
@@ -173,6 +175,8 @@ async function claimDialerLeads({
     _has_google_ads: filters?.hasGoogleAds && filters.hasGoogleAds !== "all" ? filters.hasGoogleAds : null,
     _has_facebook_ads: filters?.hasFacebookAds && filters.hasFacebookAds !== "all" ? filters.hasFacebookAds : null,
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
+    _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
+    _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
   });
 }
 
@@ -227,6 +231,8 @@ async function getDialerQueueCount({
     _has_google_ads: filters?.hasGoogleAds && filters.hasGoogleAds !== "all" ? filters.hasGoogleAds : null,
     _has_facebook_ads: filters?.hasFacebookAds && filters.hasFacebookAds !== "all" ? filters.hasFacebookAds : null,
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
+    _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
+    _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
   });
 }
 

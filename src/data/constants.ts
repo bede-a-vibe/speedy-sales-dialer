@@ -141,6 +141,18 @@ export const REVIEW_COUNT_OPTIONS = [
   { label: "Any", value: 0 },
 ];
 
+export const PHONE_TYPE_OPTIONS = [
+  "mobile",
+  "landline",
+  "business_line",
+  "unknown",
+];
+
+export const DM_STATUS_OPTIONS = [
+  { label: "Has DM Phone", value: "yes" },
+  { label: "No DM Phone", value: "no" },
+];
+
 export const AUSTRALIAN_STATES = [
   "ACT",
   "NSW",
