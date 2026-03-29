@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
-import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
+
 import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
@@ -177,10 +177,28 @@ export default function DialerPage() {
   const requiresBookedSchedule = session.selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
 
+  // Auto-select first GHL calendar and pipeline when available
+  useEffect(() => {
+    if (!ghlCalendarId && ghlCalendars.length > 0) {
+      setGhlCalendarId(ghlCalendars[0].id);
+    }
+  }, [ghlCalendars, ghlCalendarId]);
+
+  useEffect(() => {
+    if (!ghlPipelineId && ghlPipelines.length > 0) {
+      setGhlPipelineId(ghlPipelines[0].id);
+      const firstStage = ghlPipelines[0].stages?.[0];
+      if (firstStage && !ghlStageId) {
+        setGhlStageId(firstStage.id);
+      }
+    }
+  }, [ghlPipelines, ghlPipelineId, ghlStageId]);
+
   const canSubmit = !!session.selectedOutcome
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
+    && (!requiresBookedSchedule || !!ghlCalendarId)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
@@ -231,16 +249,6 @@ export default function DialerPage() {
     }).catch(() => {});
   }, [session.currentContact?.id, session.isSessionActive]);
 
-  const handleBookedDateDetected = useCallback((date: Date) => {
-    session.setFollowUpDate((current) => {
-      const currentKey = current ? format(current, "yyyy-MM-dd") : null;
-      const nextKey = format(date, "yyyy-MM-dd");
-      if (currentKey === nextKey && session.isBookedDateAutoDetected) return current;
-      toast.success(`Booked date detected: ${format(date, "PPP")}`);
-      return date;
-    });
-    session.setIsBookedDateAutoDetected(true);
-  }, [session.isBookedDateAutoDetected]);
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? session.selectedOutcome;
@@ -868,55 +876,37 @@ export default function DialerPage() {
 
                   {requiresBookedSchedule && (
                     <div className="space-y-4">
-                      <div className="rounded-lg border border-border bg-background p-3">
-                        <p className="text-sm font-medium text-foreground">Book appointment below</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          The calendar opens inline so reps can book fast and stay in the dialer.
-                        </p>
-                      </div>
-
-                      <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />
-
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          Confirm Booked Date
+                          Appointment Date <span className="text-primary">(required)</span>
                         </label>
                         <div className="space-y-2">
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {session.followUpDate ? format(session.followUpDate, "PPP") : "Confirm appointment date"}
+                                {session.followUpDate ? format(session.followUpDate, "PPP") : "Pick appointment date"}
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                               <Calendar
                                 mode="single"
                                 selected={session.followUpDate}
-                                onSelect={(date) => {
-                                  session.setFollowUpDate(date);
-                                  session.setIsBookedDateAutoDetected(false);
-                                }}
+                                onSelect={session.setFollowUpDate}
                                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                 initialFocus
                                 className="pointer-events-auto p-3"
                               />
                             </PopoverContent>
                           </Popover>
-                          <p className="text-xs text-muted-foreground">
-                            {session.followUpDate
-                              ? session.isBookedDateAutoDetected
-                                ? "Date auto-detected from the booking widget — adjust it if needed."
-                                : "Date confirmed manually for reporting and pipeline accuracy."
-                              : "Choose the booked appointment day before moving to the next call."}
-                          </p>
+                          <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
                         </div>
                       </div>
 
                       {/* GHL Calendar selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Calendar
+                          GHL Calendar <span className="text-primary">(required)</span>
                         </label>
                         <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
                           <SelectTrigger className="w-full border-border bg-background">
@@ -933,7 +923,7 @@ export default function DialerPage() {
                       {/* GHL Pipeline selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Pipeline (optional)
+                          GHL Pipeline <span className="text-primary">(required)</span>
                         </label>
                         <Select value={ghlPipelineId} onValueChange={(v) => { setGhlPipelineId(v); setGhlStageId(""); }}>
                           <SelectTrigger className="w-full border-border bg-background">

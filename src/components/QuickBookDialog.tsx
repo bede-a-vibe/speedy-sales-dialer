@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { InlineBookingEmbed } from "@/components/dialer/InlineBookingEmbed";
+
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts">;
@@ -74,7 +74,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
-  const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
+
   const [ghlCalendarId, setGhlCalendarId] = useState("");
   const [ghlPipelineId, setGhlPipelineId] = useState("");
   const [ghlStageId, setGhlStageId] = useState("");
@@ -91,6 +91,23 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     }
   }, [user, assignedRepId]);
 
+  // Auto-select first GHL calendar and pipeline when available
+  useEffect(() => {
+    if (!ghlCalendarId && ghlCalendars.length > 0) {
+      setGhlCalendarId(ghlCalendars[0].id);
+    }
+  }, [ghlCalendars, ghlCalendarId]);
+
+  useEffect(() => {
+    if (!ghlPipelineId && ghlPipelines.length > 0) {
+      setGhlPipelineId(ghlPipelines[0].id);
+      const firstStage = ghlPipelines[0].stages?.[0];
+      if (firstStage && !ghlStageId) {
+        setGhlStageId(firstStage.id);
+      }
+    }
+  }, [ghlPipelines, ghlPipelineId, ghlStageId]);
+
   // Reset on close
   useEffect(() => {
     if (!open) {
@@ -105,7 +122,6 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setScheduledTime("09:00");
       setNotes("");
       setAssignedRepId(user?.id || "");
-      setIsBookedDateAutoDetected(false);
       setGhlCalendarId("");
       setGhlPipelineId("");
       setGhlStageId("");
@@ -177,14 +193,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     }
   }, [newContact, createContactMutation]);
 
-  const handleBookedDateDetected = useCallback((date: Date) => {
-    setScheduledDate(date);
-    setIsBookedDateAutoDetected(true);
-  }, []);
 
   const canSubmit = useMemo(
-    () => !!selectedContact && !!assignedRepId && !!scheduledDate,
-    [selectedContact, assignedRepId, scheduledDate],
+    () => !!selectedContact && !!assignedRepId && !!scheduledDate && (pipelineType !== "booked" || !!ghlCalendarId),
+    [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -455,15 +467,13 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </Select>
               </div>
 
-              {/* Inline booking embed — only for booked type */}
-              {isBooked && <InlineBookingEmbed onDetectedDate={handleBookedDateDetected} />}
 
               {/* GHL Calendar + Pipeline selectors — only for booked type */}
               {isBooked && (
                 <div className="space-y-3">
                   <div>
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      GHL Calendar
+                      GHL Calendar <span className="text-primary">(required)</span>
                     </label>
                     <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
                       <SelectTrigger className="w-full border-border bg-background">
@@ -478,7 +488,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   </div>
                   <div>
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      GHL Pipeline (optional)
+                      GHL Pipeline <span className="text-primary">(required)</span>
                     </label>
                     <Select value={ghlPipelineId} onValueChange={(v) => { setGhlPipelineId(v); setGhlStageId(""); }}>
                       <SelectTrigger className="w-full border-border bg-background">
@@ -538,10 +548,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                       <Calendar
                         mode="single"
                         selected={scheduledDate}
-                        onSelect={(d) => {
-                          setScheduledDate(d);
-                          setIsBookedDateAutoDetected(false);
-                        }}
+                        onSelect={setScheduledDate}
                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         initialFocus
                         className="pointer-events-auto p-3"
@@ -554,15 +561,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                     onChange={(e) => setScheduledTime(e.target.value)}
                     className="border-border bg-background"
                   />
-                  {isBooked && (
-                    <p className="text-xs text-muted-foreground">
-                      {scheduledDate
-                        ? isBookedDateAutoDetected
-                          ? "Date auto-detected from the booking widget — adjust if needed."
-                          : "Date confirmed manually."
-                        : "Choose the booked appointment day."}
-                    </p>
-                  )}
+
                 </div>
               </div>
 
