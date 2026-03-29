@@ -264,7 +264,21 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             ghlContactId: contactGhlId,
             scheduledFor: scheduledFor.toISOString(),
             method: followUpMethod,
+            contactName: selectedContact?.business_name ?? undefined,
+            repName,
           }).catch(() => {});
+
+          // If follow-up method is email, generate and push a draft email
+          if (followUpMethod === "email" && selectedContact) {
+            ghlSync.pushFollowUpEmailDraft({
+              ghlContactId: contactGhlId,
+              contactName: selectedContact.business_name ?? "there",
+              businessName: selectedContact.business_name ?? "",
+              industry: (selectedContact as any)?.industry ?? undefined,
+              repName: repName ?? "The Odin Team",
+              callNotes: notes.trim() || undefined,
+            }).catch(() => {});
+          }
         }
       }
 

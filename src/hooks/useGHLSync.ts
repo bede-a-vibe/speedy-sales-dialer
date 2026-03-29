@@ -7,6 +7,7 @@ import {
   ghlCreateAppointment,
   ghlUpdateContact,
 } from "@/lib/ghl";
+import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 
 type CallOutcome =
   | "no_answer"
@@ -43,6 +44,21 @@ interface PushFollowUpParams {
   title?: string;
   description?: string;
   method?: "call" | "email" | "prospecting";
+  contactName?: string;
+  repName?: string;
+  pipelineId?: string;
+  pipelineStageId?: string;
+}
+
+interface PushFollowUpEmailDraftParams {
+  ghlContactId: string;
+  contactName: string;
+  businessName: string;
+  industry?: string;
+  repName: string;
+  callNotes?: string;
+  callTranscriptSummary?: string;
+  scheduledFor?: string;
 }
 
 interface PushDNCParams {
@@ -58,6 +74,10 @@ const OUTCOME_LABELS: Record<CallOutcome, string> = {
   booked: "Booked",
   wrong_number: "Wrong Number",
 };
+
+// Default to the "Outbound Prospecting" pipeline and "Connected - Follow Up Required" stage
+const DEFAULT_FOLLOWUP_PIPELINE_ID = "QuBn7UX5zebPTd4fqW9x";
+const DEFAULT_FOLLOWUP_STAGE_ID = "5102204c-7b00-48f9-94fb-70ca529841b9";
 
 export function useGHLSync() {
   const pushCallNote = useCallback(async (params: PushCallNoteParams) => {
@@ -124,18 +144,99 @@ export function useGHLSync() {
   }, []);
 
   const pushFollowUp = useCallback(async (params: PushFollowUpParams) => {
-    const { ghlContactId, scheduledFor, title, description, method } = params;
+    const {
+      ghlContactId,
+      scheduledFor,
+      title,
+      description,
+      method,
+      contactName,
+      repName,
+      pipelineId,
+      pipelineStageId,
+    } = params;
 
     try {
+      // Create a task as a reminder for the rep
       await ghlCreateTask(ghlContactId, {
         title: title ?? `Follow up (${method ?? "call"})`,
         body: description ?? "",
         dueDate: scheduledFor,
         completed: false,
       });
+
+      // Also create an opportunity in the Outbound Prospecting pipeline
+      const oppPipelineId = pipelineId || DEFAULT_FOLLOWUP_PIPELINE_ID;
+      const oppStageId = pipelineStageId || DEFAULT_FOLLOWUP_STAGE_ID;
+
+      await ghlCreateOpportunity({
+        pipelineId: oppPipelineId,
+        pipelineStageId: oppStageId,
+        contactId: ghlContactId,
+        name: `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
+        status: "open",
+      });
+
+      // Add a follow-up note
+      const methodLabel = method === "email" ? "Email" : method === "prospecting" ? "Prospecting" : "Call";
+      const noteParts = [`📋 Follow-Up Scheduled: ${new Date(scheduledFor).toLocaleString("en-AU")}`];
+      noteParts.push(`Method: ${methodLabel}`);
+      if (repName) noteParts.push(`Assigned to: ${repName}`);
+      if (description) noteParts.push(`Notes: ${description}`);
+      noteParts.push(`Logged via Speedy Sales Dialer`);
+      await ghlAddNote(ghlContactId, noteParts.join("\n"));
     } catch (err) {
-      console.error("[GHL Sync] Failed to push follow-up task:", err);
+      console.error("[GHL Sync] Failed to push follow-up:", err);
     }
+  }, []);
+
+  const pushFollowUpEmailDraft = useCallback(async (params: PushFollowUpEmailDraftParams) => {
+    const {
+      ghlContactId,
+      contactName,
+      businessName,
+      industry,
+      repName,
+      callNotes,
+      callTranscriptSummary,
+      scheduledFor,
+    } = params;
+
+    try {
+      const emailDraft = await generateFollowUpEmailDraft({
+        contactName,
+        businessName,
+        industry,
+        repName,
+        callNotes,
+        callTranscriptSummary,
+        scheduledFor,
+      });
+
+      if (emailDraft) {
+        const noteBody = [
+          "✉️ DRAFT FOLLOW-UP EMAIL — Ready for Review",
+          `Generated: ${new Date().toLocaleString("en-AU")}`,
+          `Rep: ${repName}`,
+          "",
+          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+          "",
+          `Subject: ${emailDraft.subject}`,
+          "",
+          emailDraft.body,
+          "",
+          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+          "⚠️ Review and personalise before sending.",
+        ].join("\n");
+
+        await ghlAddNote(ghlContactId, noteBody);
+        console.log(`[GHL Sync] Follow-up email draft pushed to contact ${ghlContactId}`);
+        return true;
+      }
+    } catch (err) {
+      console.error("[GHL Sync] Failed to push follow-up email draft:", err);
+    }
+    return false;
   }, []);
 
   const pushDNC = useCallback(async (params: PushDNCParams) => {
@@ -150,5 +251,5 @@ export function useGHLSync() {
     }
   }, []);
 
-  return { pushCallNote, pushBooking, pushFollowUp, pushDNC };
+  return { pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC };
 }

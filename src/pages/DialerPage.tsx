@@ -28,6 +28,7 @@ import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSel
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
@@ -417,7 +418,37 @@ export default function DialerPage() {
             ghlContactId: contactGhlId,
             scheduledFor,
             method,
+            contactName,
+            repName,
           }).catch(() => {});
+
+          // If follow-up method is email, generate and push a draft email to GHL
+          if (method === "email") {
+            // Fetch latest AI summary note for context
+            const latestSummary = await (async () => {
+              try {
+                const { data: notes } = await supabase
+                  .from("contact_notes")
+                  .select("content")
+                  .eq("contact_id", contactId)
+                  .eq("source", "dialpad_summary")
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+                return notes?.[0]?.content ?? null;
+              } catch { return null; }
+            })();
+
+            ghlSync.pushFollowUpEmailDraft({
+              ghlContactId: contactGhlId,
+              contactName: contactName ?? "there",
+              businessName: (session.currentContact as any)?.business_name ?? contactName ?? "",
+              industry: (session.currentContact as any)?.industry ?? undefined,
+              repName: repName ?? "The Odin Team",
+              callNotes: pipelineNotes || undefined,
+              callTranscriptSummary: latestSummary ?? undefined,
+              scheduledFor: scheduledFor ?? undefined,
+            }).catch(() => {});
+          }
         }
 
         if (outcomeToLog === "dnc") {
