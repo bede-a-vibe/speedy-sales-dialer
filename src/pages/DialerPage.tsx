@@ -81,6 +81,14 @@ export default function DialerPage() {
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
+  const ghlSync = useGHLSync();
+  const { data: ghlCalendars = [] } = useGHLCalendars();
+  const { data: ghlPipelines = [] } = useGHLPipelines();
+
+  const ghlSelectedPipelineStages = useMemo(
+    () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
+    [ghlPipelines, ghlPipelineId],
+  );
 
   const queueLeadCount = useMemo(
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
