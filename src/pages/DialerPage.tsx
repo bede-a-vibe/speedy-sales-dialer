@@ -76,8 +76,8 @@ const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height 
 PanelSkeleton.displayName = "PanelSkeleton";
 
 export default function DialerPage() {
-  const [industry, setIndustry] = useState<string>("all");
-  const [stateFilter, setStateFilter] = useState<string>("all");
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [states, setStates] = useState<string[]>([]);
   const [contactOwner, setContactOwner] = useState<string>("all");
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
@@ -93,7 +93,7 @@ export default function DialerPage() {
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
 
   // Advanced dialer filters
-  const [tradeType, setTradeType] = useState<string>("all");
+  const [tradeTypes, setTradeTypes] = useState<string[]>([]);
   const [workType, setWorkType] = useState<string>("all");
   const [businessSize, setBusinessSize] = useState<string>("all");
   const [prospectTier, setProspectTier] = useState<string>("all");
@@ -106,7 +106,9 @@ export default function DialerPage() {
   const [hasDmPhone, setHasDmPhone] = useState<string>("all");
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
-    tradeType,
+    industries,
+    states,
+    tradeTypes,
     workType,
     businessSize,
     prospectTier,
@@ -118,14 +120,14 @@ export default function DialerPage() {
     phoneType,
     hasDmPhone,
     contactOwner,
-  }), [tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner]);
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (industry !== "all") count++;
-    if (stateFilter !== "all") count++;
+    if (industries.length > 0) count++;
+    if (states.length > 0) count++;
     if (contactOwner !== "all") count++;
-    if (tradeType !== "all") count++;
+    if (tradeTypes.length > 0) count++;
     if (workType !== "all") count++;
     if (businessSize !== "all") count++;
     if (prospectTier !== "all") count++;
@@ -137,13 +139,13 @@ export default function DialerPage() {
     if (phoneType !== "all") count++;
     if (hasDmPhone !== "all") count++;
     return count;
-  }, [industry, stateFilter, contactOwner, tradeType, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
+  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
 
   const resetAdvancedFilters = useCallback(() => {
-    setIndustry("all");
-    setStateFilter("all");
+    setIndustries([]);
+    setStates([]);
     setContactOwner("all");
-    setTradeType("all");
+    setTradeTypes([]);
     setWorkType("all");
     setBusinessSize("all");
     setProspectTier("all");
@@ -156,7 +158,7 @@ export default function DialerPage() {
     setHasDmPhone("all");
   }, []);
 
-  const session = useDialerSession({ industry, stateFilter, filters: advancedFilters });
+  const session = useDialerSession({ filters: advancedFilters });
   const dialpad = useDialerDialpad({
     isDialing: session.isDialing,
     isSessionPaused: session.isSessionPaused,
@@ -744,15 +746,15 @@ export default function DialerPage() {
 
         {showAdvancedFilters && (
           <AdvancedFilters
-            industry={industry}
-            setIndustry={setIndustry}
-            stateFilter={stateFilter}
-            setStateFilter={setStateFilter}
+            industries={industries}
+            setIndustries={setIndustries}
+            states={states}
+            setStates={setStates}
             contactOwner={contactOwner}
             setContactOwner={setContactOwner}
             salesReps={salesReps}
-            tradeType={tradeType}
-            setTradeType={setTradeType}
+            tradeTypes={tradeTypes}
+            setTradeTypes={setTradeTypes}
             workType={workType}
             setWorkType={setWorkType}
             businessSize={businessSize}

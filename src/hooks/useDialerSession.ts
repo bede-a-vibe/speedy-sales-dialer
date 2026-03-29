@@ -14,12 +14,10 @@ function formatDuration(durationMs: number) {
 }
 
 export interface UseDialerSessionOptions {
-  industry: string;
-  stateFilter: string;
   filters?: DialerFilterOptions;
 }
 
-export function useDialerSession({ industry, stateFilter, filters }: UseDialerSessionOptions) {
+export function useDialerSession({ filters }: UseDialerSessionOptions) {
   const { user } = useAuth();
 
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
@@ -47,7 +45,7 @@ export function useDialerSession({ industry, stateFilter, filters }: UseDialerSe
   const leadAdvanceInFlightRef = useRef(false);
   const hasInitializedDialerFiltersRef = useRef(false);
 
-  const queue = useRollingDialerQueue({ industry, state: stateFilter, userId: user?.id, filters });
+  const queue = useRollingDialerQueue({ userId: user?.id, filters });
   const clearOwnDialerLeadLocks = useClearOwnDialerLeadLocks();
 
   const isSessionActive = isDialing || isSessionPaused;
@@ -125,7 +123,7 @@ export function useDialerSession({ industry, stateFilter, filters }: UseDialerSe
     setIsSessionPaused(false);
     resetLeadState(user?.id || "");
     resetSessionTimers();
-  }, [industry, stateFilter, filters, isStartingSession, queue.sessionId, resetLeadState, resetSessionTimers, user?.id]);
+  }, [filters, isStartingSession, queue.sessionId, resetLeadState, resetSessionTimers, user?.id]);
 
   const startDialing = useCallback(async () => {
     if (isStartingSession) return;

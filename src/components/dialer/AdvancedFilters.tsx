@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Button } from "@/components/ui/button";
 import {
   TRADE_TYPES,
@@ -22,15 +23,15 @@ export interface SalesRepOption {
 }
 
 interface AdvancedFiltersProps {
-  industry: string;
-  setIndustry: (v: string) => void;
-  stateFilter: string;
-  setStateFilter: (v: string) => void;
+  industries: string[];
+  setIndustries: (v: string[]) => void;
+  states: string[];
+  setStates: (v: string[]) => void;
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
-  tradeType: string;
-  setTradeType: (v: string) => void;
+  tradeTypes: string[];
+  setTradeTypes: (v: string[]) => void;
   workType: string;
   setWorkType: (v: string) => void;
   businessSize: string;
@@ -67,11 +68,11 @@ function getRepLabel(rep: SalesRepOption) {
 }
 
 export function AdvancedFilters({
-  industry, setIndustry,
-  stateFilter, setStateFilter,
+  industries, setIndustries,
+  states, setStates,
   contactOwner, setContactOwner,
   salesReps,
-  tradeType, setTradeType,
+  tradeTypes, setTradeTypes,
   workType, setWorkType,
   businessSize, setBusinessSize,
   prospectTier, setProspectTier,
@@ -94,36 +95,28 @@ export function AdvancedFilters({
         </Button>
       </div>
 
-      {/* Row 0: Core Filters — Industry, State, Contact Owner */}
+      {/* Row 0: Core Filters — Industry (multi), State (multi), Contact Owner */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Industry</label>
-          <Select value={industry} onValueChange={setIndustry} disabled={disabled}>
-            <SelectTrigger className="h-8 border-border bg-card text-xs">
-              <SelectValue placeholder="All Industries" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Industries</SelectItem>
-              {INDUSTRIES.map((ind) => (
-                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            options={INDUSTRIES}
+            selected={industries}
+            onChange={setIndustries}
+            placeholder="All Industries"
+            disabled={disabled}
+          />
         </div>
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">State</label>
-          <Select value={stateFilter} onValueChange={setStateFilter} disabled={disabled}>
-            <SelectTrigger className="h-8 border-border bg-card text-xs">
-              <SelectValue placeholder="All States" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All States</SelectItem>
-              {AUSTRALIAN_STATES.map((state) => (
-                <SelectItem key={state} value={state}>{state}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            options={AUSTRALIAN_STATES}
+            selected={states}
+            onChange={setStates}
+            placeholder="All States"
+            disabled={disabled}
+          />
         </div>
 
         <div className="space-y-1">
@@ -177,17 +170,13 @@ export function AdvancedFilters({
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Trade Type</label>
-          <Select value={tradeType} onValueChange={setTradeType} disabled={disabled}>
-            <SelectTrigger className="h-8 border-border bg-card text-xs">
-              <SelectValue placeholder="All Trades" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Trades</SelectItem>
-              {TRADE_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            options={TRADE_TYPES}
+            selected={tradeTypes}
+            onChange={setTradeTypes}
+            placeholder="All Trades"
+            disabled={disabled}
+          />
         </div>
 
         <div className="space-y-1">
