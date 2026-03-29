@@ -11,6 +11,8 @@ import { useCreateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
+import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
