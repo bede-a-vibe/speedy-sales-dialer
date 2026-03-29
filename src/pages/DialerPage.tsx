@@ -1,12 +1,13 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound, SlidersHorizontal } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Headphones, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import InlineBookingEmbed from "@/components/dialer/InlineBookingEmbed";
 import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
+import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -81,6 +82,10 @@ export default function DialerPage() {
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showDialpadCTI, setShowDialpadCTI] = useState(true);
+
+  // Dialpad CTI Client ID from environment variable
+  const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
 
   // Advanced dialer filters
   const [tradeType, setTradeType] = useState<string>("all");
@@ -514,6 +519,18 @@ export default function DialerPage() {
             )}
           </Button>
 
+          {dialpadCTIClientId && (
+            <Button
+              variant={showDialpadCTI ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+              className="gap-1.5"
+            >
+              <Headphones className="h-3.5 w-3.5" />
+              {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+            </Button>
+          )}
+
           <div className="flex flex-1 flex-wrap items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">
               {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
@@ -740,6 +757,20 @@ export default function DialerPage() {
                   enabled
                 />
               </Suspense>
+
+              {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
+              <DialpadCTI
+                clientId={dialpadCTIClientId}
+                visible={showDialpadCTI}
+                onToggleVisible={() => setShowDialpadCTI((v) => !v)}
+                phoneNumber={session.currentContact?.phone ?? null}
+                autoInitiateCall={session.isDialing && !session.isSessionPaused}
+                outboundCallerId={selectedCallerId || null}
+                customData={session.currentContact ? JSON.stringify({
+                  contact_id: session.currentContact.id,
+                  business_name: session.currentContact.business_name,
+                }) : null}
+              />
             </div>
 
             <div className="space-y-4 lg:col-span-2">
