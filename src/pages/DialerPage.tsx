@@ -9,6 +9,8 @@ import { OutcomeButton } from "@/components/OutcomeButton";
 import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
+import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
+import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -793,6 +795,17 @@ export default function DialerPage() {
                   enabled
                 />
               </Suspense>
+
+              {/* Power Hour Timer — Fanatical Prospecting */}
+              <PowerHourTimer
+                sessionCallCount={session.callCount}
+                isSessionActive={session.isSessionActive}
+              />
+
+              {/* Sales Toolkit — Scripts, Objections, Voicemails */}
+              <SalesToolkit
+                contactIndustry={session.currentContact?.industry ?? null}
+              />
 
               {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
               <DialpadCTI
