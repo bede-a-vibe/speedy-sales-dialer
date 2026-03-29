@@ -65,6 +65,9 @@ export default function DialerPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
+  const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
+  const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
+  const [ghlStageId, setGhlStageId] = useState<string>("");
 
   const session = useDialerSession({ industry, stateFilter });
   const dialpad = useDialerDialpad({
