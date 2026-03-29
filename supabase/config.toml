@@ -2,3 +2,6 @@ project_id = "xhcvwhcpaeetmmzkuwyw"
 
 [functions.dialpad]
 verify_jwt = false
+
+[functions.ghl]
+verify_jwt = false
