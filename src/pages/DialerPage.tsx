@@ -172,6 +172,8 @@ export default function DialerPage() {
     const contactId = session.currentContact.id;
     const userId = session.user.id;
     const contactFollowUpNote = session.currentContact.follow_up_note;
+    const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null;
+    const contactName = session.currentContact.business_name;
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
       ? combineDateAndTime(session.followUpDate, outcomeToLog === "follow_up" ? session.followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
@@ -179,6 +181,10 @@ export default function DialerPage() {
     const pipelineNotes = session.notes;
     const repId = session.assignedRepId;
     const method = followUpMethod;
+    const calendarId = ghlCalendarId;
+    const pipelineId = ghlPipelineId;
+    const stageId = ghlStageId;
+    const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
 
     // Advance immediately
     const nextLength = session.queue.contacts.length - 1;
