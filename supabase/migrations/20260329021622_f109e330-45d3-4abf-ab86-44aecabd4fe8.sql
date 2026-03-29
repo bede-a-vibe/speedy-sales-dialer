@@ -1,0 +1,1 @@
+ALTER TABLE public.contacts ADD COLUMN ghl_contact_id text;

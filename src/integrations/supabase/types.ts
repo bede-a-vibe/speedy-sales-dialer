@@ -120,6 +120,7 @@ export type Database = {
           created_at: string
           email: string | null
           follow_up_note: string | null
+          ghl_contact_id: string | null
           gmb_link: string | null
           id: string
           industry: string
@@ -146,6 +147,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           follow_up_note?: string | null
+          ghl_contact_id?: string | null
           gmb_link?: string | null
           id?: string
           industry: string
@@ -172,6 +174,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           follow_up_note?: string | null
+          ghl_contact_id?: string | null
           gmb_link?: string | null
           id?: string
           industry?: string
