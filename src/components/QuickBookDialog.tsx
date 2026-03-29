@@ -73,6 +73,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
   const [isBookedDateAutoDetected, setIsBookedDateAutoDetected] = useState(false);
+  const [ghlCalendarId, setGhlCalendarId] = useState("");
+  const [ghlPipelineId, setGhlPipelineId] = useState("");
+  const [ghlStageId, setGhlStageId] = useState("");
+
+  const ghlSelectedPipelineStages = useMemo(
+    () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
+    [ghlPipelines, ghlPipelineId],
+  );
 
   // Set default rep to current user
   useEffect(() => {
