@@ -104,6 +104,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setNotes("");
       setAssignedRepId(user?.id || "");
       setIsBookedDateAutoDetected(false);
+      setGhlCalendarId("");
+      setGhlPipelineId("");
+      setGhlStageId("");
     }
   }, [open, user?.id]);
 
