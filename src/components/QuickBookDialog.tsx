@@ -224,6 +224,32 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
       toast.success(`${label} created for ${selectedContact.business_name}`);
+
+      // ── GHL Sync (fire-and-forget) ──
+      const contactGhlId = (selectedContact as Record<string, unknown>).ghl_contact_id as string | null;
+      if (contactGhlId) {
+        const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
+        if (pipelineType === "booked" && ghlCalendarId) {
+          ghlSync.pushBooking({
+            ghlContactId: contactGhlId,
+            calendarId: ghlCalendarId,
+            scheduledFor: scheduledFor.toISOString(),
+            contactName: selectedContact.business_name,
+            repName,
+            notes: notes.trim() || undefined,
+            pipelineId: ghlPipelineId || undefined,
+            pipelineStageId: ghlStageId || undefined,
+          }).catch(() => {});
+        }
+        if (pipelineType === "follow_up") {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor: scheduledFor.toISOString(),
+            method: followUpMethod,
+          }).catch(() => {});
+        }
+      }
+
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
