@@ -271,8 +271,43 @@ export default function DialerPage() {
       } catch {
         toast.error("Failed to save call log — please check your records.");
       }
+
+      // ── GHL Sync (fire-and-forget) ──
+      if (contactGhlId) {
+        ghlSync.pushCallNote({
+          ghlContactId: contactGhlId,
+          outcome: outcomeToLog,
+          notes: pipelineNotes || undefined,
+          repName,
+        }).catch(() => {});
+
+        if (outcomeToLog === "booked" && scheduledFor && calendarId) {
+          ghlSync.pushBooking({
+            ghlContactId: contactGhlId,
+            calendarId,
+            scheduledFor,
+            contactName,
+            repName,
+            notes: pipelineNotes || undefined,
+            pipelineId: pipelineId || undefined,
+            pipelineStageId: stageId || undefined,
+          }).catch(() => {});
+        }
+
+        if (outcomeToLog === "follow_up" && scheduledFor) {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor,
+            method,
+          }).catch(() => {});
+        }
+
+        if (outcomeToLog === "dnc") {
+          ghlSync.pushDNC({ ghlContactId: contactGhlId }).catch(() => {});
+        }
+      }
     })();
-  }, [session, dialpad, createCallLog, createPipelineItem, updateContact]);
+  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
