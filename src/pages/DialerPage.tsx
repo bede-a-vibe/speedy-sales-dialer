@@ -795,7 +795,7 @@ export default function DialerPage() {
                 onMarkPhoneQuality={(quality) => {
                   updateContact.mutateAsync({
                     id: session.currentContact!.id,
-                    phone_number_quality: quality,
+                    phone_number_quality: quality as "confirmed" | "dead" | "suspect" | "unconfirmed",
                   }).catch(() => {});
                 }}
               />
