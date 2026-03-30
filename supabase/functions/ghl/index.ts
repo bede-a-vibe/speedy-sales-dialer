@@ -236,9 +236,78 @@ async function upsertContact(
     body,
   });
 
+  const isNew = data.new ?? false;
+  const upsertedId = data.contact?.id;
+
+  // ── Fallback: company-name matching ──────────────────────────────────
+  // If the upsert created a NEW contact but we have a company name, check
+  // whether an existing GHL contact with the same company already exists.
+  // This handles the common case where Supabase has a landline but GHL
+  // has a mobile for the same business.
+  if (isNew && payload.companyName && upsertedId) {
+    try {
+      const searchResult = await ghlFetch("/contacts/search", apiKey, {
+        method: "POST",
+        body: {
+          locationId,
+          filters: [
+            {
+              field: "companyName",
+              operator: "eq",
+              value: payload.companyName,
+            },
+          ],
+          pageSize: 5,
+        },
+      });
+
+      const existingContacts = (searchResult.contacts ?? []).filter(
+        (c: { id: string }) => c.id !== upsertedId,
+      );
+
+      if (existingContacts.length > 0) {
+        // Found an existing contact with the same company name.
+        // Use the existing one and delete the duplicate we just created.
+        const existing = existingContacts[0];
+        console.log(
+          `[GHL Upsert] Phone mismatch but company match: using existing ${existing.id} instead of new ${upsertedId} for "${payload.companyName}"`,
+        );
+
+        // Delete the duplicate contact we just created
+        try {
+          await ghlFetch(`/contacts/${upsertedId}`, apiKey, {
+            method: "DELETE",
+          });
+        } catch (delErr) {
+          console.warn(`[GHL Upsert] Failed to delete duplicate ${upsertedId}:`, delErr);
+        }
+
+        // Add the dialer-linked tag to the existing contact
+        try {
+          await ghlFetch(`/contacts/${existing.id}/tags`, apiKey, {
+            method: "POST",
+            body: { tags: [...new Set(tags)] },
+          });
+        } catch {
+          // Non-critical — tag addition failure is acceptable
+        }
+
+        return {
+          ghlContactId: existing.id,
+          isNew: false,
+          contact: existing,
+        };
+      }
+    } catch (searchErr) {
+      // If the fallback search fails, just use the newly created contact.
+      // This is a best-effort enhancement — the original upsert still succeeded.
+      console.warn(`[GHL Upsert] Fallback company search failed:`, searchErr);
+    }
+  }
+
   return {
-    ghlContactId: data.contact?.id,
-    isNew: data.new ?? false,
+    ghlContactId: upsertedId,
+    isNew,
     contact: data.contact,
   };
 }

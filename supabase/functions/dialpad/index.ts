@@ -1062,8 +1062,61 @@ async function processAiSummaryAndPushToGhl(params: {
         existingCustomFields: existingCustomFields ?? undefined,
       });
     }
-  } else if (!ghlContactId) {
-    console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — skipping GHL push`);
+  } else if (!ghlContactId && GHL_API_KEY) {
+    // ── Auto-link: try to find/create GHL contact on the fly ──
+    // This handles the case where the contact was never linked to GHL.
+    const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
+    if (GHL_LOCATION_ID && contact?.phone) {
+      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — attempting auto-link via phone search`);
+      try {
+        // Search GHL by phone number
+        const phoneDigits = contact.phone.replace(/\D/g, "").slice(-9);
+        const searchResponse = await fetch(
+          `${GHL_BASE_URL}/contacts/?query=${encodeURIComponent(phoneDigits)}&locationId=${GHL_LOCATION_ID}&limit=1`,
+          { headers: ghlApiHeaders(GHL_API_KEY) },
+        );
+
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          const ghlMatch = searchData?.contacts?.[0];
+
+          if (ghlMatch?.id) {
+            // Found a match — save the ghl_contact_id to Supabase
+            await params.adminClient
+              .from("contacts")
+              .update({ ghl_contact_id: ghlMatch.id })
+              .eq("id", params.contactId);
+
+            console.log(`[AI→GHL] Auto-linked contact ${params.contactId} → GHL ${ghlMatch.id}`);
+
+            // Now push the note and fields to the newly linked GHL contact
+            if (aiResult.note) {
+              ghlNotePushed = await pushNoteToGhl({
+                ghlApiKey: GHL_API_KEY,
+                ghlContactId: ghlMatch.id,
+                noteBody: aiResult.note,
+              });
+            }
+
+            if (aiResult.fields && Object.keys(aiResult.fields).length > 0) {
+              const existingCustomFields = await fetchGhlContactCustomFields(GHL_API_KEY, ghlMatch.id);
+              ghlFieldsPushed = await pushFieldsToGhl({
+                ghlApiKey: GHL_API_KEY,
+                ghlContactId: ghlMatch.id,
+                fields: aiResult.fields,
+                existingCustomFields: existingCustomFields ?? undefined,
+              });
+            }
+          } else {
+            console.log(`[AI→GHL] No GHL contact found for phone ${phoneDigits} — skipping GHL push`);
+          }
+        }
+      } catch (linkErr) {
+        console.error(`[AI→GHL] Auto-link attempt failed:`, linkErr);
+      }
+    } else {
+      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — skipping GHL push (no location ID or phone)`);
+    }
   }
 
   return { aiGenerated: true, ghlNotePushed, ghlFieldsPushed, fieldsExtracted: Object.keys(aiResult.fields ?? {}).length };
@@ -1332,6 +1385,199 @@ async function syncWebhookPayload(params: {
   }
 
   if (!trackedCall) {
+    // ── Fallback: handle untracked calls ──────────────────────────────────
+    // If this is a hangup event with an external_number, try to find the
+    // contact by phone and create a dialpad_calls record on the fly.
+    // This handles calls made directly from Dialpad (not via the dialer CTI).
+    if (payload.state === "hangup" && payload.external_number) {
+      const webhookCallId = payload.call_id ? String(payload.call_id) : null;
+      if (webhookCallId) {
+        console.log(`[webhook] Untracked hangup for call_id=${webhookCallId} external=${payload.external_number} — attempting fallback contact match`);
+
+        try {
+          // Normalise the external number and search for a matching contact
+          let normalizedPhone: string;
+          try {
+            normalizedPhone = normalizePhoneNumberToE164(payload.external_number);
+          } catch {
+            normalizedPhone = payload.external_number.replace(/\D/g, "");
+          }
+
+          // Search contacts by phone (try multiple formats)
+          const phoneCandidates = [
+            normalizedPhone,
+            "+" + normalizedPhone.replace(/^\+/, ""),
+            payload.external_number,
+          ];
+
+          let matchedContact: { id: string; ghl_contact_id: string | null } | null = null;
+          for (const phone of phoneCandidates) {
+            const { data: contacts } = await adminClient
+              .from("contacts")
+              .select("id, ghl_contact_id")
+              .ilike("phone", `%${phone.slice(-9)}%`)
+              .limit(1);
+
+            if (contacts && contacts.length > 0) {
+              matchedContact = contacts[0];
+              break;
+            }
+          }
+
+          if (matchedContact) {
+            console.log(`[webhook] Fallback matched contact_id=${matchedContact.id} for external=${payload.external_number}`);
+
+            // Find the user who might have made this call (use the most recently active dialer user)
+            const { data: recentUser } = await adminClient
+              .from("call_logs")
+              .select("user_id")
+              .eq("contact_id", matchedContact.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            // If no recent call log, try to find any active user
+            let userId = recentUser?.user_id;
+            if (!userId) {
+              const { data: anyUser } = await adminClient
+                .from("profiles")
+                .select("user_id")
+                .limit(1)
+                .maybeSingle();
+              userId = anyUser?.user_id;
+            }
+
+            if (userId) {
+              // Create a dialpad_calls tracking record on the fly
+              const { data: newTracked, error: insertErr } = await adminClient
+                .from("dialpad_calls")
+                .insert({
+                  dialpad_call_id: webhookCallId,
+                  user_id: userId,
+                  contact_id: matchedContact.id,
+                  sync_status: "pending",
+                  call_state: "hangup",
+                })
+                .select("id, user_id, contact_id, call_log_id, dialpad_call_id, created_at")
+                .single();
+
+              if (!insertErr && newTracked) {
+                console.log(`[webhook] Created fallback dialpad_calls record id=${newTracked.id} for untracked call`);
+
+                // Now process this call through the normal pipeline
+                // Re-run syncWebhookPayload will find the tracked call this time
+                // But to avoid recursion, just inline the processing here:
+                const dialpadCallId = webhookCallId;
+                const callInfo = await fetchDialpadCallInfo(dialpadCallId, apiKey);
+                const { talkTimeSeconds, totalDurationSeconds } = extractDialpadDurations(payload, callInfo);
+                const summary = typeof payload.recap_summary === "string" && payload.recap_summary.trim()
+                  ? payload.recap_summary.trim()
+                  : await fetchDialpadAiRecap(dialpadCallId, apiKey);
+                const transcript = await fetchDialpadTranscript(dialpadCallId, apiKey);
+
+                const hasSummary = Boolean(summary);
+                const hasTranscript = Boolean(transcript);
+                const syncedAt = hasSummary || hasTranscript ? new Date().toISOString() : null;
+
+                // Try to find a matching call_log
+                let resolvedCallLogId: string | null = null;
+                const { data: byDialpadId } = await adminClient
+                  .from("call_logs")
+                  .select("id")
+                  .eq("dialpad_call_id", dialpadCallId)
+                  .limit(1)
+                  .maybeSingle();
+                if (byDialpadId?.id) resolvedCallLogId = byDialpadId.id;
+
+                if (!resolvedCallLogId) {
+                  resolvedCallLogId = await findCallLogByFallback(
+                    adminClient,
+                    matchedContact.id,
+                    userId,
+                    newTracked.created_at,
+                  );
+                }
+
+                if (resolvedCallLogId) {
+                  const updatePayload: Record<string, unknown> = { dialpad_call_id: dialpadCallId };
+                  if (summary !== undefined) updatePayload.dialpad_summary = summary;
+                  if (transcript !== undefined) updatePayload.dialpad_transcript = transcript;
+                  if (syncedAt) updatePayload.transcript_synced_at = syncedAt;
+                  if (talkTimeSeconds !== null) updatePayload.dialpad_talk_time_seconds = talkTimeSeconds;
+                  if (totalDurationSeconds !== null) updatePayload.dialpad_total_duration_seconds = totalDurationSeconds;
+
+                  await adminClient.from("call_logs").update(updatePayload).eq("id", resolvedCallLogId);
+                  await adminClient.from("dialpad_calls").update({ call_log_id: resolvedCallLogId }).eq("id", newTracked.id);
+                }
+
+                if (hasSummary) {
+                  await upsertContactNote(adminClient, {
+                    contactId: matchedContact.id,
+                    createdBy: userId,
+                    dialpadCallId,
+                    source: "dialpad_summary",
+                    content: buildSummaryNote(summary!, payload),
+                  });
+                }
+
+                if (hasTranscript) {
+                  await upsertContactNote(adminClient, {
+                    contactId: matchedContact.id,
+                    createdBy: userId,
+                    dialpadCallId,
+                    source: "dialpad_transcript",
+                    content: transcript!,
+                  });
+                }
+
+                // AI Summary + GHL push
+                let aiResult: { aiGenerated: boolean; ghlNotePushed: boolean; ghlFieldsPushed: boolean; fieldsExtracted?: number } | null = null;
+                if (hasTranscript && transcript && talkTimeSeconds != null && talkTimeSeconds > 15) {
+                  try {
+                    aiResult = await processAiSummaryAndPushToGhl({
+                      adminClient,
+                      contactId: matchedContact.id,
+                      userId,
+                      dialpadCallId,
+                      transcript,
+                      phoneNumber: payload.external_number ?? undefined,
+                      callDurationSeconds: talkTimeSeconds,
+                      callDate: new Date().toLocaleDateString("en-AU"),
+                    });
+                  } catch (aiErr) {
+                    console.error(`[webhook fallback] AI summary failed:`, aiErr);
+                  }
+                }
+
+                const nextStatus = hasSummary || hasTranscript ? "synced" : "processing";
+                await adminClient.from("dialpad_calls").update({
+                  sync_status: nextStatus,
+                  transcript_synced_at: syncedAt ?? undefined,
+                  sync_error: null,
+                }).eq("id", newTracked.id);
+
+                return {
+                  ignored: false,
+                  fallback_matched: true,
+                  dialpad_call_id: dialpadCallId,
+                  contact_id: matchedContact.id,
+                  sync_status: nextStatus,
+                  transcript_synced: hasTranscript,
+                  summary_synced: hasSummary,
+                  talk_time_seconds: talkTimeSeconds,
+                  call_log_linked: !!resolvedCallLogId,
+                  ai_summary_generated: aiResult?.aiGenerated ?? false,
+                  ghl_note_pushed: aiResult?.ghlNotePushed ?? false,
+                };
+              }
+            }
+          }
+        } catch (fallbackErr) {
+          console.error(`[webhook] Fallback contact match failed:`, fallbackErr);
+        }
+      }
+    }
+
     return { ignored: true, reason: "Tracked Dialpad call not found" };
   }
 
