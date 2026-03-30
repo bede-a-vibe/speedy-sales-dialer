@@ -557,87 +557,28 @@ export type Database = {
     }
     Functions: {
       bulk_update_google_reviews: { Args: { updates: Json }; Returns: Json }
-      claim_dialer_leads:
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _claim_size?: number
-              _contact_owner?: string
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industries?: string[]
-              _lock_minutes?: number
-              _max_attempts?: number
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _session_id: string
-              _states?: string[]
-              _trade_types?: string[]
-              _work_type?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _claim_size?: number
-              _cooldown_minutes?: number
-              _industry?: string
-              _lock_minutes?: number
-              _session_id: string
-              _state?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _claim_size?: number
-              _cooldown_minutes?: number
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industry?: string
-              _lock_minutes?: number
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _session_id: string
-              _state?: string
-              _trade_type?: string
-              _work_type?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _claim_size?: number
-              _contact_owner?: string
-              _cooldown_minutes?: number
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industry?: string
-              _lock_minutes?: number
-              _max_attempts?: number
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _session_id: string
-              _state?: string
-              _trade_type?: string
-              _work_type?: string
-            }
-            Returns: Json
-          }
+      claim_dialer_leads: {
+        Args: {
+          _business_size?: string
+          _buying_signal_strength?: string
+          _claim_size?: number
+          _contact_owner?: string
+          _has_dm_phone?: boolean
+          _has_facebook_ads?: string
+          _has_google_ads?: string
+          _industries?: string[]
+          _lock_minutes?: number
+          _min_gbp_rating?: number
+          _min_review_count?: number
+          _phone_type?: string
+          _prospect_tier?: string
+          _session_id: string
+          _states?: string[]
+          _trade_types?: string[]
+          _work_type?: string
+        }
+        Returns: Json
+      }
       classify_au_phone_type: {
         Args: { phone_number: string }
         Returns: string
@@ -662,77 +603,26 @@ export type Database = {
           status: string
         }[]
       }
-      get_dialer_queue_count:
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industry?: string
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _state?: string
-              _trade_type?: string
-              _work_type?: string
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _contact_owner?: string
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industries?: string[]
-              _max_attempts?: number
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _session_id: string
-              _states?: string[]
-              _trade_types?: string[]
-              _work_type?: string
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              _cooldown_minutes?: number
-              _industry?: string
-              _session_id: string
-              _state?: string
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              _business_size?: string
-              _buying_signal_strength?: string
-              _contact_owner?: string
-              _cooldown_minutes?: number
-              _has_dm_phone?: boolean
-              _has_facebook_ads?: string
-              _has_google_ads?: string
-              _industry?: string
-              _max_attempts?: number
-              _min_gbp_rating?: number
-              _min_review_count?: number
-              _phone_type?: string
-              _prospect_tier?: string
-              _session_id: string
-              _state?: string
-              _trade_type?: string
-              _work_type?: string
-            }
-            Returns: number
-          }
+      get_dialer_queue_count: {
+        Args: {
+          _business_size?: string
+          _buying_signal_strength?: string
+          _contact_owner?: string
+          _has_dm_phone?: boolean
+          _has_facebook_ads?: string
+          _has_google_ads?: string
+          _industries?: string[]
+          _min_gbp_rating?: number
+          _min_review_count?: number
+          _phone_type?: string
+          _prospect_tier?: string
+          _session_id: string
+          _states?: string[]
+          _trade_types?: string[]
+          _work_type?: string
+        }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
