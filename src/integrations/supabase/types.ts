@@ -113,15 +113,29 @@ export type Database = {
       }
       contacts: {
         Row: {
+          best_time_to_call: string | null
           business_name: string
+          business_size: string | null
+          buying_signal_strength: string | null
           call_attempt_count: number
           city: string | null
           contact_person: string | null
           created_at: string
+          dm_email: string | null
+          dm_name: string | null
+          dm_phone: string | null
+          dm_phone_type: string | null
+          dm_role: string | null
           email: string | null
           follow_up_note: string | null
+          gatekeeper_name: string | null
+          gbp_rating: number | null
           ghl_contact_id: string | null
           gmb_link: string | null
+          google_rating: number | null
+          google_review_count: number | null
+          has_facebook_ads: string | null
+          has_google_ads: string | null
           id: string
           industry: string
           is_dnc: boolean
@@ -133,22 +147,43 @@ export type Database = {
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
           phone: string
+          phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type: string | null
+          prospect_tier: string | null
+          review_count: number | null
           state: string | null
           status: string
+          trade_type: string | null
           updated_at: string
           uploaded_by: string | null
+          voicemail_count: number
           website: string | null
+          work_type: string | null
         }
         Insert: {
+          best_time_to_call?: string | null
           business_name: string
+          business_size?: string | null
+          buying_signal_strength?: string | null
           call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          dm_email?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          dm_role?: string | null
           email?: string | null
           follow_up_note?: string | null
+          gatekeeper_name?: string | null
+          gbp_rating?: number | null
           ghl_contact_id?: string | null
           gmb_link?: string | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
           id?: string
           industry: string
           is_dnc?: boolean
@@ -160,22 +195,43 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone: string
+          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type?: string | null
+          prospect_tier?: string | null
+          review_count?: number | null
           state?: string | null
           status?: string
+          trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
+          voicemail_count?: number
           website?: string | null
+          work_type?: string | null
         }
         Update: {
+          best_time_to_call?: string | null
           business_name?: string
+          business_size?: string | null
+          buying_signal_strength?: string | null
           call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          dm_email?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          dm_role?: string | null
           email?: string | null
           follow_up_note?: string | null
+          gatekeeper_name?: string | null
+          gbp_rating?: number | null
           ghl_contact_id?: string | null
           gmb_link?: string | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
           id?: string
           industry?: string
           is_dnc?: boolean
@@ -187,11 +243,18 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone?: string
+          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type?: string | null
+          prospect_tier?: string | null
+          review_count?: number | null
           state?: string | null
           status?: string
+          trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
+          voicemail_count?: number
           website?: string | null
+          work_type?: string | null
         }
         Relationships: []
       }
@@ -493,26 +556,183 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_dialer_leads: {
-        Args: {
-          _claim_size?: number
-          _cooldown_minutes?: number
-          _industry?: string
-          _lock_minutes?: number
-          _session_id: string
-          _state?: string
-        }
-        Returns: Json
+      bulk_update_google_reviews: { Args: { updates: Json }; Returns: Json }
+      claim_dialer_leads:
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _claim_size?: number
+              _contact_owner?: string
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industries?: string[]
+              _lock_minutes?: number
+              _max_attempts?: number
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _session_id: string
+              _states?: string[]
+              _trade_types?: string[]
+              _work_type?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _claim_size?: number
+              _cooldown_minutes?: number
+              _industry?: string
+              _lock_minutes?: number
+              _session_id: string
+              _state?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _claim_size?: number
+              _cooldown_minutes?: number
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industry?: string
+              _lock_minutes?: number
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _session_id: string
+              _state?: string
+              _trade_type?: string
+              _work_type?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _claim_size?: number
+              _contact_owner?: string
+              _cooldown_minutes?: number
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industry?: string
+              _lock_minutes?: number
+              _max_attempts?: number
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _session_id: string
+              _state?: string
+              _trade_type?: string
+              _work_type?: string
+            }
+            Returns: Json
+          }
+      classify_au_phone_type: {
+        Args: { phone_number: string }
+        Returns: string
       }
-      get_dialer_queue_count: {
-        Args: {
-          _cooldown_minutes?: number
-          _industry?: string
-          _session_id: string
-          _state?: string
-        }
-        Returns: number
+      export_contacts_for_ghl_link: {
+        Args: never
+        Returns: {
+          business_name: string
+          contact_id: string
+          outcome: string
+          phone: string
+          status: string
+        }[]
       }
+      export_contacts_for_linking: {
+        Args: { p_limit?: number }
+        Returns: {
+          business_name: string
+          ghl_contact_id: string
+          id: string
+          phone: string
+          status: string
+        }[]
+      }
+      get_dialer_queue_count:
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industry?: string
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _state?: string
+              _trade_type?: string
+              _work_type?: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _contact_owner?: string
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industries?: string[]
+              _max_attempts?: number
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _session_id: string
+              _states?: string[]
+              _trade_types?: string[]
+              _work_type?: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              _cooldown_minutes?: number
+              _industry?: string
+              _session_id: string
+              _state?: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              _business_size?: string
+              _buying_signal_strength?: string
+              _contact_owner?: string
+              _cooldown_minutes?: number
+              _has_dm_phone?: boolean
+              _has_facebook_ads?: string
+              _has_google_ads?: string
+              _industry?: string
+              _max_attempts?: number
+              _min_gbp_rating?: number
+              _min_review_count?: number
+              _phone_type?: string
+              _prospect_tier?: string
+              _session_id: string
+              _state?: string
+              _trade_type?: string
+              _work_type?: string
+            }
+            Returns: number
+          }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -532,6 +752,10 @@ export type Database = {
         Args: { _contact_ids?: string[]; _session_id: string }
         Returns: number
       }
+      set_ghl_contact_id: {
+        Args: { p_contact_id: string; p_ghl_contact_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "sales_rep"
@@ -549,7 +773,12 @@ export type Database = {
         | "follow_up"
         | "booked"
         | "wrong_number"
-      contact_note_source: "manual" | "dialpad_summary" | "dialpad_transcript"
+      contact_note_source:
+        | "manual"
+        | "dialpad_summary"
+        | "dialpad_transcript"
+        | "ai_summary"
+      phone_number_quality: "unconfirmed" | "confirmed" | "suspect" | "dead"
       pipeline_status: "open" | "completed" | "canceled"
       pipeline_type: "follow_up" | "booked"
     }
@@ -696,7 +925,13 @@ export const Constants = {
         "booked",
         "wrong_number",
       ],
-      contact_note_source: ["manual", "dialpad_summary", "dialpad_transcript"],
+      contact_note_source: [
+        "manual",
+        "dialpad_summary",
+        "dialpad_transcript",
+        "ai_summary",
+      ],
+      phone_number_quality: ["unconfirmed", "confirmed", "suspect", "dead"],
       pipeline_status: ["open", "completed", "canceled"],
       pipeline_type: ["follow_up", "booked"],
     },
