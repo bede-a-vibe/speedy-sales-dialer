@@ -65,8 +65,8 @@ BEGIN
       )
       AND (
         _contact_owner IS NULL
-        OR (_contact_owner = 'unassigned' AND c.contact_owner IS NULL)
-        OR (_contact_owner <> 'unassigned' AND c.contact_owner = _contact_owner)
+        OR (_contact_owner = 'unassigned' AND c.uploaded_by IS NULL)
+        OR (_contact_owner <> 'unassigned' AND c.uploaded_by = _contact_owner)
       )
       AND (_max_attempts IS NULL OR COALESCE(c.call_attempts, 0) < _max_attempts)
     ORDER BY c.created_at ASC
@@ -104,8 +104,8 @@ BEGIN
       )
       AND (
         _contact_owner IS NULL
-        OR (_contact_owner = 'unassigned' AND c.contact_owner IS NULL)
-        OR (_contact_owner <> 'unassigned' AND c.contact_owner = _contact_owner)
+        OR (_contact_owner = 'unassigned' AND c.uploaded_by IS NULL)
+        OR (_contact_owner <> 'unassigned' AND c.uploaded_by = _contact_owner)
       )
       AND (_max_attempts IS NULL OR COALESCE(c.call_attempts, 0) < _max_attempts);
 
@@ -152,8 +152,8 @@ BEGIN
     )
     AND (
       _contact_owner IS NULL
-      OR (_contact_owner = 'unassigned' AND c.contact_owner IS NULL)
-      OR (_contact_owner <> 'unassigned' AND c.contact_owner = _contact_owner)
+      OR (_contact_owner = 'unassigned' AND c.uploaded_by IS NULL)
+      OR (_contact_owner <> 'unassigned' AND c.uploaded_by = _contact_owner)
     )
     AND (_max_attempts IS NULL OR COALESCE(c.call_attempts, 0) < _max_attempts);
 
@@ -225,8 +225,8 @@ BEGIN
     )
     AND (
       _contact_owner IS NULL
-      OR (_contact_owner = 'unassigned' AND c.contact_owner IS NULL)
-      OR (_contact_owner <> 'unassigned' AND c.contact_owner = _contact_owner)
+      OR (_contact_owner = 'unassigned' AND c.uploaded_by IS NULL)
+      OR (_contact_owner <> 'unassigned' AND c.uploaded_by = _contact_owner)
     )
     AND (_max_attempts IS NULL OR COALESCE(c.call_attempts, 0) < _max_attempts);
 
