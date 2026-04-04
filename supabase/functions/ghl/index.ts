@@ -436,6 +436,170 @@ async function createFollowUpTask(
   });
 }
 
+// ── Phone normalisation (AU-aware) ─────────────────────────────────────────
+function normalisePhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  // +61xxxxxxxxx → 0xxxxxxxxx
+  if (digits.startsWith("61") && digits.length === 11) return "0" + digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 10) return digits;
+  return digits;
+}
+
+/**
+ * bulk_import_from_ghl
+ *
+ * Pulls one page of contacts from GHL and creates or links them in Supabase.
+ * Call repeatedly with increasing `page` values until `hasMore` is false.
+ *
+ * Matching priority per GHL contact:
+ *   1. ghl_contact_id already in Supabase → skip (already linked)
+ *   2. Phone match (normalised) → set ghl_contact_id
+ *   3. Email match → set ghl_contact_id
+ *   4. No match → insert new Supabase contact with status=uncalled
+ *
+ * @param apiKey         GHL API key
+ * @param locationId     GHL location ID
+ * @param supabaseUrl    Supabase project URL
+ * @param serviceRoleKey Supabase service role key
+ * @param page           Page number to fetch from GHL (1-based, default 1)
+ * @param pageSize       Contacts per page (max 100, default 100)
+ */
+async function bulkImportFromGhl(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  page = 1,
+  pageSize = 100,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  // Fetch one page of GHL contacts
+  const ghlResp = await ghlFetch("/contacts/search", apiKey, {
+    method: "POST",
+    body: {
+      locationId,
+      pageSize: Math.min(pageSize, 100),
+      page,
+    },
+  });
+
+  const ghlContacts: Array<Record<string, unknown>> = ghlResp.contacts ?? [];
+  const meta = ghlResp.meta ?? {};
+  const totalGhl = meta.total ?? 0;
+  const hasMore = page * pageSize < totalGhl;
+
+  if (ghlContacts.length === 0) {
+    return { page, pageSize, totalGhl, hasMore: false, linked: 0, created: 0, skipped: 0, errors: [] };
+  }
+
+  let linked = 0;
+  let created = 0;
+  let skipped = 0;
+  const errors: Array<{ ghlId: string; error: string }> = [];
+
+  for (const gc of ghlContacts) {
+    const ghlId = gc.id as string;
+    if (!ghlId) { skipped++; continue; }
+
+    try {
+      // 1. Already linked?
+      const { data: existing } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("ghl_contact_id", ghlId)
+        .maybeSingle();
+
+      if (existing) { skipped++; continue; }
+
+      // Normalise phone
+      const rawPhone = (gc.phone as string | undefined ?? "").trim();
+      const normPhone = normalisePhone(rawPhone);
+
+      // 2. Phone match
+      if (normPhone) {
+        const { data: byPhone } = await supabase
+          .from("contacts")
+          .select("id")
+          .or(`phone.eq.${rawPhone},phone.eq.${normPhone}`)
+          .is("ghl_contact_id", null)
+          .maybeSingle();
+
+        if (byPhone) {
+          await supabase.from("contacts").update({ ghl_contact_id: ghlId }).eq("id", byPhone.id);
+          linked++;
+          continue;
+        }
+      }
+
+      // 3. Email match
+      const rawEmail = (gc.email as string | undefined ?? "").trim().toLowerCase();
+      if (rawEmail) {
+        const { data: byEmail } = await supabase
+          .from("contacts")
+          .select("id")
+          .eq("email", rawEmail)
+          .is("ghl_contact_id", null)
+          .maybeSingle();
+
+        if (byEmail) {
+          await supabase.from("contacts").update({ ghl_contact_id: ghlId }).eq("id", byEmail.id);
+          linked++;
+          continue;
+        }
+      }
+
+      // 4. Create new contact from GHL data
+      const firstName = (gc.firstName as string ?? "").trim();
+      const lastName  = (gc.lastName  as string ?? "").trim();
+      const contactPerson = [firstName, lastName].filter(Boolean).join(" ") || null;
+      const businessName  = (gc.companyName as string ?? contactPerson ?? "GHL Contact").trim();
+
+      if (!rawPhone && !rawEmail) { skipped++; continue; }
+
+      const { error: insertErr } = await supabase.from("contacts").insert({
+        business_name:   businessName,
+        contact_person:  contactPerson,
+        phone:           rawPhone || "unknown",
+        email:           rawEmail || null,
+        website:         (gc.website as string | undefined) ?? null,
+        city:            (gc.city    as string | undefined) ?? null,
+        state:           (gc.state   as string | undefined) ?? null,
+        industry:        "Unknown",
+        status:          "uncalled",
+        is_dnc:          false,
+        ghl_contact_id:  ghlId,
+      });
+
+      if (insertErr) {
+        errors.push({ ghlId, error: insertErr.message });
+      } else {
+        created++;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ ghlId, error: msg });
+    }
+  }
+
+  console.log(`[bulk_import_from_ghl] page=${page} linked=${linked} created=${created} skipped=${skipped} errors=${errors.length}`);
+
+  return {
+    page,
+    pageSize,
+    totalGhl,
+    processedOnPage: ghlContacts.length,
+    hasMore,
+    nextPage: hasMore ? page + 1 : null,
+    linked,
+    created,
+    skipped,
+    errors: errors.slice(0, 20),
+  };
+}
+
 // ── Main handler ───────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -588,6 +752,22 @@ Deno.serve(async (req) => {
           svcKey,
           body.batchSize ?? 50,
           body.delayMs ?? 6000,
+        );
+        break;
+      }
+
+      case "bulk_import_from_ghl": {
+        // Pull GHL contacts into Supabase — call page by page until hasMore=false
+        // Body params: { page?: number, pageSize?: number }
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await bulkImportFromGhl(
+          GHL_API_KEY,
+          GHL_LOCATION_ID,
+          supabaseUrl,
+          svcKey,
+          body.page ?? 1,
+          body.pageSize ?? 100,
         );
         break;
       }
