@@ -389,6 +389,62 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_ghl_pushes: {
+        Row: {
+          ai_fields: Json | null
+          ai_note: string | null
+          attempt_count: number
+          contact_id: string
+          created_at: string
+          dialpad_call_id: string
+          id: string
+          last_error: string | null
+          next_retry_at: string
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_fields?: Json | null
+          ai_note?: string | null
+          attempt_count?: number
+          contact_id: string
+          created_at?: string
+          dialpad_call_id: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_fields?: Json | null
+          ai_note?: string | null
+          attempt_count?: number
+          contact_id?: string
+          created_at?: string
+          dialpad_call_id?: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_ghl_pushes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_targets: {
         Row: {
           created_at: string
