@@ -519,16 +519,16 @@ async function bulkImportFromGhl(
 
       if (existing) { skipped++; continue; }
 
-      // Normalise phone
+      // Normalise phone to canonical E.164
       const rawPhone = (gc.phone as string | undefined ?? "").trim();
-      const normPhone = normalisePhone(rawPhone);
+      const normPhoneE164 = normalisePhoneE164(rawPhone);
 
-      // 2. Phone match
-      if (normPhone) {
+      // 2. Phone match (canonical E.164 against indexed column)
+      if (normPhoneE164) {
         const { data: byPhone } = await supabase
           .from("contacts")
           .select("id")
-          .or(`phone.eq.${rawPhone},phone.eq.${normPhone}`)
+          .eq("phone_e164", normPhoneE164)
           .is("ghl_contact_id", null)
           .maybeSingle();
 
@@ -564,12 +564,12 @@ async function bulkImportFromGhl(
 
       if (!rawPhone && !rawEmail) { skipped++; continue; }
 
-      // DNC guard: check if a DNC'd contact already exists with this phone
-      if (normPhone) {
+      // DNC guard: check if a DNC'd contact already exists with this phone (canonical match)
+      if (normPhoneE164) {
         const { data: dncContact } = await supabase
           .from("contacts")
-          .select("id, is_dnc")
-          .or(`phone.eq.${rawPhone},phone.eq.${normPhone}`)
+          .select("id")
+          .eq("phone_e164", normPhoneE164)
           .eq("is_dnc", true)
           .maybeSingle();
 
