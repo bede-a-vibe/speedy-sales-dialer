@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, Upload, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
@@ -27,7 +27,6 @@ const mainItems = [
 ];
 
 const adminItems = [
-  { title: "Upload Lists", url: "/upload", icon: Upload },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Targets", url: "/targets", icon: Target },
   { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },

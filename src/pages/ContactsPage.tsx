@@ -480,20 +480,6 @@ export default function ContactsPage() {
         });
       }
 
-      if (newStatus === "follow_up") {
-        const followUpDate = new Date();
-        followUpDate.setDate(followUpDate.getDate() + 2);
-
-        await createPipelineItem.mutateAsync({
-          contact_id: statusChangeContact.id,
-          pipeline_type: "follow_up",
-          assigned_user_id: user.id,
-          created_by: user.id,
-          scheduled_for: followUpDate.toISOString(),
-          notes: "Created from manual status change",
-        });
-      }
-
       toast.success(`Status changed to ${newStatus}.`);
       setStatusChangeContact(null);
     } catch {

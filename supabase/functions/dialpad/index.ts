@@ -23,6 +23,9 @@ type DialpadWebhookPayload = {
   date_connected?: number | null;
   date_ended?: number | null;
   recap_summary?: string | null;
+  custom_data?: string | JsonRecord | null;
+  contact_id?: string | null;
+  user_id?: string | null;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -385,6 +388,38 @@ function extractDialpadPhoneNumbers(call: JsonRecord) {
   ]);
 }
 
+function extractPayloadLinkage(payload: DialpadWebhookPayload) {
+  let contactId = typeof payload.contact_id === "string" && payload.contact_id.trim()
+    ? payload.contact_id.trim()
+    : null;
+  let userId = typeof payload.user_id === "string" && payload.user_id.trim()
+    ? payload.user_id.trim()
+    : null;
+
+  const customData = payload.custom_data;
+  let decoded: unknown = null;
+  if (typeof customData === "string" && customData.trim()) {
+    try {
+      decoded = JSON.parse(customData);
+    } catch {
+      decoded = null;
+    }
+  } else if (isRecord(customData)) {
+    decoded = customData;
+  }
+
+  if (isRecord(decoded)) {
+    if (!contactId && typeof decoded.contact_id === "string" && decoded.contact_id.trim()) {
+      contactId = decoded.contact_id.trim();
+    }
+    if (!userId && typeof decoded.user_id === "string" && decoded.user_id.trim()) {
+      userId = decoded.user_id.trim();
+    }
+  }
+
+  return { contactId, userId };
+}
+
 function phoneNumbersLikelyMatch(candidate: string, normalizedPhone: string) {
   const candidateDigits = candidate.replace(/\D/g, "");
   const phoneDigits = normalizedPhone.replace(/\D/g, "");
@@ -588,7 +623,7 @@ function buildTranscriptText(transcriptPayload: unknown) {
 }
 
 // ── GHL Field Key → ID Mapping ──────────────────────────────────────────
-const GHL_FIELD_MAP: Record<string, string> = {
+const DEFAULT_GHL_FIELD_MAP: Record<string, string> = {
   ai_call_summary: "IL1bpfoLPz0sPlU7ucbe",
   call_disposition: "3mJ0ao8qgLzeFSXFOUpc",
   prospect_tier: "D4OdcFIL4E9Z3SZ5pSUp",
@@ -640,6 +675,28 @@ const GHL_FIELD_MAP: Record<string, string> = {
   website_url: "PMzSkSeg2HX6OLw3Llsi",
   website_quality: "DrpNKbTVavczJgIpIVct",
 };
+
+function getGhlFieldMap() {
+  const merged = { ...DEFAULT_GHL_FIELD_MAP };
+  const raw = Deno.env.get("GHL_FIELD_MAP_JSON");
+  if (!raw) return merged;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      merged[key] = trimmed;
+    }
+  } catch (error) {
+    console.warn("[dialpad] Invalid GHL_FIELD_MAP_JSON env var:", error);
+  }
+
+  return merged;
+}
+
+const GHL_FIELD_MAP = getGhlFieldMap();
 
 // ── AI Summary System Prompt ────────────────────────────────────────────
 const AI_SYSTEM_PROMPT = `You are an expert sales manager and call reviewer for a digital marketing agency that sells to blue collar trades businesses (HVAC, plumbing, electrical, roofing, landscaping, etc.). You are deeply trained in the methodologies of "Fanatical Prospecting" by Jeb Blount and "Cold Calling Sucks (And That's Why It Works)" by Armand Farrokh & Nick Cegelski.
@@ -977,6 +1034,256 @@ async function fetchGhlContactCustomFields(ghlApiKey: string, ghlContactId: stri
   }
 }
 
+async function enqueuePendingGhlPush(params: {
+  adminClient: ReturnType<typeof createClient>;
+  contactId: string;
+  dialpadCallId: string;
+  userId: string;
+  aiNote: string | null;
+  aiFields: Record<string, unknown>;
+  lastError: string;
+}) {
+  const payload = {
+    contact_id: params.contactId,
+    dialpad_call_id: params.dialpadCallId,
+    user_id: params.userId,
+    ai_note: params.aiNote,
+    ai_fields: params.aiFields,
+    source: "dialpad_ai_summary",
+    status: "pending",
+    next_retry_at: new Date().toISOString(),
+    last_error: params.lastError,
+  };
+
+  const { error } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .upsert(payload, { onConflict: "contact_id,dialpad_call_id,source" });
+
+  if (error) {
+    console.error("[AI→GHL] Failed to enqueue pending push:", error.message);
+  }
+}
+
+function coerceBoundedLimit(value: unknown, fallback: number, min: number, max: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const normalized = Math.trunc(value);
+  return Math.min(Math.max(normalized, min), max);
+}
+
+async function processPendingGhlPushes(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
+  const staleProcessingMinutes = 15;
+  const GHL_API_KEY = Deno.env.get("GHL_API_KEY");
+  if (!GHL_API_KEY) {
+    return { processed: 0, synced: 0, requeued: 0, failed: 0, reason: "GHL_API_KEY not configured" };
+  }
+  const staleBefore = new Date(Date.now() - staleProcessingMinutes * 60_000).toISOString();
+
+  // Requeue stale processing rows (e.g., previous worker crashed mid-flight).
+  const { data: reclaimedRows, error: reclaimErr } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .update({
+      status: "pending",
+      next_retry_at: new Date().toISOString(),
+      last_error: `Recovered stale processing row after ${staleProcessingMinutes}m timeout`,
+    })
+    .eq("status", "processing")
+    .lte("updated_at", staleBefore)
+    .select("id");
+  if (reclaimErr) {
+    console.error("[AI→GHL] Failed to reclaim stale processing rows:", reclaimErr.message);
+  }
+  const reclaimed = reclaimedRows?.length ?? 0;
+
+  const { data: pending, error } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .select("id, contact_id, ai_note, ai_fields, attempt_count")
+    .eq("status", "pending")
+    .lte("next_retry_at", new Date().toISOString())
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!pending || pending.length === 0) {
+    return { processed: 0, synced: 0, requeued: 0, failed: 0, reclaimed };
+  }
+
+  let synced = 0;
+  let requeued = 0;
+  let failed = 0;
+
+  for (const row of pending) {
+    const attempts = (row.attempt_count ?? 0) + 1;
+    const backoffMinutes = Math.min(60, Math.pow(2, Math.min(6, attempts)));
+    const nextRetryAt = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
+    const nowIso = new Date().toISOString();
+
+    // Claim row defensively to avoid duplicate processing across concurrent workers.
+    const { data: claimedRows, error: claimError } = await params.adminClient
+      .from("pending_ghl_pushes")
+      .update({ status: "processing", attempt_count: attempts, updated_at: nowIso })
+      .eq("id", row.id)
+      .eq("status", "pending")
+      .lte("next_retry_at", nowIso)
+      .select("id")
+      .limit(1);
+
+    if (claimError) {
+      console.error("[AI→GHL] Failed to claim pending push:", claimError.message);
+      continue;
+    }
+    if (!claimedRows || claimedRows.length === 0) {
+      // Another worker already claimed this row.
+      continue;
+    }
+
+    const { data: contact } = await params.adminClient
+      .from("contacts")
+      .select("ghl_contact_id")
+      .eq("id", row.contact_id)
+      .maybeSingle();
+
+    const ghlContactId = contact?.ghl_contact_id;
+    if (!ghlContactId) {
+      await params.adminClient
+        .from("pending_ghl_pushes")
+        .update({
+          status: "pending",
+          next_retry_at: nextRetryAt,
+          last_error: "Missing ghl_contact_id",
+        })
+        .eq("id", row.id);
+      requeued++;
+      continue;
+    }
+
+    const fields = isRecord(row.ai_fields) ? row.ai_fields : {};
+    const noteOk = row.ai_note ? await pushNoteToGhl({ ghlApiKey: GHL_API_KEY, ghlContactId, noteBody: row.ai_note }) : true;
+    const existingCustomFields = await fetchGhlContactCustomFields(GHL_API_KEY, ghlContactId);
+    const fieldsOk = await pushFieldsToGhl({
+      ghlApiKey: GHL_API_KEY,
+      ghlContactId,
+      fields,
+      existingCustomFields: existingCustomFields ?? undefined,
+    });
+
+    if (noteOk && fieldsOk) {
+      await params.adminClient
+        .from("pending_ghl_pushes")
+        .update({
+          status: "synced",
+          last_error: null,
+        })
+        .eq("id", row.id);
+      synced++;
+    } else if (attempts >= 8) {
+      await params.adminClient
+        .from("pending_ghl_pushes")
+        .update({
+          status: "failed",
+          last_error: "Failed to push note/fields to GHL after retries",
+        })
+        .eq("id", row.id);
+      failed++;
+    } else {
+      await params.adminClient
+        .from("pending_ghl_pushes")
+        .update({
+          status: "pending",
+          next_retry_at: nextRetryAt,
+          last_error: "GHL push failed",
+        })
+        .eq("id", row.id);
+      requeued++;
+    }
+  }
+
+  return { processed: pending.length, synced, requeued, failed, reclaimed };
+}
+
+async function getPendingGhlPushMetrics(params: {
+  adminClient: ReturnType<typeof createClient>;
+}) {
+  const statuses: Array<"pending" | "processing" | "synced" | "failed"> = ["pending", "processing", "synced", "failed"];
+  const counts: Record<string, number> = {};
+
+  for (const status of statuses) {
+    const { count, error } = await params.adminClient
+      .from("pending_ghl_pushes")
+      .select("id", { count: "exact", head: true })
+      .eq("status", status);
+    if (error) throw error;
+    counts[status] = count ?? 0;
+  }
+
+  const { data: oldestPending, error: oldestPendingError } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .select("created_at, next_retry_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (oldestPendingError) throw oldestPendingError;
+
+  const nowIso = new Date().toISOString();
+  const { count: dueNowCount, error: dueNowError } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .lte("next_retry_at", nowIso);
+  if (dueNowError) throw dueNowError;
+
+  const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { count: staleProcessingCount, error: staleProcessingError } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "processing")
+    .lte("updated_at", staleBefore);
+  if (staleProcessingError) throw staleProcessingError;
+
+  return {
+    counts,
+    pending_due_now_count: dueNowCount ?? 0,
+    stale_processing_count: staleProcessingCount ?? 0,
+    oldest_pending_created_at: oldestPending?.created_at ?? null,
+    oldest_pending_next_retry_at: oldestPending?.next_retry_at ?? null,
+  };
+}
+
+async function requeueFailedPendingGhlPushes(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const limit = coerceBoundedLimit(params.limit, 100, 1, 500);
+  const { data: failedRows, error: failedRowsError } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .select("id")
+    .eq("status", "failed")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (failedRowsError) throw failedRowsError;
+  if (!failedRows || failedRows.length === 0) return { requeued: 0 };
+
+  const ids = failedRows.map((row) => row.id);
+  const { error: updateError } = await params.adminClient
+    .from("pending_ghl_pushes")
+    .update({
+      status: "pending",
+      next_retry_at: new Date().toISOString(),
+      last_error: "Manually requeued from failed state",
+    })
+    .in("id", ids);
+  if (updateError) throw updateError;
+
+  return { requeued: ids.length };
+}
+
 // ── Process AI Summary and Push to GHL ──────────────────────────────────
 async function processAiSummaryAndPushToGhl(params: {
   adminClient: ReturnType<typeof createClient>;
@@ -1032,7 +1339,7 @@ async function processAiSummaryAndPushToGhl(params: {
   // Look up ghl_contact_id from contacts table
   const { data: contact } = await params.adminClient
     .from("contacts")
-    .select("ghl_contact_id, phone")
+    .select("ghl_contact_id, phone, phone_e164")
     .eq("id", params.contactId)
     .maybeSingle();
 
@@ -1066,11 +1373,19 @@ async function processAiSummaryAndPushToGhl(params: {
     // ── Auto-link: try to find/create GHL contact on the fly ──
     // This handles the case where the contact was never linked to GHL.
     const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
-    if (GHL_LOCATION_ID && contact?.phone) {
+    let e164Phone: string | null = contact?.phone_e164 ?? null;
+    if (!e164Phone && contact?.phone) {
+      try {
+        e164Phone = normalizePhoneNumberToE164(contact.phone);
+      } catch {
+        e164Phone = null;
+      }
+    }
+    if (GHL_LOCATION_ID && e164Phone) {
       console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — attempting auto-link via phone search`);
       try {
         // Search GHL by phone number
-        const phoneDigits = contact.phone.replace(/\D/g, "").slice(-9);
+        const phoneDigits = e164Phone.replace(/\D/g, "");
         const searchResponse = await fetch(
           `${GHL_BASE_URL}/contacts/?query=${encodeURIComponent(phoneDigits)}&locationId=${GHL_LOCATION_ID}&limit=1`,
           { headers: ghlApiHeaders(GHL_API_KEY) },
@@ -1108,14 +1423,41 @@ async function processAiSummaryAndPushToGhl(params: {
               });
             }
           } else {
-            console.log(`[AI→GHL] No GHL contact found for phone ${phoneDigits} — skipping GHL push`);
+            console.log(`[AI→GHL] No GHL contact found for phone ${phoneDigits} — queued for retry`);
+            await enqueuePendingGhlPush({
+              adminClient: params.adminClient,
+              contactId: params.contactId,
+              dialpadCallId: params.dialpadCallId,
+              userId: params.userId,
+              aiNote: aiResult.note ?? null,
+              aiFields: aiResult.fields ?? {},
+              lastError: "No GHL contact found during auto-link",
+            });
           }
         }
       } catch (linkErr) {
         console.error(`[AI→GHL] Auto-link attempt failed:`, linkErr);
+        await enqueuePendingGhlPush({
+          adminClient: params.adminClient,
+          contactId: params.contactId,
+          dialpadCallId: params.dialpadCallId,
+          userId: params.userId,
+          aiNote: aiResult.note ?? null,
+          aiFields: aiResult.fields ?? {},
+          lastError: linkErr instanceof Error ? linkErr.message : "Auto-link failed",
+        });
       }
     } else {
-      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — skipping GHL push (no location ID or phone)`);
+      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — queued for retry (no location ID or phone)`);
+      await enqueuePendingGhlPush({
+        adminClient: params.adminClient,
+        contactId: params.contactId,
+        dialpadCallId: params.dialpadCallId,
+        userId: params.userId,
+        aiNote: aiResult.note ?? null,
+        aiFields: aiResult.fields ?? {},
+        lastError: "Missing ghl_contact_id and auto-link prerequisites",
+      });
     }
   }
 
@@ -1371,7 +1713,49 @@ async function syncWebhookPayload(params: {
   const LIVE_STATES = new Set(["calling", "ringing", "connected"]);
   const isLiveStateUpdate = LIVE_STATES.has(payload.state);
 
-  const trackedCall = await findTrackedDialpadCall(adminClient, payload);
+  let trackedCall = await findTrackedDialpadCall(adminClient, payload);
+
+  // Highest-precedence linkage for CTI-originated calls: explicit contact_id/user_id in webhook payload.
+  if (!trackedCall) {
+    const webhookCallId = payload.call_id ? String(payload.call_id) : null;
+    const linkage = extractPayloadLinkage(payload);
+
+    if (webhookCallId && linkage.contactId) {
+      let resolvedUserId = linkage.userId;
+
+      if (!resolvedUserId) {
+        const { data: recentUser } = await adminClient
+          .from("call_logs")
+          .select("user_id")
+          .eq("contact_id", linkage.contactId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        resolvedUserId = recentUser?.user_id ?? null;
+      }
+
+      if (!resolvedUserId) {
+        const { data: anyUser } = await adminClient
+          .from("profiles")
+          .select("user_id")
+          .limit(1)
+          .maybeSingle();
+        resolvedUserId = anyUser?.user_id ?? null;
+      }
+
+      if (resolvedUserId) {
+        await adminClient.from("dialpad_calls").upsert({
+          dialpad_call_id: webhookCallId,
+          contact_id: linkage.contactId,
+          user_id: resolvedUserId,
+          sync_status: "pending",
+          call_state: normalizeDialpadState(payload.state) ?? "unknown",
+        }, { onConflict: "dialpad_call_id" });
+
+        trackedCall = await findTrackedDialpadCall(adminClient, payload);
+      }
+    }
+  }
 
   // For live state webhooks, if no tracked call exists yet, try to create one using webhook payload
   if (!trackedCall && isLiveStateUpdate) {
@@ -1403,24 +1787,28 @@ async function syncWebhookPayload(params: {
             normalizedPhone = payload.external_number.replace(/\D/g, "");
           }
 
-          // Search contacts by phone (try multiple formats)
-          const phoneCandidates = [
-            normalizedPhone,
-            "+" + normalizedPhone.replace(/^\+/, ""),
-            payload.external_number,
-          ];
-
+          // Search contacts by canonical phone first, then exact raw fallback.
           let matchedContact: { id: string; ghl_contact_id: string | null } | null = null;
-          for (const phone of phoneCandidates) {
-            const { data: contacts } = await adminClient
+
+          const { data: e164Match } = await adminClient
+            .from("contacts")
+            .select("id, ghl_contact_id")
+            .eq("phone_e164", normalizedPhone)
+            .limit(1)
+            .maybeSingle();
+
+          if (e164Match) {
+            matchedContact = e164Match;
+          } else {
+            const { data: rawMatch } = await adminClient
               .from("contacts")
               .select("id, ghl_contact_id")
-              .ilike("phone", `%${phone.slice(-9)}%`)
-              .limit(1);
+              .eq("phone", payload.external_number)
+              .limit(1)
+              .maybeSingle();
 
-            if (contacts && contacts.length > 0) {
-              matchedContact = contacts[0];
-              break;
+            if (rawMatch) {
+              matchedContact = rawMatch;
             }
           }
 
@@ -1778,6 +2166,31 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
+  const cronSecret = Deno.env.get("DIALPAD_INTERNAL_CRON_SECRET");
+  const incomingCronSecret = req.headers.get("x-cron-secret");
+
+  if (!authHeader && cronSecret && incomingCronSecret === cronSecret) {
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const body = await req.json().catch(() => ({}));
+    const action = typeof body.action === "string" ? body.action : null;
+
+    if (action === "process_pending_ghl_pushes") {
+      const limit = coerceBoundedLimit(body.limit, 25, 1, 100);
+      const summary = await processPendingGhlPushes({ adminClient, limit });
+      return jsonResponse({ ok: true, ...summary }, 200);
+    }
+    if (action === "pending_ghl_push_metrics") {
+      const metrics = await getPendingGhlPushMetrics({ adminClient });
+      return jsonResponse({ ok: true, ...metrics }, 200);
+    }
+    if (action === "requeue_failed_pending_ghl_pushes") {
+      const limit = coerceBoundedLimit(body.limit, 100, 1, 500);
+      const result = await requeueFailedPendingGhlPushes({ adminClient, limit });
+      return jsonResponse({ ok: true, ...result }, 200);
+    }
+
+    return jsonResponse({ error: "Unknown cron action" }, 400);
+  }
 
   if (!authHeader) {
     const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
@@ -2599,6 +3012,35 @@ Deno.serve(async (req) => {
           do_not_disturb: isDnd,
           is_available: isAvailable,
         }, 200);
+      }
+
+      case "process_pending_ghl_pushes": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+
+        const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
+        const summary = await processPendingGhlPushes({ adminClient, limit });
+        return jsonResponse({ ok: true, ...summary }, 200);
+      }
+
+      case "pending_ghl_push_metrics": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+
+        const metrics = await getPendingGhlPushMetrics({ adminClient });
+        return jsonResponse({ ok: true, ...metrics }, 200);
+      }
+
+      case "requeue_failed_pending_ghl_pushes": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+
+        const limit = coerceBoundedLimit(params.limit, 100, 1, 500);
+        const result = await requeueFailedPendingGhlPushes({ adminClient, limit });
+        return jsonResponse({ ok: true, ...result }, 200);
       }
 
       default:
