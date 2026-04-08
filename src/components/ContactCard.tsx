@@ -33,7 +33,7 @@ interface ContactCardProps {
     dm_phone_type?: string | null;
     dm_email?: string | null;
     gatekeeper_name?: string | null;
-    best_time_to_call?: string | null;
+    best_route_to_decision_maker?: string | null;
     phone_number_quality?: string | null;
     call_attempt_count?: number | null;
     voicemail_count?: number | null;
@@ -70,10 +70,10 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
             <p className="text-[10px] uppercase tracking-widest font-mono text-orange-400 mb-0.5">Gatekeeper</p>
             <p className="text-sm leading-snug">
               <span className="font-semibold">{contact.gatekeeper_name}</span>
-              {contact.best_time_to_call && (
+              {contact.best_route_to_decision_maker && (
                 <span className="ml-2 text-orange-300/70">
                   <Clock className="h-3 w-3 inline mr-1" />
-                  Best time: {contact.best_time_to_call}
+                  Route: {contact.best_route_to_decision_maker}
                 </span>
               )}
             </p>
