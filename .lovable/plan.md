@@ -1,78 +1,48 @@
 
 
-## Plan: Fix Core Execution Path — Identity, GHL Updates, DNC Enforcement
+## Plan: Unify Phone Normalization to E.164 Canonical Lookup
 
-### Critical Bug Found
+### Problem
 
-**The dialer's background persistence is completely broken.** In `DialerPage.tsx` line 443-572, the async IIFE that writes call logs, updates contact status, creates pipeline items, and syncs to GHL is **never invoked**. The code reads `(async () => { ... });` but is missing the trailing `()` to actually call it. This means:
-- Call logs are not being saved
-- Contact status is not being updated after outcomes
-- Pipeline items for bookings are not created
-- GHL sync never fires
-- DNC flag is never set on the contact
+There are three separate phone normalization functions across the edge functions, and they disagree:
 
-This is the single most impactful fix.
+- `ghl-webhook/index.ts` → `normalizePhoneE164()` → returns `+61412345678` (E.164) ✓
+- `dialpad/index.ts` → `normalizePhoneNumberToE164()` → returns `+61412345678` (E.164) ✓
+- `ghl/index.ts` → `normalisePhone()` → returns `0412345678` (local format) ✗
 
-### Additional Weak Points
+The `ghl/index.ts` bulk import function matches against the raw `phone` column using string equality (`phone.eq.0412345678`), which fails when the stored phone is in a different format (e.g., `+61 412 345 678` or `0412 345 678`). It also never queries `phone_e164`, making the canonical column useless for imports.
 
-Several other issues weaken identity resolution, GHL reliability, and DNC enforcement.
+The DNC guard in the same function has the same problem — it matches on raw `phone`, so a DNC contact stored as `+61412345678` won't match an import with `0412345678`.
 
----
+### Changes
 
-### Changes (in priority order)
-
-#### 1. Fix the broken IIFE — restore all background writes
-**File:** `src/pages/DialerPage.tsx` line 572
-
-Change `});` to `})();` so the async function actually executes. This single character restores call logging, contact updates, pipeline creation, and GHL sync.
-
-#### 2. Add `phone_e164` column to contacts table
-**Migration**
-
-The GHL webhook (`ghl-webhook/index.ts`) already writes to `phone_e164` and queries by it for identity matching, but the column doesn't exist. This causes silent failures on every webhook event.
-
-- Add `phone_e164 TEXT` column to `contacts`
-- Backfill from existing `phone` values using the AU normalisation logic
-- Add a trigger to auto-populate `phone_e164` on insert/update of `phone`
-- Add an index on `phone_e164` for fast lookups
-
-This gives canonical phone matching across dialer, webhooks, and GHL sync.
-
-#### 3. Harden DNC enforcement in the pipeline outcome trigger
-**Migration — update `sync_pipeline_outcome_to_contact` function**
-
-The trigger currently can set a DNC'd contact's status to `follow_up` or other values. Add a guard: if `is_dnc = true` on the contact, skip the status update entirely. A DNC contact should never re-enter any active pipeline state.
-
-#### 4. Protect DNC in GHL webhook ContactUpdate path
-**File:** `supabase/functions/ghl-webhook/index.ts`
-
-When processing a `ContactUpdate`, strip `is_dnc` and `status` from the update payload so a GHL update can never accidentally un-DNC a contact that was marked DNC in the dialer. Only the explicit `ContactDndUpdate` event type should touch `is_dnc`.
-
-Also set `status = 'dnc'` alongside `is_dnc = true` in the `ContactDndUpdate` handler for consistency.
-
-#### 5. Protect DNC in bulk import from GHL
+#### 1. Replace `normalisePhone()` in `ghl/index.ts` with E.164 normalization
 **File:** `supabase/functions/ghl/index.ts`
 
-In the `bulkImportFromGhl` function, before inserting a new contact, check if a soft-deleted/DNC'd contact with the same phone already exists. If so, skip the insert rather than re-creating a DNC'd contact.
+Replace the `normalisePhone()` function (lines 440-448) with the same E.164 logic used in `ghl-webhook`. This gives one canonical format across all three edge functions.
 
-#### 6. Redeploy edge functions
-Deploy updated `ghl`, `ghl-webhook`, and `dialpad` functions.
+#### 2. Switch phone matching to use `phone_e164` column
+**File:** `supabase/functions/ghl/index.ts`
 
----
+In `bulkImportFromGhl` (lines 522-534 and 563-576):
+- Phone match: query `phone_e164.eq.<normalized>` instead of the raw `phone` column `or()` pattern
+- DNC guard: query `phone_e164.eq.<normalized>` + `is_dnc.eq.true` instead of raw phone matching
 
-### What each fix addresses
+This ensures all lookups go through the canonical column populated by the database trigger.
 
-| Fix | GHL Updates | DNC Enforcement | Identity |
-|-----|-------------|-----------------|----------|
-| 1. IIFE invocation | Restores all GHL sync | Restores DNC flag writes | — |
-| 2. phone_e164 column | Better phone matching | — | Canonical identity |
-| 3. Pipeline trigger guard | — | Prevents DNC reactivation | — |
-| 4. Webhook DNC protection | — | Prevents webhook un-DNC | — |
-| 5. Import DNC check | — | Prevents reimport of DNC | — |
+#### 3. Redeploy `ghl` edge function
+Deploy the updated function so imports use canonical matching immediately.
 
-### Remaining weak points after this plan
+### What this fixes
 
-- **Client-side GHL sync has no retry queue**: If the GHL API is down when `pushCallNote`/`pushBooking` fires from the browser, it's lost. The server-side AI summary pipeline has `pending_ghl_pushes` for retry, but client-side outcome notes don't. A future improvement would route all GHL writes through the server-side queue.
-- **No scheduled cron for `process_pending_ghl_pushes`**: The retry queue exists but only processes when an admin manually triggers it. A cron job would make it autonomous.
-- **Phone storage is still mixed format**: Existing contacts store raw AU format (`0412345678`). The `phone_e164` column adds canonical lookup but doesn't migrate the primary `phone` column. Full migration would be a larger change.
+| Before | After |
+|--------|-------|
+| Import phone match uses local format against raw `phone` | Uses E.164 against indexed `phone_e164` |
+| DNC guard matches raw strings (fragile) | Matches canonical E.164 (deterministic) |
+| Three different normalization outputs | All three functions produce E.164 |
+
+### What stays the same
+- The `phone` column continues to store whatever format was originally provided (no migration needed)
+- The `phone_e164` column and trigger continue to provide the canonical index
+- `ghl-webhook` and `dialpad` functions are already correct
 
