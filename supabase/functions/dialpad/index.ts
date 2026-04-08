@@ -2396,48 +2396,77 @@ Deno.serve(async (req) => {
             }
           }
 
-          console.log(`[initiate_call] Starting call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
-          const matchedCall = await findMatchingActiveCallWithRetries({
-            action: "initiate_call",
-            apiKey: DIALPAD_API_KEY,
-            dialpadUserId,
-            normalizedPhone,
-            delays: [0, 200, 400, 800, 1200, 1600],
-          });
 
-          const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
-          const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
+          // ── Try to extract call_id directly from initiate_call response ──
+          const directCallId = getDialpadCallId(initiateData);
+          if (directCallId) {
+            console.log(`[initiate_call] Got call_id=${directCallId} directly from initiate_call response`);
 
-          if (foundCallId) {
             if (params.contact_id) {
               await adminClient.from("dialpad_calls").upsert({
-                dialpad_call_id: foundCallId,
+                dialpad_call_id: directCallId,
                 contact_id: params.contact_id,
                 user_id: user.id,
                 sync_status: "pending",
-                call_state: foundCallState ?? "calling",
+                call_state: "calling",
               }, { onConflict: "dialpad_call_id" }).then(() => {});
             }
 
             dialpadResponse = new Response(JSON.stringify({
-              call_id: foundCallId,
-              state: foundCallState ?? "calling",
+              call_id: directCallId,
+              dialpad_call_id: directCallId,
+              state: "calling",
               call_resolved: true,
-              ...initiateData,
+              ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
             }), {
               status: 200,
               headers: { "Content-Type": "application/json" },
             });
           } else {
-            console.warn(`[initiate_call] Could not discover call_id for user=${dialpadUserId}`);
-            dialpadResponse = new Response(JSON.stringify({
-              ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
-              state: "calling",
-              call_resolved: false,
-            }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
+            // Fallback: discover via active call list polling
+            console.log(`[initiate_call] No call_id in response, starting call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
+            const matchedCall = await findMatchingActiveCallWithRetries({
+              action: "initiate_call",
+              apiKey: DIALPAD_API_KEY,
+              dialpadUserId,
+              normalizedPhone,
+              delays: [0, 200, 400, 800, 1200, 1600],
             });
+
+            const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
+            const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
+
+            if (foundCallId) {
+              if (params.contact_id) {
+                await adminClient.from("dialpad_calls").upsert({
+                  dialpad_call_id: foundCallId,
+                  contact_id: params.contact_id,
+                  user_id: user.id,
+                  sync_status: "pending",
+                  call_state: foundCallState ?? "calling",
+                }, { onConflict: "dialpad_call_id" }).then(() => {});
+              }
+
+              dialpadResponse = new Response(JSON.stringify({
+                call_id: foundCallId,
+                state: foundCallState ?? "calling",
+                call_resolved: true,
+                ...initiateData,
+              }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            } else {
+              console.warn(`[initiate_call] Could not discover call_id for user=${dialpadUserId}`);
+              dialpadResponse = new Response(JSON.stringify({
+                ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
+                state: "calling",
+                call_resolved: false,
+              }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
           }
         } finally {
           if (dndTemporarilyDisabled) {
@@ -2548,6 +2577,49 @@ Deno.serve(async (req) => {
 
         console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
 
+        // ── First check if initiate_call already created a dialpad_calls record ──
+        if (params.contact_id) {
+          const recentWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+          const { data: existingTracked } = await adminClient
+            .from("dialpad_calls")
+            .select("dialpad_call_id, call_state")
+            .eq("contact_id", params.contact_id)
+            .eq("user_id", user.id)
+            .gte("created_at", recentWindow)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (existingTracked && existingTracked.length > 0) {
+            const tracked = existingTracked[0];
+            console.log(`[resolve_call] Found existing tracked call_id=${tracked.dialpad_call_id} state=${tracked.call_state} from DB`);
+
+            // Optionally refresh state from Dialpad API
+            let currentState = tracked.call_state;
+            try {
+              const statusRes = await fetch(`${DIALPAD_BASE}/call/${tracked.dialpad_call_id}`, {
+                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+              });
+              if (statusRes.ok) {
+                const statusData = await statusRes.json().catch(() => null);
+                const apiState = normalizeDialpadState(isRecord(statusData) ? statusData.state : null);
+                if (apiState) currentState = apiState;
+              } else {
+                await statusRes.text().catch(() => null);
+              }
+            } catch { /* ignore */ }
+
+            return jsonResponse({
+              ok: true,
+              action: "resolve_call",
+              call_id: tracked.dialpad_call_id,
+              dialpad_call_id: tracked.dialpad_call_id,
+              state: currentState ?? "calling",
+              call_resolved: true,
+            }, 200);
+          }
+        }
+
+        // ── Fallback: active call list discovery ──
         const matchedCall = await findMatchingActiveCallWithRetries({
           action: "resolve_call",
           apiKey: DIALPAD_API_KEY,
