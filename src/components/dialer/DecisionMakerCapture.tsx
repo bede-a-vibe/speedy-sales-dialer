@@ -94,6 +94,7 @@ export function DecisionMakerCapture({
   const [gatekeeperName, setGatekeeperName] = useState(existingGatekeeperName || "");
   const [gatekeeperNotes, setGatekeeperNotes] = useState(existingGatekeeperNotes || "");
   const [bestRoute, setBestRoute] = useState(existingBestRouteToDecisionMaker || "");
+  const [bestTimeToCall, setBestTimeToCall] = useState(existingBestTimeToCall || "");
 
   const hasDmData = !!(existingDmName || existingDmPhone);
   const hasGatekeeperData = !!existingGatekeeperName;
@@ -119,6 +120,7 @@ export function DecisionMakerCapture({
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
       if (bestRoute) updates.best_route_to_decision_maker = bestRoute;
+      if (bestTimeToCall) (updates as any).best_time_to_call = bestTimeToCall;
 
       const { error } = await supabase
         .from("contacts")
@@ -138,6 +140,7 @@ export function DecisionMakerCapture({
           if (gatekeeperName.trim()) ghlFields["contact.gatekeeper_name"] = gatekeeperName.trim();
           if (gatekeeperNotes.trim()) ghlFields["contact.gatekeeper_notes"] = gatekeeperNotes.trim();
           if (bestRoute) ghlFields["contact.best_route_to_dm"] = bestRoute;
+          if (bestTimeToCall) ghlFields["contact.best_time_to_call"] = bestTimeToCall;
 
           if (Object.keys(ghlFields).length > 0) {
             await ghlUpdateContactFields(ghlContactId, ghlFields);
@@ -154,7 +157,7 @@ export function DecisionMakerCapture({
     } finally {
       setIsSaving(false);
     }
-  }, [contactId, dmName, dmTitle, dmPhone, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, onSaved]);
+  }, [contactId, dmName, dmTitle, dmPhone, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved]);
 
   return (
     <Card className="border-border bg-card/50">
