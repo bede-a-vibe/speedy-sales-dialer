@@ -674,6 +674,18 @@ const DEFAULT_GHL_FIELD_MAP: Record<string, string> = {
   trade_type: "yt3N3TSYK6hKWHfChjvM",
   website_url: "PMzSkSeg2HX6OLw3Llsi",
   website_quality: "DrpNKbTVavczJgIpIVct",
+  // Contact / GBP
+  google_business_profile: "65Ch3IY56gvPuDCOkEke",
+  // Additional Info
+  number_quality: "bNY6uI2W2ljTm9ofCnh3",
+  // Business Profile
+  abn: "q54XHTwMp4hnlHPWUPWc",
+  // Meeting Attribution
+  meeting_set_by_role: "ub05PoyGTqPJXZ4ivMjb",
+  setter_name: "8I19MJ9Le5Hj24GgRNFf",
+  assigned_closer: "9rFMYzQhXGHZ4XNiG0yL",
+  meeting_source: "HRl4iXpoQ2nctkvvNZ6B",
+  meeting_booked_date: "JZBFneC9P7XPE1UBNZTJ",
 };
 
 function getGhlFieldMap() {

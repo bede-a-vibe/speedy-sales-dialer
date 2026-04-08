@@ -175,14 +175,99 @@ async function getUsers(apiKey: string, locationId: string) {
   });
 }
 
+// Complete GHL custom field key → ID mapping (auto-discovered from GHL API)
+const GHL_FIELD_KEY_TO_ID: Record<string, string> = {
+  // Contact
+  "contact.google_business_profile": "65Ch3IY56gvPuDCOkEke",
+  "contact.gbp_rating": "NSP6hGGqGzjwmYuABVCz",
+  "contact.review_number": "tKLudPq02DABlpI0Hx9V",
+  // Additional Info
+  "contact.number_quality": "bNY6uI2W2ljTm9ofCnh3",
+  "contact.prospect_tier": "D4OdcFIL4E9Z3SZ5pSUp",
+  "contact.call_disposition": "3mJ0ao8qgLzeFSXFOUpc",
+  "contact.next_followup_date": "rJw13EVt9XTlBBlJFl9V",
+  "contact.objection_notes": "Lp7PJyf414Gh8oIrWfuo",
+  "contact.trade_type": "yt3N3TSYK6hKWHfChjvM",
+  // Call Activity
+  "contact.total_call_attempts": "qpovJ9Z24WizTYL85y2S",
+  "contact.last_contacted_date": "NOtFzQKRUmiTlMdtglJr",
+  "contact.best_time_to_call": "2tWhYqYune00tdwivyIg",
+  "contact.preferred_contact_method": "eWChuREzCpOa0vTm0Gaw",
+  // Gatekeeper Intelligence
+  "contact.gatekeeper_name": "BWHUzUPcHH1GbCXBhKGu",
+  "contact.gatekeeper_role": "O3NUAQLOiMaWuU0idtNC",
+  "contact.gatekeeper_notes": "RgpWvJFkLEluXf3dAXQy",
+  "contact.decision_maker_name": "ag8hSUhF7BSXWc03mkT1",
+  "contact.decision_maker_direct_line": "hQ87Eplr5vyoVgZfdX8k",
+  "contact.decision_maker_email": "AsH9iB1xrRGgIgNU59m4",
+  "contact.decision_maker_linkedin": "ejn4GXAzVIoPcIx6GLFS",
+  "contact.best_route_to_dm": "KQH4FTojsIVvOcmtBBnI",
+  // Business Profile
+  "contact.service_area": "PLnazAPRoj1vF6oWzWAt",
+  "contact.number_of_trucksvans": "2a8aKsqp8hbpR6atzkqm",
+  "contact.website_url": "PMzSkSeg2HX6OLw3Llsi",
+  "contact.abn": "q54XHTwMp4hnlHPWUPWc",
+  "contact.work_type": "rqLROJ9hMIBVzNtWhhUY",
+  "contact.business_size": "8OmWwJo4j712X0RHLv0i",
+  "contact.years_in_business": "rOgbGgGLgO0FrcOne8UY",
+  "contact.estimated_annual_revenue": "NJIhcBMLmOC35oqXLKz8",
+  "contact.website_quality": "DrpNKbTVavczJgIpIVct",
+  // Digital Presence & Opportunity
+  "contact.current_marketing_agency": "1xv4gYR7hfXawtJo0Y9D",
+  "contact.marketing_pain_points": "ZgMZ8T8lpfjNu0TpJpVC",
+  "contact.current_monthly_ad_spend": "9xUGCIB7u03aLq97nVFR",
+  "contact.current_marketing_channels": "CnbfdfgDfSq7fBtugY1F",
+  "contact.has_google_ads": "0JFrMj78LxbVZUbm9Y36",
+  "contact.has_facebookmeta_ads": "H25fGwTofPJoWONu8uMF",
+  "contact.seo_visibility": "lVQFlv6qQywpz8iWJruS",
+  "contact.social_media_presence": "DWDe40ohy7zbjWlOrkEE",
+  "contact.agency_satisfaction": "PXKt81Km2hczS7HcI3A1",
+  "contact.lead_source_dependency": "OkoXjyFTP5lBlMnaGqcS",
+  // Qualification & Buying Signals
+  "contact.budget_indication": "Pzpt97a6OX8yGvt0yA81",
+  "contact.authority_level": "4cFkzARHaqisnkYD66ZE",
+  "contact.need_identified": "uxUmw1fvMaqB3PaY616L",
+  "contact.buying_timeline": "7eQnEUwjJyS1xHAsWyH9",
+  "contact.current_solution_satisfaction": "tNP34vNiUOxMSCiVDW1q",
+  "contact.key_objection": "IC81cpHYCU1H1uMYAtZz",
+  "contact.buying_signal_strength": "wJEveppptnLy1hXMU0MP",
+  "contact.contractlockin_status": "zCvTLQ0ZSVF2KGWZHJVI",
+  // AI Call Intelligence
+  "contact.ai_call_summary": "IL1bpfoLPz0sPlU7ucbe",
+  "contact.last_call_sentiment": "OZ1i5SuCRyzDIS2R8Ws9",
+  "contact.problem_resonance": "2lkCsBJkkiFPJfK81oOY",
+  "contact.key_quote": "sVV6lPbArgky8tMBOAu8",
+  "contact.rep_coaching_notes": "891RFxHknXy5FK8G3Lvv",
+  "contact.competitive_intel": "iAMPbwmiQXXbXSgmGgUC",
+  "contact.agreed_next_steps": "bHOf7gs4tvdT55ceMQFt",
+  // Meeting Attribution
+  "contact.meeting_set_by_role": "ub05PoyGTqPJXZ4ivMjb",
+  "contact.setter_name": "8I19MJ9Le5Hj24GgRNFf",
+  "contact.assigned_closer": "9rFMYzQhXGHZ4XNiG0yL",
+  "contact.meeting_source": "HRl4iXpoQ2nctkvvNZ6B",
+  "contact.meeting_booked_date": "JZBFneC9P7XPE1UBNZTJ",
+};
+
+/**
+ * Resolve a custom field identifier: if it's a known field key (e.g. "contact.decision_maker_name"),
+ * return the GHL field ID. Otherwise assume it's already a raw ID and pass through.
+ */
+function resolveFieldId(idOrKey: string): string {
+  return GHL_FIELD_KEY_TO_ID[idOrKey] ?? idOrKey;
+}
+
 async function updateContactFields(
   apiKey: string,
   contactId: string,
   customFields: Array<{ id: string; field_value: unknown }>,
 ) {
+  // Resolve field keys to GHL IDs before sending
+  const resolved = customFields
+    .map((f) => ({ id: resolveFieldId(f.id), field_value: f.field_value }))
+    .filter((f) => f.id); // drop any that resolved to empty
   return ghlFetch(`/contacts/${contactId}`, apiKey, {
     method: "PUT",
-    body: { customFields },
+    body: { customFields: resolved },
   });
 }
 
