@@ -4,7 +4,6 @@ import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
-import { FollowUpTable } from "@/components/pipelines/FollowUpTable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -13,7 +12,6 @@ import {
   usePipelineItems,
   useSalesReps,
   useUpdatePipelineItem,
-  useCreatePipelineItem,
   type PipelineItemWithRelations,
   type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
@@ -212,13 +210,11 @@ export default function PipelinesPage() {
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   
   
-  const activeTab = searchParams.get("tab") === "booked" || searchParams.get("tab") === "history" ? searchParams.get("tab")! : "follow_up";
-  const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
+  const activeTab = searchParams.get("tab") === "history" ? "history" : "booked";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
-  const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
   const ghlSync = useGHLSync();
   const ghlLink = useGHLContactLink();
@@ -253,30 +249,12 @@ export default function PipelinesPage() {
     );
   };
 
-  const handleComplete = async (id: string) => {
-    try {
-      await updatePipelineItem.mutateAsync({ id, status: "completed" });
-      toast.success("Pipeline item completed.");
-    } catch {
-      toast.error("Failed to complete pipeline item.");
-    }
-  };
-
   const handleAssign = async (id: string, userId: string) => {
     try {
       await updatePipelineItem.mutateAsync({ id, assigned_user_id: userId });
       toast.success("Rep updated.");
     } catch {
       toast.error("Failed to update rep.");
-    }
-  };
-
-  const handleReschedule = async (id: string, iso: string) => {
-    try {
-      await updatePipelineItem.mutateAsync({ id, scheduled_for: iso });
-      toast.success("Follow-up rescheduled.");
-    } catch {
-      toast.error("Failed to reschedule follow-up.");
     }
   };
 
@@ -318,19 +296,8 @@ export default function PipelinesPage() {
         toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
       }
 
-      // Create a follow-up pipeline item if requested
-      if (followUpDate && user) {
-        await createPipelineItem.mutateAsync({
-          contact_id: item.contact_id,
-          pipeline_type: "follow_up",
-          assigned_user_id: item.assigned_user_id,
-          created_by: user.id,
-          scheduled_for: followUpDate,
-          notes: notes ? `Follow-up: ${notes}` : `Follow-up after ${getAppointmentOutcomeLabel(outcome)}`,
-          status: "open",
-          follow_up_method: followUpMethod || "call",
-        });
-        toast.success("Follow-up scheduled.");
+      if (followUpDate) {
+        toast.success("Follow-up requested in GHL.");
       }
 
       // ── GHL Sync for booking outcomes (fire-and-forget) ──
@@ -449,10 +416,9 @@ export default function PipelinesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Appointment pipelines</h3>
-            <p className="text-sm text-muted-foreground">Track open follow-ups, booked days, and final appointment results in one place.</p>
+            <p className="text-sm text-muted-foreground">Track booked days and final appointment results. Follow-ups are now managed in GHL tasks.</p>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
-            <span>{followUps.length} follow-ups</span>
             <span>{booked.length} booked{staleCount > 0 ? ` (${staleCount} stale)` : ""}</span>
             <span>{completedBooked.length} completed</span>
           </div>
@@ -460,29 +426,9 @@ export default function PipelinesPage() {
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>
-            <TabsTrigger value="follow_up">Follow-ups</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
-          <TabsContent value="follow_up" className="mt-4">
-            {followUpsLoading ? (
-              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
-            ) : (
-              <FollowUpTable
-                items={followUps}
-                reps={reps}
-                repMap={repMap}
-                isSaving={updatePipelineItem.isPending}
-                onComplete={handleComplete}
-                onAssign={handleAssign}
-                onReschedule={handleReschedule}
-                onChangeMethod={async (id, method) => {
-                  await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
-                  toast.success(`Follow-up type changed to ${method}`);
-                }}
-              />
-            )}
-          </TabsContent>
           <TabsContent value="booked" className="mt-4">
             {bookedLoading ? (
               <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>

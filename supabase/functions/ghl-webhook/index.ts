@@ -39,23 +39,21 @@ function json(body: unknown, status = 200) {
 }
 
 // ── Phone normalisation ──────────────────────────────────────────────────────
-// Strips all non-digit chars, then normalises Australian numbers so that
-// +61400000000, 0400000000, 61400000000 all become "0400000000" for matching.
-function normalisePhone(raw: string | null | undefined): string | null {
+// Canonical format: strict E.164. AU local numbers are normalised to +61.
+function normalizePhoneE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const digits = trimmed.replace(/\D/g, "");
   if (!digits) return null;
 
-  // +61 → strip country code, re-add leading 0
-  if (digits.startsWith("61") && digits.length === 11) {
-    return "0" + digits.slice(2);
-  }
-  // Already 0xxx format
-  if (digits.startsWith("0") && digits.length === 10) {
-    return digits;
-  }
-  // Return as-is (international numbers outside AU)
-  return digits;
+  if (digits.startsWith("04") && digits.length === 10) return `+61${digits.slice(1)}`;
+  if (digits.startsWith("4") && digits.length === 9) return `+61${digits}`;
+  if (digits.startsWith("61") && digits.length === 11) return `+${digits}`;
+  if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+
+  return null;
 }
 
 // ── GHL event → Supabase contact field mapping ───────────────────────────────
@@ -73,9 +71,69 @@ interface GHLContactEvent {
   state?: string;
   website?: string;
   tags?: string[];
+  customFields?: unknown;
+  customData?: unknown;
   dnd?: boolean;
   // GHL sometimes sends the contact nested under a "contact" key
   contact?: Partial<GHLContactEvent>;
+}
+
+function getCustomFieldValue(source: unknown, aliases: string[]): string | null {
+  if (!source) return null;
+  const normalizedAliases = aliases.map((a) => a.toLowerCase());
+
+  // Object shape: { trade_type: "Plumber", ... }
+  if (typeof source === "object" && !Array.isArray(source)) {
+    const obj = source as Record<string, unknown>;
+    for (const [key, value] of Object.entries(obj)) {
+      if (!normalizedAliases.includes(key.toLowerCase())) continue;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  // Array shape: [{ key/name/fieldKey: "trade_type", value: "Plumber" }, ...]
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const key = String(row.key ?? row.name ?? row.fieldKey ?? row.field_key ?? "").toLowerCase();
+      if (!normalizedAliases.includes(key)) continue;
+      const value = row.value ?? row.fieldValue ?? row.field_value ?? row.text;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function getCustomFieldAliasMap() {
+  const defaults: Record<string, string[]> = {
+    trade_type: ["trade_type", "trade", "tradeType"],
+    work_type: ["work_type", "workType"],
+    business_size: ["business_size", "businessSize"],
+    prospect_tier: ["prospect_tier", "prospectTier"],
+    buying_signal_strength: ["buying_signal_strength", "buyingSignalStrength"],
+  };
+
+  const raw = Deno.env.get("GHL_CUSTOM_FIELD_ALIAS_MAP");
+  if (!raw) return defaults;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!Array.isArray(value)) continue;
+      const normalized = value
+        .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        .map((v) => v.trim());
+      if (normalized.length > 0) {
+        defaults[key] = normalized;
+      }
+    }
+  } catch (error) {
+    console.warn("[ghl-webhook] Invalid GHL_CUSTOM_FIELD_ALIAS_MAP JSON:", error);
+  }
+
+  return defaults;
 }
 
 function mapGhlToSupabase(event: GHLContactEvent): Record<string, unknown> {
@@ -95,11 +153,29 @@ function mapGhlToSupabase(event: GHLContactEvent): Record<string, unknown> {
 
   if (src.companyName)  fields.business_name = src.companyName.trim();
   if (contactPerson)    fields.contact_person = contactPerson;
-  if (src.phone)        fields.phone = src.phone.trim();
+  if (src.phone) {
+    fields.phone = src.phone.trim();
+    fields.phone_e164 = normalizePhoneE164(src.phone) ?? null;
+  }
   if (src.email)        fields.email = src.email.trim().toLowerCase();
   if (src.website)      fields.website = src.website.trim();
   if (src.city)         fields.city = src.city.trim();
   if (src.state)        fields.state = src.state.trim();
+
+  // Optional dialer filter fields from GHL custom fields.
+  const aliasMap = getCustomFieldAliasMap();
+  const customBlob = src.customFields ?? src.customData ?? null;
+  const tradeType = getCustomFieldValue(customBlob, aliasMap.trade_type ?? []);
+  const workType = getCustomFieldValue(customBlob, aliasMap.work_type ?? []);
+  const businessSize = getCustomFieldValue(customBlob, aliasMap.business_size ?? []);
+  const prospectTier = getCustomFieldValue(customBlob, aliasMap.prospect_tier ?? []);
+  const buyingSignal = getCustomFieldValue(customBlob, aliasMap.buying_signal_strength ?? []);
+
+  if (tradeType) fields.trade_type = tradeType;
+  if (workType) fields.work_type = workType;
+  if (businessSize) fields.business_size = businessSize;
+  if (prospectTier) fields.prospect_tier = prospectTier;
+  if (buyingSignal) fields.buying_signal_strength = buyingSignal;
 
   return fields;
 }
@@ -225,15 +301,15 @@ Deno.serve(async (req) => {
     return json({ ok: true, action: "updated", supabaseContactId: byId.id, ghlContactId });
   }
 
-  // 2. Try phone match
+  // 2. Try phone match (strict E.164)
   const rawPhone = (event.phone ?? event.contact?.phone ?? "").trim();
-  const normPhone = normalisePhone(rawPhone);
+  const normPhoneE164 = normalizePhoneE164(rawPhone);
 
-  if (normPhone) {
+  if (normPhoneE164) {
     const { data: byPhone } = await supabase
       .from("contacts")
-      .select("id, phone, ghl_contact_id")
-      .or(`phone.eq.${rawPhone},phone.eq.${normPhone}`)
+      .select("id, phone, phone_e164, ghl_contact_id")
+      .eq("phone_e164", normPhoneE164)
       .is("ghl_contact_id", null)
       .maybeSingle();
 
@@ -292,6 +368,7 @@ Deno.serve(async (req) => {
       business_name: fields.business_name ?? fields.contact_person ?? "GHL Contact",
       contact_person: fields.contact_person ?? null,
       phone: rawPhone || "unknown",
+      phone_e164: normalizePhoneE164(rawPhone),
       email: rawEmail || null,
       website: fields.website ?? null,
       city: fields.city ?? null,
