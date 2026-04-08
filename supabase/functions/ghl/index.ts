@@ -437,14 +437,19 @@ async function createFollowUpTask(
 }
 
 // ── Phone normalisation (AU-aware) ─────────────────────────────────────────
-function normalisePhone(raw: string | null | undefined): string | null {
+function normalisePhoneE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
   if (!digits) return null;
-  // +61xxxxxxxxx → 0xxxxxxxxx
-  if (digits.startsWith("61") && digits.length === 11) return "0" + digits.slice(2);
-  if (digits.startsWith("0") && digits.length === 10) return digits;
-  return digits;
+
+  if (digits.startsWith("04") && digits.length === 10) return `+61${digits.slice(1)}`;
+  if (digits.startsWith("4") && digits.length === 9) return `+61${digits}`;
+  if (digits.startsWith("61") && digits.length === 11) return `+${digits}`;
+  if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+
+  return null;
 }
 
 /**
