@@ -110,7 +110,7 @@ export function DecisionMakerCapture({
 
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
-      if (bestRoute) updates.best_time_to_call = bestRoute;
+      if (bestRoute) updates.best_time_to_call = bestRoute; // Supabase column used for route-to-DM
 
       const { error } = await supabase
         .from("contacts")
@@ -124,7 +124,6 @@ export function DecisionMakerCapture({
         try {
           const ghlFields: Record<string, string> = {};
           if (dmName.trim()) ghlFields["contact.decision_maker_name"] = dmName.trim();
-          if (dmTitle) ghlFields["contact.dm_title"] = dmTitle;
           if (dmPhone.trim()) ghlFields["contact.decision_maker_direct_line"] = dmPhone.trim();
           if (dmEmail.trim()) ghlFields["contact.decision_maker_email"] = dmEmail.trim();
           if (dmLinkedin.trim()) ghlFields["contact.decision_maker_linkedin"] = dmLinkedin.trim();
