@@ -22,6 +22,7 @@ interface DecisionMakerCaptureProps {
   existingGatekeeperName?: string | null;
   existingGatekeeperNotes?: string | null;
   existingBestRouteToDecisionMaker?: string | null;
+  existingBestTimeToCall?: string | null;
   onSaved?: () => void;
 }
 
@@ -56,6 +57,12 @@ const ROUTE_OPTIONS = [
   "Callback Scheduled",
   "Gatekeeper Friendly",
   "Other",
+];
+
+const TIME_TO_CALL_OPTIONS = [
+  "Morning",
+  "Afternoon",
+  "After Hours",
 ];
 
 export function DecisionMakerCapture({
