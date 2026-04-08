@@ -2577,6 +2577,49 @@ Deno.serve(async (req) => {
 
         console.log(`[resolve_call] Searching for active call: user=${resolveDialpadUserId} phone=${resolvePhone}`);
 
+        // ── First check if initiate_call already created a dialpad_calls record ──
+        if (params.contact_id) {
+          const recentWindow = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+          const { data: existingTracked } = await adminClient
+            .from("dialpad_calls")
+            .select("dialpad_call_id, call_state")
+            .eq("contact_id", params.contact_id)
+            .eq("user_id", user.id)
+            .gte("created_at", recentWindow)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (existingTracked && existingTracked.length > 0) {
+            const tracked = existingTracked[0];
+            console.log(`[resolve_call] Found existing tracked call_id=${tracked.dialpad_call_id} state=${tracked.call_state} from DB`);
+
+            // Optionally refresh state from Dialpad API
+            let currentState = tracked.call_state;
+            try {
+              const statusRes = await fetch(`${DIALPAD_BASE}/call/${tracked.dialpad_call_id}`, {
+                headers: { Authorization: `Bearer ${DIALPAD_API_KEY}` },
+              });
+              if (statusRes.ok) {
+                const statusData = await statusRes.json().catch(() => null);
+                const apiState = normalizeDialpadState(isRecord(statusData) ? statusData.state : null);
+                if (apiState) currentState = apiState;
+              } else {
+                await statusRes.text().catch(() => null);
+              }
+            } catch { /* ignore */ }
+
+            return jsonResponse({
+              ok: true,
+              action: "resolve_call",
+              call_id: tracked.dialpad_call_id,
+              dialpad_call_id: tracked.dialpad_call_id,
+              state: currentState ?? "calling",
+              call_resolved: true,
+            }, 200);
+          }
+        }
+
+        // ── Fallback: active call list discovery ──
         const matchedCall = await findMatchingActiveCallWithRetries({
           action: "resolve_call",
           apiKey: DIALPAD_API_KEY,
