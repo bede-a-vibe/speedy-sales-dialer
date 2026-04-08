@@ -77,6 +77,7 @@ export function DecisionMakerCapture({
   existingGatekeeperName,
   existingGatekeeperNotes,
   existingBestRouteToDecisionMaker,
+  existingBestTimeToCall,
   onSaved,
 }: DecisionMakerCaptureProps) {
   const [isExpanded, setIsExpanded] = useState(false);
