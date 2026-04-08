@@ -959,7 +959,8 @@ export default function DialerPage() {
                 existingDmLinkedin={(session.currentContact as any).dm_linkedin}
                 existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
                 existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_dm}
+                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_decision_maker}
+                existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
               />
 
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
