@@ -1,67 +1,66 @@
 
 
-## Plan: Align GHL Custom Field Mapping Across the System
+## Audit Results: Recent Updates
 
-### Problem
+### Working Correctly
 
-There are two disconnected paths for pushing custom fields to GHL, and they use different identifier formats:
+1. **GHL field key → ID resolution** (`ghl/index.ts` lines 179-267): Complete 55-field map with `resolveFieldId()` applied in `updateContactFields`. DecisionMakerCapture sends keys like `contact.decision_maker_name` → resolved to `ag8hSUhF7BSXWc03mkT1` server-side. Solid.
 
-1. **`dialpad` edge function** (AI summaries) — uses internal key names mapped to GHL field IDs via `GHL_FIELD_MAP`. This works correctly.
+2. **Phone E.164 normalization** (`ghl/index.ts` lines 525-538): Unified `normalisePhoneE164()` matches the logic in `ghl-webhook` and `dialpad`. Bulk import uses `phone_e164` column for matching (line 616) and DNC guard (line 657). Solid.
 
-2. **`DecisionMakerCapture` → `ghl` edge function** — sends GHL field **keys** (e.g. `contact.decision_maker_name`) as if they were field **IDs**. The `ghl` edge function passes them straight to the GHL API, which silently ignores them because they're not valid IDs. **DM/gatekeeper data captured in the dialer is not reaching GHL.**
+3. **Async IIFE invocation** (`DialerPage.tsx` line 443/572): The background persistence block `(async () => { ... })()` is properly invoked. Fixed.
 
-Additionally:
-- `contact.dm_title` is sent by `DecisionMakerCapture` but doesn't exist as a GHL custom field
-- Several GHL fields from your account are missing from the mapping (meeting attribution, ABN, number quality, GBP fields)
-- The `gatekeeper_role` field exists in `GHL_FIELD_MAP` but `DecisionMakerCapture` never sends it
+4. **`dm_title` removed from GHL push** (DecisionMakerCapture lines 125-132): No longer sends the nonexistent field. Still saves `dm_role` locally in Supabase. Correct.
 
-### Changes
+5. **GHL sync flow** (DialerPage lines 490-571): Identity resolution, call note, booking, follow-up, email draft, DNC — all wired and fire-and-forget with `.catch(() => {})`. Correct.
 
-#### 1. Add field key → ID resolution in the `ghl` edge function
-**File:** `supabase/functions/ghl/index.ts`
+---
 
-Add the same `GHL_FIELD_MAP` (key → ID mapping) that `dialpad` uses. In the `update_contact_fields` action handler, resolve each incoming field: if the `id` matches a known field key (e.g. `contact.decision_maker_name`), replace it with the actual GHL field ID (`ag8hSUhF7BSXWc03mkT1`). If it's already a valid ID, pass it through unchanged.
+### Issues Found
 
-This fixes the `DecisionMakerCapture` path without changing the client code.
+#### 1. CRITICAL: Contact status set to `"uncalled"` after being called
+**File:** `src/pages/DialerPage.tsx` line 457
 
-#### 2. Add missing GHL field IDs to the mapping
-**File:** `supabase/functions/ghl/index.ts` (new map) and `supabase/functions/dialpad/index.ts` (update existing map)
+```typescript
+status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
+```
 
-Add the missing fields that exist in your GHL account but aren't mapped:
-- `meeting_set_by_role`, `setter_name`, `assigned_closer`, `meeting_source`, `meeting_booked_date`
-- `google_business_profile`, `gbp_rating`, `review_number`
-- `number_quality`, `abn`
+When a rep logs `no_answer`, `voicemail`, `not_interested`, or `wrong_number`, the contact status is set back to `"uncalled"`. This **puts the contact back into the dialer queue** — they'll be dialed again immediately. It should be `"called"` for all non-special outcomes.
 
-These require the actual GHL field IDs. We'll need to either:
-- Call `get_custom_fields` once to discover them, or
-- You provide the IDs from GHL
+**Fix:** Change fallback from `"uncalled"` to `"called"`.
 
-#### 3. Remove the invalid `contact.dm_title` push
-**File:** `src/components/dialer/DecisionMakerCapture.tsx`
-
-Remove the line pushing `contact.dm_title` — this field doesn't exist in GHL. The DM role/title captured locally is still stored in Supabase (`dm_role`), but won't be pushed to a nonexistent GHL field.
-
-#### 4. Fix `best_time_to_call` mapping bug in DecisionMakerCapture
+#### 2. MINOR: `bestRoute` saved to wrong Supabase column
 **File:** `src/components/dialer/DecisionMakerCapture.tsx` line 113
 
-`bestRoute` (the "Best Route to DM" value) is incorrectly saved to `best_time_to_call` in Supabase. Fix: save to `best_route_to_decision_maker` column instead.
+```typescript
+if (bestRoute) updates.best_time_to_call = bestRoute;
+```
 
-#### 5. Redeploy `ghl` edge function
+The "Best Route to DM" value (e.g. "Direct Dial", "Ask for by Name") is stored in the `best_time_to_call` column. The plan called for saving it to `best_route_to_decision_maker`, but that column doesn't exist — the migration was never created. The GHL push side works fine (sends `contact.best_route_to_dm` → resolves to correct ID), but the local Supabase storage is semantically wrong.
 
-### What this fixes
+**Fix options:**
+- A) Create a migration to rename `best_time_to_call` → `best_route_to_decision_maker` and update all references
+- B) Leave as-is since it's functionally working (data stored and retrieved correctly, just misnamed)
 
-| Before | After |
-|--------|-------|
-| DM/gatekeeper data silently dropped by GHL API | Field keys resolved to IDs, data reaches GHL |
-| `dm_title` pushed to nonexistent field | Removed invalid push |
-| `bestRoute` saved to wrong Supabase column | Saved to correct column |
-| Meeting attribution fields unmapped | IDs added to mapping |
+Recommend A for clarity, but it touches the claim queries and contact type definitions.
 
-### Open question
+---
 
-For change #2 (missing field IDs), I need the actual GHL custom field IDs for the unmapped fields. I can either:
-- **A)** Call your GHL `get_custom_fields` endpoint to discover them automatically
-- **B)** You provide the IDs manually
+### Summary
 
-Recommend option A — run it once and hardcode the results.
+| Area | Status |
+|------|--------|
+| GHL field key → ID resolution | Working |
+| Phone E.164 normalization | Working |
+| Bulk import canonical matching | Working |
+| DNC guard on import | Working |
+| Background persistence IIFE | Working |
+| DM capture → GHL sync | Working |
+| **Contact status after call** | **BROKEN — recycling called contacts** |
+| **bestRoute column name** | **Cosmetic mismatch (functional)** |
+
+### Proposed Changes
+
+1. **Fix status fallback** in `DialerPage.tsx` line 457: change `"uncalled"` to `"called"`
+2. **Optionally** create migration to rename `best_time_to_call` → `best_route_to_decision_maker` and update `DecisionMakerCapture.tsx` + claim queries
 
