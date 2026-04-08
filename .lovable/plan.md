@@ -1,73 +1,78 @@
 
 
-## Wire GHL Sync into Dialer + Add Calendar/Pipeline Selection
+## Plan: Fix Core Execution Path — Identity, GHL Updates, DNC Enforcement
 
-The `useGHLSync` hook and `ghl` edge function already exist. Now we need to: (1) add a `ghl_contact_id` column to the `contacts` table so we can link local contacts to GHL, (2) wire the sync calls into the dialer's `logAndNext` flow, (3) add GHL calendar and pipeline selectors to the booking UI, and (4) fetch available calendars/pipelines from GHL.
+### Critical Bug Found
 
----
+**The dialer's background persistence is completely broken.** In `DialerPage.tsx` line 443-572, the async IIFE that writes call logs, updates contact status, creates pipeline items, and syncs to GHL is **never invoked**. The code reads `(async () => { ... });` but is missing the trailing `()` to actually call it. This means:
+- Call logs are not being saved
+- Contact status is not being updated after outcomes
+- Pipeline items for bookings are not created
+- GHL sync never fires
+- DNC flag is never set on the contact
 
-### 1. Database migration — add `ghl_contact_id` to contacts
+This is the single most impactful fix.
 
-Add a nullable `ghl_contact_id TEXT` column to the `contacts` table. This stores the GHL contact ID so outcomes can be pushed to the correct GHL record.
+### Additional Weak Points
 
-```sql
-ALTER TABLE public.contacts ADD COLUMN ghl_contact_id text;
-```
-
----
-
-### 2. New hook: `useGHLConfig` — fetch calendars and pipelines
-
-Create `src/hooks/useGHLConfig.ts` with React Query hooks that call the existing `ghlGetCalendars()` and `ghlGetPipelines()` functions from `src/lib/ghl.ts`. These populate the calendar and pipeline dropdowns in the dialer UI.
-
-Returns typed arrays like `{ id, name }[]` for calendars and `{ id, name, stages: { id, name }[] }[]` for pipelines.
+Several other issues weaken identity resolution, GHL reliability, and DNC enforcement.
 
 ---
 
-### 3. Wire `useGHLSync` into `DialerPage.logAndNext`
+### Changes (in priority order)
 
-In `src/pages/DialerPage.tsx`:
+#### 1. Fix the broken IIFE — restore all background writes
+**File:** `src/pages/DialerPage.tsx` line 572
 
-- Import and call `useGHLSync()`
-- Add state for `selectedGHLCalendarId`, `selectedGHLPipelineId`, `selectedGHLPipelineStageId`
-- After the existing background DB writes block (line ~191), add GHL sync calls:
-  - **Every call**: `pushCallNote` with outcome, notes, duration (if contact has `ghl_contact_id`)
-  - **Booked**: `pushBooking` with calendar ID, scheduled time, pipeline/stage IDs
-  - **Follow-up**: `pushFollowUp` with scheduled time and method
-  - **DNC**: `pushDNC`
-- All GHL calls are fire-and-forget (catch and log errors, don't block the UI)
+Change `});` to `})();` so the async function actually executes. This single character restores call logging, contact updates, pipeline creation, and GHL sync.
+
+#### 2. Add `phone_e164` column to contacts table
+**Migration**
+
+The GHL webhook (`ghl-webhook/index.ts`) already writes to `phone_e164` and queries by it for identity matching, but the column doesn't exist. This causes silent failures on every webhook event.
+
+- Add `phone_e164 TEXT` column to `contacts`
+- Backfill from existing `phone` values using the AU normalisation logic
+- Add a trigger to auto-populate `phone_e164` on insert/update of `phone`
+- Add an index on `phone_e164` for fast lookups
+
+This gives canonical phone matching across dialer, webhooks, and GHL sync.
+
+#### 3. Harden DNC enforcement in the pipeline outcome trigger
+**Migration — update `sync_pipeline_outcome_to_contact` function**
+
+The trigger currently can set a DNC'd contact's status to `follow_up` or other values. Add a guard: if `is_dnc = true` on the contact, skip the status update entirely. A DNC contact should never re-enter any active pipeline state.
+
+#### 4. Protect DNC in GHL webhook ContactUpdate path
+**File:** `supabase/functions/ghl-webhook/index.ts`
+
+When processing a `ContactUpdate`, strip `is_dnc` and `status` from the update payload so a GHL update can never accidentally un-DNC a contact that was marked DNC in the dialer. Only the explicit `ContactDndUpdate` event type should touch `is_dnc`.
+
+Also set `status = 'dnc'` alongside `is_dnc = true` in the `ContactDndUpdate` handler for consistency.
+
+#### 5. Protect DNC in bulk import from GHL
+**File:** `supabase/functions/ghl/index.ts`
+
+In the `bulkImportFromGhl` function, before inserting a new contact, check if a soft-deleted/DNC'd contact with the same phone already exists. If so, skip the insert rather than re-creating a DNC'd contact.
+
+#### 6. Redeploy edge functions
+Deploy updated `ghl`, `ghl-webhook`, and `dialpad` functions.
 
 ---
 
-### 4. Add GHL calendar + pipeline selectors to dialer booking UI
+### What each fix addresses
 
-In the booked outcome section of `DialerPage` (around line 629):
+| Fix | GHL Updates | DNC Enforcement | Identity |
+|-----|-------------|-----------------|----------|
+| 1. IIFE invocation | Restores all GHL sync | Restores DNC flag writes | — |
+| 2. phone_e164 column | Better phone matching | — | Canonical identity |
+| 3. Pipeline trigger guard | — | Prevents DNC reactivation | — |
+| 4. Webhook DNC protection | — | Prevents webhook un-DNC | — |
+| 5. Import DNC check | — | Prevents reimport of DNC | — |
 
-- Add a `<Select>` for GHL Calendar (populated from `useGHLConfig`)
-- Add a `<Select>` for GHL Pipeline (populated from `useGHLConfig`)
-- Add a `<Select>` for Pipeline Stage (filtered by selected pipeline)
-- These appear alongside the existing "Confirm Booked Date" picker when outcome is `booked`
-- Calendar selector is required for booking; pipeline is optional
+### Remaining weak points after this plan
 
----
-
-### 5. Wire GHL sync into `QuickBookDialog`
-
-In `src/components/QuickBookDialog.tsx`:
-
-- Import `useGHLSync` and `useGHLConfig`
-- Add calendar/pipeline selectors to the booked tab
-- After the existing `handleSubmit` DB writes, fire GHL sync calls (same pattern as dialer)
-
----
-
-### Files changed
-
-| File | Change |
-|---|---|
-| DB migration | Add `ghl_contact_id` to `contacts` |
-| `src/hooks/useGHLConfig.ts` | New — fetch GHL calendars + pipelines |
-| `src/pages/DialerPage.tsx` | Add GHL sync calls in `logAndNext`, add calendar/pipeline selectors in booking UI |
-| `src/components/QuickBookDialog.tsx` | Add GHL sync + calendar/pipeline selectors |
-| `src/hooks/useGHLSync.ts` | No changes needed (already built) |
+- **Client-side GHL sync has no retry queue**: If the GHL API is down when `pushCallNote`/`pushBooking` fires from the browser, it's lost. The server-side AI summary pipeline has `pending_ghl_pushes` for retry, but client-side outcome notes don't. A future improvement would route all GHL writes through the server-side queue.
+- **No scheduled cron for `process_pending_ghl_pushes`**: The retry queue exists but only processes when an admin manually triggers it. A cron job would make it autonomous.
+- **Phone storage is still mixed format**: Existing contacts store raw AU format (`0412345678`). The `phone_e164` column adds canonical lookup but doesn't migrate the primary `phone` column. Full migration would be a larger change.
 
