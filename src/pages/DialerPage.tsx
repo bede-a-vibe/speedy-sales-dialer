@@ -454,7 +454,7 @@ export default function DialerPage() {
           })),
           withRetry(() => updateContact.mutateAsync({
             id: contactId,
-            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
+            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "called",
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
             follow_up_note: null,

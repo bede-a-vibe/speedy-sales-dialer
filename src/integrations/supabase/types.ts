@@ -113,7 +113,7 @@ export type Database = {
       }
       contacts: {
         Row: {
-          best_time_to_call: string | null
+          best_route_to_decision_maker: string | null
           business_name: string
           business_size: string | null
           buying_signal_strength: string | null
@@ -162,7 +162,7 @@ export type Database = {
           work_type: string | null
         }
         Insert: {
-          best_time_to_call?: string | null
+          best_route_to_decision_maker?: string | null
           business_name: string
           business_size?: string | null
           buying_signal_strength?: string | null
@@ -211,7 +211,7 @@ export type Database = {
           work_type?: string | null
         }
         Update: {
-          best_time_to_call?: string | null
+          best_route_to_decision_maker?: string | null
           business_name?: string
           business_size?: string | null
           buying_signal_strength?: string | null

@@ -110,7 +110,7 @@ export function DecisionMakerCapture({
 
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
-      if (bestRoute) updates.best_time_to_call = bestRoute; // Supabase column used for route-to-DM
+      if (bestRoute) updates.best_route_to_decision_maker = bestRoute;
 
       const { error } = await supabase
         .from("contacts")
