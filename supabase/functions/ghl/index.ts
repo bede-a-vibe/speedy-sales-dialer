@@ -574,7 +574,7 @@ async function bulkImportFromGhl(
           .maybeSingle();
 
         if (dncContact) {
-          console.log(`[bulk_import_from_ghl] Skipping DNC contact phone=${normPhone} ghlId=${ghlId}`);
+          console.log(`[bulk_import_from_ghl] Skipping DNC contact phone_e164=${normPhoneE164} ghlId=${ghlId}`);
           skipped++;
           continue;
         }
