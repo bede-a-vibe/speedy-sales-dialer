@@ -569,7 +569,7 @@ export default function DialerPage() {
           }
         }
       });
-    });
+    })();
   }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, ghlLink, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId, enqueueBackgroundGhlSync]);
 
   const skipLead = useCallback(async () => {

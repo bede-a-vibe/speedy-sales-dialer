@@ -147,6 +147,7 @@ export type Database = {
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
           phone: string
+          phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
           prospect_tier: string | null
@@ -195,6 +196,7 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone: string
+          phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
@@ -243,6 +245,7 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone?: string
+          phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null

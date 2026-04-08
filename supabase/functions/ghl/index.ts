@@ -559,6 +559,22 @@ async function bulkImportFromGhl(
 
       if (!rawPhone && !rawEmail) { skipped++; continue; }
 
+      // DNC guard: check if a DNC'd contact already exists with this phone
+      if (normPhone) {
+        const { data: dncContact } = await supabase
+          .from("contacts")
+          .select("id, is_dnc")
+          .or(`phone.eq.${rawPhone},phone.eq.${normPhone}`)
+          .eq("is_dnc", true)
+          .maybeSingle();
+
+        if (dncContact) {
+          console.log(`[bulk_import_from_ghl] Skipping DNC contact phone=${normPhone} ghlId=${ghlId}`);
+          skipped++;
+          continue;
+        }
+      }
+
       const { error: insertErr } = await supabase.from("contacts").insert({
         business_name:   businessName,
         contact_person:  contactPerson,
