@@ -1339,7 +1339,7 @@ async function processAiSummaryAndPushToGhl(params: {
   // Look up ghl_contact_id from contacts table
   const { data: contact } = await params.adminClient
     .from("contacts")
-    .select("ghl_contact_id, phone, phone_e164")
+    .select("ghl_contact_id, phone")
     .eq("id", params.contactId)
     .maybeSingle();
 
@@ -1373,8 +1373,8 @@ async function processAiSummaryAndPushToGhl(params: {
     // ── Auto-link: try to find/create GHL contact on the fly ──
     // This handles the case where the contact was never linked to GHL.
     const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
-    let e164Phone: string | null = contact?.phone_e164 ?? null;
-    if (!e164Phone && contact?.phone) {
+    let e164Phone: string | null = null;
+    if (contact?.phone) {
       try {
         e164Phone = normalizePhoneNumberToE164(contact.phone);
       } catch {
