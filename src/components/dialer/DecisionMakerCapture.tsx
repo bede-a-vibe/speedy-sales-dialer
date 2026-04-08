@@ -303,6 +303,20 @@ export function DecisionMakerCapture({
                 rows={2}
               />
             </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Best Time to Call</label>
+              <Select value={bestTimeToCall} onValueChange={setBestTimeToCall}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Any time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_TO_CALL_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Save Button */}
