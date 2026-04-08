@@ -1,0 +1,1 @@
+ALTER TABLE public.contacts RENAME COLUMN best_time_to_call TO best_route_to_decision_maker;
