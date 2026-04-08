@@ -22,6 +22,7 @@ interface DecisionMakerCaptureProps {
   existingGatekeeperName?: string | null;
   existingGatekeeperNotes?: string | null;
   existingBestRouteToDecisionMaker?: string | null;
+  existingBestTimeToCall?: string | null;
   onSaved?: () => void;
 }
 
@@ -58,6 +59,12 @@ const ROUTE_OPTIONS = [
   "Other",
 ];
 
+const TIME_TO_CALL_OPTIONS = [
+  "Morning",
+  "Afternoon",
+  "After Hours",
+];
+
 export function DecisionMakerCapture({
   contactId,
   businessName,
@@ -70,6 +77,7 @@ export function DecisionMakerCapture({
   existingGatekeeperName,
   existingGatekeeperNotes,
   existingBestRouteToDecisionMaker,
+  existingBestTimeToCall,
   onSaved,
 }: DecisionMakerCaptureProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -86,6 +94,7 @@ export function DecisionMakerCapture({
   const [gatekeeperName, setGatekeeperName] = useState(existingGatekeeperName || "");
   const [gatekeeperNotes, setGatekeeperNotes] = useState(existingGatekeeperNotes || "");
   const [bestRoute, setBestRoute] = useState(existingBestRouteToDecisionMaker || "");
+  const [bestTimeToCall, setBestTimeToCall] = useState(existingBestTimeToCall || "");
 
   const hasDmData = !!(existingDmName || existingDmPhone);
   const hasGatekeeperData = !!existingGatekeeperName;
@@ -111,6 +120,7 @@ export function DecisionMakerCapture({
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
       if (bestRoute) updates.best_route_to_decision_maker = bestRoute;
+      if (bestTimeToCall) (updates as any).best_time_to_call = bestTimeToCall;
 
       const { error } = await supabase
         .from("contacts")
@@ -130,6 +140,7 @@ export function DecisionMakerCapture({
           if (gatekeeperName.trim()) ghlFields["contact.gatekeeper_name"] = gatekeeperName.trim();
           if (gatekeeperNotes.trim()) ghlFields["contact.gatekeeper_notes"] = gatekeeperNotes.trim();
           if (bestRoute) ghlFields["contact.best_route_to_dm"] = bestRoute;
+          if (bestTimeToCall) ghlFields["contact.best_time_to_call"] = bestTimeToCall;
 
           if (Object.keys(ghlFields).length > 0) {
             await ghlUpdateContactFields(ghlContactId, ghlFields);
@@ -146,7 +157,7 @@ export function DecisionMakerCapture({
     } finally {
       setIsSaving(false);
     }
-  }, [contactId, dmName, dmTitle, dmPhone, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, onSaved]);
+  }, [contactId, dmName, dmTitle, dmPhone, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved]);
 
   return (
     <Card className="border-border bg-card/50">
@@ -291,6 +302,20 @@ export function DecisionMakerCapture({
                 className="min-h-[60px] text-xs"
                 rows={2}
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Best Time to Call</label>
+              <Select value={bestTimeToCall} onValueChange={setBestTimeToCall}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Any time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_TO_CALL_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
