@@ -454,11 +454,13 @@ export default function DialerPage() {
           })),
           withRetry(() => updateContact.mutateAsync({
             id: contactId,
-            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "called",
+            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
             follow_up_note: null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: ((session.currentContact as any)?.voicemail_count ?? 0) + 1 } : {}),
+            ...(outcomeToLog === "booked" ? { meeting_booked_date: new Date().toISOString() } : {}),
+            ...(outcomeToLog === "follow_up" && scheduledFor ? { next_followup_date: scheduledFor } : {}),
           })),
         ]);
 
