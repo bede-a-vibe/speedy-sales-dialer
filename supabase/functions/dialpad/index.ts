@@ -2228,6 +2228,15 @@ Deno.serve(async (req) => {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+  // Check admin role for gated actions
+  const { data: adminRoleRow } = await adminClient
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("role", "admin")
+    .maybeSingle();
+  const isAdmin = !!adminRoleRow;
+
   try {
     const { action, ...params } = await req.json();
 
