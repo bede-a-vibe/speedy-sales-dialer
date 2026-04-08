@@ -2396,48 +2396,77 @@ Deno.serve(async (req) => {
             }
           }
 
-          console.log(`[initiate_call] Starting call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
-          const matchedCall = await findMatchingActiveCallWithRetries({
-            action: "initiate_call",
-            apiKey: DIALPAD_API_KEY,
-            dialpadUserId,
-            normalizedPhone,
-            delays: [0, 200, 400, 800, 1200, 1600],
-          });
 
-          const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
-          const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
+          // ── Try to extract call_id directly from initiate_call response ──
+          const directCallId = getDialpadCallId(initiateData);
+          if (directCallId) {
+            console.log(`[initiate_call] Got call_id=${directCallId} directly from initiate_call response`);
 
-          if (foundCallId) {
             if (params.contact_id) {
               await adminClient.from("dialpad_calls").upsert({
-                dialpad_call_id: foundCallId,
+                dialpad_call_id: directCallId,
                 contact_id: params.contact_id,
                 user_id: user.id,
                 sync_status: "pending",
-                call_state: foundCallState ?? "calling",
+                call_state: "calling",
               }, { onConflict: "dialpad_call_id" }).then(() => {});
             }
 
             dialpadResponse = new Response(JSON.stringify({
-              call_id: foundCallId,
-              state: foundCallState ?? "calling",
+              call_id: directCallId,
+              dialpad_call_id: directCallId,
+              state: "calling",
               call_resolved: true,
-              ...initiateData,
+              ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
             }), {
               status: 200,
               headers: { "Content-Type": "application/json" },
             });
           } else {
-            console.warn(`[initiate_call] Could not discover call_id for user=${dialpadUserId}`);
-            dialpadResponse = new Response(JSON.stringify({
-              ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
-              state: "calling",
-              call_resolved: false,
-            }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
+            // Fallback: discover via active call list polling
+            console.log(`[initiate_call] No call_id in response, starting call discovery for user=${dialpadUserId} phone=${normalizedPhone}`);
+            const matchedCall = await findMatchingActiveCallWithRetries({
+              action: "initiate_call",
+              apiKey: DIALPAD_API_KEY,
+              dialpadUserId,
+              normalizedPhone,
+              delays: [0, 200, 400, 800, 1200, 1600],
             });
+
+            const foundCallId = matchedCall ? getDialpadCallId(matchedCall.call) : null;
+            const foundCallState = matchedCall ? normalizeDialpadState(matchedCall.call.state) : null;
+
+            if (foundCallId) {
+              if (params.contact_id) {
+                await adminClient.from("dialpad_calls").upsert({
+                  dialpad_call_id: foundCallId,
+                  contact_id: params.contact_id,
+                  user_id: user.id,
+                  sync_status: "pending",
+                  call_state: foundCallState ?? "calling",
+                }, { onConflict: "dialpad_call_id" }).then(() => {});
+              }
+
+              dialpadResponse = new Response(JSON.stringify({
+                call_id: foundCallId,
+                state: foundCallState ?? "calling",
+                call_resolved: true,
+                ...initiateData,
+              }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            } else {
+              console.warn(`[initiate_call] Could not discover call_id for user=${dialpadUserId}`);
+              dialpadResponse = new Response(JSON.stringify({
+                ...((isRecord(initiateData) ? initiateData : {}) as Record<string, unknown>),
+                state: "calling",
+                call_resolved: false,
+              }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
           }
         } finally {
           if (dndTemporarilyDisabled) {
