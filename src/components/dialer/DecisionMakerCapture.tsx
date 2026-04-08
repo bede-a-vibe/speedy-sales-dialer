@@ -98,26 +98,23 @@ export function DecisionMakerCapture({
 
     setIsSaving(true);
     try {
-      const updates: Record<string, string | null | boolean> = {};
+      const updates: Record<string, string | null> = {};
 
       // DM fields
       if (dmName.trim()) updates.dm_name = dmName.trim();
-      if (dmTitle) updates.dm_title = dmTitle;
+      if (dmTitle) updates.dm_role = dmTitle;
       if (dmPhone.trim()) {
         updates.dm_phone = dmPhone.trim();
-        updates.has_dm_phone = true;
       }
       if (dmEmail.trim()) updates.dm_email = dmEmail.trim();
-      if (dmLinkedin.trim()) updates.dm_linkedin = dmLinkedin.trim();
 
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
-      if (gatekeeperNotes.trim()) updates.gatekeeper_notes = gatekeeperNotes.trim();
-      if (bestRoute) updates.best_route_to_dm = bestRoute;
+      if (bestRoute) updates.best_time_to_call = bestRoute;
 
       const { error } = await supabase
         .from("contacts")
-        .update(updates)
+        .update(updates as any)
         .eq("id", contactId);
 
       if (error) throw error;

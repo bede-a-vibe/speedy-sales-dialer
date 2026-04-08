@@ -45,7 +45,7 @@ export default function FollowUpsPage() {
 
         const { data, error: invokeError } = await supabase.functions.invoke("ghl-followups", {
           method: "GET",
-          query: { scope, date: anchorDate },
+          body: { scope, date: anchorDate },
         });
         if (invokeError) throw invokeError;
         const payload = (data as {
