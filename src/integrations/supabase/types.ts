@@ -113,7 +113,10 @@ export type Database = {
       }
       contacts: {
         Row: {
+          authority_level: string | null
           best_route_to_decision_maker: string | null
+          best_time_to_call: string | null
+          budget_indication: string | null
           business_name: string
           business_size: string | null
           buying_signal_strength: string | null
@@ -139,6 +142,7 @@ export type Database = {
           id: string
           industry: string
           is_dnc: boolean
+          last_call_sentiment: string | null
           last_called_at: string | null
           last_outcome: Database["public"]["Enums"]["call_outcome"] | null
           latest_appointment_outcome:
@@ -146,6 +150,8 @@ export type Database = {
             | null
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
+          meeting_booked_date: string | null
+          next_followup_date: string | null
           phone: string
           phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
@@ -162,7 +168,10 @@ export type Database = {
           work_type: string | null
         }
         Insert: {
+          authority_level?: string | null
           best_route_to_decision_maker?: string | null
+          best_time_to_call?: string | null
+          budget_indication?: string | null
           business_name: string
           business_size?: string | null
           buying_signal_strength?: string | null
@@ -188,6 +197,7 @@ export type Database = {
           id?: string
           industry: string
           is_dnc?: boolean
+          last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
           latest_appointment_outcome?:
@@ -195,6 +205,8 @@ export type Database = {
             | null
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
+          meeting_booked_date?: string | null
+          next_followup_date?: string | null
           phone: string
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
@@ -211,7 +223,10 @@ export type Database = {
           work_type?: string | null
         }
         Update: {
+          authority_level?: string | null
           best_route_to_decision_maker?: string | null
+          best_time_to_call?: string | null
+          budget_indication?: string | null
           business_name?: string
           business_size?: string | null
           buying_signal_strength?: string | null
@@ -237,6 +252,7 @@ export type Database = {
           id?: string
           industry?: string
           is_dnc?: boolean
+          last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
           latest_appointment_outcome?:
@@ -244,6 +260,8 @@ export type Database = {
             | null
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
+          meeting_booked_date?: string | null
+          next_followup_date?: string | null
           phone?: string
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
