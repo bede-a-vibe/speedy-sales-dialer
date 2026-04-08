@@ -229,9 +229,18 @@ Deno.serve(async (req) => {
     // Reflect Do-Not-Disturb (DNC) changes from GHL
     const isDnc = event.dnd === true || event.contact?.dnd === true;
 
+    const updatePayload: Record<string, unknown> = {
+      is_dnc: isDnc,
+      updated_at: new Date().toISOString(),
+    };
+    // If GHL marks DNC, also set dialer status to 'dnc' for queue exclusion
+    if (isDnc) {
+      updatePayload.status = "dnc";
+    }
+
     const { error } = await supabase
       .from("contacts")
-      .update({ is_dnc: isDnc, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("ghl_contact_id", ghlContactId);
 
     if (error) {
@@ -287,6 +296,9 @@ Deno.serve(async (req) => {
     // Never overwrite: status, last_outcome, is_dnc (unless ContactDndUpdate), call_attempt_count
     const updatePayload = { ...fields };
     delete updatePayload.ghl_contact_id; // already matched
+    // Protect dialer-owned fields from being overwritten by GHL updates
+    delete updatePayload.status;
+    delete updatePayload.is_dnc;
 
     const { error } = await supabase
       .from("contacts")
