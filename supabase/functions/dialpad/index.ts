@@ -1793,7 +1793,7 @@ async function syncWebhookPayload(params: {
           const { data: e164Match } = await adminClient
             .from("contacts")
             .select("id, ghl_contact_id")
-            .eq("phone_e164", normalizedPhone)
+            .eq("phone", normalizedPhone)
             .limit(1)
             .maybeSingle();
 
