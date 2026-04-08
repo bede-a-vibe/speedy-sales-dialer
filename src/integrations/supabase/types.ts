@@ -147,7 +147,6 @@ export type Database = {
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
           phone: string
-          phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
           prospect_tier: string | null
@@ -196,7 +195,6 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone: string
-          phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
@@ -245,7 +243,6 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           phone?: string
-          phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
@@ -392,6 +389,62 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_ghl_pushes: {
+        Row: {
+          ai_fields: Json | null
+          ai_note: string | null
+          attempt_count: number
+          contact_id: string
+          created_at: string
+          dialpad_call_id: string
+          id: string
+          last_error: string | null
+          next_retry_at: string
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_fields?: Json | null
+          ai_note?: string | null
+          attempt_count?: number
+          contact_id: string
+          created_at?: string
+          dialpad_call_id: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_fields?: Json | null
+          ai_note?: string | null
+          attempt_count?: number
+          contact_id?: string
+          created_at?: string
+          dialpad_call_id?: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_ghl_pushes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_targets: {
         Row: {
           created_at: string
@@ -424,62 +477,6 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
-      }
-      pending_ghl_pushes: {
-        Row: {
-          ai_fields: Json
-          ai_note: string | null
-          attempt_count: number
-          contact_id: string
-          created_at: string
-          dialpad_call_id: string | null
-          id: string
-          last_error: string | null
-          next_retry_at: string
-          source: string
-          status: string
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          ai_fields?: Json
-          ai_note?: string | null
-          attempt_count?: number
-          contact_id: string
-          created_at?: string
-          dialpad_call_id?: string | null
-          id?: string
-          last_error?: string | null
-          next_retry_at?: string
-          source?: string
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          ai_fields?: Json
-          ai_note?: string | null
-          attempt_count?: number
-          contact_id?: string
-          created_at?: string
-          dialpad_call_id?: string | null
-          id?: string
-          last_error?: string | null
-          next_retry_at?: string
-          source?: string
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pending_ghl_pushes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       pipeline_items: {
         Row: {
