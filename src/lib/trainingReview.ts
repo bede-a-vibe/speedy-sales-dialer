@@ -28,9 +28,30 @@ export const reviewRubricItemSchema = z.object({
   transcriptLookFors: z.array(z.string().min(1)).min(1),
 });
 
+export const reviewScoreSchema = z.object({
+  category: z.string().min(1),
+  score: z.number().int().min(1).max(5),
+  evidence: z.string().min(1),
+  coachingNote: z.string().min(1),
+});
+
+export const reviewSubmissionSchema = z.object({
+  id: z.string().min(1),
+  packetId: z.string().min(1),
+  repName: z.string().min(1),
+  reviewedAt: z.string().min(1),
+  overallScore: z.number().min(0).max(100),
+  outcome: z.enum(["Needs intervention", "Coach next shift", "Ready to reinforce"]),
+  requiredCrmFields: z.array(z.string().min(1)).min(1),
+  coachingActions: z.array(z.string().min(1)).min(1),
+  rubricScores: reviewScoreSchema.array().min(1),
+});
+
 export type TrainingModule = z.infer<typeof trainingModuleSchema>;
 export type ReviewPacket = z.infer<typeof reviewPacketSchema>;
 export type ReviewRubricItem = z.infer<typeof reviewRubricItemSchema>;
+export type ReviewScore = z.infer<typeof reviewScoreSchema>;
+export type ReviewSubmission = z.infer<typeof reviewSubmissionSchema>;
 
 export const callReviewRubric: ReviewRubricItem[] = reviewRubricItemSchema.array().parse([
   {
@@ -93,17 +114,127 @@ export const reviewPackets: ReviewPacket[] = reviewPacketSchema.array().parse([
   },
 ]);
 
-export function buildReviewQueueSnapshot(packets: ReviewPacket[]) {
-  const uniqueStages = new Set(packets.map((packet) => packet.stage));
-  const uniqueModules = new Set(packets.map((packet) => packet.linkedModule));
-  const crmFields = Array.from(
+const WEIGHT_TO_RATIO: Record<string, number> = {
+  "25%": 0.25,
+  "30%": 0.3,
+  "20%": 0.2,
+};
+
+function extractCrmFields(requirement: string) {
+  return Array.from(
     new Set(
-      packets
-        .flatMap((packet) => packet.crmRequirement.match(/[a-z_]+/gi) ?? [])
+      (requirement.match(/[a-z_]+/gi) ?? [])
         .map((token) => token.toLowerCase())
         .filter((token) => token.includes("_") || ["notes", "pain", "stakeholder", "mobile", "agenda"].includes(token)),
     ),
   ).sort();
+}
+
+function getReviewOutcome(score: number) {
+  if (score < 65) return "Needs intervention" as const;
+  if (score < 85) return "Coach next shift" as const;
+  return "Ready to reinforce" as const;
+}
+
+export function buildReviewSubmissionDraft(args: {
+  id: string;
+  packet: ReviewPacket;
+  repName: string;
+  reviewedAt: string;
+  rubricScores: Array<Pick<ReviewScore, "category" | "score" | "evidence" | "coachingNote">>;
+}) {
+  const weightedScore = args.rubricScores.reduce((total, score) => {
+    const rubricItem = callReviewRubric.find((item) => item.category === score.category);
+    const ratio = rubricItem ? (WEIGHT_TO_RATIO[rubricItem.weight] ?? 0) : 0;
+    return total + ((score.score / 5) * ratio * 100);
+  }, 0);
+
+  const submission = {
+    id: args.id,
+    packetId: args.packet.id,
+    repName: args.repName,
+    reviewedAt: args.reviewedAt,
+    overallScore: Math.round(weightedScore),
+    outcome: getReviewOutcome(weightedScore),
+    requiredCrmFields: extractCrmFields(args.packet.crmRequirement),
+    coachingActions: args.rubricScores.filter((score) => score.score <= 3).map((score) => score.coachingNote),
+    rubricScores: args.rubricScores,
+  };
+
+  return reviewSubmissionSchema.parse(submission);
+}
+
+export const reviewSubmissionDrafts: ReviewSubmission[] = [
+  buildReviewSubmissionDraft({
+    id: "review-bad-time-recovery-sam",
+    packet: reviewPackets[0],
+    repName: "Sam",
+    reviewedAt: "2026-04-11T14:10:00+10:00",
+    rubricScores: [
+      {
+        category: "Opener and permission",
+        score: 3,
+        evidence: "Prospect stayed on briefly, but the opener still ran long before the reason for calling was clear.",
+        coachingNote: "Tighten the first 10 seconds so the rep earns permission before context spills out.",
+      },
+      {
+        category: "Discovery and pain capture",
+        score: 2,
+        evidence: "Rep tried to force a discovery question after the prospect had already said it was a bad time.",
+        coachingNote: "When timing is the blocker, coach for callback capture instead of squeezing in rushed discovery.",
+      },
+      {
+        category: "Objection handling",
+        score: 2,
+        evidence: "Busy objection was acknowledged but not converted into a concrete callback window.",
+        coachingNote: "Use the objection to secure the next attempt timing, not to keep pitching.",
+      },
+      {
+        category: "Close and CRM handoff",
+        score: 3,
+        evidence: "Notes mention the contact was busy, but the best time to call back was not saved.",
+        coachingNote: "Require best_time_to_call in notes before the call can count as a good recovery.",
+      },
+    ],
+  }),
+  buildReviewSubmissionDraft({
+    id: "review-booked-handoff-quality-jess",
+    packet: reviewPackets[2],
+    repName: "Jess",
+    reviewedAt: "2026-04-11T16:45:00+10:00",
+    rubricScores: [
+      {
+        category: "Opener and permission",
+        score: 4,
+        evidence: "Rep earned time quickly and set context without sounding scripted.",
+        coachingNote: "Keep the opener tight and reuse this structure as a baseline example.",
+      },
+      {
+        category: "Discovery and pain capture",
+        score: 4,
+        evidence: "Rep surfaced missed-call follow-up and slow quote turnaround clearly.",
+        coachingNote: "Push one step further on urgency so the closer sees why this matters now.",
+      },
+      {
+        category: "Objection handling",
+        score: 4,
+        evidence: "Questions stayed calm and the rep handled minor hesitation without losing control.",
+        coachingNote: "Reinforce concise objection handling because it kept the conversation moving.",
+      },
+      {
+        category: "Close and CRM handoff",
+        score: 5,
+        evidence: "Agenda, attendee, and best mobile were all confirmed before the call ended.",
+        coachingNote: "Use this call as a handoff-quality example for newer reps.",
+      },
+    ],
+  }),
+];
+
+export function buildReviewQueueSnapshot(packets: ReviewPacket[]) {
+  const uniqueStages = new Set(packets.map((packet) => packet.stage));
+  const uniqueModules = new Set(packets.map((packet) => packet.linkedModule));
+  const crmFields = Array.from(new Set(packets.flatMap((packet) => extractCrmFields(packet.crmRequirement)))).sort();
 
   return {
     packetCount: packets.length,
@@ -113,4 +244,22 @@ export function buildReviewQueueSnapshot(packets: ReviewPacket[]) {
   };
 }
 
+export function buildReviewDraftSnapshot(submissions: ReviewSubmission[]) {
+  const outcomes = submissions.reduce<Record<ReviewSubmission["outcome"], number>>((acc, submission) => {
+    acc[submission.outcome] += 1;
+    return acc;
+  }, {
+    "Needs intervention": 0,
+    "Coach next shift": 0,
+    "Ready to reinforce": 0,
+  });
+
+  return {
+    draftCount: submissions.length,
+    averageScore: submissions.length ? Math.round(submissions.reduce((sum, item) => sum + item.overallScore, 0) / submissions.length) : 0,
+    outcomes,
+  };
+}
+
 export const reviewQueueSnapshot = buildReviewQueueSnapshot(reviewPackets);
+export const reviewDraftSnapshot = buildReviewDraftSnapshot(reviewSubmissionDrafts);

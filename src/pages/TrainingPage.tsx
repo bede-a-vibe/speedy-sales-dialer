@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { callReviewRubric, reviewPackets, reviewQueueSnapshot } from "@/lib/trainingReview";
+import { callReviewRubric, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -563,30 +563,60 @@ export default function TrainingPage() {
               <CardHeader>
                 <div className="flex items-center gap-2 text-primary">
                   <Brain className="h-4 w-4" />
-                  <span className="text-[10px] uppercase tracking-widest">Coaching cues</span>
+                  <span className="text-[10px] uppercase tracking-widest">Review payload preview</span>
                 </div>
-                <CardTitle>Listen for these patterns</CardTitle>
+                <CardTitle>Manager review drafts</CardTitle>
+                <CardDescription>Sample typed review records that can map to a future backend table, queue, or coaching task worker.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="rounded-lg border border-border bg-background/70 p-3">
-                  <p className="font-medium text-foreground">Weak opener</p>
-                  <p className="mt-1">Rep sounds generic, asks for too much time, or explains the company before earning relevance.</p>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Drafts</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{reviewDraftSnapshot.draftCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Avg score</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{reviewDraftSnapshot.averageScore}</p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-border bg-background/70 p-3">
-                  <p className="font-medium text-foreground">Bad-time push-through</p>
-                  <p className="mt-1">Prospect says they are busy, but the rep keeps pitching instead of locking a callback window and saving it.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">Needs intervention: {reviewDraftSnapshot.outcomes["Needs intervention"]}</Badge>
+                  <Badge variant="outline">Coach next shift: {reviewDraftSnapshot.outcomes["Coach next shift"]}</Badge>
+                  <Badge variant="outline">Ready to reinforce: {reviewDraftSnapshot.outcomes["Ready to reinforce"]}</Badge>
                 </div>
-                <div className="rounded-lg border border-border bg-background/70 p-3">
-                  <p className="font-medium text-foreground">Missed follow-up trigger</p>
-                  <p className="mt-1">Rep logs interest but does not record why the next touch matters now.</p>
-                </div>
-                <div className="rounded-lg border border-border bg-background/70 p-3">
-                  <p className="font-medium text-foreground">Soft voicemail recovery</p>
-                  <p className="mt-1">Rep leaves a long generic voicemail and does not tee up the next attempt with a callback reason, SMS, or timing clue.</p>
-                </div>
-                <div className="rounded-lg border border-border bg-background/70 p-3">
-                  <p className="font-medium text-foreground">Soft booking handoff</p>
-                  <p className="mt-1">Rep secures time but skips desired outcome, stakeholder context, or show-rate reinforcement.</p>
+                <div className="space-y-3">
+                  {reviewSubmissionDrafts.map((draft) => (
+                    <div key={draft.id} className="rounded-lg border border-border bg-background/70 p-3 text-sm">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{draft.repName}</p>
+                          <p className="text-xs text-muted-foreground">Packet {draft.packetId} • {draft.outcome}</p>
+                        </div>
+                        <Badge variant="secondary">Score {draft.overallScore}</Badge>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Coaching actions</p>
+                          <ul className="mt-1 space-y-1 text-muted-foreground">
+                            {draft.coachingActions.map((action) => (
+                              <li key={action} className="flex gap-2">
+                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                                <span>{action}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Required CRM fields</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {draft.requiredCrmFields.map((field) => (
+                              <Badge key={field} variant="outline">{field}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
