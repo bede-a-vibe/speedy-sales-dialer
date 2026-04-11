@@ -22,6 +22,12 @@ interface DialpadSyncPanelProps {
   callStartedAt?: number | null;
 }
 
+interface OperatorGuidance {
+  title: string;
+  detail: string;
+  toneClassName: string;
+}
+
 function formatElapsed(seconds: number) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -109,6 +115,33 @@ export function DialpadSyncPanel({
   const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
 
   const isCallActive = activeDialpadCallId && activeDialpadCallState !== "hangup";
+  const operatorGuidance: OperatorGuidance | null = activeDialpadCallId
+    ? {
+        title: "Tracking is attached",
+        detail: activeDialpadCallState === "hangup"
+          ? "Dialpad has finished the call. Stay on this lead until the summary or transcript lands, then log the outcome."
+          : "You can keep talking normally. If the call drops unexpectedly, use Cancel Active Call so the dialer and Dialpad do not drift apart.",
+        toneClassName: "border-emerald-500/20 bg-emerald-500/5",
+      }
+    : hasTrackingRecoveryFailed
+      ? {
+          title: "Fallback mode, operator action needed",
+          detail: "Dialpad still has the live call, but this dialer is no longer attached. Retry linking first. If that fails and the conversation is over, end the call here before moving on so reporting stays trustworthy.",
+          toneClassName: "border-destructive/30 bg-destructive/5",
+        }
+      : isRetryingUntrackedLiveCall
+        ? {
+            title: "Fallback mode, auto-recovery running",
+            detail: "Keep the conversation going. Background relink attempts are still running, so avoid re-dialing this lead unless the live call is definitely finished.",
+            toneClassName: "border-amber-500/30 bg-amber-500/5",
+          }
+        : isResolving
+          ? {
+              title: "Waiting for call confirmation",
+              detail: "The outbound call was sent to Dialpad. Hold this lead open until tracking attaches so the transcript and AI summary can land on the right contact.",
+              toneClassName: "border-amber-500/30 bg-amber-500/5",
+            }
+          : null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -215,6 +248,13 @@ export function DialpadSyncPanel({
           <p className="text-muted-foreground">
             Waiting for a tracked Dialpad call to reach a loggable state.
           </p>
+        )}
+
+        {operatorGuidance && (
+          <div className={`rounded-md border px-3 py-3 text-xs ${operatorGuidance.toneClassName}`}>
+            <p className="mb-1 font-semibold text-foreground">{operatorGuidance.title}</p>
+            <p className="text-muted-foreground">{operatorGuidance.detail}</p>
+          </div>
         )}
 
         {latestDialpadSummary && (

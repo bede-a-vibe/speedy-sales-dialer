@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
+import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -487,18 +488,21 @@ export default function PipelinesPage() {
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
-          <TabsContent value="booked" className="mt-4">
+          <TabsContent value="booked" className="mt-4 space-y-4">
             {bookedLoading ? (
               <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
             ) : (
-              <BookedAppointmentsTable
-                items={booked}
-                reps={reps}
-                repMap={repMap}
-                isSaving={updatePipelineItem.isPending}
-                onAssign={handleAssign}
-                onRecordOutcome={handleBookedOutcome}
-              />
+              <>
+                <BookedPipelineBoard items={booked} repMap={repMap} />
+                <BookedAppointmentsTable
+                  items={booked}
+                  reps={reps}
+                  repMap={repMap}
+                  isSaving={updatePipelineItem.isPending}
+                  onAssign={handleAssign}
+                  onRecordOutcome={handleBookedOutcome}
+                />
+              </>
             )}
           </TabsContent>
           <TabsContent value="history" className="mt-4">
