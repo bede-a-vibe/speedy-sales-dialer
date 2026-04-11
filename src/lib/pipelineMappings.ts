@@ -13,10 +13,21 @@ export type ContactLifecycleStatus =
 
 export const DEFAULT_MANUAL_FOLLOW_UP_DELAY_DAYS = 2;
 
-export const GHL_PIPELINE_DEFAULTS = {
+export const GHL_PIPELINE_CONTRACT = {
   follow_up: {
+    pipelineName: "Outbound Prospecting",
     pipelineId: "QuBn7UX5zebPTd4fqW9x",
     stageId: "5102204c-7b00-48f9-94fb-70ca529841b9",
+  },
+  booked: {
+    pipelineName: "Sales & Growth Sessions",
+  },
+} as const;
+
+export const GHL_PIPELINE_DEFAULTS = {
+  follow_up: {
+    pipelineId: GHL_PIPELINE_CONTRACT.follow_up.pipelineId,
+    stageId: GHL_PIPELINE_CONTRACT.follow_up.stageId,
   },
 } as const;
 

@@ -14,7 +14,7 @@ import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -85,6 +85,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     [ghlPipelines, ghlPipelineId],
   );
 
+  const defaultBookedPipeline = useMemo(
+    () => findDefaultBookedPipeline(ghlPipelines),
+    [ghlPipelines],
+  );
+
   // Set default rep to current user
   useEffect(() => {
     if (user && !assignedRepId) {
@@ -92,7 +97,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     }
   }, [user, assignedRepId]);
 
-  // Auto-select first GHL calendar and pipeline when available
+  // Auto-select the explicit booked pipeline contract when available
   useEffect(() => {
     if (!ghlCalendarId && ghlCalendars.length > 0) {
       setGhlCalendarId(ghlCalendars[0].id);
@@ -100,14 +105,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   }, [ghlCalendars, ghlCalendarId]);
 
   useEffect(() => {
-    if (!ghlPipelineId && ghlPipelines.length > 0) {
-      setGhlPipelineId(ghlPipelines[0].id);
-      const firstStage = ghlPipelines[0].stages?.[0];
+    if (!ghlPipelineId && defaultBookedPipeline) {
+      setGhlPipelineId(defaultBookedPipeline.id);
+      const firstStage = defaultBookedPipeline.stages?.[0];
       if (firstStage && !ghlStageId) {
         setGhlStageId(firstStage.id);
       }
     }
-  }, [ghlPipelines, ghlPipelineId, ghlStageId]);
+  }, [defaultBookedPipeline, ghlPipelineId, ghlStageId]);
 
   // Reset on close
   useEffect(() => {

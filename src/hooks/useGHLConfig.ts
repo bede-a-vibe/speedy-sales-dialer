@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ghlGetCalendars, ghlGetPipelines } from "@/lib/ghl";
+import { GHL_PIPELINE_CONTRACT } from "@/lib/pipelineMappings";
 
 export interface GHLCalendar {
   id: string;
@@ -15,6 +16,20 @@ export interface GHLPipeline {
   id: string;
   name: string;
   stages: GHLPipelineStage[];
+}
+
+export function findGHLPipelineByName(pipelines: GHLPipeline[], pipelineName: string) {
+  const normalizedTarget = pipelineName.trim().toLowerCase();
+  return pipelines.find((pipeline) => pipeline.name.trim().toLowerCase() === normalizedTarget) ?? null;
+}
+
+export function findDefaultBookedPipeline(pipelines: GHLPipeline[]) {
+  return findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
+}
+
+export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {
+  return pipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_CONTRACT.follow_up.pipelineId)
+    ?? findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.follow_up.pipelineName);
 }
 
 export function useGHLCalendars() {
