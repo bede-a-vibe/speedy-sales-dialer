@@ -11,6 +11,8 @@ type BoardStage = {
   description: string;
   tone: string;
   emptyLabel: string;
+  repAction: string;
+  automationCue: string;
 };
 
 const BOARD_STAGES: BoardStage[] = [
@@ -20,6 +22,8 @@ const BOARD_STAGES: BoardStage[] = [
     description: "Booked appointments in the past with no result recorded yet.",
     tone: "border-amber-500/40 bg-amber-500/5",
     emptyLabel: "No stale appointments.",
+    repAction: "Call the rep or client now and record the result before booking anything new.",
+    automationCue: "Best automation: trigger an outcome-missing alert and manager follow-up task.",
   },
   {
     key: "today",
@@ -27,6 +31,8 @@ const BOARD_STAGES: BoardStage[] = [
     description: "Appointments happening today.",
     tone: "border-primary/40 bg-primary/5",
     emptyLabel: "Nothing booked for today.",
+    repAction: "Confirm attendance, prep handoff notes, and watch for same-day reschedules.",
+    automationCue: "Best automation: send reminder workflows and surface same-day risk flags.",
   },
   {
     key: "upcoming",
@@ -34,6 +40,8 @@ const BOARD_STAGES: BoardStage[] = [
     description: "Future appointments still on the board.",
     tone: "border-border bg-card",
     emptyLabel: "No upcoming appointments.",
+    repAction: "Keep these clean: correct owner, date, and notes so the closer lands warm.",
+    automationCue: "Best automation: pre-appointment reminders and prep task creation.",
   },
   {
     key: "overdue",
@@ -41,6 +49,8 @@ const BOARD_STAGES: BoardStage[] = [
     description: "Past appointments that already have an outcome but still remain open.",
     tone: "border-destructive/40 bg-destructive/5",
     emptyLabel: "No overdue appointments.",
+    repAction: "Close or reschedule immediately so reporting and follow-up routing stay accurate.",
+    automationCue: "Best automation: auto-close completed outcomes or create reschedule tasks.",
   },
 ];
 
@@ -108,6 +118,13 @@ export function BookedPipelineBoard({
               </div>
             </div>
 
+            <div className="mb-3 rounded-lg border border-border/70 bg-background/70 p-2.5 text-[11px]">
+              <p className="font-medium text-foreground">Rep move</p>
+              <p className="mt-1 text-muted-foreground">{stage.repAction}</p>
+              <p className="mt-2 font-medium text-foreground">Automation cue</p>
+              <p className="mt-1 text-muted-foreground">{stage.automationCue}</p>
+            </div>
+
             <div className="space-y-2">
               {stage.items.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
@@ -143,6 +160,20 @@ export function BookedPipelineBoard({
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                           <span>Setter: {setter}</span>
                           <span>Closer: {closer}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {stage.key === "stale"
+                              ? "Needs result"
+                              : stage.key === "today"
+                                ? "Same-day watch"
+                                : stage.key === "overdue"
+                                  ? "Close or reschedule"
+                                  : "Prep sequence"}
+                          </span>
+                          <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {item.appointment_outcome ? `Outcome: ${item.appointment_outcome.replaceAll("_", " ")}` : "Outcome pending"}
+                          </span>
                         </div>
                         {item.notes ? <p className="line-clamp-2 italic text-muted-foreground">"{item.notes}"</p> : null}
                       </div>
