@@ -7,6 +7,7 @@ import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 
 import {
   usePipelineItems,
@@ -308,6 +309,7 @@ export default function PipelinesPage() {
       if (contactGhlId) {
         // Push outcome note to GHL
         const outcomeLabel = getAppointmentOutcomeLabel(outcome);
+        const outcomeSync = getAppointmentOutcomeGhlSync(outcome);
         const noteParts = [`\uD83D\uDCCB Appointment Result: ${outcomeLabel}`];
         if (notes) noteParts.push(`Notes: ${notes}`);
         if (dealValue != null && outcome === "showed_closed") noteParts.push(`Deal Value: $${dealValue.toLocaleString()}`);
@@ -315,12 +317,12 @@ export default function PipelinesPage() {
         noteParts.push(`Recorded via Speedy Sales Dialer at ${new Date().toLocaleString("en-AU")}`);
         ghlSync.pushCallNote({
           ghlContactId: contactGhlId,
-          outcome: outcome === "showed_closed" ? "booked" : outcome === "no_show" ? "follow_up" : "not_interested",
+          outcome: outcomeSync.callOutcome,
           notes: noteParts.join("\n"),
         }).catch(() => {});
 
         // Push follow-up task to GHL if one was created
-        if (followUpDate) {
+        if (followUpDate && outcomeSync.createsFollowUpTask) {
           ghlSync.pushFollowUp({
             ghlContactId: contactGhlId,
             scheduledFor: followUpDate,

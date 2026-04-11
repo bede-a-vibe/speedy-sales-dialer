@@ -1,5 +1,6 @@
 import type { CallOutcome } from "@/data/constants";
 import type { FollowUpMethod, PipelineType } from "@/hooks/usePipelineItems";
+import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 export type ContactLifecycleStatus =
   | "uncalled"
@@ -34,34 +35,91 @@ const PIPELINE_TYPE_TO_CONTACT_STATUS: Record<PipelineType, ContactLifecycleStat
   booked: "booked",
 };
 
-const CALL_OUTCOME_TO_CONTACT_STATUS: Partial<Record<CallOutcome, ContactLifecycleStatus>> = {
-  dnc: "dnc",
-  follow_up: "follow_up",
-  booked: "booked",
-  not_interested: "not_interested",
-  no_answer: "uncalled",
-  voicemail: "uncalled",
+const CALL_OUTCOME_MAP: Record<CallOutcome, {
+  contactStatus: ContactLifecycleStatus;
+  pipelineType: PipelineType | null;
+  ghlLabel: string;
+}> = {
+  no_answer: {
+    contactStatus: "uncalled",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.no_answer,
+  },
+  voicemail: {
+    contactStatus: "uncalled",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.voicemail,
+  },
+  not_interested: {
+    contactStatus: "not_interested",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.not_interested,
+  },
+  dnc: {
+    contactStatus: "dnc",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.dnc,
+  },
+  follow_up: {
+    contactStatus: "follow_up",
+    pipelineType: "follow_up",
+    ghlLabel: CALL_OUTCOME_LABELS.follow_up,
+  },
+  booked: {
+    contactStatus: "booked",
+    pipelineType: "booked",
+    ghlLabel: CALL_OUTCOME_LABELS.booked,
+  },
 };
 
-const CALL_OUTCOME_TO_PIPELINE_TYPE: Partial<Record<CallOutcome, PipelineType>> = {
-  follow_up: "follow_up",
-  booked: "booked",
+const APPOINTMENT_OUTCOME_TO_GHL_SYNC: Record<AppointmentOutcomeValue, {
+  callOutcome: CallOutcome;
+  createsFollowUpTask: boolean;
+}> = {
+  no_show: {
+    callOutcome: "follow_up",
+    createsFollowUpTask: true,
+  },
+  rescheduled: {
+    callOutcome: "follow_up",
+    createsFollowUpTask: false,
+  },
+  showed_verbal_commitment: {
+    callOutcome: "booked",
+    createsFollowUpTask: true,
+  },
+  showed_closed: {
+    callOutcome: "booked",
+    createsFollowUpTask: false,
+  },
+  showed_no_close: {
+    callOutcome: "not_interested",
+    createsFollowUpTask: true,
+  },
 };
 
 export function getContactStatusForPipelineType(type: PipelineType): ContactLifecycleStatus {
   return PIPELINE_TYPE_TO_CONTACT_STATUS[type];
 }
 
+export function getCallOutcomeMapping(outcome: CallOutcome) {
+  return CALL_OUTCOME_MAP[outcome];
+}
+
 export function getContactStatusForOutcome(outcome: CallOutcome): ContactLifecycleStatus {
-  return CALL_OUTCOME_TO_CONTACT_STATUS[outcome] ?? "called";
+  return getCallOutcomeMapping(outcome).contactStatus;
 }
 
 export function getPipelineTypeForOutcome(outcome: CallOutcome): PipelineType | null {
-  return CALL_OUTCOME_TO_PIPELINE_TYPE[outcome] ?? null;
+  return getCallOutcomeMapping(outcome).pipelineType;
 }
 
 export function shouldCreatePipelineItemForOutcome(outcome: CallOutcome): boolean {
   return getPipelineTypeForOutcome(outcome) !== null;
+}
+
+export function getAppointmentOutcomeGhlSync(outcome: AppointmentOutcomeValue) {
+  return APPOINTMENT_OUTCOME_TO_GHL_SYNC[outcome];
 }
 
 export function shouldCreatePipelineItemForStatus(status: ContactLifecycleStatus): status is PipelineType {
