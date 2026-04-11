@@ -312,6 +312,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         if (pipelineType === "booked" && ghlCalendarId) {
           ghlSyncConfirmed = await ghlSync.pushBooking({
             ghlContactId: contactGhlId,
+            contactId: selectedContact.id,
             calendarId: ghlCalendarId,
             scheduledFor: scheduledFor.toISOString(),
             contactName: selectedContact.business_name,
@@ -325,6 +326,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         if (pipelineType === "follow_up") {
           ghlSyncConfirmed = await ghlSync.pushFollowUp({
             ghlContactId: contactGhlId,
+            contactId: selectedContact.id,
             scheduledFor: scheduledFor.toISOString(),
             method: followUpMethod,
             contactName: selectedContact?.business_name ?? undefined,

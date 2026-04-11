@@ -32,6 +32,7 @@ interface PushCallNoteParams {
 
 interface PushBookingParams {
   ghlContactId: string;
+  contactId?: string;
   calendarId: string;
   scheduledFor: string; // ISO string
   title?: string;
@@ -45,6 +46,7 @@ interface PushBookingParams {
 
 interface PushFollowUpParams {
   ghlContactId: string;
+  contactId?: string;
   scheduledFor: string; // ISO string
   title?: string;
   description?: string;
@@ -69,6 +71,7 @@ interface PushFollowUpEmailDraftParams {
 
 interface PushDNCParams {
   ghlContactId: string;
+  contactId?: string;
 }
 
 function describeError(err: unknown) {
@@ -110,6 +113,55 @@ async function persistOpportunityIdentity(params: {
   }
 }
 
+async function persistContactMirror(params: {
+  contactId?: string;
+  ghlContactId: string;
+  status?: string;
+  scheduledFor?: string | null;
+  notes?: string | null;
+  clearMeetingBookedDate?: boolean;
+  clearNextFollowUpDate?: boolean;
+  clearFollowUpNote?: boolean;
+  isDnc?: boolean;
+}) {
+  if (!params.contactId) return;
+
+  const updates: Record<string, string | boolean | null> = {
+    ghl_contact_id: params.ghlContactId,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (params.status) updates.status = params.status;
+  if (params.isDnc != null) updates.is_dnc = params.isDnc;
+
+  if (params.clearMeetingBookedDate) {
+    updates.meeting_booked_date = null;
+  } else if (params.scheduledFor !== undefined) {
+    updates.meeting_booked_date = params.scheduledFor;
+  }
+
+  if (params.clearNextFollowUpDate) {
+    updates.next_followup_date = null;
+  } else if (params.scheduledFor !== undefined) {
+    updates.next_followup_date = params.scheduledFor;
+  }
+
+  if (params.clearFollowUpNote) {
+    updates.follow_up_note = null;
+  } else if (params.notes !== undefined) {
+    updates.follow_up_note = params.notes;
+  }
+
+  const { error } = await supabase
+    .from("contacts")
+    .update(updates)
+    .eq("id", params.contactId);
+
+  if (error) {
+    console.warn("[GHL Sync] Failed to persist contact mirror:", error);
+  }
+}
+
 export function useGHLSync() {
   const pushCallNote = useCallback(async (params: PushCallNoteParams) => {
     const { ghlContactId, outcome, notes, durationSeconds, repName } = params;
@@ -135,6 +187,7 @@ export function useGHLSync() {
   const pushBooking = useCallback(async (params: PushBookingParams) => {
     const {
       ghlContactId,
+      contactId,
       calendarId,
       scheduledFor,
       title,
@@ -185,6 +238,16 @@ export function useGHLSync() {
       if (repName) noteParts.push(`Booked by: ${repName}`);
       if (notes) noteParts.push(`Notes: ${notes}`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
+
+      await persistContactMirror({
+        contactId,
+        ghlContactId,
+        status: "booked",
+        scheduledFor,
+        notes: null,
+        clearNextFollowUpDate: true,
+        clearFollowUpNote: true,
+      });
       return true;
     } catch (err) {
       reportSyncFailure("push booking", ghlContactId, err);
@@ -195,6 +258,7 @@ export function useGHLSync() {
   const pushFollowUp = useCallback(async (params: PushFollowUpParams) => {
     const {
       ghlContactId,
+      contactId,
       scheduledFor,
       title,
       description,
@@ -245,6 +309,15 @@ export function useGHLSync() {
       if (description) noteParts.push(`Notes: ${description}`);
       noteParts.push(`Logged via Speedy Sales Dialer`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
+
+      await persistContactMirror({
+        contactId,
+        ghlContactId,
+        status: "follow_up",
+        scheduledFor,
+        notes: description ?? null,
+        clearMeetingBookedDate: true,
+      });
       return true;
     } catch (err) {
       reportSyncFailure("push follow-up", ghlContactId, err);
@@ -302,12 +375,21 @@ export function useGHLSync() {
   }, []);
 
   const pushDNC = useCallback(async (params: PushDNCParams) => {
-    const { ghlContactId } = params;
+    const { ghlContactId, contactId } = params;
 
     try {
       await ghlAddTag(ghlContactId, ["DNC"]);
       await ghlUpdateContact(ghlContactId, { dnd: true });
       await ghlAddNote(ghlContactId, "🚫 Marked as DNC via Speedy Sales Dialer");
+      await persistContactMirror({
+        contactId,
+        ghlContactId,
+        status: "dnc",
+        isDnc: true,
+        clearMeetingBookedDate: true,
+        clearNextFollowUpDate: true,
+        clearFollowUpNote: true,
+      });
     } catch (err) {
       reportSyncFailure("push DNC", ghlContactId, err);
     }

@@ -689,6 +689,7 @@ export default function DialerPage() {
         if (outcomeToLog === "booked" && scheduledFor && calendarId) {
           ghlSync.pushBooking({
             ghlContactId: contactGhlId,
+            contactId,
             calendarId,
             scheduledFor,
             contactName,
@@ -703,6 +704,7 @@ export default function DialerPage() {
         if (outcomeToLog === "follow_up" && scheduledFor) {
           ghlSync.pushFollowUp({
             ghlContactId: contactGhlId,
+            contactId,
             scheduledFor,
             method,
             contactName,
@@ -742,7 +744,7 @@ export default function DialerPage() {
         }
 
         if (outcomeToLog === "dnc") {
-          ghlSync.pushDNC({ ghlContactId: contactGhlId }).catch(() => {});
+          ghlSync.pushDNC({ ghlContactId: contactGhlId, contactId }).catch(() => {});
         }
       }
     })();

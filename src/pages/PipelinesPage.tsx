@@ -348,6 +348,7 @@ export default function PipelinesPage() {
         if (followUpDate && outcomeSync.createsFollowUpTask) {
           ghlSync.pushFollowUp({
             ghlContactId: contactGhlId,
+            contactId: item.contact_id,
             scheduledFor: followUpDate,
             title: `Follow-up after ${outcomeLabel}`,
             description: notes || undefined,
