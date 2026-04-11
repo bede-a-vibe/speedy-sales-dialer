@@ -1,4 +1,4 @@
-import { BookOpenText, Brain, CheckCircle2, ChevronRight, ClipboardCheck, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
+import { BookOpenText, Brain, CheckCircle2, ChevronRight, ClipboardCheck, Database, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +124,46 @@ const callReviewRubric = [
     strong: "Rep confirms the next action, timing, contact path, and note quality so the transcript can become usable follow-up intelligence.",
     weak: "Rep ends the call with vague interest, missing contact data, or notes another rep cannot confidently use.",
     transcriptLookFors: ["Clear next step or booked action", "Best number or callback window confirmed", "Notes can be written from the call without replaying it"],
+  },
+];
+
+type ReviewPacket = {
+  id: string;
+  stage: string;
+  trigger: string;
+  managerPrompt: string;
+  repAction: string;
+  crmRequirement: string;
+  linkedModule: "Scripts" | "Objections" | "Pipeline" | "Patterns" | "Examples" | "Reviews" | "Playbook";
+};
+
+const reviewPackets: ReviewPacket[] = [
+  {
+    id: "bad-time-recovery",
+    stage: "Active transcript review",
+    trigger: "Prospect says they are busy and the rep keeps pushing instead of securing a cleaner callback window.",
+    managerPrompt: "Score the rep low on close and handoff unless the next attempt timing is clearly captured.",
+    repAction: "End with a specific callback window, save it, and note that timing, not interest, blocked discovery.",
+    crmRequirement: "best_time_to_call plus a note that the prospect was unavailable rather than uninterested.",
+    linkedModule: "Patterns",
+  },
+  {
+    id: "send-info-diagnosis",
+    stage: "Answered call with weak discovery",
+    trigger: "Prospect asks for information and the call risks ending with no usable business context.",
+    managerPrompt: "Check whether the rep earned one real problem before accepting the email request.",
+    repAction: "Ask one routing question that reveals whether lead flow, quote conversion, or follow-up speed matters most.",
+    crmRequirement: "A concrete pain point saved into notes so follow-up email generation is not generic.",
+    linkedModule: "Objections",
+  },
+  {
+    id: "booked-handoff-quality",
+    stage: "Booked outcome QA",
+    trigger: "Meeting gets booked but the closer would still need to replay the call to understand the opportunity.",
+    managerPrompt: "Do not score a booking as strong unless owner, agenda, and best contact path are visible from notes alone.",
+    repAction: "Restate the agreed agenda, confirm who is attending, and verify the best mobile before ending the call.",
+    crmRequirement: "Booked note includes pain, stakeholder, and confirmed contact path for the appointment reminder.",
+    linkedModule: "Reviews",
   },
 ];
 
@@ -255,6 +295,7 @@ export default function TrainingPage() {
                   <TabsTrigger value="patterns" className="border border-border bg-muted/40">Patterns</TabsTrigger>
                   <TabsTrigger value="examples" className="border border-border bg-muted/40">Examples</TabsTrigger>
                   <TabsTrigger value="reviews" className="border border-border bg-muted/40">Reviews</TabsTrigger>
+                  <TabsTrigger value="packets" className="border border-border bg-muted/40">Packets</TabsTrigger>
                   <TabsTrigger value="playbook" className="border border-border bg-muted/40">Playbook</TabsTrigger>
                 </TabsList>
 
@@ -454,6 +495,46 @@ export default function TrainingPage() {
                                   </li>
                                 ))}
                               </ul>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="packets">
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="mb-4 flex items-start gap-3">
+                      <Database className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">Backend-ready review packets</h3>
+                        <p className="text-sm text-muted-foreground">A spec-shaped bridge between transcript review, rep coaching, and CRM capture. Each packet can map cleanly to a future review record, rule, or task generator.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {reviewPackets.map((packet) => (
+                        <div key={packet.id} className="rounded-xl border border-border bg-card/70 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <h4 className="font-medium text-foreground">{packet.trigger}</h4>
+                            <Badge variant="outline" className="w-fit">{packet.linkedModule}</Badge>
+                          </div>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Review stage</p>
+                              <p className="mt-1 text-sm text-foreground">{packet.stage}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Manager prompt</p>
+                              <p className="mt-1 text-sm text-foreground">{packet.managerPrompt}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Rep action</p>
+                              <p className="mt-1 text-sm text-foreground">{packet.repAction}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Required CRM capture</p>
+                              <p className="mt-1 text-sm text-foreground">{packet.crmRequirement}</p>
                             </div>
                           </div>
                         </div>
