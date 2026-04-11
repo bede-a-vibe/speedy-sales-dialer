@@ -1,4 +1,4 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info } from "lucide-react";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
@@ -29,11 +29,15 @@ interface ContactCardProps {
     follow_up_note?: string | null;
     dm_name?: string | null;
     dm_role?: string | null;
+    dm_title?: string | null;
     dm_phone?: string | null;
     dm_phone_type?: string | null;
     dm_email?: string | null;
     gatekeeper_name?: string | null;
+    gatekeeper_notes?: string | null;
     best_route_to_decision_maker?: string | null;
+    best_route_to_dm?: string | null;
+    best_time_to_call?: string | null;
     phone_number_quality?: string | null;
     call_attempt_count?: number | null;
     voicemail_count?: number | null;
@@ -48,6 +52,21 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
   const PhoneIcon = phoneType.icon;
   const hasDM = contact.dm_name || contact.dm_phone;
   const dmPhoneType = contact.dm_phone_type ? PHONE_TYPE_CONFIG[contact.dm_phone_type] : null;
+  const bestRouteToDecisionMaker = contact.best_route_to_decision_maker || contact.best_route_to_dm;
+  const decisionMakerRole = contact.dm_role || contact.dm_title;
+  const isBusinessRoutedNumber = contact.phone_type === "landline" || contact.phone_type === "business_line";
+  const dialStrategyLabel = contact.dm_phone
+    ? "Best route"
+    : isBusinessRoutedNumber
+      ? "Switchboard route"
+      : "Primary route";
+  const dialStrategySummary = contact.dm_phone
+    ? `Call the decision maker direct on ${contact.dm_phone}.`
+    : isBusinessRoutedNumber
+      ? contact.gatekeeper_name
+        ? `Main line likely routes through ${contact.gatekeeper_name}.`
+        : "Main line likely routes through reception or a gatekeeper."
+      : "This looks like a direct number, so start here.";
 
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
@@ -63,20 +82,23 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
       )}
 
       {/* Gatekeeper Warning Banner */}
-      {contact.gatekeeper_name && contact.phone_type === "landline" && (
+      {contact.gatekeeper_name && isBusinessRoutedNumber && (
         <div className="flex items-start gap-2.5 bg-orange-500/15 border border-orange-500/30 rounded-md px-3.5 py-2.5 text-orange-200">
           <Shield className="h-4 w-4 mt-0.5 shrink-0 text-orange-400" />
           <div>
             <p className="text-[10px] uppercase tracking-widest font-mono text-orange-400 mb-0.5">Gatekeeper</p>
             <p className="text-sm leading-snug">
               <span className="font-semibold">{contact.gatekeeper_name}</span>
-              {contact.best_route_to_decision_maker && (
+              {bestRouteToDecisionMaker && (
                 <span className="ml-2 text-orange-300/70">
                   <Clock className="h-3 w-3 inline mr-1" />
-                  Route: {contact.best_route_to_decision_maker}
+                  Route: {bestRouteToDecisionMaker}
                 </span>
               )}
             </p>
+            {contact.gatekeeper_notes && (
+              <p className="mt-1 text-xs leading-snug text-orange-100/85">{contact.gatekeeper_notes}</p>
+            )}
           </div>
         </div>
       )}
@@ -148,6 +170,27 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
         </div>
       </div>
 
+      {/* Dial Strategy */}
+      <div className="rounded-md border border-border bg-background/80 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Info className="h-4 w-4 text-primary" />
+          <p className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">{dialStrategyLabel}</p>
+        </div>
+        <p className="text-sm text-foreground">{dialStrategySummary}</p>
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          {bestRouteToDecisionMaker && (
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1">
+              <ArrowRight className="h-3 w-3" /> Route: {bestRouteToDecisionMaker}
+            </span>
+          )}
+          {contact.best_time_to_call && (
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1">
+              <Clock className="h-3 w-3" /> Best time: {contact.best_time_to_call}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Decision Maker Section */}
       {hasDM ? (
         <div className="bg-green-500/10 border border-green-500/25 rounded-md p-3 space-y-2">
@@ -159,8 +202,8 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
             {contact.dm_name && (
               <p className="text-sm font-semibold text-foreground">
                 {contact.dm_name}
-                {contact.dm_role && (
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">({contact.dm_role})</span>
+                {decisionMakerRole && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">({decisionMakerRole})</span>
                 )}
               </p>
             )}
