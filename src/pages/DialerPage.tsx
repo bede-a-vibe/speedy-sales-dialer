@@ -672,6 +672,31 @@ export default function DialerPage() {
     currentLeadMeta?.dm_name ? `DM: ${String(currentLeadMeta.dm_name)}` : null,
     typeof currentLeadMeta?.gatekeeper_name === "string" ? `Gatekeeper: ${String(currentLeadMeta.gatekeeper_name)}` : null,
   ].filter(Boolean) as string[] : [];
+  const remainingQueueContacts = useMemo(() => {
+    if (session.currentIndex === null) return session.queue.contacts;
+    return session.queue.contacts.slice(session.currentIndex + 1);
+  }, [session.currentIndex, session.queue.contacts]);
+  const queueMix = useMemo(() => {
+    return remainingQueueContacts.reduce((summary, contact) => {
+      const meta = contact as Record<string, unknown>;
+      if (contact.phone_type === "landline" || contact.phone_type === "business_line") summary.routedLines += 1;
+      if (contact.phone_type === "mobile") summary.mobiles += 1;
+      if (meta.dm_phone || meta.dm_name) summary.withDm += 1;
+      if (meta.gatekeeper_name || meta.gatekeeper_notes) summary.withGatekeeperNotes += 1;
+      return summary;
+    }, {
+      routedLines: 0,
+      mobiles: 0,
+      withDm: 0,
+      withGatekeeperNotes: 0,
+    });
+  }, [remainingQueueContacts]);
+  const nextLeadFacts = session.nextContact ? [
+    session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : null,
+    session.nextContact.industry,
+    [session.nextContact.city, session.nextContact.state].filter(Boolean).join(", "),
+    (session.nextContact as Record<string, unknown>).dm_phone ? "Direct DM phone captured" : null,
+  ].filter(Boolean) as string[] : [];
 
   return (
     <AppLayout title="Dialer">
@@ -998,6 +1023,52 @@ export default function DialerPage() {
                       <div className="text-muted-foreground">Session pace</div>
                       <div className="font-mono text-foreground">{session.totalDialingMs > 60000 ? `${Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}/hr` : "Warming up"}</div>
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
+                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
+                    </div>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Use routed-line leads to enrich the account, then move fastest on direct mobile leads with decision-maker details already captured.
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
+                    {session.nextContact ? (
+                      <>
+                        <div className="mt-1 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
+                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : "phone"}
+                          </Badge>
+                        </div>
+                        {nextLeadFacts.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {nextLeadFacts.map((fact) => (
+                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">No next lead loaded yet. The queue will prefetch more leads automatically.</p>
+                    )}
                   </div>
                 </div>
 
