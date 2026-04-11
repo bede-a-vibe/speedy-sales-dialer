@@ -107,6 +107,8 @@ export function DecisionMakerCapture({
 
     setIsSaving(true);
     try {
+      let ghlSyncFailed = false;
+      let ghlSyncErrorMessage = "";
       const updates: Record<string, string | null> = {};
 
       // DM fields
@@ -146,11 +148,19 @@ export function DecisionMakerCapture({
             await ghlUpdateContactFields(ghlContactId, ghlFields);
           }
         } catch (ghlError) {
-          console.warn("[DM Capture] GHL sync failed (non-blocking):", ghlError);
+          ghlSyncFailed = true;
+          ghlSyncErrorMessage = ghlError instanceof Error ? ghlError.message : "Unknown error";
+          console.warn("[DM Capture] GHL sync failed after local save:", ghlError);
         }
       }
 
-      toast.success("Decision maker details saved.");
+      if (ghlSyncFailed) {
+        toast.warning("Saved locally, but GHL did not update.", {
+          description: ghlSyncErrorMessage,
+        });
+      } else {
+        toast.success("Decision maker details saved.");
+      }
       onSaved?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save decision maker details.");
