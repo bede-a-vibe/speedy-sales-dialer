@@ -26,9 +26,16 @@ const objectionPlays = [
   },
   {
     objection: "Too busy right now",
-    whyItShowsUp: "Timing is bad, but urgency may still exist.",
-    response: "Totally fair. Usually that means one of two things: work is flowing well, or follow-up/admin is stretched. Which one is more true for you this week?",
+    whyItShowsUp: "Timing is genuinely bad. Treat it as a scheduling moment, not a cue to push through discovery.",
+    response: "No worries. When are you usually easiest to catch, later today or tomorrow? I only need 2 minutes, and I'll make a note so the next call lands at a better time.",
   },
+];
+
+const badTimeRecovery = [
+  "Acknowledge it fast: 'No worries, sounds like I caught you mid-run.'",
+  "Do not force discovery. Earn the callback instead of trying to rescue the whole pitch.",
+  "Ask for a specific callback window and save it before ending the call.",
+  "If they will not commit, finish cleanly and requeue with the best timing clue you learned.",
 ];
 
 const pipelineGuidance = [
@@ -64,10 +71,22 @@ const transcriptPatterns = [
     dialerBehavior: "Treat opener quality as a data-quality issue, not just a style issue, because short dead calls create no usable review trail.",
   },
   {
+    title: "Bad-time objections handled like real discovery",
+    signal: "Calls drift when the prospect says they are busy but the rep keeps probing instead of locking better timing.",
+    coaching: "Acknowledge the interruption, ask for the best callback window, and save the timing detail before ending the call.",
+    dialerBehavior: "Clean callback timing is more valuable than squeezing in one rushed question that produces no usable follow-up path.",
+  },
+  {
     title: "Good conversation, weak note handoff",
     signal: "Transcript summaries only help the team when the next action and pain point are clear enough to save into notes and CRM follow-up.",
     coaching: "Before ending the call, lock one concrete pain, one owner detail, and one next step you would be happy for another rep to inherit.",
     dialerBehavior: "Write notes that can survive a handoff to the closer or the next caller without replaying the full call.",
+  },
+  {
+    title: "Voicemail logged, recovery path missed",
+    signal: "A voicemail outcome is weak if the message is long, pitch-heavy, or leaves no clean callback reason for the next touch.",
+    coaching: "Keep voicemails under 30 seconds, give one reason to call back, and pair the outcome with a follow-up SMS or callback task when the workflow allows.",
+    dialerBehavior: "Voicemail is not a completed conversation, it is a recovery step that should feed the next attempt with better timing and context.",
   },
   {
     title: "Contact not ready for CRM push",
@@ -173,21 +192,38 @@ export default function TrainingPage() {
                 </TabsList>
 
                 <TabsContent value="scripts">
-                  <div className="rounded-xl border border-border bg-background/60 p-4">
-                    <div className="mb-4 flex items-start gap-3">
-                      <MessageSquareQuote className="mt-0.5 h-5 w-5 text-primary" />
-                      <div>
-                        <h3 className="font-medium text-foreground">Opening script, first 30 seconds</h3>
-                        <p className="text-sm text-muted-foreground">Keep it permission-based, relevant, and short enough to survive a busy prospect.</p>
+                  <div className="space-y-4 rounded-xl border border-border bg-background/60 p-4">
+                    <div>
+                      <div className="mb-4 flex items-start gap-3">
+                        <MessageSquareQuote className="mt-0.5 h-5 w-5 text-primary" />
+                        <div>
+                          <h3 className="font-medium text-foreground">Opening script, first 30 seconds</h3>
+                          <p className="text-sm text-muted-foreground">Keep it permission-based, relevant, and short enough to survive a busy prospect.</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {openerScript.map((line, index) => (
+                          <div key={line} className="flex gap-3 rounded-lg border border-border px-3 py-3 text-sm">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</div>
+                            <p className="text-foreground">{line}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="space-y-3">
-                      {openerScript.map((line, index) => (
-                        <div key={line} className="flex gap-3 rounded-lg border border-border px-3 py-3 text-sm">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</div>
-                          <p className="text-foreground">{line}</p>
-                        </div>
-                      ))}
+
+                    <Separator />
+
+                    <div>
+                      <h3 className="font-medium text-foreground">If they say it is a bad time</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">The goal is not to save the pitch. The goal is to save the next conversation.</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {badTimeRecovery.map((line, index) => (
+                          <div key={line} className="flex gap-3 rounded-lg border border-border px-3 py-3 text-sm">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</div>
+                            <p className="text-foreground">{line}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
@@ -347,8 +383,16 @@ export default function TrainingPage() {
                   <p className="mt-1">Rep sounds generic, asks for too much time, or explains the company before earning relevance.</p>
                 </div>
                 <div className="rounded-lg border border-border bg-background/70 p-3">
+                  <p className="font-medium text-foreground">Bad-time push-through</p>
+                  <p className="mt-1">Prospect says they are busy, but the rep keeps pitching instead of locking a callback window and saving it.</p>
+                </div>
+                <div className="rounded-lg border border-border bg-background/70 p-3">
                   <p className="font-medium text-foreground">Missed follow-up trigger</p>
                   <p className="mt-1">Rep logs interest but does not record why the next touch matters now.</p>
+                </div>
+                <div className="rounded-lg border border-border bg-background/70 p-3">
+                  <p className="font-medium text-foreground">Soft voicemail recovery</p>
+                  <p className="mt-1">Rep leaves a long generic voicemail and does not tee up the next attempt with a callback reason, SMS, or timing clue.</p>
                 </div>
                 <div className="rounded-lg border border-border bg-background/70 p-3">
                   <p className="font-medium text-foreground">Soft booking handoff</p>
