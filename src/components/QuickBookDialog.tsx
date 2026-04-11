@@ -259,7 +259,13 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       const newStatus = getContactStatusForPipelineType(pipelineType);
       await supabase
         .from("contacts")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+          meeting_booked_date: pipelineType === "booked" ? scheduledFor.toISOString() : null,
+          next_followup_date: pipelineType === "follow_up" ? scheduledFor.toISOString() : null,
+          follow_up_note: pipelineType === "follow_up" ? (notes.trim() || null) : null,
+        })
         .eq("id", selectedContact.id);
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
