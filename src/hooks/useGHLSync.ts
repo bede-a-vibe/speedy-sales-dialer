@@ -100,11 +100,15 @@ async function persistOpportunityIdentity(params: {
 }) {
   if (!params.pipelineItemId) return;
 
-  const ghlOpportunityId = extractGhlOpportunityId(params.opportunityPayload);
+  const extractedTarget = extractGhlOpportunityTarget(params.opportunityPayload);
+  const ghlOpportunityId = extractedTarget.opportunityId ?? extractGhlOpportunityId(params.opportunityPayload);
   const updates: Record<string, string> = {};
 
-  if (params.ghlPipelineId) updates.ghl_pipeline_id = params.ghlPipelineId;
-  if (params.ghlStageId) updates.ghl_stage_id = params.ghlStageId;
+  const pipelineId = extractedTarget.pipelineId ?? params.ghlPipelineId;
+  const stageId = extractedTarget.stageId ?? params.ghlStageId;
+
+  if (pipelineId) updates.ghl_pipeline_id = pipelineId;
+  if (stageId) updates.ghl_stage_id = stageId;
   if (ghlOpportunityId) updates.ghl_opportunity_id = ghlOpportunityId;
 
   if (Object.keys(updates).length === 0) return;
