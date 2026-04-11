@@ -87,7 +87,7 @@ function getNextFollowUpRescheduleIso(currentScheduledFor?: string | null, fallb
 function buildFollowUpNoteDraft(contact: Record<string, unknown> | null | undefined) {
   if (!contact) return "";
 
-  const parts: string[] = [];
+  const intel: string[] = [];
   const dmName = typeof contact.dm_name === "string" ? contact.dm_name.trim() : "";
   const dmPhone = typeof contact.dm_phone === "string" ? contact.dm_phone.trim() : "";
   const bestTimeToCall = typeof contact.best_time_to_call === "string" ? contact.best_time_to_call.trim() : "";
@@ -96,13 +96,39 @@ function buildFollowUpNoteDraft(contact: Record<string, unknown> | null | undefi
   const gatekeeperNotes = typeof contact.gatekeeper_notes === "string" ? contact.gatekeeper_notes.trim() : "";
   const priorFollowUpNote = typeof contact.follow_up_note === "string" ? contact.follow_up_note.trim() : "";
 
-  if (bestTimeToCall) parts.push(`Best callback window: ${bestTimeToCall}`);
-  if (bestRoute) parts.push(`Best route: ${bestRoute}`);
-  if (dmName || dmPhone) parts.push(`Decision maker: ${[dmName, dmPhone].filter(Boolean).join(" · ")}`);
-  if (gatekeeperName || gatekeeperNotes) parts.push(`Gatekeeper: ${[gatekeeperName, gatekeeperNotes].filter(Boolean).join(" · ")}`);
-  if (priorFollowUpNote) parts.push(`Previous note: ${priorFollowUpNote}`);
+  if (bestTimeToCall) intel.push(`Best callback window: ${bestTimeToCall}`);
+  if (bestRoute) intel.push(`Best route: ${bestRoute}`);
+  if (dmName || dmPhone) intel.push(`Decision maker: ${[dmName, dmPhone].filter(Boolean).join(" · ")}`);
+  if (gatekeeperName || gatekeeperNotes) intel.push(`Gatekeeper: ${[gatekeeperName, gatekeeperNotes].filter(Boolean).join(" · ")}`);
+  if (priorFollowUpNote) intel.push(`Previous note: ${priorFollowUpNote}`);
 
-  return parts.join("\n");
+  if (intel.length === 0) return "";
+
+  return [
+    "Next step:",
+    "Reason for follow-up:",
+    ...intel,
+  ].join("\n");
+}
+
+function mergeFollowUpNotes(existingNotes: string, draft: string) {
+  const existing = existingNotes.trim();
+  const nextDraftLines = draft
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!existing) return draft;
+
+  const existingLines = existing
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const missingLines = nextDraftLines.filter((line) => !existingLines.includes(line));
+  if (missingLines.length === 0) return existingNotes;
+
+  return `${existing}\n${existing.endsWith("\n") ? "" : "\n"}${missingLines.join("\n")}`;
 }
 
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
@@ -495,6 +521,8 @@ export default function DialerPage() {
     const calendarId = ghlCalendarId;
     const pipelineId = ghlPipelineId;
     const stageId = ghlStageId;
+    const followUpPipelineId = defaultFollowUpPipeline?.id;
+    const followUpStageId = defaultFollowUpStage?.id;
     const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
 
     // Advance immediately
@@ -617,6 +645,8 @@ export default function DialerPage() {
             method,
             contactName,
             repName,
+            pipelineId: followUpPipelineId,
+            pipelineStageId: followUpStageId,
           }).catch(() => {});
 
           // If follow-up method is email, generate and push a draft email to GHL
@@ -653,7 +683,21 @@ export default function DialerPage() {
         }
       }
     })();
-  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, ghlLink, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
+  }, [
+    session,
+    dialpad,
+    createCallLog,
+    createPipelineItem,
+    updateContact,
+    ghlSync,
+    ghlLink,
+    salesReps,
+    ghlCalendarId,
+    ghlPipelineId,
+    ghlStageId,
+    defaultFollowUpPipeline?.id,
+    defaultFollowUpStage?.id,
+  ]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
@@ -1732,8 +1776,14 @@ export default function DialerPage() {
                         Follow-up Notes
                       </label>
                       {followUpNoteDraft && (
-                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => session.setNotes(followUpNoteDraft)}>
-                          Refill from callback intel
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => session.setNotes(mergeFollowUpNotes(session.notes, followUpNoteDraft))}
+                        >
+                          Top up from callback intel
                         </Button>
                       )}
                     </div>
@@ -1745,7 +1795,7 @@ export default function DialerPage() {
                     />
                     {followUpNoteDraft && (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Pulled from saved callback timing, routing, decision-maker, and prior follow-up notes.
+                        Adds a reusable follow-up note shell plus saved callback timing, routing, decision-maker, and prior follow-up notes without wiping anything already typed.
                       </p>
                     )}
                   </div>
