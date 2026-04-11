@@ -1,4 +1,4 @@
-import { BookOpenText, Brain, CheckCircle2, ChevronRight, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
+import { BookOpenText, Brain, CheckCircle2, ChevronRight, ClipboardCheck, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,37 @@ const transcriptPatterns = [
   },
 ];
 
+const callReviewRubric = [
+  {
+    category: "Opener and permission",
+    weight: "25%",
+    strong: "Rep earns 20 to 30 seconds quickly with a relevant reason for calling and low-friction permission language.",
+    weak: "Rep leads with identity checks, long setup, or a generic company pitch that causes an immediate brush-off.",
+    transcriptLookFors: ["Prospect stays engaged past the first exchange", "Rep states a specific reason for calling", "No rambling intro before value is clear"],
+  },
+  {
+    category: "Discovery and pain capture",
+    weight: "30%",
+    strong: "Rep uncovers one practical business problem, a current gap, or pressure point the next caller can act on.",
+    weak: "Conversation stays polite but vague, with no concrete pain, no urgency, and no useful context for follow-up.",
+    transcriptLookFors: ["At least one measurable pain or friction point", "Owner or stakeholder context is captured", "Rep asks follow-up questions instead of jumping to pitch"],
+  },
+  {
+    category: "Objection handling",
+    weight: "20%",
+    strong: "Rep treats objections as context, responds briefly, and turns the call back toward diagnosis or next-step commitment.",
+    weak: "Rep argues, overexplains, or accepts the objection without learning what sits behind it.",
+    transcriptLookFors: ["Rep labels the objection cleanly", "Response is concise and curious", "Conversation progresses instead of stalling out"],
+  },
+  {
+    category: "Close and CRM handoff",
+    weight: "25%",
+    strong: "Rep confirms the next action, timing, contact path, and note quality so the transcript can become usable follow-up intelligence.",
+    weak: "Rep ends the call with vague interest, missing contact data, or notes another rep cannot confidently use.",
+    transcriptLookFors: ["Clear next step or booked action", "Best number or callback window confirmed", "Notes can be written from the call without replaying it"],
+  },
+];
+
 export default function TrainingPage() {
   return (
     <AppLayout title="Training">
@@ -132,11 +163,12 @@ export default function TrainingPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="scripts" className="space-y-4">
-                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-5">
+                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-6">
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
                   <TabsTrigger value="patterns" className="border border-border bg-muted/40">Patterns</TabsTrigger>
+                  <TabsTrigger value="reviews" className="border border-border bg-muted/40">Reviews</TabsTrigger>
                   <TabsTrigger value="playbook" className="border border-border bg-muted/40">Playbook</TabsTrigger>
                 </TabsList>
 
@@ -234,6 +266,49 @@ export default function TrainingPage() {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="reviews">
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="mb-4 flex items-start gap-3">
+                      <ClipboardCheck className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">Transcript-to-coaching review rubric</h3>
+                        <p className="text-sm text-muted-foreground">A simple scorecard managers can use while reading transcripts so coaching stays consistent across reps and shifts.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {callReviewRubric.map((item) => (
+                        <div key={item.category} className="rounded-xl border border-border bg-card/70 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <h4 className="font-medium text-foreground">{item.category}</h4>
+                            <Badge variant="outline" className="w-fit">{item.weight}</Badge>
+                          </div>
+                          <div className="mt-3 grid gap-3 md:grid-cols-3">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Strong rep behavior</p>
+                              <p className="mt-1 text-sm text-foreground">{item.strong}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Coach when this shows up</p>
+                              <p className="mt-1 text-sm text-foreground">{item.weak}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Transcript look-fors</p>
+                              <ul className="mt-1 space-y-1 text-sm text-foreground">
+                                {item.transcriptLookFors.map((lookFor) => (
+                                  <li key={lookFor} className="flex gap-2">
+                                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                                    <span>{lookFor}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="playbook">
                   <div className="rounded-xl border border-border bg-background/60 p-4">
                     <div className="mb-4 flex items-start gap-3">
@@ -293,7 +368,7 @@ export default function TrainingPage() {
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>Campaign-specific talk tracks per industry or offer</li>
-                  <li>Manager scorecards and call review rubrics</li>
+                  <li>Bad-vs-good transcript clips tied to each rubric category</li>
                   <li>New rep onboarding path with day-one to day-thirty milestones</li>
                   <li>Linked content from live dialer outcomes and pipeline stages</li>
                 </ul>
