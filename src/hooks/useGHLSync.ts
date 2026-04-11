@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { toast } from "sonner";
 import {
   ghlAddNote,
   ghlAddTag,
@@ -66,6 +67,18 @@ interface PushDNCParams {
   ghlContactId: string;
 }
 
+function describeError(err: unknown) {
+  return err instanceof Error ? err.message : "Unknown error";
+}
+
+function reportSyncFailure(action: string, ghlContactId: string, err: unknown) {
+  const message = describeError(err);
+  console.error(`[GHL Sync] Failed to ${action} for contact ${ghlContactId}:`, err);
+  toast.error(`GHL sync failed: ${action}`, {
+    description: `Contact ${ghlContactId}: ${message}`,
+  });
+}
+
 export function useGHLSync() {
   const pushCallNote = useCallback(async (params: PushCallNoteParams) => {
     const { ghlContactId, outcome, notes, durationSeconds, repName } = params;
@@ -82,7 +95,7 @@ export function useGHLSync() {
     try {
       await ghlAddNote(ghlContactId, parts.join("\n"));
     } catch (err) {
-      console.error("[GHL Sync] Failed to push call note:", err);
+      reportSyncFailure("push call note", ghlContactId, err);
     }
   }, []);
 
@@ -127,7 +140,7 @@ export function useGHLSync() {
       if (notes) noteParts.push(`Notes: ${notes}`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
     } catch (err) {
-      console.error("[GHL Sync] Failed to push booking:", err);
+      reportSyncFailure("push booking", ghlContactId, err);
     }
   }, []);
 
@@ -177,7 +190,7 @@ export function useGHLSync() {
       noteParts.push(`Logged via Speedy Sales Dialer`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
     } catch (err) {
-      console.error("[GHL Sync] Failed to push follow-up:", err);
+      reportSyncFailure("push follow-up", ghlContactId, err);
     }
   }, []);
 
@@ -225,7 +238,7 @@ export function useGHLSync() {
         return true;
       }
     } catch (err) {
-      console.error("[GHL Sync] Failed to push follow-up email draft:", err);
+      reportSyncFailure("push follow-up email draft", ghlContactId, err);
     }
     return false;
   }, []);
@@ -238,7 +251,7 @@ export function useGHLSync() {
       await ghlUpdateContact(ghlContactId, { dnd: true });
       await ghlAddNote(ghlContactId, "🚫 Marked as DNC via Speedy Sales Dialer");
     } catch (err) {
-      console.error("[GHL Sync] Failed to push DNC:", err);
+      reportSyncFailure("push DNC", ghlContactId, err);
     }
   }, []);
 
