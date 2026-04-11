@@ -106,6 +106,13 @@ type ContactIntegrityBadge = {
   title: string;
 };
 
+type ContactActionCue = {
+  label: string;
+  detail: string;
+  className: string;
+  title: string;
+};
+
 function getContactIntegrityBadges(contact: Contact): ContactIntegrityBadge[] {
   const badges: ContactIntegrityBadge[] = [];
   const hasGhlLink = Boolean(contact.ghl_contact_id);
@@ -250,6 +257,108 @@ function getQueueReadinessBadge(contact: Contact): ContactIntegrityBadge {
     label: "Needs enrichment",
     className: "bg-muted text-muted-foreground",
     title: "This lead still needs cleaner operational context before it is queue-ready.",
+  };
+}
+
+function getContactActionCue(contact: Contact): ContactActionCue {
+  const bookedAt = contact.meeting_booked_date || contact.latest_appointment_scheduled_for;
+  const followUpAt = contact.next_followup_date;
+
+  if (contact.is_dnc || contact.status === "dnc") {
+    return {
+      label: "Blocked",
+      detail: "Keep out of queue",
+      className: "bg-destructive/10 text-destructive",
+      title: "This record is marked do-not-call and should not be worked.",
+    };
+  }
+
+  if (contact.status === "booked" && !bookedAt) {
+    return {
+      label: "Fix booked state",
+      detail: "Missing appointment date",
+      className: "bg-destructive/10 text-destructive",
+      title: "Booked status exists without a saved appointment date, so reps cannot trust the handoff.",
+    };
+  }
+
+  if (contact.status === "follow_up" && !followUpAt) {
+    return {
+      label: "Fix follow-up",
+      detail: "Missing next date",
+      className: "bg-destructive/10 text-destructive",
+      title: "Follow-up status exists without a scheduled next touch date.",
+    };
+  }
+
+  if (!contact.ghl_contact_id && (contact.status === "follow_up" || contact.status === "booked")) {
+    return {
+      label: "Link to GHL",
+      detail: "Status can drift remotely",
+      className: "bg-amber-500/10 text-amber-700",
+      title: "This active operational contact is not linked to GHL yet.",
+    };
+  }
+
+  if (contact.status === "booked") {
+    return {
+      label: "Booked",
+      detail: bookedAt ? format(new Date(bookedAt), "MMM d, h:mm a") : "Review handoff",
+      className: "bg-blue-500/10 text-blue-700",
+      title: "Booked contact, confirm the appointment details and keep it out of the active dial queue.",
+    };
+  }
+
+  if (contact.status === "follow_up") {
+    return {
+      label: "Work follow-up",
+      detail: followUpAt ? format(new Date(followUpAt), "MMM d, h:mm a") : "Needs scheduling",
+      className: "bg-amber-500/10 text-amber-700",
+      title: "This contact should be worked as a follow-up before cold queue leads.",
+    };
+  }
+
+  if (contact.dm_phone && contact.ghl_contact_id) {
+    return {
+      label: "Queue ready",
+      detail: "Direct DM + linked",
+      className: "bg-emerald-500/10 text-emerald-700",
+      title: "This contact has a direct decision-maker path and is linked to GHL.",
+    };
+  }
+
+  if (contact.dm_phone) {
+    return {
+      label: "Queue ready",
+      detail: "Direct DM captured",
+      className: "bg-emerald-500/10 text-emerald-700",
+      title: "This contact has a direct decision-maker number saved.",
+    };
+  }
+
+  if (contact.phone_type === "landline" || contact.phone_type === "business_line") {
+    return {
+      label: "Capture routing",
+      detail: "Need transfer intel",
+      className: "bg-orange-500/10 text-orange-700",
+      title: "This routed line still needs better gatekeeper or transfer notes before it is truly queue-ready.",
+    };
+  }
+
+  if (!contact.ghl_contact_id) {
+    return {
+      label: "Enrich + link",
+      detail: "No GHL identity yet",
+      className: "bg-muted text-muted-foreground",
+      title: "This lead still needs cleaner operating context and a saved GHL identity.",
+    };
+  }
+
+  return {
+    label: "Enrich contact",
+    detail: "Confirm DM path",
+    className: "bg-muted text-muted-foreground",
+    title: "This lead still needs better decision-maker or routing context before it is fully queue-ready.",
   };
 }
 
@@ -890,6 +999,7 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
                     <th className="w-28 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
@@ -897,6 +1007,7 @@ export default function ContactsPage() {
                   {contacts.map((contact) => {
                     const isExpanded = expandedId === contact.id;
                     const integrityBadges = [getQueueReadinessBadge(contact), ...getContactIntegrityBadges(contact)];
+                    const actionCue = getContactActionCue(contact);
 
                     return (
                       <React.Fragment key={contact.id}>
@@ -930,6 +1041,14 @@ export default function ContactsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
+                            <div className="space-y-1" title={actionCue.title}>
+                              <span className={`inline-flex rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${actionCue.className}`}>
+                                {actionCue.label}
+                              </span>
+                              <p className="text-xs text-muted-foreground">{actionCue.detail}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
@@ -945,7 +1064,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={7} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={8} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
