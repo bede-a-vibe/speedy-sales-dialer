@@ -376,6 +376,28 @@ export default function PipelinesPage() {
     [completedBooked],
   );
 
+  const bookedMirrorStats = useMemo(() => {
+    const linked = booked.filter((item) => !!item.ghl_opportunity_id).length;
+    const fullyMapped = booked.filter(
+      (item) =>
+        !!item.ghl_opportunity_id &&
+        !!item.ghl_pipeline_id &&
+        !!item.ghl_stage_id,
+    ).length;
+    const onConfiguredBookedStage = booked.filter(
+      (item) =>
+        !!item.ghl_opportunity_id &&
+        (!!defaultBookedPipeline?.id ? item.ghl_pipeline_id === defaultBookedPipeline.id : !!item.ghl_pipeline_id) &&
+        (!!defaultBookedStage?.id ? item.ghl_stage_id === defaultBookedStage.id : !!item.ghl_stage_id),
+    ).length;
+
+    return {
+      linked,
+      fullyMapped,
+      onConfiguredBookedStage,
+      needsLink: booked.length - linked,
+    };
+  }, [booked, defaultBookedPipeline?.id, defaultBookedStage?.id]);
 
   const renderHistory = () => {
     if (historyLoading) {
@@ -477,7 +499,7 @@ export default function PipelinesPage() {
           followUpHandoffCount={followUpHandoffCount}
         />
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-border bg-card p-4">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked queue</p>
             <p className="mt-2 font-mono text-3xl font-bold text-foreground">{booked.length}</p>
@@ -485,6 +507,16 @@ export default function PipelinesPage() {
               {staleCount > 0
                 ? `${staleCount} booked appointment${staleCount === 1 ? " needs" : "s need"} an outcome.`
                 : "All open booked appointments have been reviewed so far."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-sky-700">GHL mirror coverage</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-foreground">{bookedMirrorStats.onConfiguredBookedStage}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {bookedMirrorStats.fullyMapped} linked to an opportunity, {bookedMirrorStats.onConfiguredBookedStage} sitting on the configured booked pipeline and stage.
+            </p>
+            <p className="mt-3 text-[11px] font-mono text-muted-foreground">
+              {bookedMirrorStats.needsLink} need GHL linking
             </p>
           </div>
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
