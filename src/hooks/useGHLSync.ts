@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ghlAddNote,
   ghlAddTag,
@@ -8,6 +9,7 @@ import {
   ghlCreateAppointment,
   ghlUpdateContact,
 } from "@/lib/ghl";
+import { extractGhlOpportunityId } from "@/lib/ghlOpportunityIdentity";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 import { CALL_OUTCOME_LABELS, getFollowUpTaskTitle, resolveGhlOpportunityTarget } from "@/lib/pipelineMappings";
 
@@ -34,6 +36,7 @@ interface PushBookingParams {
   scheduledFor: string; // ISO string
   title?: string;
   notes?: string;
+  pipelineItemId?: string;
   pipelineId?: string;
   pipelineStageId?: string;
   contactName?: string;
@@ -48,6 +51,7 @@ interface PushFollowUpParams {
   method?: "call" | "email" | "prospecting";
   contactName?: string;
   repName?: string;
+  pipelineItemId?: string;
   pipelineId?: string;
   pipelineStageId?: string;
 }
@@ -79,6 +83,33 @@ function reportSyncFailure(action: string, ghlContactId: string, err: unknown) {
   });
 }
 
+async function persistOpportunityIdentity(params: {
+  pipelineItemId?: string;
+  ghlPipelineId?: string;
+  ghlStageId?: string;
+  opportunityPayload?: unknown;
+}) {
+  if (!params.pipelineItemId) return;
+
+  const ghlOpportunityId = extractGhlOpportunityId(params.opportunityPayload);
+  const updates: Record<string, string> = {};
+
+  if (params.ghlPipelineId) updates.ghl_pipeline_id = params.ghlPipelineId;
+  if (params.ghlStageId) updates.ghl_stage_id = params.ghlStageId;
+  if (ghlOpportunityId) updates.ghl_opportunity_id = ghlOpportunityId;
+
+  if (Object.keys(updates).length === 0) return;
+
+  const { error } = await supabase
+    .from("pipeline_items")
+    .update(updates)
+    .eq("id", params.pipelineItemId);
+
+  if (error) {
+    console.warn("[GHL Sync] Failed to persist opportunity identity:", error);
+  }
+}
+
 export function useGHLSync() {
   const pushCallNote = useCallback(async (params: PushCallNoteParams) => {
     const { ghlContactId, outcome, notes, durationSeconds, repName } = params;
@@ -94,8 +125,10 @@ export function useGHLSync() {
 
     try {
       await ghlAddNote(ghlContactId, parts.join("\n"));
+      return true;
     } catch (err) {
       reportSyncFailure("push call note", ghlContactId, err);
+      return false;
     }
   }, []);
 
@@ -106,6 +139,7 @@ export function useGHLSync() {
       scheduledFor,
       title,
       notes,
+      pipelineItemId,
       pipelineId,
       pipelineStageId,
       contactName,
@@ -129,13 +163,20 @@ export function useGHLSync() {
       });
 
       if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
-        await ghlCreateOpportunity({
+        const opportunity = await ghlCreateOpportunity({
           pipelineType: "booked",
           pipelineId: opportunityTarget.pipelineId,
           pipelineStageId: opportunityTarget.pipelineStageId,
           contactId: ghlContactId,
           name: `${contactName ?? "Contact"} – Booked ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
           status: "open",
+        });
+
+        await persistOpportunityIdentity({
+          pipelineItemId,
+          ghlPipelineId: opportunityTarget.pipelineId,
+          ghlStageId: opportunityTarget.pipelineStageId,
+          opportunityPayload: opportunity,
         });
       }
 
@@ -144,8 +185,10 @@ export function useGHLSync() {
       if (repName) noteParts.push(`Booked by: ${repName}`);
       if (notes) noteParts.push(`Notes: ${notes}`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
+      return true;
     } catch (err) {
       reportSyncFailure("push booking", ghlContactId, err);
+      return false;
     }
   }, []);
 
@@ -158,6 +201,7 @@ export function useGHLSync() {
       method,
       contactName,
       repName,
+      pipelineItemId,
       pipelineId,
       pipelineStageId,
     } = params;
@@ -177,13 +221,20 @@ export function useGHLSync() {
         pipelineStageId,
       });
 
-      await ghlCreateOpportunity({
+      const opportunity = await ghlCreateOpportunity({
         pipelineType: "follow_up",
         pipelineId: opportunityTarget.pipelineId,
         pipelineStageId: opportunityTarget.pipelineStageId,
         contactId: ghlContactId,
         name: `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
         status: "open",
+      });
+
+      await persistOpportunityIdentity({
+        pipelineItemId,
+        ghlPipelineId: opportunityTarget.pipelineId,
+        ghlStageId: opportunityTarget.pipelineStageId,
+        opportunityPayload: opportunity,
       });
 
       // Add a follow-up note
@@ -194,8 +245,10 @@ export function useGHLSync() {
       if (description) noteParts.push(`Notes: ${description}`);
       noteParts.push(`Logged via Speedy Sales Dialer`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
+      return true;
     } catch (err) {
       reportSyncFailure("push follow-up", ghlContactId, err);
+      return false;
     }
   }, []);
 

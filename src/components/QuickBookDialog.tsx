@@ -86,6 +86,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [ghlCalendarId, setGhlCalendarId] = useState("");
   const [ghlPipelineId, setGhlPipelineId] = useState("");
   const [ghlStageId, setGhlStageId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const ghlSelectedPipelineStages = useMemo(
     () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
@@ -243,7 +244,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   );
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedContact || !assignedRepId || !scheduledDate || !user) return;
+    if (!selectedContact || !assignedRepId || !scheduledDate || !user || isSubmitting) return;
 
     const scheduledFor = new Date(
       scheduledDate.getFullYear(),
@@ -252,8 +253,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       ...scheduledTime.split(":").map(Number) as [number, number],
     );
 
+    setIsSubmitting(true);
+
     try {
-      await createPipelineItem.mutateAsync({
+      const createdPipelineItem = await createPipelineItem.mutateAsync({
         contact_id: selectedContact.id,
         pipeline_type: pipelineType,
         assigned_user_id: assignedRepId,
@@ -261,6 +264,12 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
         follow_up_method: pipelineType === "follow_up" ? followUpMethod : undefined,
+        ghl_pipeline_id: pipelineType === "booked"
+          ? (ghlPipelineId || null)
+          : (defaultFollowUpPipeline?.id || null),
+        ghl_stage_id: pipelineType === "booked"
+          ? (ghlStageId || null)
+          : (defaultFollowUpStage?.id || null),
       });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
@@ -291,10 +300,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         .eq("id", selectedContact.id);
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
-      toast.success(`${label} created for ${selectedContact.business_name}`);
+      let ghlSyncConfirmed = false;
 
-      // ── GHL Sync (fire-and-forget) ──
-      // Auto-link contact to GHL if not already linked, then sync
+      // Try to confirm GHL sync before showing success.
       const contactGhlId =
         (selectedContact as Record<string, unknown>).ghl_contact_id as string | null
         ?? await ghlLink.ensureGHLLink(selectedContact as any).catch(() => null);
@@ -302,27 +310,29 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       if (contactGhlId) {
         const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
         if (pipelineType === "booked" && ghlCalendarId) {
-          ghlSync.pushBooking({
+          ghlSyncConfirmed = await ghlSync.pushBooking({
             ghlContactId: contactGhlId,
             calendarId: ghlCalendarId,
             scheduledFor: scheduledFor.toISOString(),
             contactName: selectedContact.business_name,
             repName,
             notes: notes.trim() || undefined,
+            pipelineItemId: createdPipelineItem.id,
             pipelineId: ghlPipelineId || undefined,
             pipelineStageId: ghlStageId || undefined,
-          }).catch(() => {});
+          });
         }
         if (pipelineType === "follow_up") {
-          ghlSync.pushFollowUp({
+          ghlSyncConfirmed = await ghlSync.pushFollowUp({
             ghlContactId: contactGhlId,
             scheduledFor: scheduledFor.toISOString(),
             method: followUpMethod,
             contactName: selectedContact?.business_name ?? undefined,
             repName,
+            pipelineItemId: createdPipelineItem.id,
             pipelineId: defaultFollowUpPipeline?.id,
             pipelineStageId: defaultFollowUpStage?.id,
-          }).catch(() => {});
+          });
 
           // If follow-up method is email, generate and push a draft email
           if (followUpMethod === "email" && selectedContact) {
@@ -338,11 +348,21 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         }
       }
 
+      if (ghlSyncConfirmed) {
+        toast.success(`${label} created for ${selectedContact.business_name}`);
+      } else if (contactGhlId) {
+        toast.warning(`${label} saved locally, but GHL sync is not confirmed yet.`);
+      } else {
+        toast.warning(`${label} saved locally, but this contact is not linked to GHL yet.`);
+      }
+
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
 
   const isBooked = pipelineType === "booked";
 
@@ -656,10 +676,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
               {/* Submit */}
               <Button
                 onClick={handleSubmit}
-                disabled={!canSubmit || createPipelineItem.isPending}
+                disabled={!canSubmit || createPipelineItem.isPending || isSubmitting}
                 className="w-full py-3 font-semibold"
               >
-                {createPipelineItem.isPending ? (
+                {createPipelineItem.isPending || isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : isBooked ? (
                   <CalendarPlus className="mr-2 h-4 w-4" />
