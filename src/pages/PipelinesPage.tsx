@@ -22,6 +22,7 @@ import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
+import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -461,8 +462,19 @@ export default function PipelinesPage() {
           currentView="pipelines"
           bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
           bookedStageName={defaultBookedStage?.name ?? undefined}
-          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Outbound Prospecting"}
+          followUpStageName={defaultFollowUpStage?.name ?? "Follow Up"}
+        />
+
+        <PipelineMirrorCards
+          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
+          bookedStageName={defaultBookedStage?.name ?? "Booked Appointment"}
+          bookedOpenCount={booked.length}
+          bookedCompletedCount={completedBooked.length}
+          bookedStaleCount={staleCount}
+          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Outbound Prospecting"}
+          followUpStageName={defaultFollowUpStage?.name ?? "Follow Up"}
+          followUpHandoffCount={followUpHandoffCount}
         />
 
         <div className="grid gap-3 md:grid-cols-3">

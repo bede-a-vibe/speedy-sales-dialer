@@ -28,26 +28,39 @@ export function findGHLPipelineStageByName(stages: GHLPipelineStage[], stageName
   return stages.find((stage) => stage.name.trim().toLowerCase() === normalizedTarget) ?? null;
 }
 
+function findPipelineFromContract(
+  pipelines: GHLPipeline[],
+  contract: { pipelineId: string; pipelineName: string },
+) {
+  return findGHLPipelineByName(pipelines, contract.pipelineName)
+    ?? pipelines.find((pipeline) => pipeline.id === contract.pipelineId)
+    ?? null;
+}
+
+function findStageFromContract(
+  pipeline: GHLPipeline | null | undefined,
+  contract: { stageId: string; stageName: string },
+) {
+  if (!pipeline) return null;
+  return findGHLPipelineStageByName(pipeline.stages, contract.stageName)
+    ?? pipeline.stages.find((stage) => stage.id === contract.stageId)
+    ?? null;
+}
+
 export function findDefaultBookedPipeline(pipelines: GHLPipeline[]) {
-  return pipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_CONTRACT.booked.pipelineId)
-    ?? findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
+  return findPipelineFromContract(pipelines, GHL_PIPELINE_CONTRACT.booked);
 }
 
 export function findDefaultBookedStage(pipeline: GHLPipeline | null | undefined) {
-  if (!pipeline) return null;
-  return pipeline.stages.find((stage) => stage.id === GHL_PIPELINE_CONTRACT.booked.stageId)
-    ?? findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.booked.stageName);
+  return findStageFromContract(pipeline, GHL_PIPELINE_CONTRACT.booked);
 }
 
 export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {
-  return pipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_CONTRACT.follow_up.pipelineId)
-    ?? findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.follow_up.pipelineName);
+  return findPipelineFromContract(pipelines, GHL_PIPELINE_CONTRACT.follow_up);
 }
 
 export function findDefaultFollowUpStage(pipeline: GHLPipeline | null | undefined) {
-  if (!pipeline) return null;
-  return pipeline.stages.find((stage) => stage.id === GHL_PIPELINE_CONTRACT.follow_up.stageId)
-    ?? findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.follow_up.stageName);
+  return findStageFromContract(pipeline, GHL_PIPELINE_CONTRACT.follow_up);
 }
 
 export function useGHLCalendars() {
