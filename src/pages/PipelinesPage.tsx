@@ -7,7 +7,7 @@ import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
+import { GHL_PIPELINE_DEFAULTS, getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 
 import {
   usePipelineItems,
@@ -19,6 +19,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
+import { useGHLPipelines } from "@/hooks/useGHLConfig";
+import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -219,8 +221,18 @@ export default function PipelinesPage() {
   const { user } = useAuth();
   const ghlSync = useGHLSync();
   const ghlLink = useGHLContactLink();
+  const { data: ghlPipelines = [] } = useGHLPipelines();
 
-  
+  const defaultFollowUpPipeline = useMemo(
+    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    [ghlPipelines],
+  );
+
+  const defaultFollowUpStage = useMemo(
+    () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
+    [defaultFollowUpPipeline],
+  );
+
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -425,6 +437,12 @@ export default function PipelinesPage() {
             <span>{completedBooked.length} completed</span>
           </div>
         </div>
+
+        <TwoPipelineGuide
+          currentView="pipelines"
+          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+        />
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>

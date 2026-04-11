@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AlertTriangle, CalendarClock, ChevronRight, Clock3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useGHLPipelines } from "@/hooks/useGHLConfig";
+import { GHL_PIPELINE_DEFAULTS } from "@/lib/pipelineMappings";
+import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 type FollowUpContact = {
   id: string;
@@ -59,6 +62,15 @@ export default function FollowUpsPage() {
   const [anchorDate, setAnchorDate] = useState(todayIso);
   const [taskCount, setTaskCount] = useState(0);
   const [forDate, setForDate] = useState<string | null>(null);
+  const { data: ghlPipelines = [] } = useGHLPipelines();
+  const defaultFollowUpPipeline = useMemo(
+    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    [ghlPipelines],
+  );
+  const defaultFollowUpStage = useMemo(
+    () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
+    [defaultFollowUpPipeline],
+  );
   const emptyStateByScope: Record<FollowUpScope, string> = {
     today: "No open GHL follow-ups due today.",
     overdue: "No overdue GHL follow-ups right now.",
@@ -121,6 +133,11 @@ export default function FollowUpsPage() {
   return (
     <AppLayout title="Follow-Ups">
       <div className="max-w-4xl mx-auto space-y-4">
+        <TwoPipelineGuide
+          currentView="followups"
+          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+        />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
             <div className="flex items-center gap-2 text-destructive">
