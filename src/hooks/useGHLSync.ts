@@ -316,7 +316,6 @@ export function useGHLSync() {
         status: "follow_up",
         scheduledFor,
         notes: description ?? null,
-        clearMeetingBookedDate: true,
       });
       return true;
     } catch (err) {
