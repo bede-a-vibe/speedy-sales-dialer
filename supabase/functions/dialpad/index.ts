@@ -1166,6 +1166,57 @@ async function enqueuePendingGhlPush(params: {
   }
 }
 
+async function attemptAutoLinkGhlContact(params: {
+  adminClient: ReturnType<typeof createClient>;
+  contactId: string;
+  ghlApiKey: string;
+  phone: string | null | undefined;
+}) {
+  const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
+  if (!GHL_LOCATION_ID || !params.phone) {
+    return null;
+  }
+
+  let e164Phone: string | null = null;
+  try {
+    e164Phone = normalizePhoneNumberToE164(params.phone);
+  } catch {
+    return null;
+  }
+
+  const phoneDigits = e164Phone.replace(/\D/g, "");
+  console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId}, attempting auto-link via phone search`);
+
+  const searchResponse = await fetch(
+    `${GHL_BASE_URL}/contacts/?query=${encodeURIComponent(phoneDigits)}&locationId=${GHL_LOCATION_ID}&limit=1`,
+    { headers: ghlApiHeaders(params.ghlApiKey) },
+  );
+
+  if (!searchResponse.ok) {
+    const details = await searchResponse.text().catch(() => "");
+    throw new Error(`GHL phone search failed: ${searchResponse.status} ${details}`);
+  }
+
+  const searchData = await searchResponse.json().catch(() => ({}));
+  const ghlMatch = searchData?.contacts?.[0];
+  if (!ghlMatch?.id) {
+    console.log(`[AI→GHL] No GHL contact found for phone ${phoneDigits}`);
+    return null;
+  }
+
+  const { error: updateError } = await params.adminClient
+    .from("contacts")
+    .update({ ghl_contact_id: ghlMatch.id })
+    .eq("id", params.contactId);
+
+  if (updateError) {
+    throw new Error(`Failed to save auto-linked ghl_contact_id: ${updateError.message}`);
+  }
+
+  console.log(`[AI→GHL] Auto-linked contact ${params.contactId} → GHL ${ghlMatch.id}`);
+  return ghlMatch.id as string;
+}
+
 function coerceBoundedLimit(value: unknown, fallback: number, min: number, max: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
@@ -1247,18 +1298,31 @@ async function processPendingGhlPushes(params: {
 
     const { data: contact } = await params.adminClient
       .from("contacts")
-      .select("ghl_contact_id")
+      .select("ghl_contact_id, phone")
       .eq("id", row.contact_id)
       .maybeSingle();
 
-    const ghlContactId = contact?.ghl_contact_id;
+    let ghlContactId = contact?.ghl_contact_id;
+    if (!ghlContactId) {
+      try {
+        ghlContactId = await attemptAutoLinkGhlContact({
+          adminClient: params.adminClient,
+          contactId: row.contact_id,
+          ghlApiKey: GHL_API_KEY,
+          phone: contact?.phone,
+        });
+      } catch (autoLinkError) {
+        console.error("[AI→GHL] Retry auto-link attempt failed:", autoLinkError);
+      }
+    }
+
     if (!ghlContactId) {
       await params.adminClient
         .from("pending_ghl_pushes")
         .update({
           status: "pending",
           next_retry_at: nextRetryAt,
-          last_error: "Missing ghl_contact_id",
+          last_error: contact?.phone ? "Missing ghl_contact_id after retry auto-link" : "Missing ghl_contact_id and phone",
         })
         .eq("id", row.id);
       requeued++;
@@ -1445,7 +1509,7 @@ async function processAiSummaryAndPushToGhl(params: {
     .eq("id", params.contactId)
     .maybeSingle();
 
-  const ghlContactId = contact?.ghl_contact_id;
+  let ghlContactId = contact?.ghl_contact_id;
   let ghlNotePushed = false;
   let ghlFieldsPushed = false;
 
@@ -1472,73 +1536,33 @@ async function processAiSummaryAndPushToGhl(params: {
       });
     }
   } else if (!ghlContactId && GHL_API_KEY) {
-    // ── Auto-link: try to find/create GHL contact on the fly ──
-    // This handles the case where the contact was never linked to GHL.
-    const GHL_LOCATION_ID = Deno.env.get("GHL_LOCATION_ID");
-    let e164Phone: string | null = null;
-    if (contact?.phone) {
-      try {
-        e164Phone = normalizePhoneNumberToE164(contact.phone);
-      } catch {
-        e164Phone = null;
-      }
-    }
-    if (GHL_LOCATION_ID && e164Phone) {
-      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — attempting auto-link via phone search`);
-      try {
-        // Search GHL by phone number
-        const phoneDigits = e164Phone.replace(/\D/g, "");
-        const searchResponse = await fetch(
-          `${GHL_BASE_URL}/contacts/?query=${encodeURIComponent(phoneDigits)}&locationId=${GHL_LOCATION_ID}&limit=1`,
-          { headers: ghlApiHeaders(GHL_API_KEY) },
-        );
+    try {
+      ghlContactId = await attemptAutoLinkGhlContact({
+        adminClient: params.adminClient,
+        contactId: params.contactId,
+        ghlApiKey: GHL_API_KEY,
+        phone: contact?.phone,
+      });
 
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
-          const ghlMatch = searchData?.contacts?.[0];
-
-          if (ghlMatch?.id) {
-            // Found a match — save the ghl_contact_id to Supabase
-            await params.adminClient
-              .from("contacts")
-              .update({ ghl_contact_id: ghlMatch.id })
-              .eq("id", params.contactId);
-
-            console.log(`[AI→GHL] Auto-linked contact ${params.contactId} → GHL ${ghlMatch.id}`);
-
-            // Now push the note and fields to the newly linked GHL contact
-            if (aiResult.note) {
-              ghlNotePushed = await pushNoteToGhl({
-                ghlApiKey: GHL_API_KEY,
-                ghlContactId: ghlMatch.id,
-                noteBody: aiResult.note,
-              });
-            }
-
-            if (aiResult.fields && Object.keys(aiResult.fields).length > 0) {
-              const existingCustomFields = await fetchGhlContactCustomFields(GHL_API_KEY, ghlMatch.id);
-              ghlFieldsPushed = await pushFieldsToGhl({
-                ghlApiKey: GHL_API_KEY,
-                ghlContactId: ghlMatch.id,
-                fields: aiResult.fields,
-                existingCustomFields: existingCustomFields ?? undefined,
-              });
-            }
-          } else {
-            console.log(`[AI→GHL] No GHL contact found for phone ${phoneDigits} — queued for retry`);
-            await enqueuePendingGhlPush({
-              adminClient: params.adminClient,
-              contactId: params.contactId,
-              dialpadCallId: params.dialpadCallId,
-              userId: params.userId,
-              aiNote: aiResult.note ?? null,
-              aiFields: aiResult.fields ?? {},
-              lastError: "No GHL contact found during auto-link",
-            });
-          }
+      if (ghlContactId) {
+        if (aiResult.note) {
+          ghlNotePushed = await pushNoteToGhl({
+            ghlApiKey: GHL_API_KEY,
+            ghlContactId,
+            noteBody: aiResult.note,
+          });
         }
-      } catch (linkErr) {
-        console.error(`[AI→GHL] Auto-link attempt failed:`, linkErr);
+
+        if (aiResult.fields && Object.keys(aiResult.fields).length > 0) {
+          const existingCustomFields = await fetchGhlContactCustomFields(GHL_API_KEY, ghlContactId);
+          ghlFieldsPushed = await pushFieldsToGhl({
+            ghlApiKey: GHL_API_KEY,
+            ghlContactId,
+            fields: aiResult.fields,
+            existingCustomFields: existingCustomFields ?? undefined,
+          });
+        }
+      } else if (contact?.phone) {
         await enqueuePendingGhlPush({
           adminClient: params.adminClient,
           contactId: params.contactId,
@@ -1546,11 +1570,22 @@ async function processAiSummaryAndPushToGhl(params: {
           userId: params.userId,
           aiNote: aiResult.note ?? null,
           aiFields: aiResult.fields ?? {},
-          lastError: linkErr instanceof Error ? linkErr.message : "Auto-link failed",
+          lastError: "No GHL contact found during auto-link",
+        });
+      } else {
+        console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — queued for retry (no location ID or phone)`);
+        await enqueuePendingGhlPush({
+          adminClient: params.adminClient,
+          contactId: params.contactId,
+          dialpadCallId: params.dialpadCallId,
+          userId: params.userId,
+          aiNote: aiResult.note ?? null,
+          aiFields: aiResult.fields ?? {},
+          lastError: "Missing ghl_contact_id and auto-link prerequisites",
         });
       }
-    } else {
-      console.log(`[AI→GHL] No ghl_contact_id for contact ${params.contactId} — queued for retry (no location ID or phone)`);
+    } catch (linkErr) {
+      console.error(`[AI→GHL] Auto-link attempt failed:`, linkErr);
       await enqueuePendingGhlPush({
         adminClient: params.adminClient,
         contactId: params.contactId,
@@ -1558,7 +1593,7 @@ async function processAiSummaryAndPushToGhl(params: {
         userId: params.userId,
         aiNote: aiResult.note ?? null,
         aiFields: aiResult.fields ?? {},
-        lastError: "Missing ghl_contact_id and auto-link prerequisites",
+        lastError: linkErr instanceof Error ? linkErr.message : "Auto-link failed",
       });
     }
   }
