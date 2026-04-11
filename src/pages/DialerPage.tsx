@@ -29,10 +29,10 @@ import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
-import { GHL_PIPELINE_DEFAULTS, getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
+import { getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import {
@@ -230,7 +230,7 @@ export default function DialerPage() {
   );
 
   const defaultFollowUpStage = useMemo(
-    () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
+    () => findDefaultFollowUpStage(defaultFollowUpPipeline),
     [defaultFollowUpPipeline],
   );
 
@@ -1420,6 +1420,10 @@ export default function DialerPage() {
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
               <SalesToolkit
                 contactIndustry={session.currentContact?.industry ?? null}
+                businessName={session.currentContact?.business_name ?? null}
+                city={session.currentContact?.city ?? null}
+                state={session.currentContact?.state ?? null}
+                attemptCount={session.currentContact?.call_attempt_count ?? 0}
               />
 
               {/* Embedded Dialpad CTI — no need to open Dialpad separately */}

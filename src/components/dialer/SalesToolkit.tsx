@@ -8,6 +8,10 @@ import { CallScriptPanel } from "@/components/dialer/CallScriptPanel";
 interface SalesToolkitProps {
   /** Current contact's industry for script matching */
   contactIndustry?: string | null;
+  businessName?: string | null;
+  city?: string | null;
+  state?: string | null;
+  attemptCount?: number | null;
 }
 
 /**
@@ -18,7 +22,7 @@ interface SalesToolkitProps {
  *
  * Sits in the dialer's left column so reps have instant access during calls.
  */
-export function SalesToolkit({ contactIndustry }: SalesToolkitProps) {
+export function SalesToolkit({ contactIndustry, businessName, city, state, attemptCount }: SalesToolkitProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!isExpanded) {
@@ -80,7 +84,13 @@ export function SalesToolkit({ contactIndustry }: SalesToolkitProps) {
         </TabsContent>
 
         <TabsContent value="voicemails">
-          <VoicemailTemplates />
+          <VoicemailTemplates
+            businessName={businessName}
+            industry={contactIndustry}
+            city={city}
+            state={state}
+            attemptCount={attemptCount}
+          />
         </TabsContent>
       </Tabs>
     </div>
