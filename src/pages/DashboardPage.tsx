@@ -5,6 +5,7 @@ import { LiveActivityFeed } from "@/components/LiveActivityFeed";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats";
+import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerformancePanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
@@ -59,56 +60,68 @@ export default function DashboardPage() {
         {/* Row 3: Achievements with confetti & gamification */}
         <DailyAchievements />
 
-        {/* Row 3: Progress ring + today's outcomes */}
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+        {/* Row 4: Progress ring + reporting snapshot */}
+        <div className="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-6">
           <DailyProgressRing />
+          <DashboardPerformancePanel />
+        </div>
 
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
-              Today's Outcomes
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-              {(Object.keys(OUTCOME_CONFIG) as CallOutcome[]).map((outcome) => {
-                const config = OUTCOME_CONFIG[outcome];
-                const count = outcomeCounts[outcome] || 0;
-                return (
-                  <div
-                    key={outcome}
+        {/* Row 5: Today's outcomes */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                Today's Outcomes
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Live call dispositions for your calls today.
+              </p>
+            </div>
+            <span className="rounded-full border border-border bg-background px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+              {todaysLogs.length} logged
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+            {(Object.keys(OUTCOME_CONFIG) as CallOutcome[]).map((outcome) => {
+              const config = OUTCOME_CONFIG[outcome];
+              const count = outcomeCounts[outcome] || 0;
+              return (
+                <div
+                  key={outcome}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all",
+                    count > 0
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border bg-muted/20",
+                  )}
+                >
+                  <span
                     className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all",
-                      count > 0
-                        ? "border-primary/20 bg-primary/5"
-                        : "border-border bg-muted/20",
+                      "text-2xl font-black font-mono",
+                      count > 0 ? "text-foreground" : "text-muted-foreground/40",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "text-2xl font-black font-mono",
-                        count > 0 ? "text-foreground" : "text-muted-foreground/40",
-                      )}
-                    >
-                      {count}
-                    </span>
-                    <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
-                      {config.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                    {count}
+                  </span>
+                  <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {config.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Row 4: Targets (daily visible, weekly/team collapsed) */}
+        {/* Row 6: Targets (daily visible, weekly/team collapsed) */}
         <DashboardTargetsOverview />
 
-        {/* Row 5: Leaderboard + Activity Feed */}
+        {/* Row 7: Leaderboard + Activity Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
 
-        {/* Row 6: Long-term achievements */}
+        {/* Row 8: Long-term achievements */}
         <LongTermAchievements />
       </div>
     </AppLayout>
