@@ -11,6 +11,10 @@ const DIALER_INITIAL_CLAIM_SIZE = 12;
 const DIALER_LOCK_MINUTES = 15;
 const DIALER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 const DIALER_PREVIEW_DEBOUNCE_MS = 250;
+const DIALER_MIN_BUFFER_FLOOR = 8;
+const DIALER_EMPTY_REFILL_RETRY_LIMIT = 3;
+const DIALER_EMPTY_REFILL_BACKOFF_MS = 400;
+const DIALER_EXHAUSTION_GRACE_MS = 5000;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -43,6 +47,38 @@ export type DialerFilterOptions = {
 type RollingDialerQueueOptions = {
   userId?: string | null;
   filters?: DialerFilterOptions;
+};
+
+export type DialerQueueHealth =
+  | "idle"
+  | "bootstrapping"
+  | "healthy"
+  | "refilling"
+  | "degraded"
+  | "exhausted";
+
+export type DialerQueueSupervisorMeta = {
+  health: DialerQueueHealth;
+  lastRefillStartedAt: number | null;
+  lastRefillFinishedAt: number | null;
+  lastSuccessfulClaimAt: number | null;
+  consecutiveEmptyRefills: number;
+  lastKnownAvailableCount: number | null;
+  exhaustionGraceUntil: number | null;
+};
+
+export type DialerQueueReconcileReason =
+  | "session_start"
+  | "buffer_low"
+  | "buffer_empty"
+  | "contact_discarded"
+  | "manual_recover"
+  | "periodic_sweep";
+
+type ReconcileResult = {
+  claimedCount: number;
+  availableCount: number | null;
+  health: DialerQueueHealth;
 };
 
 type DiscardDialerContactOptions = {
@@ -225,6 +261,15 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [previewCount, setPreviewCount] = useState(0);
+  const [queueSupervisor, setQueueSupervisor] = useState<DialerQueueSupervisorMeta>({
+    health: "idle",
+    lastRefillStartedAt: null,
+    lastRefillFinishedAt: null,
+    lastSuccessfulClaimAt: null,
+    consecutiveEmptyRefills: 0,
+    lastKnownAvailableCount: null,
+    exhaustionGraceUntil: null,
+  });
   const contactsRef = useRef<Contact[]>([]);
   const sessionRef = useRef<string | null>(null);
   const claimInFlightRef = useRef<Promise<number> | null>(null);
@@ -232,6 +277,10 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
   const stopInFlightRef = useRef<Promise<void> | null>(null);
   const startingRef = useRef(false);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
+
+  const setQueueHealth = useCallback((health: DialerQueueHealth) => {
+    setQueueSupervisor((current) => ({ ...current, health }));
+  }, []);
 
   useEffect(() => {
     contactsRef.current = contacts;
@@ -305,6 +354,15 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     contactsRef.current = [];
     setContacts([]);
     setTotalCount(0);
+    setQueueSupervisor({
+      health: "idle",
+      lastRefillStartedAt: null,
+      lastRefillFinishedAt: null,
+      lastSuccessfulClaimAt: null,
+      consecutiveEmptyRefills: 0,
+      lastKnownAvailableCount: null,
+      exhaustionGraceUntil: null,
+    });
     claimInFlightRef.current = null;
     setIsLoading(false);
     setIsPrefetching(false);
@@ -368,6 +426,104 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     return task;
   }, [claimIntoBuffer, cleanupSessionLocks]);
 
+  const reconcileQueue = useCallback(async (reason: DialerQueueReconcileReason = "buffer_low"): Promise<ReconcileResult> => {
+    if (!sessionRef.current || startingRef.current) {
+      return { claimedCount: 0, availableCount: null, health: sessionRef.current ? queueSupervisor.health : "idle" };
+    }
+
+    const initialBufferSize = contactsRef.current.length;
+    const startedAt = Date.now();
+
+    if (initialBufferSize === 0) {
+      setQueueSupervisor((current) => ({
+        ...current,
+        exhaustionGraceUntil: current.exhaustionGraceUntil ?? startedAt + DIALER_EXHAUSTION_GRACE_MS,
+      }));
+    }
+
+    if (claimInFlightRef.current) {
+      if (initialBufferSize < DIALER_MIN_BUFFER_FLOOR) {
+        setQueueHealth("refilling");
+      }
+      return {
+        claimedCount: 0,
+        availableCount: queueSupervisor.lastKnownAvailableCount,
+        health: initialBufferSize < DIALER_MIN_BUFFER_FLOOR ? "refilling" : queueSupervisor.health,
+      };
+    }
+
+    setQueueSupervisor((current) => ({
+      ...current,
+      health: "refilling",
+      lastRefillStartedAt: startedAt,
+    }));
+
+    let claimedCount = 0;
+    let availableCount: number | null = null;
+
+    for (let attempt = 0; attempt < DIALER_EMPTY_REFILL_RETRY_LIMIT; attempt++) {
+      claimedCount += await ensureBuffer(DIALER_TARGET_BUFFER);
+
+      const currentBufferSize = contactsRef.current.length;
+      const finishedAt = Date.now();
+
+      if (currentBufferSize >= DIALER_MIN_BUFFER_FLOOR) {
+        const nextAvailableCount = Math.max(totalCount, currentBufferSize);
+        setQueueSupervisor((current) => ({
+          ...current,
+          health: "healthy",
+          lastRefillFinishedAt: finishedAt,
+          lastSuccessfulClaimAt: finishedAt,
+          consecutiveEmptyRefills: 0,
+          lastKnownAvailableCount: nextAvailableCount,
+          exhaustionGraceUntil: null,
+        }));
+
+        return {
+          claimedCount,
+          availableCount: nextAvailableCount,
+          health: "healthy",
+        };
+      }
+
+      availableCount = await getDialerQueueCount({
+        sessionId: sessionRef.current,
+        filters,
+      });
+
+      if (currentBufferSize === 0 && availableCount > 0 && attempt < DIALER_EMPTY_REFILL_RETRY_LIMIT - 1) {
+        await new Promise((resolve) => setTimeout(resolve, DIALER_EMPTY_REFILL_BACKOFF_MS));
+        continue;
+      }
+
+      const nextEmptyRefills = claimedCount === 0 ? queueSupervisor.consecutiveEmptyRefills + 1 : 0;
+      const graceUntil = currentBufferSize === 0
+        ? (queueSupervisor.exhaustionGraceUntil ?? startedAt + DIALER_EXHAUSTION_GRACE_MS)
+        : null;
+      const exhausted = currentBufferSize === 0
+        && availableCount === 0
+        && nextEmptyRefills >= DIALER_EMPTY_REFILL_RETRY_LIMIT
+        && graceUntil !== null
+        && finishedAt >= graceUntil;
+      const nextHealth: DialerQueueHealth = exhausted ? "exhausted" : "degraded";
+
+      setQueueSupervisor((current) => ({
+        ...current,
+        health: nextHealth,
+        lastRefillFinishedAt: finishedAt,
+        consecutiveEmptyRefills: claimedCount === 0 ? current.consecutiveEmptyRefills + 1 : 0,
+        lastKnownAvailableCount: availableCount,
+        exhaustionGraceUntil: currentBufferSize === 0
+          ? (current.exhaustionGraceUntil ?? startedAt + DIALER_EXHAUSTION_GRACE_MS)
+          : null,
+      }));
+
+      return { claimedCount, availableCount, health: nextHealth };
+    }
+
+    return { claimedCount, availableCount, health: queueSupervisor.health };
+  }, [ensureBuffer, filters, queueSupervisor.consecutiveEmptyRefills, queueSupervisor.exhaustionGraceUntil, queueSupervisor.health, queueSupervisor.lastKnownAvailableCount, setQueueHealth, totalCount]);
+
   const startSession = useCallback(async () => {
     if (startInFlightRef.current) {
       return startInFlightRef.current;
@@ -385,6 +541,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
       const activeSessionId = crypto.randomUUID();
       sessionRef.current = activeSessionId;
       startingRef.current = true;
+      setQueueHealth("bootstrapping");
       // Don't set sessionId state yet — prevents prefetch effect from racing
       contactsRef.current = [];
       setContacts([]);
@@ -408,6 +565,14 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
         contactsRef.current = claimedContacts;
         setContacts(claimedContacts);
         setTotalCount(claimedTotalCount);
+        setQueueSupervisor((current) => ({
+          ...current,
+          health: claimedContacts.length > 0 ? "healthy" : "degraded",
+          lastSuccessfulClaimAt: claimedContacts.length > 0 ? Date.now() : current.lastSuccessfulClaimAt,
+          consecutiveEmptyRefills: claimedContacts.length > 0 ? 0 : current.consecutiveEmptyRefills,
+          lastKnownAvailableCount: claimedTotalCount,
+          exhaustionGraceUntil: claimedContacts.length > 0 ? null : Date.now() + DIALER_EXHAUSTION_GRACE_MS,
+        }));
 
         // Now expose sessionId to React state — contacts are populated so prefetch won't race
         startingRef.current = false;
@@ -455,8 +620,8 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
 
   useEffect(() => {
     if (!sessionId || contacts.length > DIALER_PREFETCH_THRESHOLD) return;
-    void ensureBuffer();
-  }, [contacts.length, ensureBuffer, sessionId]);
+    void reconcileQueue(contacts.length === 0 ? "buffer_empty" : "buffer_low");
+  }, [contacts.length, reconcileQueue, sessionId]);
 
   useEffect(() => {
     if (!sessionId || contacts.length === 0) return;
@@ -530,6 +695,9 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     sessionId,
     isLoading,
     isPrefetching,
+    queueHealth: queueSupervisor.health,
+    queueSupervisor,
+    reconcileQueue,
     startSession,
     stopSession,
     ensureBuffer,

@@ -97,7 +97,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     void queue.ensureBuffer();
   }, [queue.ensureBuffer, isSessionActive, nextContact?.id]);
 
-  // Auto-stop when queue empties
+  // Reconcile first, auto-stop only on confirmed exhaustion
   useEffect(() => {
     if (!isSessionActive || currentIndex === null) return;
     if (queue.contacts.length > 0 && isBootstrappingSession) {
@@ -105,12 +105,17 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
       return;
     }
     if (queue.contacts.length === 0) {
-      if (isBootstrappingSession || queue.isPrefetching) return;
-      stopSession();
-    } else if (currentIndex >= queue.contacts.length) {
+      if (isBootstrappingSession) return;
+      void queue.reconcileQueue("buffer_empty");
+      if (queue.queueHealth === "exhausted") {
+        stopSession();
+      }
+      return;
+    }
+    if (currentIndex >= queue.contacts.length) {
       setCurrentIndex(queue.contacts.length - 1);
     }
-  }, [queue.contacts.length, isBootstrappingSession, isSessionActive, currentIndex, queue.isPrefetching]);
+  }, [queue.contacts.length, queue.queueHealth, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
 
   // Reset on filter change outside session
   useEffect(() => {
