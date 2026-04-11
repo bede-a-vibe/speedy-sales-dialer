@@ -1,4 +1,4 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed } from "lucide-react";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
@@ -67,6 +67,30 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
         ? `Main line likely routes through ${contact.gatekeeper_name}.`
         : "Main line likely routes through reception or a gatekeeper."
       : "This looks like a direct number, so start here.";
+  const businessLineWorkflowItems = isBusinessRoutedNumber
+    ? [
+        {
+          label: "Number type",
+          value: phoneType.label,
+          complete: true,
+        },
+        {
+          label: "Decision maker direct line",
+          value: contact.dm_phone ? contact.dm_phone : "Still needed",
+          complete: Boolean(contact.dm_phone),
+        },
+        {
+          label: "Gatekeeper context",
+          value: contact.gatekeeper_name ? contact.gatekeeper_name : "Not captured",
+          complete: Boolean(contact.gatekeeper_name),
+        },
+        {
+          label: "Routing guidance",
+          value: bestRouteToDecisionMaker ? bestRouteToDecisionMaker : "Ask how to reach the right person fastest",
+          complete: Boolean(bestRouteToDecisionMaker),
+        },
+      ]
+    : [];
 
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
@@ -190,6 +214,34 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
           )}
         </div>
       </div>
+
+      {isBusinessRoutedNumber && (
+        <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-sky-300" />
+            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-300">Business Line Workflow</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {businessLineWorkflowItems.map((item) => {
+              const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
+              return (
+                <div key={item.label} className="rounded-md border border-sky-500/20 bg-background/60 px-3 py-2">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-200/80">
+                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-400' : 'text-sky-300/70'}`} />
+                    {item.label}
+                  </div>
+                  <p className="mt-1 text-sm text-foreground">{item.value}</p>
+                </div>
+              );
+            })}
+          </div>
+          {!contact.dm_phone && (
+            <p className="text-xs text-sky-100/85">
+              Best next step: use this call to confirm the correct decision maker and capture a direct mobile or extension before requeueing.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Decision Maker Section */}
       {hasDM ? (
