@@ -511,6 +511,9 @@ export type Database = {
           created_by: string
           deal_value: number | null
           follow_up_method: string
+          ghl_opportunity_id: string | null
+          ghl_pipeline_id: string | null
+          ghl_stage_id: string | null
           id: string
           notes: string
           outcome_notes: string
@@ -533,6 +536,9 @@ export type Database = {
           created_by: string
           deal_value?: number | null
           follow_up_method?: string
+          ghl_opportunity_id?: string | null
+          ghl_pipeline_id?: string | null
+          ghl_stage_id?: string | null
           id?: string
           notes?: string
           outcome_notes?: string
@@ -555,6 +561,9 @@ export type Database = {
           created_by?: string
           deal_value?: number | null
           follow_up_method?: string
+          ghl_opportunity_id?: string | null
+          ghl_pipeline_id?: string | null
+          ghl_stage_id?: string | null
           id?: string
           notes?: string
           outcome_notes?: string

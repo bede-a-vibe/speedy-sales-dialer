@@ -16,6 +16,9 @@ export interface PipelineItemInsert {
   notes?: string;
   status?: PipelineStatus;
   follow_up_method?: FollowUpMethod;
+  ghl_opportunity_id?: string | null;
+  ghl_pipeline_id?: string | null;
+  ghl_stage_id?: string | null;
 }
 
 export interface PipelineItemUpdate {
@@ -30,6 +33,9 @@ export interface PipelineItemUpdate {
   outcome_notes?: string;
   deal_value?: number | null;
   follow_up_method?: FollowUpMethod;
+  ghl_opportunity_id?: string | null;
+  ghl_pipeline_id?: string | null;
+  ghl_stage_id?: string | null;
 }
 
 export interface PipelineItemWithRelations {
@@ -48,6 +54,9 @@ export interface PipelineItemWithRelations {
   outcome_notes: string;
   deal_value: number | null;
   follow_up_method: FollowUpMethod;
+  ghl_opportunity_id: string | null;
+  ghl_pipeline_id: string | null;
+  ghl_stage_id: string | null;
   reschedule_count: number;
   created_at: string;
   updated_at: string;
@@ -107,6 +116,9 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_notes,
           deal_value,
           follow_up_method,
+          ghl_opportunity_id,
+          ghl_pipeline_id,
+          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -175,6 +187,9 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_notes,
           deal_value,
           follow_up_method,
+          ghl_opportunity_id,
+          ghl_pipeline_id,
+          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -238,13 +253,18 @@ export function useCreatePipelineItem() {
 
   return useMutation({
     mutationFn: async (payload: PipelineItemInsert) => {
-      const { error } = await supabase.from("pipeline_items").insert({
-        notes: "",
-        status: "open",
-        ...payload,
-      });
+      const { data, error } = await supabase
+        .from("pipeline_items")
+        .insert({
+          notes: "",
+          status: "open",
+          ...payload,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });

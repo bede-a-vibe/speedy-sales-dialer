@@ -628,7 +628,7 @@ export default function DialerPage() {
 
         const pipelineType = getPipelineTypeForOutcome(outcomeToLog);
         if (pipelineType) {
-          await createPipelineItem.mutateAsync({
+          createdPipelineItem = await createPipelineItem.mutateAsync({
             contact_id: contactId,
             source_call_log_id: insertedLog.id,
             pipeline_type: pipelineType,
@@ -636,6 +636,8 @@ export default function DialerPage() {
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
+            ghl_pipeline_id: pipelineType === "booked" ? (pipelineId || null) : (followUpPipelineId || null),
+            ghl_stage_id: pipelineType === "booked" ? (stageId || null) : (followUpStageId || null),
             ...(pipelineType === "follow_up" ? { follow_up_method: method } : {}),
           });
         }
@@ -692,6 +694,7 @@ export default function DialerPage() {
             contactName,
             repName,
             notes: pipelineNotes || undefined,
+            pipelineItemId: createdPipelineItem?.id,
             pipelineId: pipelineId || undefined,
             pipelineStageId: stageId || undefined,
           }).catch(() => {});
@@ -704,6 +707,7 @@ export default function DialerPage() {
             method,
             contactName,
             repName,
+            pipelineItemId: createdPipelineItem?.id,
             pipelineId: followUpPipelineId,
             pipelineStageId: followUpStageId,
           }).catch(() => {});
