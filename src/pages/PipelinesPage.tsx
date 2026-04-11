@@ -8,7 +8,7 @@ import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { GHL_PIPELINE_DEFAULTS, getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
+import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 
 import {
   usePipelineItems,
@@ -20,7 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 function getRepLabel(displayName: string | null, email: string | null) {
@@ -235,7 +235,7 @@ export default function PipelinesPage() {
   );
 
   const defaultFollowUpStage = useMemo(
-    () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
+    () => findDefaultFollowUpStage(defaultFollowUpPipeline),
     [defaultFollowUpPipeline],
   );
 

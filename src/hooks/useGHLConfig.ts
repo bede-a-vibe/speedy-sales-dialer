@@ -42,6 +42,12 @@ export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {
     ?? findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.follow_up.pipelineName);
 }
 
+export function findDefaultFollowUpStage(pipeline: GHLPipeline | null | undefined) {
+  if (!pipeline) return null;
+  return pipeline.stages.find((stage) => stage.id === GHL_PIPELINE_CONTRACT.follow_up.stageId)
+    ?? findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.follow_up.stageName);
+}
+
 export function useGHLCalendars() {
   return useQuery<GHLCalendar[]>({
     queryKey: ["ghl", "calendars"],
