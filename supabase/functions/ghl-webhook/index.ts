@@ -180,6 +180,32 @@ function mapGhlToSupabase(event: GHLContactEvent): Record<string, unknown> {
   return fields;
 }
 
+async function nudgePendingGhlPushesForContact(
+  supabase: ReturnType<typeof createClient>,
+  contactId: string,
+) {
+  const { error, count } = await supabase
+    .from("pending_ghl_pushes")
+    .update({
+      status: "pending",
+      next_retry_at: new Date().toISOString(),
+      last_error: "GHL contact link refreshed by webhook",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("contact_id", contactId)
+    .in("status", ["pending", "failed"])
+    .select("id", { count: "exact", head: true });
+
+  if (error) {
+    console.warn(`[ghl-webhook] Failed to nudge pending GHL pushes for ${contactId}:`, error.message);
+    return;
+  }
+
+  if ((count ?? 0) > 0) {
+    console.log(`[ghl-webhook] Requeued ${count} pending GHL push(es) for contact ${contactId}`);
+  }
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -309,6 +335,7 @@ Deno.serve(async (req) => {
       console.error("[ghl-webhook] Update by id failed:", error.message);
       return json({ error: error.message }, 500);
     }
+    await nudgePendingGhlPushesForContact(supabase, byId.id);
     console.log(`[ghl-webhook] Updated contact ${byId.id} via ghl_contact_id`);
     return json({ ok: true, action: "updated", supabaseContactId: byId.id, ghlContactId });
   }
@@ -336,6 +363,7 @@ Deno.serve(async (req) => {
         console.error("[ghl-webhook] Update by phone failed:", error.message);
         return json({ error: error.message }, 500);
       }
+      await nudgePendingGhlPushesForContact(supabase, byPhone.id);
       console.log(`[ghl-webhook] Linked contact ${byPhone.id} via phone match`);
       return json({ ok: true, action: "linked_by_phone", supabaseContactId: byPhone.id, ghlContactId });
     }
@@ -362,6 +390,7 @@ Deno.serve(async (req) => {
         console.error("[ghl-webhook] Update by email failed:", error.message);
         return json({ error: error.message }, 500);
       }
+      await nudgePendingGhlPushesForContact(supabase, byEmail.id);
       console.log(`[ghl-webhook] Linked contact ${byEmail.id} via email match`);
       return json({ ok: true, action: "linked_by_email", supabaseContactId: byEmail.id, ghlContactId });
     }
@@ -402,6 +431,7 @@ Deno.serve(async (req) => {
       return json({ error: error.message }, 500);
     }
 
+    await nudgePendingGhlPushesForContact(supabase, created.id);
     console.log(`[ghl-webhook] Created new contact ${created.id} from GHL`);
     return json({ ok: true, action: "created", supabaseContactId: created.id, ghlContactId });
   }
