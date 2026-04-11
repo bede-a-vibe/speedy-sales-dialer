@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Headphones, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound, SlidersHorizontal } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -11,6 +11,7 @@ import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -63,6 +64,12 @@ function combineDateAndTime(date: Date, time: string) {
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
+}
+
+function formatFilterSummary(label: string, values: string[]) {
+  if (values.length === 0) return null;
+  if (values.length === 1) return `${label}: ${values[0]}`;
+  return `${label}: ${values[0]} +${values.length - 1}`;
 }
 
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
@@ -183,6 +190,26 @@ export default function DialerPage() {
   const queueLeadCount = useMemo(
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
     [session.queue.totalCount, session.queue.contacts.length],
+  );
+
+  const activeFilterSummary = useMemo(
+    () => [
+      formatFilterSummary("Industry", industries),
+      formatFilterSummary("State", states),
+      formatFilterSummary("Trade", tradeTypes),
+      contactOwner !== "all" ? `Owner: ${getRepLabel(salesReps.find((rep) => rep.user_id === contactOwner)?.display_name ?? null, salesReps.find((rep) => rep.user_id === contactOwner)?.email ?? contactOwner)}` : null,
+      workType !== "all" ? `Work: ${WORK_TYPES.find((item) => item.value === workType)?.label ?? workType}` : null,
+      businessSize !== "all" ? `Business: ${BUSINESS_SIZES.find((item) => item.value === businessSize)?.label ?? businessSize}` : null,
+      prospectTier !== "all" ? `Tier: ${PROSPECT_TIERS.find((item) => item.value === prospectTier)?.label ?? prospectTier}` : null,
+      hasGoogleAds !== "all" ? `Google Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasGoogleAds)?.label ?? hasGoogleAds}` : null,
+      hasFacebookAds !== "all" ? `Facebook Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasFacebookAds)?.label ?? hasFacebookAds}` : null,
+      buyingSignalStrength !== "all" ? `Buying signal: ${BUYING_SIGNAL_OPTIONS.find((item) => item.value === buyingSignalStrength)?.label ?? buyingSignalStrength}` : null,
+      phoneType !== "all" ? `Phone: ${phoneType}` : null,
+      hasDmPhone !== "all" ? `DM phone: ${hasDmPhone}` : null,
+      minGbpRating ? `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}` : null,
+      minReviewCount ? `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}` : null,
+    ].filter(Boolean) as string[],
+    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, minGbpRating, minReviewCount],
   );
 
   const requiresPipelineAssignment = session.selectedOutcome === "follow_up" || session.selectedOutcome === "booked";
@@ -520,6 +547,13 @@ export default function DialerPage() {
   }, [canSubmit, session.currentContact, dialpad.isCallTerminal, session.isDialing, session.isSessionActive, session.isSessionPaused, logAndNext, skipLead]);
 
   const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked"];
+  const currentLeadMeta = session.currentContact ? (session.currentContact as Record<string, unknown>) : null;
+  const quickFacts = session.currentContact ? [
+    session.currentContact.industry,
+    [session.currentContact.city, session.currentContact.state].filter(Boolean).join(", "),
+    currentLeadMeta?.dm_name ? `DM: ${String(currentLeadMeta.dm_name)}` : null,
+    typeof currentLeadMeta?.gatekeeper_name === "string" ? `Gatekeeper: ${String(currentLeadMeta.gatekeeper_name)}` : null,
+  ].filter(Boolean) as string[] : [];
 
   return (
     <AppLayout title="Dialer">
@@ -780,10 +814,76 @@ export default function DialerPage() {
           />
         )}
 
+        {activeFilterSummary.length > 0 && !session.isSessionActive && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue targeting</p>
+                <p className="text-sm text-foreground">Current lead filters that will shape the next dial session.</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={resetAdvancedFilters} className="text-muted-foreground">
+                Clear all
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activeFilterSummary.map((item) => (
+                <Badge key={item} variant="secondary" className="px-2.5 py-1 text-xs font-medium">
+                  {item}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Current lead</p>
+                    <h2 className="text-lg font-semibold text-foreground">{session.currentContact.business_name}</h2>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {quickFacts.map((fact) => (
+                        <Badge key={fact} variant="outline" className="text-xs">
+                          {fact}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[250px]">
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <div className="text-muted-foreground">Queue position</div>
+                      <div className="font-mono text-foreground">{session.currentIndex !== null ? `${session.currentIndex + 1} / ${Math.max(session.queue.contacts.length, session.currentIndex + 1)}` : "-"}</div>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2">
+                      <div className="text-muted-foreground">Session pace</div>
+                      <div className="font-mono text-foreground">{session.totalDialingMs > 60000 ? `${Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}/hr` : "Warming up"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <a href={`tel:${session.currentContact.phone}`} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                    <Phone className="h-4 w-4 text-primary" />
+                    <span className="truncate font-mono">{session.currentContact.phone}</span>
+                  </a>
+                  <a href={session.currentContact.website || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                    <Globe className="h-4 w-4 text-primary" />
+                    <span className="truncate">{session.currentContact.website ? "Open website" : "No website"}</span>
+                  </a>
+                  <a href={session.currentContact.email ? `mailto:${session.currentContact.email}` : "#"} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                    <Mail className="h-4 w-4 text-primary" />
+                    <span className="truncate">{session.currentContact.email || "No email"}</span>
+                  </a>
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="truncate">{[session.currentContact.city, session.currentContact.state].filter(Boolean).join(", ") || "Location unknown"}</span>
+                  </div>
+                </div>
+              </div>
+
               {session.isSessionPaused && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                   Session paused — this lead is held in your queue and no new call will start until you resume.
@@ -855,7 +955,44 @@ export default function DialerPage() {
               />
             </div>
 
-            <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <label className="block text-[10px] uppercase tracking-widest text-muted-foreground">Rep cheat sheet</label>
+                  <Badge variant="outline" className="text-[10px]">Fast keys</Badge>
+                </div>
+                <div className="grid gap-2 text-xs sm:grid-cols-2">
+                  <div className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-3 w-3" /> Outcomes</div>
+                    <div className="font-mono text-foreground">1-6 select result</div>
+                  </div>
+                  <div className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><NotebookPen className="h-3 w-3" /> Log lead</div>
+                    <div className="font-mono text-foreground">Enter saves + advances</div>
+                  </div>
+                  <div className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><SkipForward className="h-3 w-3" /> Skip</div>
+                    <div className="font-mono text-foreground">S holds nothing, moves on</div>
+                  </div>
+                  <div className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><TimerReset className="h-3 w-3" /> Pause</div>
+                    <div className="font-mono text-foreground">P toggles when call ends</div>
+                  </div>
+                </div>
+                {currentLeadMeta && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
+                      <div className="text-muted-foreground">Attempts</div>
+                      <div className="font-mono text-foreground">{String(session.currentContact.call_attempt_count ?? 0)}</div>
+                    </div>
+                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
+                      <div className="text-muted-foreground">Decision maker</div>
+                      <div className="font-mono text-foreground">{currentLeadMeta.dm_name ? <span className="inline-flex items-center gap-1"><UserCheck className="h-3 w-3 text-primary" /> Captured</span> : "Not captured"}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-lg border border-border bg-card p-4">
                 <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Outcome <span className="text-primary">(required)</span>
@@ -905,6 +1042,10 @@ export default function DialerPage() {
                         Follow-up Schedule
                       </label>
                       <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
+                          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
+                        </div>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
@@ -928,6 +1069,10 @@ export default function DialerPage() {
                           Appointment Date <span className="text-primary">(required)</span>
                         </label>
                         <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
+                            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
+                          </div>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
@@ -1060,6 +1205,13 @@ export default function DialerPage() {
                   ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
                   : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."}
             </p>
+            {activeFilterSummary.length > 0 && !session.queue.isLoading && (
+              <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
+                {activeFilterSummary.slice(0, 6).map((item) => (
+                  <Badge key={item} variant="outline" className="text-xs">{item}</Badge>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
