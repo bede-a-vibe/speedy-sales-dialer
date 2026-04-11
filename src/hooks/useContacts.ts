@@ -178,6 +178,8 @@ async function getDialerQueueCount({
   });
 }
 
+export type ContactsSortOption = "operational" | "updated_desc" | "created_desc" | "business_name_asc";
+
 export type PaginatedContactsFilters = {
   industry?: string;
   status?: string;
@@ -186,6 +188,7 @@ export type PaginatedContactsFilters = {
   search?: string;
   page?: number;
   pageSize?: number;
+  sortBy?: ContactsSortOption;
 };
 
 export type PaginatedContactsResult = {
@@ -201,15 +204,29 @@ async function fetchPaginatedContacts({
   search,
   page = 1,
   pageSize = 100,
+  sortBy = "operational",
 }: PaginatedContactsFilters): Promise<PaginatedContactsResult> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
   let query = supabase
     .from("contacts")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: true })
-    .range(from, to);
+    .select("*", { count: "exact" });
+
+  if (sortBy === "operational") {
+    query = query
+      .order("next_followup_date", { ascending: true, nullsFirst: false })
+      .order("latest_appointment_scheduled_for", { ascending: true, nullsFirst: false })
+      .order("updated_at", { ascending: false });
+  } else if (sortBy === "updated_desc") {
+    query = query.order("updated_at", { ascending: false });
+  } else if (sortBy === "created_desc") {
+    query = query.order("created_at", { ascending: false });
+  } else {
+    query = query.order("business_name", { ascending: true });
+  }
+
+  query = query.range(from, to);
 
   if (industry && industry !== "all") {
     query = query.eq("industry", industry);
