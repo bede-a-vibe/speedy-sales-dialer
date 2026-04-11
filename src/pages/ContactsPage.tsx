@@ -13,6 +13,7 @@ import { useIsAdmin } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -72,6 +73,23 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   closed: "bg-emerald-500/10 text-emerald-600",
   not_interested: "bg-muted text-muted-foreground",
   dnc: "bg-destructive/10 text-destructive",
+};
+
+const PHONE_QUALITY_OPTIONS = ["unconfirmed", "confirmed", "suspect", "dead"] as const;
+const PHONE_TYPE_OPTIONS = ["unknown", "mobile", "landline", "business_line"] as const;
+
+const PHONE_QUALITY_LABELS: Record<(typeof PHONE_QUALITY_OPTIONS)[number], string> = {
+  unconfirmed: "Unconfirmed",
+  confirmed: "Confirmed",
+  suspect: "Suspect",
+  dead: "Dead",
+};
+
+const PHONE_TYPE_LABELS: Record<(typeof PHONE_TYPE_OPTIONS)[number], string> = {
+  unknown: "Unknown",
+  mobile: "Mobile",
+  landline: "Landline",
+  business_line: "Business Line",
 };
 
 function getContactStage(contact: Contact) {
@@ -164,6 +182,21 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+        <span className={`rounded px-2 py-1 font-mono ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}>
+          {contact.status}
+        </span>
+        {contact.is_dnc && <span className="rounded bg-destructive/10 px-2 py-1 font-mono text-destructive">Do Not Call</span>}
+        <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+          {PHONE_TYPE_LABELS[(contact.phone_type as keyof typeof PHONE_TYPE_LABELS) || "unknown"] || "Unknown"}
+        </span>
+        <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+          {PHONE_QUALITY_LABELS[(contact.phone_number_quality as keyof typeof PHONE_QUALITY_LABELS) || "unconfirmed"] || "Unconfirmed"}
+        </span>
+        {contact.prospect_tier && <span className="rounded bg-primary/10 px-2 py-1 font-mono text-primary">{contact.prospect_tier}</span>}
+        {contact.buying_signal_strength && <span className="rounded bg-emerald-500/10 px-2 py-1 font-mono text-emerald-600">Signal: {contact.buying_signal_strength}</span>}
+      </div>
+
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 transition-colors hover:text-foreground"><Mail className="h-3 w-3" /> {contact.email}</a>}
         {contact.website && <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 transition-colors hover:text-foreground"><Globe className="h-3 w-3" /> Website</a>}
@@ -189,6 +222,34 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
           </div>
         </div>
       )}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded border border-border bg-card px-3 py-3">
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Phone Intelligence</p>
+          <div className="space-y-1.5 text-xs text-muted-foreground">
+            <p>Attempts: <span className="font-mono text-foreground">{contact.call_attempt_count ?? 0}</span></p>
+            <p>Voicemails: <span className="font-mono text-foreground">{contact.voicemail_count ?? 0}</span></p>
+            {contact.best_time_to_call && <p>Best time: <span className="text-foreground">{contact.best_time_to_call}</span></p>}
+            {contact.follow_up_note && <p className="italic text-foreground">“{contact.follow_up_note}”</p>}
+          </div>
+        </div>
+        <div className="rounded border border-border bg-card px-3 py-3">
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Decision Maker Intel</p>
+          <div className="space-y-1.5 text-xs text-muted-foreground">
+            {contact.dm_name ? (
+              <>
+                <p className="text-foreground">{contact.dm_name}{contact.dm_role ? <span className="text-muted-foreground">, {contact.dm_role}</span> : null}</p>
+                {contact.dm_phone && <p>Phone: <span className="font-mono text-foreground">{contact.dm_phone}</span></p>}
+                {contact.dm_email && <p>Email: <span className="text-foreground">{contact.dm_email}</span></p>}
+              </>
+            ) : (
+              <p>No decision maker captured yet.</p>
+            )}
+            {contact.gatekeeper_name && <p>Gatekeeper: <span className="text-foreground">{contact.gatekeeper_name}</span></p>}
+            {contact.best_route_to_decision_maker && <p>Best route: <span className="text-foreground">{contact.best_route_to_decision_maker}</span></p>}
+          </div>
+        </div>
+      </div>
 
       {/* Pipeline Items Timeline */}
       <div>
@@ -403,6 +464,17 @@ export default function ContactsPage() {
       city: contact.city,
       state: contact.state,
       status: contact.status,
+      phone_type: contact.phone_type,
+      phone_number_quality: contact.phone_number_quality,
+      best_time_to_call: contact.best_time_to_call,
+      best_route_to_decision_maker: contact.best_route_to_decision_maker,
+      follow_up_note: contact.follow_up_note,
+      dm_name: contact.dm_name,
+      dm_role: contact.dm_role,
+      dm_phone: contact.dm_phone,
+      dm_email: contact.dm_email,
+      gatekeeper_name: contact.gatekeeper_name,
+      is_dnc: contact.is_dnc,
     });
     setBookingDate("");
     setBookingTime("10:00");
@@ -436,6 +508,19 @@ export default function ContactsPage() {
           notes: "Created from contact status update",
         });
         toast.success("Contact updated & booked appointment created.");
+      } else if (statusChanged && editForm.status === "follow_up") {
+        const scheduled = new Date();
+        scheduled.setDate(scheduled.getDate() + 2);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: editContact.id,
+          pipeline_type: "follow_up",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled.toISOString(),
+          notes: editForm.follow_up_note?.trim() || "Created from contact status update",
+        });
+        toast.success("Contact updated & follow-up created.");
       } else {
         toast.success("Contact updated.");
       }
@@ -477,6 +562,18 @@ export default function ContactsPage() {
           created_by: user.id,
           scheduled_for: scheduled.toISOString(),
           notes: "Created from manual status change",
+        });
+      } else if (newStatus === "follow_up") {
+        const scheduled = new Date();
+        scheduled.setDate(scheduled.getDate() + 2);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: statusChangeContact.id,
+          pipeline_type: "follow_up",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled.toISOString(),
+          notes: statusChangeContact.follow_up_note || "Created from manual status change",
         });
       }
 
@@ -690,7 +787,18 @@ export default function ContactsPage() {
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={editForm.gmb_link || ""} onChange={(e) => setEditForm({ ...editForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={editForm.state || ""} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone Type</Label><Select value={editForm.phone_type || "unknown"} onValueChange={(v) => setEditForm({ ...editForm, phone_type: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent>{PHONE_TYPE_OPTIONS.map((opt) => <SelectItem key={opt} value={opt}>{PHONE_TYPE_LABELS[opt]}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Phone Quality</Label><Select value={editForm.phone_number_quality || "unconfirmed"} onValueChange={(v) => setEditForm({ ...editForm, phone_number_quality: v as Contact["phone_number_quality"] })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent>{PHONE_QUALITY_OPTIONS.map((opt) => <SelectItem key={opt} value={opt}>{PHONE_QUALITY_LABELS[opt]}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Status</Label><Select value={editForm.status || "uncalled"} onValueChange={(v) => setEditForm({ ...editForm, status: v })}><SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger><SelectContent>{CONTACT_STATUS_OPTIONS.filter(o => o.value !== "all").map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="flex items-center justify-between rounded border border-border bg-muted/20 px-3 py-2"><Label className="text-xs text-muted-foreground">Do Not Call</Label><button type="button" onClick={() => setEditForm({ ...editForm, is_dnc: !editForm.is_dnc })} className={`rounded px-2 py-1 text-xs font-medium ${editForm.is_dnc ? "bg-destructive/10 text-destructive" : "bg-secondary text-secondary-foreground"}`}>{editForm.is_dnc ? "Enabled" : "Disabled"}</button></div>
+              <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Best Route to Decision Maker</Label><Input value={editForm.best_route_to_decision_maker || ""} onChange={(e) => setEditForm({ ...editForm, best_route_to_decision_maker: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Best Time to Call</Label><Input value={editForm.best_time_to_call || ""} onChange={(e) => setEditForm({ ...editForm, best_time_to_call: e.target.value })} className="border-border bg-card" placeholder="e.g. Weekdays 2-4pm" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Gatekeeper Name</Label><Input value={editForm.gatekeeper_name || ""} onChange={(e) => setEditForm({ ...editForm, gatekeeper_name: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Decision Maker</Label><Input value={editForm.dm_name || ""} onChange={(e) => setEditForm({ ...editForm, dm_name: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">DM Role</Label><Input value={editForm.dm_role || ""} onChange={(e) => setEditForm({ ...editForm, dm_role: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">DM Phone</Label><Input value={editForm.dm_phone || ""} onChange={(e) => setEditForm({ ...editForm, dm_phone: e.target.value })} className="border-border bg-card font-mono" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">DM Email</Label><Input value={editForm.dm_email || ""} onChange={(e) => setEditForm({ ...editForm, dm_email: e.target.value })} className="border-border bg-card" /></div>
+              <div className="col-span-2 space-y-1.5"><Label className="text-xs text-muted-foreground">Follow-up Note</Label><Textarea value={editForm.follow_up_note || ""} onChange={(e) => setEditForm({ ...editForm, follow_up_note: e.target.value })} className="min-h-[84px] border-border bg-card" /></div>
               {editForm.status === "booked" && editForm.status !== editContact?.status && (
                 <>
                   <div className="space-y-1.5">
