@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { callReviewRubric, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
+import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -614,6 +614,55 @@ export default function TrainingPage() {
                             ))}
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2 text-primary">
+                  <Workflow className="h-4 w-4" />
+                  <span className="text-[10px] uppercase tracking-widest">Manager workflow preview</span>
+                </div>
+                <CardTitle>Coaching task queue</CardTitle>
+                <CardDescription>Derived manager tasks now mirror a persistence-ready queue payload without needing a schema change first.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Tasks</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{managerTaskSnapshot.taskCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Owners</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{managerTaskSnapshot.ownerRoles.join(" • ")}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">High: {managerTaskSnapshot.priorities.High}</Badge>
+                  <Badge variant="outline">Medium: {managerTaskSnapshot.priorities.Medium}</Badge>
+                  <Badge variant="outline">Low: {managerTaskSnapshot.priorities.Low}</Badge>
+                </div>
+                <div className="space-y-3">
+                  {managerCoachingTasks.map((task) => (
+                    <div key={task.id} className="rounded-lg border border-border bg-background/70 p-3 text-sm">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{task.repName}</p>
+                          <p className="text-xs text-muted-foreground">{task.workflowStatus} • {task.dueLabel}</p>
+                        </div>
+                        <Badge variant={task.priority === "High" ? "destructive" : "secondary"}>{task.priority}</Badge>
+                      </div>
+                      <p className="mt-3 text-muted-foreground">{task.summary}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline">Owner: {task.ownerRole}</Badge>
+                        <Badge variant="outline">Module: {task.linkedModule}</Badge>
+                        {task.requiredCrmFields.map((field) => (
+                          <Badge key={`${task.id}-${field}`} variant="outline">{field}</Badge>
+                        ))}
                       </div>
                     </div>
                   ))}

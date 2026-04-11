@@ -47,11 +47,27 @@ export const reviewSubmissionSchema = z.object({
   rubricScores: reviewScoreSchema.array().min(1),
 });
 
+export const managerCoachingTaskSchema = z.object({
+  id: z.string().min(1),
+  reviewSubmissionId: z.string().min(1),
+  packetId: z.string().min(1),
+  repName: z.string().min(1),
+  priority: z.enum(["High", "Medium", "Low"]),
+  workflowStatus: z.enum(["Escalate today", "Coach next shift", "Reinforce this week"]),
+  dueLabel: z.string().min(1),
+  summary: z.string().min(1),
+  ownerRole: z.enum(["Manager", "Team lead"]),
+  coachingFocus: z.array(z.string().min(1)).min(1),
+  requiredCrmFields: z.array(z.string().min(1)).min(1),
+  linkedModule: trainingModuleSchema,
+});
+
 export type TrainingModule = z.infer<typeof trainingModuleSchema>;
 export type ReviewPacket = z.infer<typeof reviewPacketSchema>;
 export type ReviewRubricItem = z.infer<typeof reviewRubricItemSchema>;
 export type ReviewScore = z.infer<typeof reviewScoreSchema>;
 export type ReviewSubmission = z.infer<typeof reviewSubmissionSchema>;
+export type ManagerCoachingTask = z.infer<typeof managerCoachingTaskSchema>;
 
 export const callReviewRubric: ReviewRubricItem[] = reviewRubricItemSchema.array().parse([
   {
@@ -134,6 +150,28 @@ function getReviewOutcome(score: number) {
   if (score < 65) return "Needs intervention" as const;
   if (score < 85) return "Coach next shift" as const;
   return "Ready to reinforce" as const;
+}
+
+function getManagerTaskPriority(outcome: ReviewSubmission["outcome"]) {
+  if (outcome === "Needs intervention") return "High" as const;
+  if (outcome === "Coach next shift") return "Medium" as const;
+  return "Low" as const;
+}
+
+function getManagerWorkflowStatus(outcome: ReviewSubmission["outcome"]) {
+  if (outcome === "Needs intervention") return "Escalate today" as const;
+  if (outcome === "Coach next shift") return "Coach next shift" as const;
+  return "Reinforce this week" as const;
+}
+
+function getManagerTaskOwner(outcome: ReviewSubmission["outcome"]) {
+  return outcome === "Needs intervention" ? "Manager" as const : "Team lead" as const;
+}
+
+function getManagerTaskDueLabel(outcome: ReviewSubmission["outcome"]) {
+  if (outcome === "Needs intervention") return "Before next dial block";
+  if (outcome === "Coach next shift") return "Next shift kickoff";
+  return "Weekly coaching wrap-up";
 }
 
 export function buildReviewSubmissionDraft(args: {
@@ -244,6 +282,34 @@ export function buildReviewQueueSnapshot(packets: ReviewPacket[]) {
   };
 }
 
+export function buildManagerCoachingTasks(submissions: ReviewSubmission[], packets: ReviewPacket[]) {
+  return managerCoachingTaskSchema.array().parse(
+    submissions.map((submission) => {
+      const packet = packets.find((candidate) => candidate.id === submission.packetId);
+      const coachingFocus = submission.rubricScores
+        .filter((score) => score.score <= 3)
+        .map((score) => score.category);
+
+      return {
+        id: `manager-task-${submission.id}`,
+        reviewSubmissionId: submission.id,
+        packetId: submission.packetId,
+        repName: submission.repName,
+        priority: getManagerTaskPriority(submission.outcome),
+        workflowStatus: getManagerWorkflowStatus(submission.outcome),
+        dueLabel: getManagerTaskDueLabel(submission.outcome),
+        summary: coachingFocus.length
+          ? `${submission.repName} needs manager follow-up on ${coachingFocus.join(", ")}.`
+          : `${submission.repName} produced a reinforcement-ready call review.`,
+        ownerRole: getManagerTaskOwner(submission.outcome),
+        coachingFocus: coachingFocus.length ? coachingFocus : ["Share winning call in team coaching"],
+        requiredCrmFields: submission.requiredCrmFields,
+        linkedModule: packet?.linkedModule ?? "Reviews",
+      };
+    }),
+  );
+}
+
 export function buildReviewDraftSnapshot(submissions: ReviewSubmission[]) {
   const outcomes = submissions.reduce<Record<ReviewSubmission["outcome"], number>>((acc, submission) => {
     acc[submission.outcome] += 1;
@@ -261,5 +327,26 @@ export function buildReviewDraftSnapshot(submissions: ReviewSubmission[]) {
   };
 }
 
+export function buildManagerTaskSnapshot(tasks: ManagerCoachingTask[]) {
+  const priorities = tasks.reduce<Record<ManagerCoachingTask["priority"], number>>((acc, task) => {
+    acc[task.priority] += 1;
+    return acc;
+  }, {
+    High: 0,
+    Medium: 0,
+    Low: 0,
+  });
+
+  const ownerRoles = Array.from(new Set(tasks.map((task) => task.ownerRole))).sort();
+
+  return {
+    taskCount: tasks.length,
+    priorities,
+    ownerRoles,
+  };
+}
+
 export const reviewQueueSnapshot = buildReviewQueueSnapshot(reviewPackets);
 export const reviewDraftSnapshot = buildReviewDraftSnapshot(reviewSubmissionDrafts);
+export const managerCoachingTasks = buildManagerCoachingTasks(reviewSubmissionDrafts, reviewPackets);
+export const managerTaskSnapshot = buildManagerTaskSnapshot(managerCoachingTasks);
