@@ -60,6 +60,7 @@ export function useDialerDialpad({
   const [isEndingCall, setIsEndingCall] = useState(false);
   const [isCallResolving, setIsCallResolving] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
+  const [isRetryingUntrackedLiveCall, setIsRetryingUntrackedLiveCall] = useState(false);
   const activeDialRequestRef = useRef<string | null>(null);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
   const lastDialpadCallIdRef = useRef<string | null>(null);
@@ -89,6 +90,7 @@ export function useDialerDialpad({
     setIsEndingCall(false);
     setIsCallResolving(false);
     setCallStartedAt(null);
+    setIsRetryingUntrackedLiveCall(false);
     activeDialRequestRef.current = null;
   }, []);
 
@@ -197,6 +199,7 @@ export function useDialerDialpad({
           lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setIsCallResolving(false);
+          setIsRetryingUntrackedLiveCall(false);
           toast.success("Active call linked to the dialer.");
           return;
         }
@@ -206,7 +209,8 @@ export function useDialerDialpad({
         if (attempt >= MAX_ATTEMPTS) {
           setIsCallResolving(false);
           setActiveDialpadCallState("live");
-          toast.warning("Call is live but couldn't be linked to Dialpad tracking.");
+          setIsRetryingUntrackedLiveCall(true);
+          toast.warning("Call is live but couldn't be linked yet. We'll keep retrying in the background.");
           return;
         }
         const nextDelay = pollDelays[Math.min(attempt, pollDelays.length - 1)];
@@ -221,6 +225,66 @@ export function useDialerDialpad({
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
   }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+
+  // ── Background reconciliation for delayed live calls ──
+  useEffect(() => {
+    if (
+      activeDialpadCallId
+      || activeDialpadCallState !== "live"
+      || !currentContact
+      || !myDialpadSettings?.dialpad_user_id
+    ) {
+      setIsRetryingUntrackedLiveCall(false);
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+    let attempts = 0;
+    const MAX_BACKGROUND_ATTEMPTS = 12;
+
+    setIsRetryingUntrackedLiveCall(true);
+
+    const retryResolve = async () => {
+      try {
+        const result = await resolveDialpadCall.mutateAsync({
+          phone: currentContact.phone,
+          dialpad_user_id: myDialpadSettings.dialpad_user_id,
+          contact_id: currentContact.id,
+        });
+
+        if (cancelled) return;
+
+        if (result.dialpad_call_id) {
+          setActiveDialpadCallId(result.dialpad_call_id);
+          lastDialpadCallIdRef.current = result.dialpad_call_id;
+          setActiveDialpadCallState(result.state ?? "calling");
+          setIsRetryingUntrackedLiveCall(false);
+          toast.success("Recovered the live Dialpad call and resumed tracking.");
+          return;
+        }
+      } catch {
+        // keep retrying quietly while the call is live
+      }
+
+      if (cancelled) return;
+
+      attempts += 1;
+      if (attempts >= MAX_BACKGROUND_ATTEMPTS) {
+        setIsRetryingUntrackedLiveCall(false);
+        return;
+      }
+
+      timeoutId = window.setTimeout(retryResolve, 5000);
+    };
+
+    timeoutId = window.setTimeout(retryResolve, 5000);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [activeDialpadCallId, activeDialpadCallState, currentContact, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
   // ── Realtime subscription for call state (with resilience) ──
   useEffect(() => {
@@ -326,6 +390,7 @@ export function useDialerDialpad({
           setActiveDialpadCallState("hangup");
           setDialpadPollingBackoffUntil(null);
           setIsCallResolving(false);
+          setIsRetryingUntrackedLiveCall(false);
           setCallStartedAt(null);
           toast.info("This call has already ended.");
           return;
@@ -340,6 +405,7 @@ export function useDialerDialpad({
         setActiveDialpadCallState("hangup");
         setDialpadPollingBackoffUntil(null);
         setIsCallResolving(false);
+        setIsRetryingUntrackedLiveCall(false);
         setCallStartedAt(null);
         toast.success("Call ended.");
       } else {
@@ -381,6 +447,7 @@ export function useDialerDialpad({
     isCallTerminal,
     isEndingCall,
     isCallResolving,
+    isRetryingUntrackedLiveCall,
     isDialpadCallStatusPending,
     dialpadPollingBackoffUntil,
     callStartedAt,

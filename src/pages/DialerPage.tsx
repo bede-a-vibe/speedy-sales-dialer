@@ -928,6 +928,7 @@ export default function DialerPage() {
                   isStatusPending={dialpad.isDialpadCallStatusPending}
                   isEndingCall={dialpad.isEndingCall}
                   isResolving={dialpad.isCallResolving}
+                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
                   callStartedAt={dialpad.callStartedAt}
                   enabled
                 />

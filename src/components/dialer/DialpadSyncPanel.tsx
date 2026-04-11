@@ -15,6 +15,7 @@ interface DialpadSyncPanelProps {
   isStatusPending: boolean;
   isEndingCall: boolean;
   isResolving?: boolean;
+  isRetryingUntrackedLiveCall?: boolean;
   enabled?: boolean;
   callStartedAt?: number | null;
 }
@@ -34,6 +35,7 @@ export function DialpadSyncPanel({
   isStatusPending,
   isEndingCall,
   isResolving = false,
+  isRetryingUntrackedLiveCall = false,
   enabled = true,
   callStartedAt = null,
 }: DialpadSyncPanelProps) {
@@ -133,7 +135,7 @@ export function DialpadSyncPanel({
           {!activeDialpadCallId && !isLinking && activeDialpadCallState === "live" && (
             <Badge variant="secondary" className="gap-1.5 bg-blue-500/15 text-blue-600 border-blue-500/30 text-[10px] font-medium">
               <Radio className="h-3 w-3" />
-              Live (untracked)
+              {isRetryingUntrackedLiveCall ? "Live, reconnecting" : "Live (untracked)"}
             </Badge>
           )}
           {activeDialpadCallId && activeDialpadCallState === "hangup" && (
@@ -168,11 +170,13 @@ export function DialpadSyncPanel({
                   : "Cancel Active Call"}
             </Button>
           </div>
-        ) : isResolving ? (
+        ) : isResolving || isRetryingUntrackedLiveCall ? (
           <div className="space-y-3">
             <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 font-mono text-xs text-muted-foreground">
               <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
-              Connecting to Dialpad… waiting for call confirmation ({linkingElapsed}s).
+              {isRetryingUntrackedLiveCall
+                ? "Call is live. Dialpad tracking is still reconnecting in the background."
+                : `Connecting to Dialpad… waiting for call confirmation (${linkingElapsed}s).`}
             </div>
             <Button
               variant="outline"
