@@ -149,12 +149,19 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     try {
       const claimedCount = await queue.startSession();
       if (claimedCount <= 0) {
+        const reconciliation = await queue.reconcileQueue("session_start");
+
         setIsDialing(false);
         setCurrentIndex(null);
         setIsBootstrappingSession(false);
         resetSessionTimers();
         await queue.stopSession();
-        toast.info("No more leads in queue.");
+
+        if (reconciliation.health === "exhausted" || (reconciliation.availableCount ?? 0) === 0) {
+          toast.info("No more leads in queue.");
+        } else {
+          toast.info("No leads were claimed yet. The queue still has candidates, so try again in a moment.");
+        }
         return;
       }
       setIsDialing(true);
