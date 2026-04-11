@@ -99,6 +99,19 @@ function encodeBase64Url(bytes: Uint8Array) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
+function timingSafeEqual(a: string, b: string) {
+  const aBytes = new TextEncoder().encode(a);
+  const bBytes = new TextEncoder().encode(b);
+  const maxLength = Math.max(aBytes.length, bBytes.length);
+  let diff = aBytes.length ^ bBytes.length;
+
+  for (let index = 0; index < maxLength; index += 1) {
+    diff |= (aBytes[index] ?? 0) ^ (bBytes[index] ?? 0);
+  }
+
+  return diff === 0;
+}
+
 async function verifyDialpadJwt(token: string, secret: string) {
   const parts = token.split(".");
   if (parts.length !== 3) {
@@ -127,14 +140,14 @@ async function verifyDialpadJwt(token: string, secret: string) {
   );
 
   const expectedSignature = encodeBase64Url(new Uint8Array(signature));
-  if (expectedSignature !== encodedSignature) {
+  if (!timingSafeEqual(expectedSignature, encodedSignature)) {
     throw new Error("Dialpad webhook signature verification failed");
   }
 
   return JSON.parse(decodeBase64Url(encodedPayload)) as DialpadWebhookPayload;
 }
 
-async function extractWebhookPayload(req: Request, secret: string) {
+async function extractWebhookPayload(req: Request, secret: string, allowUnsignedJson = false) {
   const rawBody = await req.text();
   const trimmed = rawBody.trim();
 
@@ -143,6 +156,9 @@ async function extractWebhookPayload(req: Request, secret: string) {
   }
 
   if (trimmed.startsWith("{")) {
+    if (!allowUnsignedJson) {
+      throw new Error("Unsigned Dialpad webhook payloads are not allowed");
+    }
     return JSON.parse(trimmed) as DialpadWebhookPayload;
   }
 
@@ -151,6 +167,11 @@ async function extractWebhookPayload(req: Request, secret: string) {
     if (typeof parsed === "string") {
       return verifyDialpadJwt(parsed, secret);
     }
+
+    if (!allowUnsignedJson) {
+      throw new Error("Unsigned Dialpad webhook payloads are not allowed");
+    }
+
     return parsed as DialpadWebhookPayload;
   }
 
@@ -2282,7 +2303,8 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     try {
-      const payload = await extractWebhookPayload(req, webhookSecret);
+      const allowUnsignedWebhookJson = Deno.env.get("DIALPAD_WEBHOOK_ALLOW_UNSIGNED_JSON") === "true";
+      const payload = await extractWebhookPayload(req, webhookSecret, allowUnsignedWebhookJson);
       const result = await syncWebhookPayload({
         adminClient,
         payload,
