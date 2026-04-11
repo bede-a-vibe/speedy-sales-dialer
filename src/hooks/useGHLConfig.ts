@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ghlGetCalendars, ghlGetPipelines } from "@/lib/ghl";
-import { GHL_PIPELINE_CONTRACT } from "@/lib/pipelineMappings";
+import { GHL_PIPELINE_CONTRACT } from "@/shared/ghlPipelineContract";
 
 export interface GHLCalendar {
   id: string;
