@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, Phone, Mail, Globe, MapPin, ExternalLink, Shield, ShieldOff,
-  Calendar, Clock3, MessageSquare, Send, Loader2,
+  Calendar, Send, Loader2, Building2, StickyNote, PhoneCall,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,20 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts">;
+
+function formatTimestamp(value?: string | null, pattern = "dd MMM yy · HH:mm") {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return format(parsed, pattern);
+}
+
+function normaliseExternalUrl(value?: string | null) {
+  if (!value) return null;
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
 
 function useContact(id?: string) {
   return useQuery({
@@ -73,6 +87,11 @@ export default function ContactDetailPage() {
 
   const allCallLogs = useMemo(() => callLogPages?.pages.flatMap((p) => p.items) ?? [], [callLogPages]);
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
+  const websiteUrl = normaliseExternalUrl(contact?.website);
+  const gmbUrl = normaliseExternalUrl(contact?.gmb_link);
+  const nextPipelineItem = pipelineItems.find((item: any) => item.scheduled_for && item.status !== "completed") ?? pipelineItems[0];
+  const latestCall = allCallLogs[0];
+  const latestNote = allNotes[0];
 
   const handleToggleDnc = async () => {
     if (!contact) return;
@@ -131,25 +150,84 @@ export default function ContactDetailPage() {
     <AppLayout title={contact.business_name}>
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Back + Header */}
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/contacts")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-foreground truncate">{contact.business_name}</h1>
-            {contact.contact_person && (
-              <p className="text-sm text-muted-foreground">{contact.contact_person}</p>
-            )}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="flex items-center gap-3 lg:flex-1 lg:min-w-0">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/contacts")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-bold text-foreground truncate">{contact.business_name}</h1>
+                <Badge variant="secondary" className="font-mono text-xs">{contact.industry}</Badge>
+                <Badge variant={contact.status === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
+                  {contact.status}
+                </Badge>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                {contact.contact_person ? (
+                  <span>{contact.contact_person}</span>
+                ) : (
+                  <span>No contact person captured yet</span>
+                )}
+                {(contact.city || contact.state) && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <Badge variant="secondary" className="font-mono text-xs">{contact.industry}</Badge>
-          <Badge variant={contact.status === "uncalled" ? "outline" : "default"} className="text-xs">
-            {contact.status}
-          </Badge>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[360px]">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <PhoneCall className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-widest">Calls</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{contact.call_attempt_count ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Last {latestCall ? formatTimestamp(latestCall.created_at, "dd MMM") : "not recorded"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <StickyNote className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-widest">Notes</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{allNotes.length}</p>
+                <p className="text-xs text-muted-foreground">Latest {latestNote ? formatTimestamp(latestNote.created_at, "dd MMM") : "not added"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-widest">Pipeline</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{pipelineItems.length}</p>
+                <p className="text-xs text-muted-foreground">{nextPipelineItem?.scheduled_for ? formatTimestamp(nextPipelineItem.scheduled_for, "dd MMM") : "No upcoming slot"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Building2 className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-widest">DNC</span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-foreground">{contact.is_dnc ? "Blocked" : "Callable"}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Switch checked={contact.is_dnc} onCheckedChange={handleToggleDnc} />
+                  {contact.is_dnc ? <ShieldOff className="h-4 w-4 text-destructive" /> : <Shield className="h-4 w-4 text-muted-foreground/40" />}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Contact Info Bar */}
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-primary hover:underline font-mono">
                 <Phone className="h-3.5 w-3.5" /> {contact.phone}
@@ -159,25 +237,40 @@ export default function ContactDetailPage() {
                   <Mail className="h-3.5 w-3.5" /> {contact.email}
                 </a>
               )}
-              {contact.website && (
-                <a href={contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+              {websiteUrl && (
+                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
                   <Globe className="h-3.5 w-3.5" /> Website
                 </a>
               )}
-              {contact.gmb_link && (
-                <a href={contact.gmb_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+              {gmbUrl && (
+                <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
                   <ExternalLink className="h-3.5 w-3.5" /> GMB
                 </a>
               )}
-              {(contact.city || contact.state) && (
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
-                </span>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">DNC</span>
-                <Switch checked={contact.is_dnc} onCheckedChange={handleToggleDnc} />
-                {contact.is_dnc ? <ShieldOff className="h-4 w-4 text-destructive" /> : <Shield className="h-4 w-4 text-muted-foreground/40" />}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Last call</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {latestCall
+                    ? `${OUTCOME_CONFIG[latestCall.outcome as CallOutcome]?.label || latestCall.outcome} · ${formatTimestamp(latestCall.created_at)}`
+                    : "No calls recorded yet"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Latest note</p>
+                <p className="mt-1 text-sm text-foreground line-clamp-2">
+                  {latestNote?.content || "No notes added yet"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Next pipeline step</p>
+                <p className="mt-1 text-sm text-foreground line-clamp-2">
+                  {nextPipelineItem
+                    ? `${nextPipelineItem.pipeline_type} · ${nextPipelineItem.scheduled_for ? formatTimestamp(nextPipelineItem.scheduled_for) : nextPipelineItem.status}`
+                    : "No pipeline items yet"}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -209,7 +302,7 @@ export default function ContactDetailPage() {
                                 {config?.label || log.outcome}
                               </Badge>
                               <span className="text-[10px] text-muted-foreground font-mono">
-                                {format(new Date(log.created_at), "dd MMM yy · HH:mm")}
+                                {formatTimestamp(log.created_at)}
                               </span>
                             </div>
                             {log.notes && (
@@ -263,7 +356,7 @@ export default function ContactDetailPage() {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[10px] font-mono">{note.source}</Badge>
                           <span className="text-[10px] text-muted-foreground font-mono">
-                            {format(new Date(note.created_at), "dd MMM yy · HH:mm")}
+                            {formatTimestamp(note.created_at)}
                           </span>
                         </div>
                         <p className="text-xs text-foreground whitespace-pre-wrap">{note.content}</p>
@@ -303,7 +396,7 @@ export default function ContactDetailPage() {
                         {item.scheduled_for && (
                           <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {format(new Date(item.scheduled_for), "dd MMM yy")}
+                            {formatTimestamp(item.scheduled_for, "dd MMM yy")}
                           </span>
                         )}
                       </div>
@@ -359,13 +452,13 @@ export default function ContactDetailPage() {
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Created</dt>
                     <dd className="font-mono text-xs text-foreground">
-                      {format(new Date(contact.created_at), "dd MMM yyyy")}
+                      {formatTimestamp(contact.created_at, "dd MMM yyyy")}
                     </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Updated</dt>
                     <dd className="font-mono text-xs text-foreground">
-                      {format(new Date(contact.updated_at), "dd MMM yyyy")}
+                      {formatTimestamp(contact.updated_at, "dd MMM yyyy")}
                     </dd>
                   </div>
                 </dl>
