@@ -213,6 +213,75 @@ async function fetchDialpadUserDetails(apiKey: string, dialpadUserId: string) {
   };
 }
 
+async function resolveAuthorizedDialpadUserId(params: {
+  adminClient: ReturnType<typeof createClient>;
+  userId: string;
+  requestedDialpadUserId: unknown;
+  isAdmin: boolean;
+}) {
+  const requestedDialpadUserId = typeof params.requestedDialpadUserId === "string"
+    ? params.requestedDialpadUserId.trim()
+    : "";
+
+  const { data: settings, error } = await params.adminClient
+    .from("dialpad_settings")
+    .select("dialpad_user_id")
+    .eq("user_id", params.userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      ok: false as const,
+      status: 500,
+      body: { error: "Failed to fetch Dialpad settings", details: error.message },
+    };
+  }
+
+  const assignedDialpadUserId = typeof settings?.dialpad_user_id === "string"
+    ? settings.dialpad_user_id.trim()
+    : "";
+
+  if (params.isAdmin) {
+    const resolvedDialpadUserId = requestedDialpadUserId || assignedDialpadUserId;
+    if (!resolvedDialpadUserId) {
+      return {
+        ok: false as const,
+        status: 400,
+        body: { error: "dialpad_user_id is required" },
+      };
+    }
+
+    return {
+      ok: true as const,
+      dialpadUserId: resolvedDialpadUserId,
+      assignedDialpadUserId: assignedDialpadUserId || null,
+    };
+  }
+
+  if (!assignedDialpadUserId) {
+    return {
+      ok: false as const,
+      status: 400,
+      body: { error: "No Dialpad user ID configured. Ask an admin to assign one." },
+    };
+  }
+
+  if (requestedDialpadUserId && requestedDialpadUserId != assignedDialpadUserId) {
+    return {
+      ok: false as const,
+      status: 403,
+      body: { error: "You are not allowed to use another user's Dialpad assignment." },
+    };
+  }
+
+  return {
+    ok: true as const,
+    dialpadUserId: assignedDialpadUserId,
+    assignedDialpadUserId,
+  };
+}
+
 async function toggleDialpadDoNotDisturb(apiKey: string, dialpadUserId: string) {
   const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/togglednd`, {
     method: "POST",
@@ -2256,6 +2325,17 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "initiate_call": {
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
+        }
+
+        const dialpadUserId = dialpadUserAuth.dialpadUserId;
         let normalizedPhone: string;
 
         try {
@@ -2285,7 +2365,6 @@ Deno.serve(async (req) => {
         }
 
         // ── Auto-disable DND before dialing and restore it after call creation has had time to settle ──
-        const dialpadUserId = String(params.dialpad_user_id);
         let wasDnd = false;
         let dndTemporarilyDisabled = false;
 
@@ -2481,10 +2560,17 @@ Deno.serve(async (req) => {
       }
 
       case "get_caller_ids": {
-        const dialpadUserId = params.dialpad_user_id;
-        if (!dialpadUserId) {
-          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
         }
+
+        const dialpadUserId = dialpadUserAuth.dialpadUserId;
 
         const callerIdResponse = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/caller_id`, {
           headers: {
@@ -2526,23 +2612,17 @@ Deno.serve(async (req) => {
       }
 
       case "log_call": {
-        
-
-        const { data: settings, error: settingsError } = await adminClient
-          .from("dialpad_settings")
-          .select("dialpad_user_id")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .maybeSingle();
-
-        if (settingsError) {
-          return jsonResponse({ error: "Failed to fetch Dialpad settings", details: settingsError.message }, 500);
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
         }
 
-        const dialpadUserId = params.dialpad_user_id || settings?.dialpad_user_id;
-        if (!dialpadUserId) {
-          return jsonResponse({ error: "No Dialpad user ID configured. Ask an admin to assign one." }, 400);
-        }
+        const dialpadUserId = dialpadUserAuth.dialpadUserId;
 
         let normalizedPhone: string;
 
@@ -2567,7 +2647,17 @@ Deno.serve(async (req) => {
       }
 
       case "resolve_call": {
-        const resolveDialpadUserId = params.dialpad_user_id;
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
+        }
+
+        const resolveDialpadUserId = dialpadUserAuth.dialpadUserId;
         let resolvePhone: string;
         try {
           resolvePhone = normalizePhoneNumberToE164(params.phone);
@@ -2679,10 +2769,17 @@ Deno.serve(async (req) => {
       }
 
       case "force_hangup": {
-        const fhDialpadUserId = params.dialpad_user_id;
-        if (!fhDialpadUserId) {
-          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
         }
+
+        const fhDialpadUserId = dialpadUserAuth.dialpadUserId;
         let fhPhone: string;
         try {
           fhPhone = normalizePhoneNumberToE164(params.phone);
@@ -3073,10 +3170,17 @@ Deno.serve(async (req) => {
       }
 
       case "check_user_status": {
-        const checkUserId = params.dialpad_user_id;
-        if (!checkUserId) {
-          return jsonResponse({ error: "dialpad_user_id is required" }, 400);
+        const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
+          adminClient,
+          userId: user.id,
+          requestedDialpadUserId: params.dialpad_user_id,
+          isAdmin,
+        });
+        if (!dialpadUserAuth.ok) {
+          return jsonResponse(dialpadUserAuth.body, dialpadUserAuth.status);
         }
+
+        const checkUserId = dialpadUserAuth.dialpadUserId;
 
         const statusResponse = await fetch(`${DIALPAD_BASE}/users/${checkUserId}`, {
           headers: {
