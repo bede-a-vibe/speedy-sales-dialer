@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
@@ -355,7 +355,16 @@ export default function PipelinesPage() {
     [booked],
   );
 
-  
+  const followUpHandoffCount = useMemo(
+    () => completedBooked.filter((item) => item.appointment_outcome === "no_show" || item.appointment_outcome === "showed_verbal_commitment").length,
+    [completedBooked],
+  );
+
+  const closedWonCount = useMemo(
+    () => completedBooked.filter((item) => item.appointment_outcome === "showed_closed").length,
+    [completedBooked],
+  );
+
 
   const renderHistory = () => {
     if (historyLoading) {
@@ -443,6 +452,35 @@ export default function PipelinesPage() {
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
           followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
         />
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Booked queue</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-foreground">{booked.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {staleCount > 0
+                ? `${staleCount} booked appointment${staleCount === 1 ? " needs" : "s need"} an outcome.`
+                : "All open booked appointments have been reviewed so far."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-primary">Follow-up handoffs</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-foreground">{followUpHandoffCount}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Completed booked outcomes that should continue in the follow-up task queue.
+            </p>
+            <Link to="/follow-ups" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+              Open follow-ups
+            </Link>
+          </div>
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-600">Closed from booked</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-foreground">{closedWonCount}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Completed booked appointments recorded as showed and closed.
+            </p>
+          </div>
+        </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>
