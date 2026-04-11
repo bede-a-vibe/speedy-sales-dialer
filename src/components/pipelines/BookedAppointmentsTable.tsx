@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, isPast, isToday } from "date-fns";
+import { format, formatDistanceToNowStrict, isPast, isToday } from "date-fns";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, ExternalLink, Globe, MapPin, Phone, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,6 +51,26 @@ function StatusPill({ status }: { status: ItemStatus }) {
   );
 }
 
+function getScheduledDisplayParts(scheduledFor: string | null) {
+  if (!scheduledFor) {
+    return {
+      dayLabel: "No date",
+      timeLabel: null,
+      relativeLabel: null,
+      sortTime: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  const scheduledDate = new Date(scheduledFor);
+
+  return {
+    dayLabel: format(scheduledDate, "MMM d, yyyy"),
+    timeLabel: format(scheduledDate, "h:mm a"),
+    relativeLabel: `${isPast(scheduledDate) ? "Started" : "Starts"} ${formatDistanceToNowStrict(scheduledDate, { addSuffix: true })}`,
+    sortTime: scheduledDate.getTime(),
+  };
+}
+
 interface BookedAppointmentsTableProps {
   items: PipelineItemWithRelations[];
   reps: SalesRepOption[];
@@ -87,6 +107,7 @@ export function BookedAppointmentsTable({
         status: getItemStatus(item),
         setter: repMap.get(item.created_by) || "Unknown",
         closer: repMap.get(item.assigned_user_id) || "Unknown",
+        schedule: getScheduledDisplayParts(item.scheduled_for),
       })),
     [items, repMap],
   );
@@ -97,7 +118,11 @@ export function BookedAppointmentsTable({
     if (statusFilter !== "all") list = list.filter((r) => r.status === statusFilter);
     // Sort: stale first, then today, then upcoming, then overdue
     const order: Record<string, number> = { stale: 0, today: 1, upcoming: 2, overdue: 3 };
-    return [...list].sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
+    return [...list].sort((a, b) => {
+      const statusDifference = (order[a.status] ?? 4) - (order[b.status] ?? 4);
+      if (statusDifference !== 0) return statusDifference;
+      return a.schedule.sortTime - b.schedule.sortTime;
+    });
   }, [enriched, closerFilter, statusFilter]);
 
   const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
@@ -148,7 +173,7 @@ export function BookedAppointmentsTable({
     return (
       <div className="space-y-3">
         {filtersBar}
-        {filtered.map(({ item, status, setter, closer }) => (
+        {filtered.map(({ item, status, setter, closer, schedule }) => (
           <Collapsible key={item.id} open={expandedId === item.id} onOpenChange={() => toggle(item.id)}>
             <CollapsibleTrigger asChild>
               <button
@@ -163,13 +188,14 @@ export function BookedAppointmentsTable({
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold text-foreground truncate">{item.contacts?.business_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy") : "No date"}
+                    {schedule.dayLabel}{schedule.timeLabel ? ` at ${schedule.timeLabel}` : ""}
                   </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>S: {setter}</span>
                     <span>·</span>
                     <span>C: {closer}</span>
                   </div>
+                  {schedule.relativeLabel && <p className="text-[11px] font-medium text-muted-foreground">{schedule.relativeLabel}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <StatusPill status={status} />
@@ -219,7 +245,7 @@ export function BookedAppointmentsTable({
           <thead>
             <tr className="border-b border-border bg-muted/30">
               <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Date</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Appointment</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Setter</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Closer</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
@@ -228,7 +254,7 @@ export function BookedAppointmentsTable({
             </tr>
           </thead>
           <tbody>
-            {filtered.map(({ item, status, setter, closer }) => {
+            {filtered.map(({ item, status, setter, closer, schedule }) => {
               const isOpen = expandedId === item.id;
               return (
                 <Collapsible key={item.id} asChild open={isOpen} onOpenChange={() => toggle(item.id)}>
@@ -247,8 +273,12 @@ export function BookedAppointmentsTable({
                           <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
                           <div className="text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact"}</div>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                          {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy") : "—"}
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          <div className="space-y-1">
+                            <div className="font-mono text-foreground">{schedule.dayLabel}</div>
+                            {schedule.timeLabel ? <div className="font-mono text-muted-foreground">{schedule.timeLabel}</div> : <div>—</div>}
+                            {schedule.relativeLabel && <div className="text-[11px] font-medium">{schedule.relativeLabel}</div>}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{setter}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{closer}</td>
