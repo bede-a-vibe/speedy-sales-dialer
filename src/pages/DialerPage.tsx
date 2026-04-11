@@ -617,7 +617,11 @@ export default function DialerPage() {
             status: getContactStatusForOutcome(outcomeToLog),
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
-            follow_up_note: null,
+            meeting_booked_date: outcomeToLog === "booked" ? scheduledFor : null,
+            next_followup_date: outcomeToLog === "follow_up" ? scheduledFor : null,
+            follow_up_note: outcomeToLog === "follow_up"
+              ? (pipelineNotes || contactFollowUpNote || null)
+              : null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: ((session.currentContact as any)?.voicemail_count ?? 0) + 1 } : {}),
           }),
         ]);
@@ -654,6 +658,9 @@ export default function DialerPage() {
             await updateContact.mutateAsync({
               id: contactId,
               status: "follow_up",
+              next_followup_date: nextScheduled,
+              follow_up_note: contactFollowUpNote || pipelineNotes || "Auto-rescheduled after no answer",
+              meeting_booked_date: null,
             });
           }
         }
