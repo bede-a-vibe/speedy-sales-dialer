@@ -107,12 +107,19 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   useEffect(() => {
     if (!ghlPipelineId && defaultBookedPipeline) {
       setGhlPipelineId(defaultBookedPipeline.id);
-      const firstStage = defaultBookedPipeline.stages?.[0];
-      if (firstStage && !ghlStageId) {
-        setGhlStageId(firstStage.id);
-      }
     }
-  }, [defaultBookedPipeline, ghlPipelineId, ghlStageId]);
+  }, [defaultBookedPipeline, ghlPipelineId]);
+
+  useEffect(() => {
+    if (!ghlPipelineId || ghlSelectedPipelineStages.length === 0) {
+      if (ghlStageId) setGhlStageId("");
+      return;
+    }
+
+    if (ghlStageId && !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
+      setGhlStageId("");
+    }
+  }, [ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
   // Reset on close
   useEffect(() => {
