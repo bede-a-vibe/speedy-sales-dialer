@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import type { PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipelineItems";
+import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 
 type StatusFilter = "all" | "stale" | "today" | "upcoming" | "overdue";
 
@@ -190,10 +191,15 @@ export function BookedAppointmentsTable({
                   <p className="text-xs text-muted-foreground">
                     {schedule.dayLabel}{schedule.timeLabel ? ` at ${schedule.timeLabel}` : ""}
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>S: {setter}</span>
                     <span>·</span>
                     <span>C: {closer}</span>
+                    <GhlMirrorStatusBadge
+                      ghlOpportunityId={item.ghl_opportunity_id}
+                      ghlPipelineId={item.ghl_pipeline_id}
+                      ghlStageId={item.ghl_stage_id}
+                    />
                   </div>
                   {schedule.relativeLabel && <p className="text-[11px] font-medium text-muted-foreground">{schedule.relativeLabel}</p>}
                 </div>
@@ -270,7 +276,14 @@ export function BookedAppointmentsTable({
                         )}
                       >
                         <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
+                            <GhlMirrorStatusBadge
+                              ghlOpportunityId={item.ghl_opportunity_id}
+                              ghlPipelineId={item.ghl_pipeline_id}
+                              ghlStageId={item.ghl_stage_id}
+                            />
+                          </div>
                           <div className="text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact"}</div>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">

@@ -2,6 +2,7 @@ import { format, formatDistanceToNowStrict, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Clock3 } from "lucide-react";
 import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
+import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 
 type BoardStageKey = "stale" | "today" | "upcoming" | "overdue";
 
@@ -146,7 +147,14 @@ export function BookedPipelineBoard({
                     <article key={item.id} className="rounded-lg border border-border bg-background/90 p-3 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-foreground">{item.contacts?.business_name || "Unknown business"}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-foreground">{item.contacts?.business_name || "Unknown business"}</p>
+                            <GhlMirrorStatusBadge
+                              ghlOpportunityId={item.ghl_opportunity_id}
+                              ghlPipelineId={item.ghl_pipeline_id}
+                              ghlStageId={item.ghl_stage_id}
+                            />
+                          </div>
                           <p className="truncate text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact name"}</p>
                         </div>
                         {stage.key === "stale" ? (

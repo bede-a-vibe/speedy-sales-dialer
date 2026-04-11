@@ -12,6 +12,7 @@ import { FollowUpMethodBadge, FollowUpMethodSelector } from "@/components/pipeli
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
+import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 
 // ---------- Status helpers ----------
 
@@ -311,8 +312,13 @@ export function FollowUpTable({
                   <p className="text-xs text-muted-foreground">
                     {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a") : "No date"}
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{rep}</span>
+                    <GhlMirrorStatusBadge
+                      ghlOpportunityId={item.ghl_opportunity_id}
+                      ghlPipelineId={item.ghl_pipeline_id}
+                      ghlStageId={item.ghl_stage_id}
+                    />
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -374,7 +380,14 @@ export function FollowUpTable({
                         )}
                       >
                         <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
+                            <GhlMirrorStatusBadge
+                              ghlOpportunityId={item.ghl_opportunity_id}
+                              ghlPipelineId={item.ghl_pipeline_id}
+                              ghlStageId={item.ghl_stage_id}
+                            />
+                          </div>
                           <div className="text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact"}</div>
                         </td>
                         <td className="px-4 py-3">
