@@ -13,6 +13,7 @@ import type { PipelineItemWithRelations, SalesRepOption } from "@/hooks/usePipel
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 
 type StatusFilter = "all" | "stale" | "today" | "upcoming" | "overdue";
+type GhlFilter = "all" | "mirrored" | "linked" | "blocked";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -100,6 +101,7 @@ export function BookedAppointmentsTable({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [closerFilter, setCloserFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
 
   const enriched = useMemo(
     () =>
@@ -117,6 +119,15 @@ export function BookedAppointmentsTable({
     let list = enriched;
     if (closerFilter !== "all") list = list.filter((r) => r.item.assigned_user_id === closerFilter);
     if (statusFilter !== "all") list = list.filter((r) => r.status === statusFilter);
+    if (ghlFilter !== "all") {
+      list = list.filter(({ item }) => {
+        const hasContactLink = Boolean(item.contacts?.ghl_contact_id);
+        const hasMirror = Boolean(item.ghl_opportunity_id);
+        if (ghlFilter === "mirrored") return hasMirror;
+        if (ghlFilter === "linked") return hasContactLink && !hasMirror;
+        return !hasContactLink;
+      });
+    }
     // Sort: stale first, then today, then upcoming, then overdue
     const order: Record<string, number> = { stale: 0, today: 1, upcoming: 2, overdue: 3 };
     return [...list].sort((a, b) => {
@@ -124,7 +135,7 @@ export function BookedAppointmentsTable({
       if (statusDifference !== 0) return statusDifference;
       return a.schedule.sortTime - b.schedule.sortTime;
     });
-  }, [enriched, closerFilter, statusFilter]);
+  }, [enriched, closerFilter, statusFilter, ghlFilter]);
 
   const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
 
@@ -155,6 +166,17 @@ export function BookedAppointmentsTable({
           <SelectItem value="today">Today</SelectItem>
           <SelectItem value="upcoming">Upcoming</SelectItem>
           <SelectItem value="overdue">Overdue</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={ghlFilter} onValueChange={(v) => setGhlFilter(v as GhlFilter)}>
+        <SelectTrigger className="w-[170px] bg-background">
+          <SelectValue placeholder="All GHL states" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All GHL states</SelectItem>
+          <SelectItem value="mirrored">Mirrored</SelectItem>
+          <SelectItem value="linked">Linked only</SelectItem>
+          <SelectItem value="blocked">Needs contact link</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -196,6 +218,7 @@ export function BookedAppointmentsTable({
                     <span>·</span>
                     <span>C: {closer}</span>
                     <GhlMirrorStatusBadge
+                      ghlContactId={item.contacts?.ghl_contact_id}
                       ghlOpportunityId={item.ghl_opportunity_id}
                       ghlPipelineId={item.ghl_pipeline_id}
                       ghlStageId={item.ghl_stage_id}
@@ -279,12 +302,16 @@ export function BookedAppointmentsTable({
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
                             <GhlMirrorStatusBadge
+                              ghlContactId={item.contacts?.ghl_contact_id}
                               ghlOpportunityId={item.ghl_opportunity_id}
                               ghlPipelineId={item.ghl_pipeline_id}
                               ghlStageId={item.ghl_stage_id}
                             />
                           </div>
-                          <div className="text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.contacts?.contact_person || "No contact"}
+                            {!item.contacts?.ghl_contact_id ? " · sync waits on contact link" : !item.ghl_opportunity_id ? " · contact linked, mirror pending" : ""}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                           <div className="space-y-1">

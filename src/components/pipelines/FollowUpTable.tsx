@@ -51,6 +51,7 @@ function StatusPill({ status }: { status: ItemStatus }) {
 // ---------- Types ----------
 
 type StatusFilter = "all" | "overdue" | "today" | "due_soon" | "upcoming";
+type GhlFilter = "all" | "mirrored" | "linked" | "blocked";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -206,6 +207,7 @@ export function FollowUpTable({
   const [repFilter, setRepFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [methodFilter, setMethodFilter] = useState<FollowUpMethod | "all">("all");
+  const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
 
   const enriched = useMemo(
     () =>
@@ -222,9 +224,18 @@ export function FollowUpTable({
     if (repFilter !== "all") list = list.filter((r) => r.item.assigned_user_id === repFilter);
     if (statusFilter !== "all") list = list.filter((r) => r.status === statusFilter);
     if (methodFilter !== "all") list = list.filter((r) => (r.item.follow_up_method || "call") === methodFilter);
+    if (ghlFilter !== "all") {
+      list = list.filter(({ item }) => {
+        const hasContactLink = Boolean(item.contacts?.ghl_contact_id);
+        const hasMirror = Boolean(item.ghl_opportunity_id);
+        if (ghlFilter === "mirrored") return hasMirror;
+        if (ghlFilter === "linked") return hasContactLink && !hasMirror;
+        return !hasContactLink;
+      });
+    }
     const order: Record<string, number> = { overdue: 0, today: 1, due_soon: 2, upcoming: 3 };
     return [...list].sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
-  }, [enriched, repFilter, statusFilter, methodFilter]);
+  }, [enriched, repFilter, statusFilter, methodFilter, ghlFilter]);
 
   const overdueCount = enriched.filter((r) => r.status === "overdue").length;
   const todayCount = enriched.filter((r) => r.status === "today").length;
@@ -263,6 +274,18 @@ export function FollowUpTable({
               {getRepLabel(rep.display_name, rep.email)}
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={ghlFilter} onValueChange={(v) => setGhlFilter(v as GhlFilter)}>
+        <SelectTrigger className="w-[170px] bg-background">
+          <SelectValue placeholder="All GHL states" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All GHL states</SelectItem>
+          <SelectItem value="mirrored">Mirrored</SelectItem>
+          <SelectItem value="linked">Linked only</SelectItem>
+          <SelectItem value="blocked">Needs contact link</SelectItem>
         </SelectContent>
       </Select>
 
@@ -315,6 +338,7 @@ export function FollowUpTable({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{rep}</span>
                     <GhlMirrorStatusBadge
+                      ghlContactId={item.contacts?.ghl_contact_id}
                       ghlOpportunityId={item.ghl_opportunity_id}
                       ghlPipelineId={item.ghl_pipeline_id}
                       ghlStageId={item.ghl_stage_id}
@@ -383,12 +407,16 @@ export function FollowUpTable({
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
                             <GhlMirrorStatusBadge
+                              ghlContactId={item.contacts?.ghl_contact_id}
                               ghlOpportunityId={item.ghl_opportunity_id}
                               ghlPipelineId={item.ghl_pipeline_id}
                               ghlStageId={item.ghl_stage_id}
                             />
                           </div>
-                          <div className="text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.contacts?.contact_person || "No contact"}
+                            {!item.contacts?.ghl_contact_id ? " · sync waits on contact link" : !item.ghl_opportunity_id ? " · contact linked, mirror pending" : ""}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <FollowUpMethodBadge method={item.follow_up_method || "call"} />
