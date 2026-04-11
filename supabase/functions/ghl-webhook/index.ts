@@ -180,6 +180,44 @@ function mapGhlToSupabase(event: GHLContactEvent): Record<string, unknown> {
   return fields;
 }
 
+async function triggerPendingGhlPushProcessing() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/dialpad`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "process_pending_ghl_pushes", limit: 10 }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const details = await res.text().catch(() => "");
+      console.warn(`[ghl-webhook] Failed to trigger pending GHL push processor: ${res.status} ${details}`);
+      return;
+    }
+
+    const payload = await res.json().catch(() => null);
+    console.log("[ghl-webhook] Triggered pending GHL push processor", payload ?? "");
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn("[ghl-webhook] Timed out triggering pending GHL push processor");
+      return;
+    }
+    console.warn("[ghl-webhook] Error triggering pending GHL push processor:", error);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function nudgePendingGhlPushesForContact(
   supabase: ReturnType<typeof createClient>,
   contactId: string,
@@ -203,6 +241,7 @@ async function nudgePendingGhlPushesForContact(
 
   if ((count ?? 0) > 0) {
     console.log(`[ghl-webhook] Requeued ${count} pending GHL push(es) for contact ${contactId}`);
+    await triggerPendingGhlPushProcessing();
   }
 }
 
