@@ -47,6 +47,7 @@ import {
 } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { toast } from "sonner";
+import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 const loadDialpadSyncPanel = () =>
   import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
@@ -249,6 +250,35 @@ export default function DialerPage() {
     ].filter(Boolean) as string[],
     [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, minGbpRating, minReviewCount],
   );
+
+  const queueFocusLabel = useMemo(() => {
+    if (phoneType === "landline") return "Landline queue";
+    if (phoneType === "business_line") return "Business line queue";
+    if (phoneType === "mobile" && hasDmPhone === "with_dm_phone") return "Direct DM mobile queue";
+    if (phoneType === "mobile") return "Mobile queue";
+    if (hasDmPhone === "with_dm_phone") return "Decision-maker direct queue";
+    if (hasDmPhone === "without_dm_phone") return "Decision-maker capture queue";
+    return null;
+  }, [phoneType, hasDmPhone]);
+
+  const queueGuidance = useMemo(() => {
+    if (phoneType === "landline" || phoneType === "business_line") {
+      if (hasDmPhone === "with_dm_phone") {
+        return "Prioritise the direct decision-maker number first, then use the main line only for routing or fallback.";
+      }
+      return "Use each call to capture the fastest route to the decision maker, including a direct mobile, extension, or gatekeeper notes before requeueing.";
+    }
+
+    if (hasDmPhone === "without_dm_phone") {
+      return "This queue is best for contact enrichment. Confirm the right decision maker and capture a direct number before moving on.";
+    }
+
+    if (hasDmPhone === "with_dm_phone") {
+      return "This queue is already enriched. Move fast on direct outreach and use the main line only when the direct path fails.";
+    }
+
+    return null;
+  }, [phoneType, hasDmPhone]);
 
   const requiresPipelineAssignment = session.selectedOutcome === "follow_up" || session.selectedOutcome === "booked";
   const requiresFollowUpSchedule = session.selectedOutcome === "follow_up";
@@ -692,6 +722,16 @@ export default function DialerPage() {
             <span className="text-xs font-mono text-muted-foreground">
               {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
             </span>
+            {queueFocusLabel && (
+              <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
+                {queueFocusLabel}
+              </Badge>
+            )}
+            {queueGuidance && !session.isSessionActive && (
+              <span className="text-xs text-muted-foreground">
+                {queueGuidance}
+              </span>
+            )}
             {dialpad.myDialpadSettings ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-primary">
@@ -922,6 +962,15 @@ export default function DialerPage() {
             </div>
           </div>
         )}
+
+        <TwoPipelineGuide
+          currentView="dialer"
+          calendarName={selectedGhlCalendar?.name ?? null}
+          bookedPipelineName={selectedGhlPipeline?.name ?? null}
+          bookedStageName={selectedGhlStage?.name ?? null}
+          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+        />
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
@@ -1354,6 +1403,14 @@ export default function DialerPage() {
                   ? "All contacts in this queue have been called. Try a different industry or state filter, or upload new lists."
                   : "Filter by industry and state, then hit 'Start Dialing' to begin your calling session. Use number keys 1-7 to quickly select outcomes, S to skip, Enter to log."}
             </p>
+            {queueGuidance && !session.queue.isLoading && (
+              <div className="mt-4 max-w-2xl rounded-md border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-left">
+                <p className="text-[10px] uppercase tracking-widest font-mono text-sky-300">
+                  {queueFocusLabel ?? "Queue guidance"}
+                </p>
+                <p className="mt-1 text-sm text-sky-50/90">{queueGuidance}</p>
+              </div>
+            )}
             {activeFilterSummary.length > 0 && !session.queue.isLoading && (
               <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
                 {activeFilterSummary.slice(0, 6).map((item) => (
