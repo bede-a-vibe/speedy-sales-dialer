@@ -127,6 +127,72 @@ const callReviewRubric = [
   },
 ];
 
+const transcriptDrills = [
+  {
+    title: "Bad-time objection, rescued properly",
+    skill: "Timing recovery",
+    weakClip: [
+      "Prospect: I'm on a job, mate, now's not great.",
+      "Rep: Totally, this will only take a minute. How are you getting work right now?",
+      "Prospect: I said I'm busy.",
+    ],
+    strongClip: [
+      "Prospect: I'm on a job, mate, now's not great.",
+      "Rep: No worries, sounds like I caught you mid-run. When are you usually easiest to catch, after 3 or first thing tomorrow?",
+      "Prospect: After 4 is better.",
+      "Rep: Perfect, I'll ring after 4 and keep it tight.",
+    ],
+    coachingPoint: "Once the prospect says it is a bad time, stop trying to win discovery. Win the callback window.",
+    crmHandoff: "Save the callback time and note that the prospect was working, not uninterested.",
+  },
+  {
+    title: "Send-me-info turned into real diagnosis",
+    skill: "Objection pivot",
+    weakClip: [
+      "Prospect: Just send me something.",
+      "Rep: Sure, what's your email?",
+      "Prospect: info@business.com",
+    ],
+    strongClip: [
+      "Prospect: Just send me something.",
+      "Rep: Happy to. So I send the right thing, are you trying to improve lead flow, quote conversion, or follow-up speed most right now?",
+      "Prospect: Probably follow-up, to be honest.",
+      "Rep: That's helpful. What's breaking there at the moment?",
+    ],
+    coachingPoint: "Treat send-me-info as time protection, not real interest. Earn one useful detail before the call ends.",
+    crmHandoff: "Record the specific problem so the follow-up email or next call is not generic.",
+  },
+  {
+    title: "Voicemail that earns the next touch",
+    skill: "Voicemail recovery",
+    weakClip: [
+      "Rep voicemail: Hi, it's Sam from SalesDialer calling about helping your business grow with marketing, websites, SEO, paid ads and more. Call me back when you can...",
+    ],
+    strongClip: [
+      "Rep voicemail: G'day, it's Sam. Quick one, I noticed a gap that could help you book more plumbing jobs in Penrith without adding office admin. Call me back on 04xx xxx xxx and I'll keep it brief.",
+    ],
+    coachingPoint: "Short beats clever. Leave one reason to call back, then tee up the next attempt with an SMS or callback task.",
+    crmHandoff: "Mark it as voicemail plus the callback angle you used, so the next rep does not repeat the same generic message.",
+  },
+  {
+    title: "Booked call with usable handoff",
+    skill: "Close and notes",
+    weakClip: [
+      "Rep: Sweet, let's book something in.",
+      "Prospect: Yep.",
+      "Rep: Done, talk then.",
+    ],
+    strongClip: [
+      "Rep: Great, I've got you for Thursday at 2:30.",
+      "Rep: We'll focus on missed-call follow-up and slow quote turnaround, yeah?",
+      "Prospect: Yep, that's the main issue.",
+      "Rep: Perfect. Best mobile for the reminder is still 04xx xxx xxx?",
+    ],
+    coachingPoint: "A booking only helps if the closer can see the pain, the owner, and the clean contact path instantly.",
+    crmHandoff: "Capture the agreed agenda, confirmed mobile, and who is attending before ending the call.",
+  },
+];
+
 export default function TrainingPage() {
   return (
     <AppLayout title="Training">
@@ -182,11 +248,12 @@ export default function TrainingPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="scripts" className="space-y-4">
-                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-6">
+                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-7">
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
                   <TabsTrigger value="patterns" className="border border-border bg-muted/40">Patterns</TabsTrigger>
+                  <TabsTrigger value="examples" className="border border-border bg-muted/40">Examples</TabsTrigger>
                   <TabsTrigger value="reviews" className="border border-border bg-muted/40">Reviews</TabsTrigger>
                   <TabsTrigger value="playbook" className="border border-border bg-muted/40">Playbook</TabsTrigger>
                 </TabsList>
@@ -294,6 +361,56 @@ export default function TrainingPage() {
                             <div>
                               <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Why it changes dialer outcomes</p>
                               <p className="mt-1 text-sm text-foreground">{pattern.dialerBehavior}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="examples">
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="mb-4 flex items-start gap-3">
+                      <MessageSquareQuote className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">Bad-vs-good transcript drills</h3>
+                        <p className="text-sm text-muted-foreground">Short call snippets reps and managers can use to spot drift fast and coach the next better move.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-4">
+                      {transcriptDrills.map((drill) => (
+                        <div key={drill.title} className="rounded-xl border border-border bg-card/70 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <h4 className="font-medium text-foreground">{drill.title}</h4>
+                            <Badge variant="outline" className="w-fit">{drill.skill}</Badge>
+                          </div>
+                          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                            <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                              <p className="text-[10px] uppercase tracking-widest text-red-600">Weak clip</p>
+                              <div className="mt-2 space-y-2 text-sm text-foreground">
+                                {drill.weakClip.map((line) => (
+                                  <p key={line}>{line}</p>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                              <p className="text-[10px] uppercase tracking-widest text-emerald-600">Better clip</p>
+                              <div className="mt-2 space-y-2 text-sm text-foreground">
+                                {drill.strongClip.map((line) => (
+                                  <p key={line}>{line}</p>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Coach to this</p>
+                              <p className="mt-1 text-sm text-foreground">{drill.coachingPoint}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">CRM and follow-up standard</p>
+                              <p className="mt-1 text-sm text-foreground">{drill.crmHandoff}</p>
                             </div>
                           </div>
                         </div>
@@ -412,7 +529,7 @@ export default function TrainingPage() {
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li>Campaign-specific talk tracks per industry or offer</li>
-                  <li>Bad-vs-good transcript clips tied to each rubric category</li>
+                  <li>More transcript clip packs by industry, offer, and rep tenure</li>
                   <li>New rep onboarding path with day-one to day-thirty milestones</li>
                   <li>Linked content from live dialer outcomes and pipeline stages</li>
                 </ul>
