@@ -65,6 +65,27 @@ function combineDateAndTime(date: Date, time: string) {
   return next;
 }
 
+function getNextBusinessDay(base = new Date()) {
+  const next = new Date(base);
+  do {
+    next.setDate(next.getDate() + 1);
+  } while (next.getDay() === 0 || next.getDay() === 6);
+  return next;
+}
+
+function roundUpToNextQuarterHour(base = new Date()) {
+  const next = new Date(base);
+  next.setSeconds(0, 0);
+  const minutes = next.getMinutes();
+  const roundedMinutes = Math.ceil((minutes + 1) / 15) * 15;
+  next.setMinutes(roundedMinutes, 0, 0);
+  return next;
+}
+
+function formatTimeInputValue(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
 }
@@ -309,6 +330,37 @@ export default function DialerPage() {
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
     [session.queue.totalCount, session.queue.contacts.length],
   );
+
+  const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9") => {
+    const now = new Date();
+
+    if (preset === "in_2_hours") {
+      const next = roundUpToNextQuarterHour(new Date(now.getTime() + (2 * 60 * 60 * 1000)));
+      session.setFollowUpDate(next);
+      session.setFollowUpTime(formatTimeInputValue(next));
+      return;
+    }
+
+    if (preset === "tomorrow_9") {
+      const next = new Date(now);
+      next.setDate(next.getDate() + 1);
+      session.setFollowUpDate(next);
+      session.setFollowUpTime("09:00");
+      return;
+    }
+
+    if (preset === "tomorrow_2") {
+      const next = new Date(now);
+      next.setDate(next.getDate() + 1);
+      session.setFollowUpDate(next);
+      session.setFollowUpTime("14:00");
+      return;
+    }
+
+    const next = getNextBusinessDay(now);
+    session.setFollowUpDate(next);
+    session.setFollowUpTime("09:00");
+  }, [session]);
 
   const activeFilterSummary = useMemo(
     () => [
@@ -1609,6 +1661,12 @@ export default function DialerPage() {
                           <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
                           <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
                         </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("in_2_hours")}>In 2 hours</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("next_business_day_9")}>Next business day 9:00</Button>
+                        </div>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
@@ -1635,6 +1693,11 @@ export default function DialerPage() {
                           <div className="flex flex-wrap gap-2">
                             <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
                             <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("next_business_day_9")}>Next business day 9:00</Button>
                           </div>
                           <Popover>
                             <PopoverTrigger asChild>
