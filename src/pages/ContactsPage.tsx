@@ -115,6 +115,16 @@ type ContactActionCue = {
 
 type ContactFocusFilter = "all" | "follow_up" | "integrity" | "drift" | "queue_ready" | "enrichment";
 
+type FocusBoardCard = {
+  id: string;
+  label: string;
+  count: number;
+  detail: string;
+  accentClassName: string;
+  focusFilter: ContactFocusFilter;
+  leadContact: Contact | null;
+};
+
 function getContactIntegrityBadges(contact: Contact): ContactIntegrityBadge[] {
   const badges: ContactIntegrityBadge[] = [];
   const hasGhlLink = Boolean(contact.ghl_contact_id);
@@ -304,6 +314,24 @@ function matchesFocusFilter(contact: Contact, focusFilter: ContactFocusFilter) {
     default:
       return true;
   }
+}
+
+function isFollowUpDueSoon(contact: Contact) {
+  if (contact.status !== "follow_up" || !contact.next_followup_date) return false;
+  const followUpAt = new Date(contact.next_followup_date).getTime();
+  return followUpAt <= Date.now() + (1000 * 60 * 60 * 24);
+}
+
+function needsBookedHandoffFix(contact: Contact) {
+  return contact.status === "booked" && !contact.meeting_booked_date && !contact.latest_appointment_scheduled_for;
+}
+
+function needsDirectPathCapture(contact: Contact) {
+  if (contact.is_dnc || contact.status === "dnc" || contact.status === "booked" || contact.status === "follow_up" || contact.latest_appointment_scheduled_for) {
+    return false;
+  }
+
+  return !contact.dm_phone;
 }
 
 function getContactActionCue(contact: Contact): ContactActionCue {
@@ -747,6 +775,60 @@ export default function ContactsPage() {
     [allPageContacts, focusFilter],
   );
 
+  const focusBoardCards = useMemo<FocusBoardCard[]>(() => {
+    const overdueFollowUps = allPageContacts.filter((contact) => isFollowUpDueSoon(contact));
+    const bookedFixes = allPageContacts.filter((contact) => needsBookedHandoffFix(contact));
+    const queueReadyNow = allPageContacts.filter((contact) => matchesFocusFilter(contact, "queue_ready"));
+    const directPathGaps = allPageContacts.filter((contact) => needsDirectPathCapture(contact));
+
+    return [
+      {
+        id: "follow_up_due",
+        label: "Due follow-ups",
+        count: overdueFollowUps.length,
+        detail: overdueFollowUps.length > 0
+          ? "Touch these first so warm leads do not drift past their callback window."
+          : "No follow-ups are due in the next 24 hours on this page.",
+        accentClassName: "border-amber-500/30 bg-amber-500/5",
+        focusFilter: "follow_up",
+        leadContact: overdueFollowUps[0] ?? null,
+      },
+      {
+        id: "booked_fixes",
+        label: "Booked handoff fixes",
+        count: bookedFixes.length,
+        detail: bookedFixes.length > 0
+          ? "Booked records missing dates need cleanup before reps can trust the handoff."
+          : "Booked handoffs on this page already have appointment dates.",
+        accentClassName: "border-destructive/30 bg-destructive/5",
+        focusFilter: "integrity",
+        leadContact: bookedFixes[0] ?? null,
+      },
+      {
+        id: "queue_ready_now",
+        label: "Ready to call now",
+        count: queueReadyNow.length,
+        detail: queueReadyNow.length > 0
+          ? "These leads already have a direct path, so reps can work them fastest."
+          : "No direct-path cold leads are ready on this page right now.",
+        accentClassName: "border-emerald-500/30 bg-emerald-500/5",
+        focusFilter: "queue_ready",
+        leadContact: queueReadyNow[0] ?? null,
+      },
+      {
+        id: "direct_path_gaps",
+        label: "Still need DM phone",
+        count: directPathGaps.length,
+        detail: directPathGaps.length > 0
+          ? "Use these calls to capture a direct mobile or extension before requeueing."
+          : "Every active cold lead on this page already has a direct decision-maker phone.",
+        accentClassName: "border-sky-500/30 bg-sky-500/5",
+        focusFilter: "enrichment",
+        leadContact: directPathGaps[0] ?? null,
+      },
+    ];
+  }, [allPageContacts]);
+
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
 
@@ -1040,33 +1122,64 @@ export default function ContactsPage() {
         </div>
 
         {!isLoading && allPageContacts.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-3">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Queue focus</span>
-            {[
-              { value: "all", label: "All on page" },
-              { value: "follow_up", label: "Follow-ups first" },
-              { value: "integrity", label: "Integrity fixes" },
-              { value: "drift", label: "Drift risk" },
-              { value: "queue_ready", label: "Queue ready" },
-              { value: "enrichment", label: "Needs enrichment" },
-            ].map((option) => {
-              const value = option.value as ContactFocusFilter;
-              const isActive = focusFilter === value;
-              return (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={isActive ? "secondary" : "outline"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setFocusFilter(value)}
-                >
-                  {option.label}
-                  <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">{focusCounts[value]}</span>
-                </Button>
-              );
-            })}
-          </div>
+          <>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-3">
+              <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Queue focus</span>
+              {[
+                { value: "all", label: "All on page" },
+                { value: "follow_up", label: "Follow-ups first" },
+                { value: "integrity", label: "Integrity fixes" },
+                { value: "drift", label: "Drift risk" },
+                { value: "queue_ready", label: "Queue ready" },
+                { value: "enrichment", label: "Needs enrichment" },
+              ].map((option) => {
+                const value = option.value as ContactFocusFilter;
+                const isActive = focusFilter === value;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={isActive ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setFocusFilter(value)}
+                  >
+                    {option.label}
+                    <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">{focusCounts[value]}</span>
+                  </Button>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {focusBoardCards.map((card) => (
+                <div key={card.id} className={`rounded-lg border px-4 py-3 ${card.accentClassName}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{card.label}</p>
+                      <p className="mt-1 text-2xl font-semibold text-foreground">{card.count}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={focusFilter === card.focusFilter ? "secondary" : "outline"}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => {
+                        setFocusFilter(card.focusFilter);
+                        if (card.leadContact) setExpandedId(card.leadContact.id);
+                      }}
+                    >
+                      {card.leadContact ? "Open first" : "View"}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{card.detail}</p>
+                  <p className="mt-3 text-xs font-medium text-foreground">
+                    {card.leadContact ? `${card.leadContact.business_name} next` : "No lead in this slice"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {isLoading ? (
@@ -1092,7 +1205,7 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
-                    <th className="w-28 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
+                    <th className="w-36 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1142,6 +1255,17 @@ export default function ContactsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
+                              {!contact.is_dnc && contact.phone && (
+                                <a
+                                  href={`tel:${contact.dm_phone || contact.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                  title={contact.dm_phone ? "Call decision maker" : "Call main line"}
+                                >
+                                  <Phone className="h-3.5 w-3.5" />
+                                  Call
+                                </a>
+                              )}
                               <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
