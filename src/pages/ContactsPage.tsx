@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
+import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
 import { useUpdateContact, useCreateContact, usePaginatedContacts, type ContactsSortOption } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
@@ -490,10 +492,17 @@ function PipelineTimeline({ contactId }: { contactId: string }) {
       {items.map((item: PipelineItemWithRelations) => {
         const isBooked = item.pipeline_type === "booked";
         const statusColor = item.status === "completed" ? "bg-emerald-500" : item.status === "canceled" ? "bg-muted-foreground" : "bg-blue-500";
+        const ghlCue = getGhlMirrorCue({
+          pipelineType: item.pipeline_type,
+          ghlContactId: item.contacts?.ghl_contact_id,
+          ghlOpportunityId: item.ghl_opportunity_id,
+          ghlPipelineId: item.ghl_pipeline_id,
+          ghlStageId: item.ghl_stage_id,
+        });
 
         return (
-          <div key={item.id} className="space-y-1.5 rounded border border-border bg-card px-3 py-3">
-            <div className="flex items-center gap-3 text-xs">
+          <div key={item.id} className="space-y-2 rounded border border-border bg-card px-3 py-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
               <div className={`h-2 w-2 rounded-full ${statusColor}`} />
               <span className="font-medium text-foreground">
                 {isBooked ? "Booked Appointment" : "Follow-up"}
@@ -501,6 +510,13 @@ function PipelineTimeline({ contactId }: { contactId: string }) {
               <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-secondary-foreground">
                 {item.status}
               </span>
+              <GhlMirrorStatusBadge
+                pipelineType={item.pipeline_type}
+                ghlContactId={item.contacts?.ghl_contact_id}
+                ghlOpportunityId={item.ghl_opportunity_id}
+                ghlPipelineId={item.ghl_pipeline_id}
+                ghlStageId={item.ghl_stage_id}
+              />
               {item.appointment_outcome && (
                 <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">
                   {getAppointmentOutcomeLabel(item.appointment_outcome)}
@@ -510,12 +526,20 @@ function PipelineTimeline({ contactId }: { contactId: string }) {
                 {format(new Date(item.created_at), "MMM d, h:mm a")}
               </span>
             </div>
+            <p className="text-[11px] text-muted-foreground">{ghlCue}</p>
             {item.scheduled_for && (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock3 className="h-3 w-3" />
                 Scheduled: <span className="font-mono">{format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a")}</span>
               </p>
             )}
+            <GhlMirrorDetails
+              className="bg-background/40"
+              ghlContactId={item.contacts?.ghl_contact_id}
+              ghlOpportunityId={item.ghl_opportunity_id}
+              ghlPipelineId={item.ghl_pipeline_id}
+              ghlStageId={item.ghl_stage_id}
+            />
             {item.notes && <p className="text-xs italic text-muted-foreground">"{item.notes}"</p>}
             {item.outcome_notes && <p className="text-xs text-muted-foreground">Outcome notes: "{item.outcome_notes}"</p>}
             {item.completed_at && (
