@@ -75,6 +75,15 @@ function formatFilterSummary(label: string, values: string[]) {
   return `${label}: ${values[0]} +${values.length - 1}`;
 }
 
+function getNextFollowUpRescheduleIso(currentScheduledFor?: string | null, fallbackBase = new Date()) {
+  const source = currentScheduledFor ? new Date(currentScheduledFor) : new Date(fallbackBase);
+  if (Number.isNaN(source.getTime())) return null;
+
+  const next = new Date(source);
+  next.setDate(next.getDate() + 1);
+  return next.toISOString();
+}
+
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
   <div ref={ref} className="rounded-lg border border-border bg-card p-4">
     <div className="space-y-3">
@@ -439,6 +448,7 @@ export default function DialerPage() {
     const contactId = session.currentContact.id;
     const userId = session.user.id;
     const contactFollowUpNote = session.currentContact.follow_up_note;
+    const contactNextFollowUpDate = session.currentContact.next_followup_date;
     const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null
       ?? ghlLink.getCachedGHLId(session.currentContact.id);
     const contactName = session.currentContact.business_name;
@@ -513,26 +523,26 @@ export default function DialerPage() {
           });
         }
 
-        // If this was a requeued follow-up and got no_answer, schedule again for same time tomorrow
-        if (outcomeToLog === "no_answer" && contactFollowUpNote) {
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          // Preserve the original scheduled hour by using current time as fallback
-          const nextScheduled = tomorrow.toISOString();
-          await createPipelineItem.mutateAsync({
-            contact_id: contactId,
-            source_call_log_id: insertedLog.id,
-            pipeline_type: "follow_up",
-            assigned_user_id: userId,
-            created_by: userId,
-            scheduled_for: nextScheduled,
-            notes: contactFollowUpNote,
-          });
-          // Set status back to follow_up so the cron job will requeue it tomorrow
-          await updateContact.mutateAsync({
-            id: contactId,
-            status: "follow_up",
-          });
+        // If this was an active follow-up and got no_answer, roll it forward automatically.
+        if (outcomeToLog === "no_answer" && (contactFollowUpNote || contactNextFollowUpDate)) {
+          const nextScheduled = getNextFollowUpRescheduleIso(contactNextFollowUpDate, new Date());
+
+          if (nextScheduled) {
+            await createPipelineItem.mutateAsync({
+              contact_id: contactId,
+              source_call_log_id: insertedLog.id,
+              pipeline_type: "follow_up",
+              assigned_user_id: repId || userId,
+              created_by: userId,
+              scheduled_for: nextScheduled,
+              notes: contactFollowUpNote || pipelineNotes || "Auto-rescheduled after no answer",
+              follow_up_method: method,
+            });
+            await updateContact.mutateAsync({
+              id: contactId,
+              status: "follow_up",
+            });
+          }
         }
 
         if (dialpadCallId) {
@@ -696,6 +706,40 @@ export default function DialerPage() {
     ];
 
     const outstanding = checklist.filter((item) => !item.done);
+    const coachingSteps = [] as Array<{ title: string; prompt: string }>;
+
+    if (!hasDmName) {
+      coachingSteps.push({
+        title: "Lock the right contact",
+        prompt: "Ask: 'Who handles marketing or lead generation there now?' Save the name before you move on.",
+      });
+    }
+
+    if (!hasDmPhone) {
+      coachingSteps.push({
+        title: "Get the direct path",
+        prompt: isRoutedLine
+          ? "Ask for the fastest way back to them, ideally a direct mobile, extension, or best transfer path, then save it before requeueing."
+          : "Ask for the best direct number or extension so the next touch can skip the main line.",
+      });
+    }
+
+    if (!hasRoutingIntel) {
+      coachingSteps.push({
+        title: isRoutedLine ? "Capture routing intel" : "Capture approach intel",
+        prompt: isRoutedLine
+          ? "Note the gatekeeper name, wording that worked, and whether to ask for a transfer, extension, or callback window next time."
+          : "Save how to reach the decision maker fastest, including referral wording or internal handoff notes.",
+      });
+    }
+
+    if (!hasBestTimeToCall) {
+      coachingSteps.push({
+        title: "Log callback timing",
+        prompt: "Finish by asking when they are easiest to catch, then store that time window for the next rep.",
+      });
+    }
+
     let headline = "Lead is ready for direct outreach.";
     let detail = "Use the direct path first and only fall back to the main line if the decision maker is unavailable.";
 
@@ -716,6 +760,7 @@ export default function DialerPage() {
       detail,
       outstandingCount: outstanding.length,
       checklist,
+      coachingSteps: coachingSteps.slice(0, 3),
     };
   }, [session.currentContact]);
   const remainingQueueContacts = useMemo(() => {
@@ -1184,6 +1229,27 @@ export default function DialerPage() {
                         </div>
                       ))}
                     </div>
+                    {currentLeadActionPlan && currentLeadActionPlan.coachingSteps.length > 0 && (
+                      <div className="mt-3 rounded-md border border-sky-500/20 bg-sky-500/10 px-3 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-sky-200">Rep coaching</p>
+                            <p className="text-sm text-sky-50">Use these asks to make this enrichment call actionable.</p>
+                          </div>
+                          <Badge variant="outline" className="border-sky-500/30 font-mono text-[10px] text-sky-100">
+                            next best moves
+                          </Badge>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {currentLeadActionPlan.coachingSteps.map((step, index) => (
+                            <div key={step.title} className="rounded-md border border-sky-500/20 bg-sky-950/20 px-3 py-2 text-xs text-sky-50">
+                              <p className="font-semibold text-sky-100">{index + 1}. {step.title}</p>
+                              <p className="mt-1 text-sky-50/90">{step.prompt}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -1339,6 +1405,8 @@ export default function DialerPage() {
                   isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
                   hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
                   callStartedAt={dialpad.callStartedAt}
+                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
+                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
                   enabled
                 />
               </Suspense>

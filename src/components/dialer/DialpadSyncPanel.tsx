@@ -20,6 +20,8 @@ interface DialpadSyncPanelProps {
   hasTrackingRecoveryFailed?: boolean;
   enabled?: boolean;
   callStartedAt?: number | null;
+  lastLinkAttemptAt?: number | null;
+  nextAutoRetryAt?: number | null;
 }
 
 interface OperatorGuidance {
@@ -48,6 +50,8 @@ export function DialpadSyncPanel({
   hasTrackingRecoveryFailed = false,
   enabled = true,
   callStartedAt = null,
+  lastLinkAttemptAt = null,
+  nextAutoRetryAt = null,
 }: DialpadSyncPanelProps) {
   const { data: contactNotes = [], refetch: refetchNotes } = useContactNotes(contactId, {
     enabled: enabled && !!contactId,
@@ -115,6 +119,9 @@ export function DialpadSyncPanel({
   const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
 
   const isCallActive = activeDialpadCallId && activeDialpadCallState !== "hangup";
+  const nextRetrySeconds = nextAutoRetryAt && nextAutoRetryAt > Date.now()
+    ? Math.max(1, Math.ceil((nextAutoRetryAt - Date.now()) / 1000))
+    : null;
   const operatorGuidance: OperatorGuidance | null = activeDialpadCallId
     ? {
         title: "Tracking is attached",
@@ -214,9 +221,19 @@ export function DialpadSyncPanel({
               {hasTrackingRecoveryFailed
                 ? "Call is still live, but Dialpad tracking recovery stalled. Retry linking now or end the call once it is safe."
                 : isRetryingUntrackedLiveCall
-                  ? "Call is live. Dialpad tracking is still reconnecting in the background."
+                  ? `Call is live. Dialpad tracking is still reconnecting in the background${nextRetrySeconds ? `, next retry in ~${nextRetrySeconds}s` : ""}.`
                   : `Connecting to Dialpad… waiting for call confirmation (${linkingElapsed}s).`}
             </div>
+            {(lastLinkAttemptAt || nextRetrySeconds) && (
+              <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                {lastLinkAttemptAt && (
+                  <div>Last relink attempt: {format(new Date(lastLinkAttemptAt), "h:mm:ss a")}</div>
+                )}
+                {nextRetrySeconds && (
+                  <div>Next automatic retry: ~{nextRetrySeconds}s</div>
+                )}
+              </div>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row">
               {hasTrackingRecoveryFailed && onRetryLink && (
                 <Button

@@ -62,6 +62,8 @@ export function useDialerDialpad({
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [isRetryingUntrackedLiveCall, setIsRetryingUntrackedLiveCall] = useState(false);
   const [hasTrackingRecoveryFailed, setHasTrackingRecoveryFailed] = useState(false);
+  const [lastLinkAttemptAt, setLastLinkAttemptAt] = useState<number | null>(null);
+  const [nextAutoRetryAt, setNextAutoRetryAt] = useState<number | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
   const lastDialpadCallIdRef = useRef<string | null>(null);
@@ -91,7 +93,9 @@ export function useDialerDialpad({
       ? {
           level: "degraded" as const,
           title: "Dialpad tracking is recovering",
-          detail: "The call is still live, but tracking has not reattached yet. The dialer is retrying in the background.",
+          detail: nextAutoRetryAt && nextAutoRetryAt > Date.now()
+            ? `The call is still live, but tracking has not reattached yet. Next automatic relink attempt is due in about ${Math.max(1, Math.ceil((nextAutoRetryAt - Date.now()) / 1000))}s.`
+            : "The call is still live, but tracking has not reattached yet. The dialer is retrying in the background.",
         }
       : isCallResolving
         ? {
@@ -128,6 +132,8 @@ export function useDialerDialpad({
     setCallStartedAt(null);
     setIsRetryingUntrackedLiveCall(false);
     setHasTrackingRecoveryFailed(false);
+    setLastLinkAttemptAt(null);
+    setNextAutoRetryAt(null);
   }, [clearActiveDialRequest]);
 
   const resetDialpadState = useCallback(() => {
@@ -141,6 +147,8 @@ export function useDialerDialpad({
     setCallStartedAt(null);
     setIsRetryingUntrackedLiveCall(false);
     setHasTrackingRecoveryFailed(false);
+    setLastLinkAttemptAt(null);
+    setNextAutoRetryAt(null);
   }, [clearActiveDialRequest]);
 
   const getDialpadCallIdForLog = useCallback(() => {
@@ -238,6 +246,8 @@ export function useDialerDialpad({
 
     const attemptResolve = async () => {
       try {
+        setLastLinkAttemptAt(Date.now());
+        setNextAutoRetryAt(null);
         const result = await resolveDialpadCall.mutateAsync({
           phone: currentContact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
@@ -251,6 +261,7 @@ export function useDialerDialpad({
           setIsCallResolving(false);
           setIsRetryingUntrackedLiveCall(false);
           setHasTrackingRecoveryFailed(false);
+          setNextAutoRetryAt(null);
           toast.success("Active call linked to the dialer.");
           return;
         }
@@ -262,11 +273,13 @@ export function useDialerDialpad({
           setActiveDialpadCallState("live");
           setIsRetryingUntrackedLiveCall(true);
           setHasTrackingRecoveryFailed(false);
+          setNextAutoRetryAt(Date.now() + 5000);
           toast.warning("Call is live but couldn't be linked yet. We'll keep retrying in the background.");
           return;
         }
         const nextDelay = pollDelays[Math.min(attempt, pollDelays.length - 1)];
         attempt += 1;
+        setNextAutoRetryAt(Date.now() + nextDelay);
         timeoutId = window.setTimeout(attemptResolve, nextDelay);
       }
     };
@@ -287,6 +300,7 @@ export function useDialerDialpad({
       || !myDialpadSettings?.dialpad_user_id
     ) {
       setIsRetryingUntrackedLiveCall(false);
+      setNextAutoRetryAt(null);
       return;
     }
 
@@ -299,6 +313,8 @@ export function useDialerDialpad({
 
     const retryResolve = async () => {
       try {
+        setLastLinkAttemptAt(Date.now());
+        setNextAutoRetryAt(null);
         const result = await resolveDialpadCall.mutateAsync({
           phone: currentContact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
@@ -313,6 +329,7 @@ export function useDialerDialpad({
           setActiveDialpadCallState(result.state ?? "calling");
           setIsRetryingUntrackedLiveCall(false);
           setHasTrackingRecoveryFailed(false);
+          setNextAutoRetryAt(null);
           toast.success("Recovered the live Dialpad call and resumed tracking.");
           return;
         }
@@ -326,10 +343,12 @@ export function useDialerDialpad({
       if (attempts >= MAX_BACKGROUND_ATTEMPTS) {
         setIsRetryingUntrackedLiveCall(false);
         setHasTrackingRecoveryFailed(true);
+        setNextAutoRetryAt(null);
         toast.error("Dialpad tracking could not reconnect automatically. Retry linking or end the call when it is safe.");
         return;
       }
 
+      setNextAutoRetryAt(Date.now() + 5000);
       timeoutId = window.setTimeout(retryResolve, 5000);
     };
 
@@ -471,6 +490,8 @@ export function useDialerDialpad({
     if (activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
     setHasTrackingRecoveryFailed(false);
     setIsRetryingUntrackedLiveCall(false);
+    setLastLinkAttemptAt(Date.now());
+    setNextAutoRetryAt(null);
     setIsCallResolving(true);
     setActiveDialpadCallState("connecting");
     toast.info("Retrying Dialpad call linking now.");
@@ -502,6 +523,8 @@ export function useDialerDialpad({
     isCallResolving,
     isRetryingUntrackedLiveCall,
     hasTrackingRecoveryFailed,
+    lastLinkAttemptAt,
+    nextAutoRetryAt,
     isDialpadCallStatusPending,
     dialpadPollingBackoffUntil,
     dialpadHealth,
