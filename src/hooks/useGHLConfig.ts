@@ -23,8 +23,18 @@ export function findGHLPipelineByName(pipelines: GHLPipeline[], pipelineName: st
   return pipelines.find((pipeline) => pipeline.name.trim().toLowerCase() === normalizedTarget) ?? null;
 }
 
+export function findGHLPipelineStageByName(stages: GHLPipelineStage[], stageName: string) {
+  const normalizedTarget = stageName.trim().toLowerCase();
+  return stages.find((stage) => stage.name.trim().toLowerCase() === normalizedTarget) ?? null;
+}
+
 export function findDefaultBookedPipeline(pipelines: GHLPipeline[]) {
   return findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
+}
+
+export function findDefaultBookedStage(pipeline: GHLPipeline | null | undefined) {
+  if (!pipeline) return null;
+  return findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.booked.stageName);
 }
 
 export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {

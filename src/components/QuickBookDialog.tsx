@@ -14,7 +14,7 @@ import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultBookedStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -90,6 +90,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     [ghlPipelines],
   );
 
+  const defaultBookedStage = useMemo(
+    () => findDefaultBookedStage(defaultBookedPipeline),
+    [defaultBookedPipeline],
+  );
+
   // Set default rep to current user
   useEffect(() => {
     if (user && !assignedRepId) {
@@ -116,10 +121,15 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       return;
     }
 
+    if (!ghlStageId && defaultBookedPipeline?.id === ghlPipelineId && defaultBookedStage) {
+      setGhlStageId(defaultBookedStage.id);
+      return;
+    }
+
     if (ghlStageId && !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
       setGhlStageId("");
     }
-  }, [ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
+  }, [defaultBookedPipeline?.id, defaultBookedStage, ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
   // Reset on close
   useEffect(() => {

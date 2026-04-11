@@ -29,7 +29,7 @@ import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { GHL_PIPELINE_DEFAULTS, getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
@@ -215,6 +215,11 @@ export default function DialerPage() {
     [ghlPipelines],
   );
 
+  const defaultBookedStage = useMemo(
+    () => findDefaultBookedStage(defaultBookedPipeline),
+    [defaultBookedPipeline],
+  );
+
   const defaultFollowUpStage = useMemo(
     () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
     [defaultFollowUpPipeline],
@@ -310,10 +315,15 @@ export default function DialerPage() {
       return;
     }
 
+    if (!ghlStageId && defaultBookedPipeline?.id === ghlPipelineId && defaultBookedStage) {
+      setGhlStageId(defaultBookedStage.id);
+      return;
+    }
+
     if (ghlStageId && !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
       setGhlStageId("");
     }
-  }, [ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
+  }, [defaultBookedPipeline?.id, defaultBookedStage, ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
   const canSubmit = !!session.selectedOutcome
     && (!requiresPipelineAssignment || !!session.assignedRepId)
@@ -669,6 +679,45 @@ export default function DialerPage() {
     currentLeadMeta?.dm_name ? `DM: ${String(currentLeadMeta.dm_name)}` : null,
     typeof currentLeadMeta?.gatekeeper_name === "string" ? `Gatekeeper: ${String(currentLeadMeta.gatekeeper_name)}` : null,
   ].filter(Boolean) as string[] : [];
+  const currentLeadActionPlan = useMemo(() => {
+    if (!session.currentContact) return null;
+
+    const meta = session.currentContact as Record<string, unknown>;
+    const isRoutedLine = session.currentContact.phone_type === "landline" || session.currentContact.phone_type === "business_line";
+    const hasDmName = Boolean(meta.dm_name);
+    const hasDmPhone = Boolean(meta.dm_phone);
+    const hasRoutingIntel = Boolean(meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_dm);
+    const hasBestTimeToCall = Boolean(meta.best_time_to_call);
+    const checklist = [
+      { label: "Decision-maker name confirmed", done: hasDmName },
+      { label: "Direct mobile or extension captured", done: hasDmPhone },
+      { label: isRoutedLine ? "Gatekeeper or routing notes saved" : "Best route to the decision maker saved", done: hasRoutingIntel },
+      { label: "Best callback window logged", done: hasBestTimeToCall },
+    ];
+
+    const outstanding = checklist.filter((item) => !item.done);
+    let headline = "Lead is ready for direct outreach.";
+    let detail = "Use the direct path first and only fall back to the main line if the decision maker is unavailable.";
+
+    if (outstanding.length > 0 && isRoutedLine) {
+      headline = "This routed line still needs enrichment.";
+      detail = hasDmPhone
+        ? "You already have a direct number. Use this call to tighten the route with gatekeeper context or callback timing."
+        : "Use this call to find the fastest route to the decision maker, then capture a direct number or extension before requeueing.";
+    } else if (outstanding.length > 0) {
+      headline = "Capture the missing direct-outreach details on this lead.";
+      detail = hasDmName
+        ? "You know who to ask for. Try to leave this call with a direct number, extension, or cleaner callback window."
+        : "Confirm the right decision maker first, then capture the cleanest direct path for the next attempt.";
+    }
+
+    return {
+      headline,
+      detail,
+      outstandingCount: outstanding.length,
+      checklist,
+    };
+  }, [session.currentContact]);
   const remainingQueueContacts = useMemo(() => {
     if (session.currentIndex === null) return session.queue.contacts;
     return session.queue.contacts.slice(session.currentIndex + 1);
@@ -1102,6 +1151,40 @@ export default function DialerPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                  <div className="rounded-md border border-sky-500/20 bg-sky-500/5 px-3 py-3 xl:col-span-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-sky-300">Operator prompt</p>
+                        <p className="text-sm font-semibold text-foreground">{currentLeadActionPlan?.headline ?? "Lead guidance unavailable."}</p>
+                        <p className="mt-1 text-xs text-sky-50/90">{currentLeadActionPlan?.detail ?? ""}</p>
+                      </div>
+                      <Badge variant="outline" className="border-sky-500/30 font-mono text-[10px] text-sky-100">
+                        {currentLeadActionPlan?.outstandingCount ?? 0} open capture item{currentLeadActionPlan?.outstandingCount === 1 ? "" : "s"}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      {currentLeadActionPlan?.checklist.map((item) => (
+                        <div
+                          key={item.label}
+                          className={cn(
+                            "rounded-md border px-3 py-2 text-xs",
+                            item.done
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-50"
+                              : "border-amber-500/20 bg-amber-500/10 text-amber-50",
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            {item.done ? (
+                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                            ) : (
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                            )}
+                            <span>{item.label}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
