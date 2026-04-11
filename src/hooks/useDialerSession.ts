@@ -97,26 +97,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     void queue.ensureBuffer();
   }, [queue.ensureBuffer, isSessionActive, nextContact?.id]);
 
-  // Reconcile first, auto-stop only on confirmed exhaustion
-  useEffect(() => {
-    if (!isSessionActive || currentIndex === null) return;
-    if (queue.contacts.length > 0 && isBootstrappingSession) {
-      setIsBootstrappingSession(false);
-      return;
-    }
-    if (queue.contacts.length === 0) {
-      if (isBootstrappingSession) return;
-      void queue.reconcileQueue("buffer_empty");
-      if (queue.queueHealth === "exhausted") {
-        stopSession();
-      }
-      return;
-    }
-    if (currentIndex >= queue.contacts.length) {
-      setCurrentIndex(queue.contacts.length - 1);
-    }
-  }, [queue.contacts.length, queue.queueHealth, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
-
   // Reset on filter change outside session
   useEffect(() => {
     if (!hasInitializedDialerFiltersRef.current) {
@@ -213,6 +193,26 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     resetSessionTimers();
     void queue.stopSession();
   }, [callCount, queue, resetLeadState, resetSessionTimers, user?.id]);
+
+  // Reconcile first, auto-stop only on confirmed exhaustion
+  useEffect(() => {
+    if (!isSessionActive || currentIndex === null) return;
+    if (queue.contacts.length > 0 && isBootstrappingSession) {
+      setIsBootstrappingSession(false);
+      return;
+    }
+    if (queue.contacts.length === 0) {
+      if (isBootstrappingSession) return;
+      void queue.reconcileQueue("buffer_empty");
+      if (queue.queueHealth === "exhausted") {
+        stopSession();
+      }
+      return;
+    }
+    if (currentIndex >= queue.contacts.length) {
+      setCurrentIndex(queue.contacts.length - 1);
+    }
+  }, [queue.contacts.length, queue.queueHealth, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
 
   const recoverQueue = useCallback(async () => {
     if (!user?.id || isRecoveringQueue) return;
