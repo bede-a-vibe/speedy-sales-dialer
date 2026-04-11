@@ -113,6 +113,12 @@ type ContactActionCue = {
   title: string;
 };
 
+type ContactAutoRepairPlan = {
+  updates: Partial<Contact>;
+  successMessage: string;
+  title: string;
+};
+
 type ContactFocusFilter = "all" | "follow_up" | "integrity" | "drift" | "queue_ready" | "enrichment";
 
 type FocusBoardCard = {
@@ -275,6 +281,34 @@ function getQueueReadinessBadge(contact: Contact): ContactIntegrityBadge {
 function hasIntegrityIssue(contact: Contact) {
   return (contact.status === "booked" && !contact.meeting_booked_date && !contact.latest_appointment_scheduled_for)
     || (contact.status === "follow_up" && !contact.next_followup_date);
+}
+
+function getAutoRepairPlan(contact: Contact): ContactAutoRepairPlan | null {
+  if (contact.status !== "booked" && contact.meeting_booked_date) {
+    return {
+      updates: { meeting_booked_date: null },
+      successMessage: "Cleared stale booked date.",
+      title: "Remove stale booked date saved on a non-booked contact.",
+    };
+  }
+
+  if (contact.status !== "follow_up" && contact.next_followup_date) {
+    return {
+      updates: { next_followup_date: null },
+      successMessage: "Cleared stale follow-up date.",
+      title: "Remove stale follow-up date saved on a contact that is no longer in follow-up.",
+    };
+  }
+
+  if (contact.status === "follow_up" && !contact.next_followup_date) {
+    return {
+      updates: { next_followup_date: getDefaultManualFollowUpScheduledFor().toISOString() },
+      successMessage: "Scheduled a default follow-up time.",
+      title: "Restore a missing next follow-up date so this callback can re-enter the working queue.",
+    };
+  }
+
+  return null;
 }
 
 function hasOperationalDrift(contact: Contact) {
@@ -1028,6 +1062,23 @@ export default function ContactsPage() {
     }
   };
 
+  const repairContactDrift = async (contact: Contact, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const plan = getAutoRepairPlan(contact);
+    if (!plan) {
+      toast.message("No one-click repair available for this contact.");
+      return;
+    }
+
+    try {
+      await updateContact.mutateAsync({ id: contact.id, ...plan.updates });
+      toast.success(plan.successMessage);
+    } catch {
+      toast.error("Failed to repair contact drift.");
+    }
+  };
+
   const deleteContact = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Delete this contact permanently?")) return;
@@ -1213,6 +1264,7 @@ export default function ContactsPage() {
                     const isExpanded = expandedId === contact.id;
                     const integrityBadges = [getQueueReadinessBadge(contact), ...getContactIntegrityBadges(contact)];
                     const actionCue = getContactActionCue(contact);
+                    const autoRepairPlan = getAutoRepairPlan(contact);
 
                     return (
                       <React.Fragment key={contact.id}>
@@ -1265,6 +1317,15 @@ export default function ContactsPage() {
                                   <Phone className="h-3.5 w-3.5" />
                                   Call
                                 </a>
+                              )}
+                              {autoRepairPlan && (
+                                <button
+                                  onClick={(e) => repairContactDrift(contact, e)}
+                                  className="inline-flex h-7 items-center gap-1 rounded border border-amber-500/30 px-2 text-xs text-amber-700 transition-colors hover:bg-amber-500/10"
+                                  title={autoRepairPlan.title}
+                                >
+                                  Fix
+                                </button>
                               )}
                               <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
