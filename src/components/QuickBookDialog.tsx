@@ -210,16 +210,15 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     );
 
     try {
-      if (pipelineType === "booked") {
-        await createPipelineItem.mutateAsync({
-          contact_id: selectedContact.id,
-          pipeline_type: "booked",
-          assigned_user_id: assignedRepId,
-          created_by: user.id,
-          scheduled_for: scheduledFor.toISOString(),
-          notes: notes.trim() || "",
-        });
-      }
+      await createPipelineItem.mutateAsync({
+        contact_id: selectedContact.id,
+        pipeline_type: pipelineType,
+        assigned_user_id: assignedRepId,
+        created_by: user.id,
+        scheduled_for: scheduledFor.toISOString(),
+        notes: notes.trim() || "",
+        follow_up_method: pipelineType === "follow_up" ? followUpMethod : undefined,
+      });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
       const callOutcome = pipelineType === "booked" ? "booked" : "follow_up";
