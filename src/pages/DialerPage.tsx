@@ -1,4 +1,4 @@
-import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, CheckCircle2, Headphones, Loader2, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, UserRound, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -28,7 +28,6 @@ import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSel
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
-import { useAdminAccess } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { cn } from "@/lib/utils";
@@ -66,20 +65,6 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unknown rep";
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 250): Promise<T> {
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retries) break;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("Unknown retry failure");
-}
-
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
   <div ref={ref} className="rounded-lg border border-border bg-card p-4">
     <div className="space-y-3">
@@ -103,14 +88,6 @@ export default function DialerPage() {
   const [ghlStageId, setGhlStageId] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
-  const [backgroundGhlSyncPending, setBackgroundGhlSyncPending] = useState(0);
-  const [pendingPushMetrics, setPendingPushMetrics] = useState<{
-    pending_due_now_count: number;
-    stale_processing_count: number;
-  } | null>(null);
-  const [isRequeueingFailedPushes, setIsRequeueingFailedPushes] = useState(false);
-  const [isProcessingPushQueue, setIsProcessingPushQueue] = useState(false);
-  const backgroundGhlSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // Dialpad CTI Client ID from environment variable
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
@@ -190,7 +167,6 @@ export default function DialerPage() {
   });
 
   const { data: salesReps = [] } = useSalesReps();
-  const { isAdmin } = useAdminAccess();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
@@ -240,95 +216,6 @@ export default function DialerPage() {
     && !createCallLog.isPending
     && !createPipelineItem.isPending
     && !dialpad.linkDialpadCallLog.isPending;
-
-  const enqueueBackgroundGhlSync = useCallback((task: () => Promise<void>) => {
-    setBackgroundGhlSyncPending((value) => value + 1);
-    backgroundGhlSyncQueueRef.current = backgroundGhlSyncQueueRef.current
-      .then(async () => {
-        try {
-          await task();
-        } catch (error) {
-          console.error("[Dialer] Background GHL sync task failed", error);
-        } finally {
-          setBackgroundGhlSyncPending((value) => Math.max(0, value - 1));
-        }
-      })
-      .catch(() => {
-        // Reset chain if the previous task promise became rejected unexpectedly.
-        setBackgroundGhlSyncPending((value) => Math.max(0, value - 1));
-      });
-  }, []);
-
-  const refreshPendingPushMetrics = useCallback(async () => {
-    if (!isAdmin) {
-      setPendingPushMetrics(null);
-      return;
-    }
-    const { data, error } = await supabase.functions.invoke("dialpad", {
-      body: { action: "pending_ghl_push_metrics" },
-    });
-    if (error) return;
-    const payload = data as {
-      pending_due_now_count?: number;
-      stale_processing_count?: number;
-    } | null;
-    setPendingPushMetrics({
-      pending_due_now_count: Number(payload?.pending_due_now_count ?? 0),
-      stale_processing_count: Number(payload?.stale_processing_count ?? 0),
-    });
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    void refreshPendingPushMetrics();
-    const timer = window.setInterval(() => {
-      void refreshPendingPushMetrics();
-    }, 30000);
-    return () => window.clearInterval(timer);
-  }, [refreshPendingPushMetrics, isAdmin]);
-
-  const requeueFailedPushes = useCallback(async () => {
-    if (!isAdmin) return;
-    setIsRequeueingFailedPushes(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("dialpad", {
-        body: { action: "requeue_failed_pending_ghl_pushes", limit: 100 },
-      });
-      if (error) throw error;
-      const requeued = Number((data as { requeued?: number } | null)?.requeued ?? 0);
-      toast.success(`Requeued ${requeued} failed GHL push${requeued === 1 ? "" : "es"}.`);
-      await refreshPendingPushMetrics();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to requeue failed GHL pushes.");
-    } finally {
-      setIsRequeueingFailedPushes(false);
-    }
-  }, [refreshPendingPushMetrics, isAdmin]);
-
-  const processPendingPushQueue = useCallback(async () => {
-    if (!isAdmin) return;
-    setIsProcessingPushQueue(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("dialpad", {
-        body: { action: "process_pending_ghl_pushes", limit: 25 },
-      });
-      if (error) throw error;
-      const payload = (data as {
-        processed?: number;
-        synced?: number;
-        requeued?: number;
-        failed?: number;
-      } | null) ?? null;
-      toast.success(
-        `Processed ${Number(payload?.processed ?? 0)} · synced ${Number(payload?.synced ?? 0)} · requeued ${Number(payload?.requeued ?? 0)} · failed ${Number(payload?.failed ?? 0)}.`,
-      );
-      await refreshPendingPushMetrics();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to process pending GHL pushes.");
-    } finally {
-      setIsProcessingPushQueue(false);
-    }
-  }, [refreshPendingPushMetrics, isAdmin]);
 
   const primaryActionLabel = requiresBookedSchedule
     ? (session.isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
@@ -400,7 +287,7 @@ export default function DialerPage() {
     // Capture values before advancing
     const contactId = session.currentContact.id;
     const userId = session.user.id;
-    const contactSnapshot = session.currentContact as Record<string, unknown>;
+    const contactFollowUpNote = session.currentContact.follow_up_note;
     const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null
       ?? ghlLink.getCachedGHLId(session.currentContact.id);
     const contactName = session.currentContact.business_name;
@@ -439,41 +326,61 @@ export default function DialerPage() {
       session.stopSession();
     }
 
-    // Background writes/sync: persist contact updates immediately, queue only slower GHL network sync.
+    // Background DB writes
     (async () => {
-      let shouldRunGhlSync = true;
       try {
         const [insertedLog] = await Promise.all([
-          withRetry(() => createCallLog.mutateAsync({
+          createCallLog.mutateAsync({
             contact_id: contactId,
             user_id: userId,
             outcome: outcomeToLog,
             notes: pipelineNotes || undefined,
             follow_up_date: scheduledFor,
             dialpad_call_id: dialpadCallId,
-          })),
-          withRetry(() => updateContact.mutateAsync({
+          }),
+          updateContact.mutateAsync({
             id: contactId,
             status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
             follow_up_note: null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: ((session.currentContact as any)?.voicemail_count ?? 0) + 1 } : {}),
-            ...(outcomeToLog === "booked" ? { meeting_booked_date: new Date().toISOString() } : {}),
-            ...(outcomeToLog === "follow_up" && scheduledFor ? { next_followup_date: scheduledFor } : {}),
-          })),
+          }),
         ]);
 
-        if (outcomeToLog === "booked") {
-          await withRetry(() => createPipelineItem.mutateAsync({
+        if (needsPipelineAssignment) {
+          await createPipelineItem.mutateAsync({
             contact_id: contactId,
             source_call_log_id: insertedLog.id,
-            pipeline_type: "booked",
+            pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
             assigned_user_id: repId,
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
-          }));
+            ...(outcomeToLog === "follow_up" ? { follow_up_method: method } : {}),
+          });
+        }
+
+        // If this was a requeued follow-up and got no_answer, schedule again for same time tomorrow
+        if (outcomeToLog === "no_answer" && contactFollowUpNote) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          // Preserve the original scheduled hour by using current time as fallback
+          const nextScheduled = tomorrow.toISOString();
+          await createPipelineItem.mutateAsync({
+            contact_id: contactId,
+            source_call_log_id: insertedLog.id,
+            pipeline_type: "follow_up",
+            assigned_user_id: userId,
+            created_by: userId,
+            scheduled_for: nextScheduled,
+            notes: contactFollowUpNote,
+          });
+          // Set status back to follow_up so the cron job will requeue it tomorrow
+          await updateContact.mutateAsync({
+            id: contactId,
+            status: "follow_up",
+          });
         }
 
         if (dialpadCallId) {
@@ -483,96 +390,75 @@ export default function DialerPage() {
           }).catch(() => {});
         }
       } catch {
-        shouldRunGhlSync = false;
         toast.error("Failed to save call log — please check your records.");
       }
 
-      if (!shouldRunGhlSync) return;
+      // ── GHL Sync (fire-and-forget) ──
+      if (contactGhlId) {
+        ghlSync.pushCallNote({
+          ghlContactId: contactGhlId,
+          outcome: outcomeToLog,
+          notes: pipelineNotes || undefined,
+          repName,
+        }).catch(() => {});
 
-      enqueueBackgroundGhlSync(async () => {
-        // ── GHL Sync (fire-and-forget queue) ──
-        let resolvedGhlId = contactGhlId;
-        if (!resolvedGhlId) {
-          resolvedGhlId = await ghlLink.ensureGHLLink({
-            id: contactId,
-            phone: String(contactSnapshot.phone ?? ""),
-            business_name: String(contactSnapshot.business_name ?? contactName ?? "Unknown Contact"),
-            contact_person: (contactSnapshot.contact_person as string) ?? null,
-            email: (contactSnapshot.email as string) ?? null,
-            website: (contactSnapshot.website as string) ?? null,
-            city: (contactSnapshot.city as string) ?? null,
-            state: (contactSnapshot.state as string) ?? null,
-            industry: (contactSnapshot.industry as string) ?? null,
-            ghl_contact_id: null,
-          }).catch(() => null);
+        if (outcomeToLog === "booked" && scheduledFor && calendarId) {
+          ghlSync.pushBooking({
+            ghlContactId: contactGhlId,
+            calendarId,
+            scheduledFor,
+            contactName,
+            repName,
+            notes: pipelineNotes || undefined,
+            pipelineId: pipelineId || undefined,
+            pipelineStageId: stageId || undefined,
+          }).catch(() => {});
         }
 
-        if (resolvedGhlId) {
-          ghlSync.pushCallNote({
-            ghlContactId: resolvedGhlId,
-            outcome: outcomeToLog,
-            notes: pipelineNotes || undefined,
+        if (outcomeToLog === "follow_up" && scheduledFor) {
+          ghlSync.pushFollowUp({
+            ghlContactId: contactGhlId,
+            scheduledFor,
+            method,
+            contactName,
             repName,
           }).catch(() => {});
 
-          if (outcomeToLog === "booked" && scheduledFor && calendarId) {
-            ghlSync.pushBooking({
-              ghlContactId: resolvedGhlId,
-              calendarId,
-              scheduledFor,
-              contactName,
-              repName,
-              notes: pipelineNotes || undefined,
-              pipelineId: pipelineId || undefined,
-              pipelineStageId: stageId || undefined,
+          // If follow-up method is email, generate and push a draft email to GHL
+          if (method === "email") {
+            // Fetch latest AI summary note for context
+            const latestSummary = await (async () => {
+              try {
+                const { data: notes } = await supabase
+                  .from("contact_notes")
+                  .select("content")
+                  .eq("contact_id", contactId)
+                  .eq("source", "dialpad_summary")
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+                return notes?.[0]?.content ?? null;
+              } catch { return null; }
+            })();
+
+            ghlSync.pushFollowUpEmailDraft({
+              ghlContactId: contactGhlId,
+              contactName: contactName ?? "there",
+              businessName: (session.currentContact as any)?.business_name ?? contactName ?? "",
+              industry: (session.currentContact as any)?.industry ?? undefined,
+              repName: repName ?? "The Odin Team",
+              callNotes: pipelineNotes || undefined,
+              callTranscriptSummary: latestSummary ?? undefined,
+              scheduledFor: scheduledFor ?? undefined,
             }).catch(() => {});
-          }
-
-          if (outcomeToLog === "follow_up" && scheduledFor) {
-            ghlSync.pushFollowUp({
-              ghlContactId: resolvedGhlId,
-              scheduledFor,
-              method,
-              contactName,
-              repName,
-            }).catch(() => {});
-
-            // If follow-up method is email, generate and push a draft email to GHL
-            if (method === "email") {
-              // Fetch latest AI summary note for context
-              const latestSummary = await (async () => {
-                try {
-                  const { data: notes } = await supabase
-                    .from("contact_notes")
-                    .select("content")
-                    .eq("contact_id", contactId)
-                    .eq("source", "dialpad_summary")
-                    .order("created_at", { ascending: false })
-                    .limit(1);
-                  return notes?.[0]?.content ?? null;
-                } catch { return null; }
-              })();
-
-              ghlSync.pushFollowUpEmailDraft({
-                ghlContactId: resolvedGhlId,
-                contactName: contactName ?? "there",
-                businessName: (contactSnapshot.business_name as string) ?? contactName ?? "",
-                industry: (contactSnapshot.industry as string) ?? undefined,
-                repName: repName ?? "The Odin Team",
-                callNotes: pipelineNotes || undefined,
-                callTranscriptSummary: latestSummary ?? undefined,
-                scheduledFor: scheduledFor ?? undefined,
-              }).catch(() => {});
-            }
-          }
-
-          if (outcomeToLog === "dnc") {
-            ghlSync.pushDNC({ ghlContactId: resolvedGhlId }).catch(() => {});
           }
         }
-      });
+
+        if (outcomeToLog === "dnc") {
+          ghlSync.pushDNC({ ghlContactId: contactGhlId }).catch(() => {});
+        }
+      }
     })();
-  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, ghlLink, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId, enqueueBackgroundGhlSync]);
+  }, [session, dialpad, createCallLog, createPipelineItem, updateContact, ghlSync, ghlLink, salesReps, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
@@ -652,40 +538,6 @@ export default function DialerPage() {
 
         {/* ── Filters & Controls ── */}
         <div className="flex flex-wrap items-center gap-4">
-          {backgroundGhlSyncPending > 0 ? (
-            <div className="text-xs text-muted-foreground">
-              Background GHL sync queue: <span className="font-medium">{backgroundGhlSyncPending}</span>
-            </div>
-          ) : null}
-          {pendingPushMetrics ? (
-            <div className="text-xs text-muted-foreground">
-              Queue due now: <span className="font-medium">{pendingPushMetrics.pending_due_now_count}</span>
-              {" · "}
-              Stale processing: <span className="font-medium">{pendingPushMetrics.stale_processing_count}</span>
-            </div>
-          ) : null}
-          {isAdmin ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void processPendingPushQueue()}
-                disabled={isProcessingPushQueue}
-                className="h-8 text-xs"
-              >
-                {isProcessingPushQueue ? "Processing…" : "Process Push Queue"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void requeueFailedPushes()}
-                disabled={isRequeueingFailedPushes}
-                className="h-8 text-xs"
-              >
-                {isRequeueingFailedPushes ? "Requeueing…" : "Requeue Failed Pushes"}
-              </Button>
-            </>
-          ) : null}
           <Button
             variant={showAdvancedFilters ? "secondary" : "outline"}
             size="sm"
@@ -959,8 +811,7 @@ export default function DialerPage() {
                 existingDmLinkedin={(session.currentContact as any).dm_linkedin}
                 existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
                 existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_decision_maker}
-                existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_dm}
               />
 
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
