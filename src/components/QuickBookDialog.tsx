@@ -264,12 +264,6 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
         follow_up_method: pipelineType === "follow_up" ? followUpMethod : undefined,
-        ghl_pipeline_id: pipelineType === "booked"
-          ? (ghlPipelineId || null)
-          : (defaultFollowUpPipeline?.id || null),
-        ghl_stage_id: pipelineType === "booked"
-          ? (ghlStageId || null)
-          : (defaultFollowUpStage?.id || null),
       });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes

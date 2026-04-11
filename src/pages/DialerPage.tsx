@@ -636,8 +636,6 @@ export default function DialerPage() {
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
-            ghl_pipeline_id: pipelineType === "booked" ? (pipelineId || null) : (followUpPipelineId || null),
-            ghl_stage_id: pipelineType === "booked" ? (stageId || null) : (followUpStageId || null),
             ...(pipelineType === "follow_up" ? { follow_up_method: method } : {}),
           });
         }
