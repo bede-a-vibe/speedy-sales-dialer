@@ -249,6 +249,35 @@ export default function DialerPage() {
     ? (session.isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
     : (session.isSessionPaused ? "Log & Hold Session" : "Log & Next Lead");
 
+  const submitReadinessItems = useMemo(() => {
+    const items: string[] = [];
+
+    if (!session.selectedOutcome) items.push("Select a call outcome");
+    if (requiresPipelineAssignment && !session.assignedRepId) items.push("Assign a sales rep");
+    if (requiresAnySchedule && !session.followUpDate) items.push(requiresBookedSchedule ? "Choose an appointment date" : "Choose a follow-up date");
+    if (requiresFollowUpSchedule && !session.followUpTime) items.push("Choose a follow-up time");
+    if (requiresBookedSchedule && !session.followUpTime) items.push("Choose an appointment time");
+    if (requiresBookedSchedule && !ghlCalendarId) items.push("Select a GHL calendar");
+    if (dialpad.isEndingCall) items.push("Wait for the active call to finish ending");
+    if (createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending) items.push("Saving the previous action");
+
+    return items;
+  }, [
+    session.selectedOutcome,
+    session.assignedRepId,
+    session.followUpDate,
+    session.followUpTime,
+    requiresPipelineAssignment,
+    requiresAnySchedule,
+    requiresFollowUpSchedule,
+    requiresBookedSchedule,
+    ghlCalendarId,
+    dialpad.isEndingCall,
+    createCallLog.isPending,
+    createPipelineItem.isPending,
+    dialpad.linkDialpadCallLog.isPending,
+  ]);
+
   // Reset pipeline fields when outcome changes
   useEffect(() => {
     if (!requiresPipelineAssignment && session.user?.id) {
@@ -971,7 +1000,7 @@ export default function DialerPage() {
                 <div className="grid gap-2 text-xs sm:grid-cols-2">
                   <div className="rounded-md border border-border bg-background px-3 py-2">
                     <div className="mb-1 flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-3 w-3" /> Outcomes</div>
-                    <div className="font-mono text-foreground">1-6 select result</div>
+                    <div className="font-mono text-foreground">1-6 select outcome</div>
                   </div>
                   <div className="rounded-md border border-border bg-background px-3 py-2">
                     <div className="mb-1 flex items-center gap-2 text-muted-foreground"><NotebookPen className="h-3 w-3" /> Log lead</div>
@@ -1194,6 +1223,24 @@ export default function DialerPage() {
                   {primaryActionLabel}
                   <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-mono opacity-70">Enter</kbd>
                 </Button>
+                {!canSubmit && submitReadinessItems.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+                    <p className="font-medium">Before you can continue:</p>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {submitReadinessItems.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {canSubmit && session.selectedOutcome && (
+                  <p className="text-xs text-muted-foreground">
+                    Ready to save <span className="font-medium text-foreground">{primaryActionLabel}</span> for this lead.
+                  </p>
+                )}
                 <Button variant="outline" onClick={skipLead} className="w-full border-border text-muted-foreground hover:text-foreground">
                   <SkipForward className="mr-2 h-4 w-4" />
                   Skip Lead
