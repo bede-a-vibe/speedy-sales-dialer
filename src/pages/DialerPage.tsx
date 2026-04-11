@@ -31,7 +31,7 @@ import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
-import { getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
+import { GHL_PIPELINE_DEFAULTS, getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import {
@@ -202,6 +202,28 @@ export default function DialerPage() {
     () => ghlCalendars.find((calendar) => calendar.id === ghlCalendarId) ?? null,
     [ghlCalendars, ghlCalendarId],
   );
+
+  const defaultFollowUpPipeline = useMemo(
+    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    [ghlPipelines],
+  );
+
+  const defaultFollowUpStage = useMemo(
+    () => defaultFollowUpPipeline?.stages.find((stage) => stage.id === GHL_PIPELINE_DEFAULTS.follow_up.stageId) ?? null,
+    [defaultFollowUpPipeline],
+  );
+
+  const selectedOpportunityPipeline = useMemo(() => {
+    if (session.selectedOutcome === "follow_up") return defaultFollowUpPipeline;
+    if (session.selectedOutcome === "booked") return selectedGhlPipeline;
+    return null;
+  }, [defaultFollowUpPipeline, selectedGhlPipeline, session.selectedOutcome]);
+
+  const selectedOpportunityStage = useMemo(() => {
+    if (session.selectedOutcome === "follow_up") return defaultFollowUpStage;
+    if (session.selectedOutcome === "booked") return selectedGhlStage;
+    return null;
+  }, [defaultFollowUpStage, selectedGhlStage, session.selectedOutcome]);
 
   const queueLeadCount = useMemo(
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
@@ -1220,32 +1242,44 @@ export default function DialerPage() {
                         </div>
                       )}
 
-                      <div className="rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs">
-                        <p className="font-medium text-foreground">
-                          {requiresBookedSchedule ? "GHL booking destination" : "GHL follow-up destination"}
-                        </p>
-                        <p className="mt-1 text-muted-foreground">
-                          {requiresBookedSchedule
-                            ? `Calendar: ${selectedGhlCalendar?.name ?? "Not selected yet"}`
-                            : "A GHL task will be created for the assigned rep."}
-                        </p>
-                        <p className="mt-1 text-muted-foreground">
-                          Opportunity: {selectedGhlPipeline?.name ?? "No pipeline selected"}
-                          {selectedGhlStage ? ` → ${selectedGhlStage.name}` : ghlPipelineId ? " → No stage selected" : ""}
-                        </p>
-                        {!requiresBookedSchedule && !selectedGhlStage && (
-                          <p className="mt-1 text-amber-700 dark:text-amber-300">
-                            No stage selected. Follow-ups will fall back to the default GHL follow-up stage.
-                          </p>
-                        )}
-                        {requiresBookedSchedule && ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
-                          <p className="mt-1 text-amber-700 dark:text-amber-300">
-                            This pipeline has no stages, so the booking will sync to the calendar without creating an opportunity.
-                          </p>
-                        )}
-                      </div>
                     </div>
                   )}
+
+                  <div className="rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs">
+                    <p className="font-medium text-foreground">
+                      {session.selectedOutcome === "booked" ? "GHL booked pipeline destination" : "GHL follow-up pipeline destination"}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {session.selectedOutcome === "booked"
+                        ? `Calendar: ${selectedGhlCalendar?.name ?? "Not selected yet"}`
+                        : `Follow-up task: ${followUpMethod} for ${session.assignedRepId
+                            ? getRepLabel(
+                                salesReps.find((rep) => rep.user_id === session.assignedRepId)?.display_name ?? null,
+                                salesReps.find((rep) => rep.user_id === session.assignedRepId)?.email ?? null,
+                              )
+                            : "assigned rep"}`}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Opportunity: {selectedOpportunityPipeline?.name ?? (session.selectedOutcome === "follow_up" ? "Default follow-up pipeline" : "No pipeline selected")}
+                      {selectedOpportunityStage
+                        ? ` → ${selectedOpportunityStage.name}`
+                        : session.selectedOutcome === "follow_up"
+                          ? " → Default follow-up stage"
+                          : ghlPipelineId
+                            ? " → No stage selected"
+                            : ""}
+                    </p>
+                    {session.selectedOutcome === "follow_up" && !selectedOpportunityPipeline && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-300">
+                        The app will still use the configured default GHL follow-up pipeline IDs even if the names have not loaded yet.
+                      </p>
+                    )}
+                    {requiresBookedSchedule && ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-300">
+                        This pipeline has no stages, so the booking will sync to the calendar without creating an opportunity.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
