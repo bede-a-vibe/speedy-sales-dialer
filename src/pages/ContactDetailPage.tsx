@@ -15,6 +15,7 @@ import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipel
 import { useUpdateContact } from "@/hooks/useContacts";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,13 +177,12 @@ export default function ContactDetailPage() {
           scheduled_for: scheduled.toISOString(),
           notes: "Created from contact detail page",
         });
-      } else if (nextStatus === "follow_up") {
-        const scheduled = new Date();
-        scheduled.setDate(scheduled.getDate() + 2);
+      } else if (shouldCreatePipelineItemForStatus(nextStatus) && nextStatus === "follow_up") {
+        const scheduled = getDefaultManualFollowUpScheduledFor();
 
         await createPipelineItem.mutateAsync({
           contact_id: contact.id,
-          pipeline_type: "follow_up",
+          pipeline_type: nextStatus,
           assigned_user_id: user.id,
           created_by: user.id,
           scheduled_for: scheduled.toISOString(),

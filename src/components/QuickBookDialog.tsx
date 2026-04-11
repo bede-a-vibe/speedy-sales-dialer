@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { getContactStatusForPipelineType } from "@/lib/pipelineMappings";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
@@ -230,7 +231,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         follow_up_date: pipelineType === "follow_up" ? scheduledFor.toISOString() : null,
       });
 
-      const newStatus = pipelineType === "booked" ? "booked" : "follow_up";
+      const newStatus = getContactStatusForPipelineType(pipelineType);
       await supabase
         .from("contacts")
         .update({ status: newStatus, updated_at: new Date().toISOString() })

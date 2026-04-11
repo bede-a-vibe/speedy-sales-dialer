@@ -31,6 +31,7 @@ import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
+import { getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
 import { cn } from "@/lib/utils";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import {
@@ -304,7 +305,7 @@ export default function DialerPage() {
       toast.error("Choose an appointment time.");
       return;
     }
-    const needsPipelineAssignment = outcomeToLog === "follow_up" || outcomeToLog === "booked";
+    const needsPipelineAssignment = shouldCreatePipelineItemForOutcome(outcomeToLog);
     if (needsPipelineAssignment && !session.assignedRepId) {
       toast.error("Choose a sales rep.");
       return;
@@ -371,7 +372,7 @@ export default function DialerPage() {
           }),
           updateContact.mutateAsync({
             id: contactId,
-            status: ["dnc", "follow_up", "booked"].includes(outcomeToLog) ? outcomeToLog : "uncalled",
+            status: getContactStatusForOutcome(outcomeToLog),
             last_outcome: outcomeToLog,
             is_dnc: outcomeToLog === "dnc",
             follow_up_note: null,
@@ -379,16 +380,17 @@ export default function DialerPage() {
           }),
         ]);
 
-        if (needsPipelineAssignment) {
+        const pipelineType = getPipelineTypeForOutcome(outcomeToLog);
+        if (pipelineType) {
           await createPipelineItem.mutateAsync({
             contact_id: contactId,
             source_call_log_id: insertedLog.id,
-            pipeline_type: outcomeToLog === "follow_up" ? "follow_up" : "booked",
+            pipeline_type: pipelineType,
             assigned_user_id: repId,
             created_by: userId,
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
-            ...(outcomeToLog === "follow_up" ? { follow_up_method: method } : {}),
+            ...(pipelineType === "follow_up" ? { follow_up_method: method } : {}),
           });
         }
 

@@ -8,6 +8,7 @@ import {
   ghlUpdateContact,
 } from "@/lib/ghl";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
+import { CALL_OUTCOME_LABELS, getFollowUpTaskTitle, resolveGhlOpportunityTarget } from "@/lib/pipelineMappings";
 
 type CallOutcome =
   | "no_answer"
@@ -65,24 +66,10 @@ interface PushDNCParams {
   ghlContactId: string;
 }
 
-const OUTCOME_LABELS: Record<CallOutcome, string> = {
-  no_answer: "No Answer",
-  voicemail: "Voicemail",
-  not_interested: "Not Interested",
-  dnc: "DNC",
-  follow_up: "Follow Up",
-  booked: "Booked",
-  wrong_number: "Wrong Number",
-};
-
-// Default to the "Outbound Prospecting" pipeline and "Connected - Follow Up Required" stage
-const DEFAULT_FOLLOWUP_PIPELINE_ID = "QuBn7UX5zebPTd4fqW9x";
-const DEFAULT_FOLLOWUP_STAGE_ID = "5102204c-7b00-48f9-94fb-70ca529841b9";
-
 export function useGHLSync() {
   const pushCallNote = useCallback(async (params: PushCallNoteParams) => {
     const { ghlContactId, outcome, notes, durationSeconds, repName } = params;
-    const parts = [`📞 Call Outcome: ${OUTCOME_LABELS[outcome]}`];
+    const parts = [`📞 Call Outcome: ${CALL_OUTCOME_LABELS[outcome]}`];
     if (repName) parts.push(`Rep: ${repName}`);
     if (durationSeconds != null) {
       const mins = Math.floor(durationSeconds / 60);
@@ -159,19 +146,21 @@ export function useGHLSync() {
     try {
       // Create a task as a reminder for the rep
       await ghlCreateTask(ghlContactId, {
-        title: title ?? `Follow up (${method ?? "call"})`,
+        title: title ?? getFollowUpTaskTitle(method),
         body: description ?? "",
         dueDate: scheduledFor,
         completed: false,
       });
 
-      // Also create an opportunity in the Outbound Prospecting pipeline
-      const oppPipelineId = pipelineId || DEFAULT_FOLLOWUP_PIPELINE_ID;
-      const oppStageId = pipelineStageId || DEFAULT_FOLLOWUP_STAGE_ID;
+      const opportunityTarget = resolveGhlOpportunityTarget({
+        pipelineType: "follow_up",
+        pipelineId,
+        pipelineStageId,
+      });
 
       await ghlCreateOpportunity({
-        pipelineId: oppPipelineId,
-        pipelineStageId: oppStageId,
+        pipelineId: opportunityTarget.pipelineId,
+        pipelineStageId: opportunityTarget.pipelineStageId,
         contactId: ghlContactId,
         name: `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
         status: "open",
