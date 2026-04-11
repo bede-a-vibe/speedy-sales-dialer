@@ -90,7 +90,7 @@ export function DashboardQuickStats() {
         icon={<CalendarClock className="h-5 w-5" />}
         label="Follow-ups Due"
         value={followUpsDueToday}
-        href="/pipelines?tab=follow_up"
+        href="/follow-ups"
       />
       <QuickStat
         icon={<AlertTriangle className="h-5 w-5" />}
