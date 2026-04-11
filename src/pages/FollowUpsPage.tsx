@@ -43,10 +43,12 @@ export default function FollowUpsPage() {
         setLoading(true);
         setError(null);
 
-        const { data, error: invokeError } = await supabase.functions.invoke("ghl-followups", {
-          method: "GET",
-          body: { scope, date: anchorDate },
-        });
+        const { data, error: invokeError } = await supabase.functions.invoke(
+          `ghl-followups?scope=${encodeURIComponent(scope)}&date=${encodeURIComponent(anchorDate)}`,
+          {
+            method: "GET",
+          },
+        );
         if (invokeError) throw invokeError;
         const payload = (data as {
           items?: FollowUpItem[];
