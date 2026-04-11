@@ -1,4 +1,4 @@
-import { BookOpenText, Brain, CheckCircle2, ChevronRight, Handshake, MessageSquareQuote, Target, TimerReset } from "lucide-react";
+import { BookOpenText, Brain, CheckCircle2, ChevronRight, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,27 @@ const playbookChecklist = [
   "When booking, repeat the date/time and the expected result of the appointment.",
 ];
 
+const transcriptPatterns = [
+  {
+    title: "Sub-15 second blow-offs",
+    signal: "If the rep cannot earn the first few seconds, the call often dies before there is enough talk time to generate useful transcript intelligence.",
+    coaching: "Use a low-friction opener, skip identity confirmation, and earn 30 seconds with one relevant reason for calling.",
+    dialerBehavior: "Treat opener quality as a data-quality issue, not just a style issue, because short dead calls create no usable review trail.",
+  },
+  {
+    title: "Good conversation, weak note handoff",
+    signal: "Transcript summaries only help the team when the next action and pain point are clear enough to save into notes and CRM follow-up.",
+    coaching: "Before ending the call, lock one concrete pain, one owner detail, and one next step you would be happy for another rep to inherit.",
+    dialerBehavior: "Write notes that can survive a handoff to the closer or the next caller without replaying the full call.",
+  },
+  {
+    title: "Contact not ready for CRM push",
+    signal: "Pipeline findings showed notes can be lost downstream when the contact record is incomplete, even if the call itself was useful.",
+    coaching: "Confirm the right contact, best number, and role while you still have the prospect live, especially on trades where mobiles matter.",
+    dialerBehavior: "Clean contact capture improves both future dialing and whether transcript learnings make it into the rest of the workflow.",
+  },
+];
+
 export default function TrainingPage() {
   return (
     <AppLayout title="Training">
@@ -111,10 +132,11 @@ export default function TrainingPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="scripts" className="space-y-4">
-                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-4">
+                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-5">
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
+                  <TabsTrigger value="patterns" className="border border-border bg-muted/40">Patterns</TabsTrigger>
                   <TabsTrigger value="playbook" className="border border-border bg-muted/40">Playbook</TabsTrigger>
                 </TabsList>
 
@@ -176,6 +198,39 @@ export default function TrainingPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="patterns">
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="mb-4 flex items-start gap-3">
+                      <Workflow className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">Transcript-informed failure patterns</h3>
+                        <p className="text-sm text-muted-foreground">Built from the transcript pipeline findings and cold-calling research, so reps can see how call behavior affects review quality and downstream CRM handoff.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {transcriptPatterns.map((pattern) => (
+                        <div key={pattern.title} className="rounded-xl border border-border bg-card/70 p-4">
+                          <h4 className="font-medium text-foreground">{pattern.title}</h4>
+                          <div className="mt-3 grid gap-3 md:grid-cols-3">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">What the transcripts flag</p>
+                              <p className="mt-1 text-sm text-foreground">{pattern.signal}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Coach the rep to do this</p>
+                              <p className="mt-1 text-sm text-foreground">{pattern.coaching}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Why it changes dialer outcomes</p>
+                              <p className="mt-1 text-sm text-foreground">{pattern.dialerBehavior}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </TabsContent>
 
