@@ -301,26 +301,17 @@ export default function DialerPage() {
   useEffect(() => {
     if (!ghlPipelineId && defaultBookedPipeline) {
       setGhlPipelineId(defaultBookedPipeline.id);
-      const firstStage = defaultBookedPipeline.stages?.[0];
-      if (firstStage && !ghlStageId) {
-        setGhlStageId(firstStage.id);
-      }
     }
-  }, [defaultBookedPipeline, ghlPipelineId, ghlStageId]);
+  }, [defaultBookedPipeline, ghlPipelineId]);
 
   useEffect(() => {
-    if (!ghlPipelineId) {
+    if (!ghlPipelineId || ghlSelectedPipelineStages.length === 0) {
       if (ghlStageId) setGhlStageId("");
       return;
     }
 
-    if (ghlSelectedPipelineStages.length === 0) {
-      if (ghlStageId) setGhlStageId("");
-      return;
-    }
-
-    if (!ghlStageId || !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
-      setGhlStageId(ghlSelectedPipelineStages[0].id);
+    if (ghlStageId && !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
+      setGhlStageId("");
     }
   }, [ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
@@ -726,6 +717,28 @@ export default function DialerPage() {
       nextAction,
     };
   }, [remainingQueueContacts]);
+  const enrichmentLaneStats = useMemo(() => {
+    return remainingQueueContacts.reduce((summary, contact) => {
+      const meta = contact as Record<string, unknown>;
+      const hasRoutingNotes = Boolean(meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_dm);
+      const hasDirectDmPhone = Boolean(meta.dm_phone);
+      const isRoutedLine = contact.phone_type === "landline" || contact.phone_type === "business_line";
+
+      if (isRoutedLine) {
+        summary.routed.total += 1;
+        if (hasRoutingNotes) summary.routed.ready += 1;
+        else summary.routed.needsNotes += 1;
+      }
+
+      if (hasDirectDmPhone) summary.direct.ready += 1;
+      else summary.direct.needsPhone += 1;
+
+      return summary;
+    }, {
+      routed: { total: 0, ready: 0, needsNotes: 0 },
+      direct: { ready: 0, needsPhone: 0 },
+    });
+  }, [remainingQueueContacts]);
   const nextLeadFacts = session.nextContact ? [
     session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : null,
     session.nextContact.industry,
@@ -1124,6 +1137,26 @@ export default function DialerPage() {
                           <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
                         </div>
                         <Progress value={enrichmentQueueStats.enrichedShare} className="h-2 bg-amber-950/40 [&>div]:bg-amber-400" />
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div className="rounded-md border border-amber-500/20 bg-amber-950/30 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] uppercase tracking-widest text-amber-200">Routed-line workflow</p>
+                            <Badge variant="outline" className="border-amber-500/30 font-mono text-[10px] text-amber-100">
+                              {enrichmentLaneStats.routed.ready}/{Math.max(enrichmentLaneStats.routed.total, 1)} prepped
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-xs text-amber-50/90">{enrichmentLaneStats.routed.needsNotes} still need gatekeeper or routing notes before the next requeue.</p>
+                        </div>
+                        <div className="rounded-md border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] uppercase tracking-widest text-emerald-200">Direct-outreach workflow</p>
+                            <Badge variant="outline" className="border-emerald-500/30 font-mono text-[10px] text-emerald-100">
+                              {enrichmentLaneStats.direct.ready} ready now
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-xs text-emerald-50/90">{enrichmentLaneStats.direct.needsPhone} leads still need a direct DM phone or extension captured.</p>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} still need DM phone</Badge>
