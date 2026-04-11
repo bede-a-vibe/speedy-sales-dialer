@@ -157,35 +157,61 @@ export default function ContactDetailPage() {
       return;
     }
 
+    const bookingScheduledAt = isBooking
+      ? (() => {
+          const [hours, minutes] = bookingTime.split(":").map(Number);
+          const scheduled = new Date(bookingDate);
+          scheduled.setHours(hours || 10, minutes || 0, 0, 0);
+          return scheduled.toISOString();
+        })()
+      : null;
+
+    const followUpScheduledAt = nextStatus === "follow_up"
+      ? getDefaultManualFollowUpScheduledFor().toISOString()
+      : null;
+
+    const lifecycleFieldUpdates = nextStatus === "booked"
+      ? {
+          meeting_booked_date: bookingScheduledAt,
+          next_followup_date: null,
+          follow_up_note: null,
+        }
+      : nextStatus === "follow_up"
+        ? {
+            meeting_booked_date: null,
+            next_followup_date: followUpScheduledAt,
+            follow_up_note: contact.follow_up_note || "Created from contact detail page",
+          }
+        : {
+            meeting_booked_date: null,
+            next_followup_date: null,
+            follow_up_note: null,
+          };
+
     try {
       await updateContact.mutateAsync({
         id: contact.id,
         status: nextStatus === "dnc" ? contact.status : nextStatus,
         is_dnc: nextStatus === "dnc",
+        ...lifecycleFieldUpdates,
       });
 
-      if (isBooking) {
-        const [hours, minutes] = bookingTime.split(":").map(Number);
-        const scheduled = new Date(bookingDate);
-        scheduled.setHours(hours || 10, minutes || 0, 0, 0);
-
+      if (bookingScheduledAt) {
         await createPipelineItem.mutateAsync({
           contact_id: contact.id,
           pipeline_type: "booked",
           assigned_user_id: user.id,
           created_by: user.id,
-          scheduled_for: scheduled.toISOString(),
+          scheduled_for: bookingScheduledAt,
           notes: "Created from contact detail page",
         });
-      } else if (shouldCreatePipelineItemForStatus(nextStatus) && nextStatus === "follow_up") {
-        const scheduled = getDefaultManualFollowUpScheduledFor();
-
+      } else if (shouldCreatePipelineItemForStatus(nextStatus) && nextStatus === "follow_up" && followUpScheduledAt) {
         await createPipelineItem.mutateAsync({
           contact_id: contact.id,
           pipeline_type: nextStatus,
           assigned_user_id: user.id,
           created_by: user.id,
-          scheduled_for: scheduled.toISOString(),
+          scheduled_for: followUpScheduledAt,
           notes: contact.follow_up_note || "Created from contact detail page",
         });
       }
