@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { callReviewRubric, reviewPackets, reviewQueueSnapshot } from "@/lib/trainingReview";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -36,6 +37,13 @@ const badTimeRecovery = [
   "Do not force discovery. Earn the callback instead of trying to rescue the whole pitch.",
   "Ask for a specific callback window and save it before ending the call.",
   "If they will not commit, finish cleanly and requeue with the best timing clue you learned.",
+];
+
+const voicemailRecovery = [
+  "Keep it under 30 seconds and lead with one concrete reason for calling back.",
+  "Use local or trade-specific context so the next touch does not sound generic.",
+  "End with one clean CTA: call back, reply to SMS, or expect a short follow-up at a named time.",
+  "Log the callback angle and next attempt timing so the next rep builds on the message instead of repeating it.",
 ];
 
 const pipelineGuidance = [
@@ -96,76 +104,6 @@ const transcriptPatterns = [
   },
 ];
 
-const callReviewRubric = [
-  {
-    category: "Opener and permission",
-    weight: "25%",
-    strong: "Rep earns 20 to 30 seconds quickly with a relevant reason for calling and low-friction permission language.",
-    weak: "Rep leads with identity checks, long setup, or a generic company pitch that causes an immediate brush-off.",
-    transcriptLookFors: ["Prospect stays engaged past the first exchange", "Rep states a specific reason for calling", "No rambling intro before value is clear"],
-  },
-  {
-    category: "Discovery and pain capture",
-    weight: "30%",
-    strong: "Rep uncovers one practical business problem, a current gap, or pressure point the next caller can act on.",
-    weak: "Conversation stays polite but vague, with no concrete pain, no urgency, and no useful context for follow-up.",
-    transcriptLookFors: ["At least one measurable pain or friction point", "Owner or stakeholder context is captured", "Rep asks follow-up questions instead of jumping to pitch"],
-  },
-  {
-    category: "Objection handling",
-    weight: "20%",
-    strong: "Rep treats objections as context, responds briefly, and turns the call back toward diagnosis or next-step commitment.",
-    weak: "Rep argues, overexplains, or accepts the objection without learning what sits behind it.",
-    transcriptLookFors: ["Rep labels the objection cleanly", "Response is concise and curious", "Conversation progresses instead of stalling out"],
-  },
-  {
-    category: "Close and CRM handoff",
-    weight: "25%",
-    strong: "Rep confirms the next action, timing, contact path, and note quality so the transcript can become usable follow-up intelligence.",
-    weak: "Rep ends the call with vague interest, missing contact data, or notes another rep cannot confidently use.",
-    transcriptLookFors: ["Clear next step or booked action", "Best number or callback window confirmed", "Notes can be written from the call without replaying it"],
-  },
-];
-
-type ReviewPacket = {
-  id: string;
-  stage: string;
-  trigger: string;
-  managerPrompt: string;
-  repAction: string;
-  crmRequirement: string;
-  linkedModule: "Scripts" | "Objections" | "Pipeline" | "Patterns" | "Examples" | "Reviews" | "Playbook";
-};
-
-const reviewPackets: ReviewPacket[] = [
-  {
-    id: "bad-time-recovery",
-    stage: "Active transcript review",
-    trigger: "Prospect says they are busy and the rep keeps pushing instead of securing a cleaner callback window.",
-    managerPrompt: "Score the rep low on close and handoff unless the next attempt timing is clearly captured.",
-    repAction: "End with a specific callback window, save it, and note that timing, not interest, blocked discovery.",
-    crmRequirement: "best_time_to_call plus a note that the prospect was unavailable rather than uninterested.",
-    linkedModule: "Patterns",
-  },
-  {
-    id: "send-info-diagnosis",
-    stage: "Answered call with weak discovery",
-    trigger: "Prospect asks for information and the call risks ending with no usable business context.",
-    managerPrompt: "Check whether the rep earned one real problem before accepting the email request.",
-    repAction: "Ask one routing question that reveals whether lead flow, quote conversion, or follow-up speed matters most.",
-    crmRequirement: "A concrete pain point saved into notes so follow-up email generation is not generic.",
-    linkedModule: "Objections",
-  },
-  {
-    id: "booked-handoff-quality",
-    stage: "Booked outcome QA",
-    trigger: "Meeting gets booked but the closer would still need to replay the call to understand the opportunity.",
-    managerPrompt: "Do not score a booking as strong unless owner, agenda, and best contact path are visible from notes alone.",
-    repAction: "Restate the agreed agenda, confirm who is attending, and verify the best mobile before ending the call.",
-    crmRequirement: "Booked note includes pain, stakeholder, and confirmed contact path for the appointment reminder.",
-    linkedModule: "Reviews",
-  },
-];
 
 const transcriptDrills = [
   {
@@ -331,6 +269,25 @@ export default function TrainingPage() {
                             <p className="text-foreground">{line}</p>
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                      <h3 className="font-medium text-foreground">If voicemail picks up</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Voicemail is not a dead end. It should create a cleaner next touch for the dialer, not just a logged outcome.</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {voicemailRecovery.map((line, index) => (
+                          <div key={line} className="flex gap-3 rounded-lg border border-border px-3 py-3 text-sm">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</div>
+                            <p className="text-foreground">{line}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                        <p className="text-[10px] uppercase tracking-widest text-emerald-700">Recommended flow</p>
+                        <p className="mt-2 text-sm text-foreground">Leave one local reason to call back, queue the next attempt with the same angle, and send a short SMS only when the workflow permits. That gives the next rep context instead of starting cold again.</p>
                       </div>
                     </div>
                   </div>
@@ -567,6 +524,41 @@ export default function TrainingPage() {
           </Card>
 
           <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2 text-primary">
+                  <Brain className="h-4 w-4" />
+                  <span className="text-[10px] uppercase tracking-widest">Backend-ready review snapshot</span>
+                </div>
+                <CardTitle>Review queue coverage</CardTitle>
+                <CardDescription>Structured training review data now lives in a typed module, ready to feed future persistence and automation.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Packets</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{reviewQueueSnapshot.packetCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Stages</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{reviewQueueSnapshot.stageCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Modules</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{reviewQueueSnapshot.moduleCount}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">CRM fields surfaced by current packets</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {reviewQueueSnapshot.crmFields.map((field) => (
+                      <Badge key={field} variant="outline">{field}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2 text-primary">
