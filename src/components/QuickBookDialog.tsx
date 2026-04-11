@@ -14,7 +14,14 @@ import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, findDefaultBookedStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import {
+  findDefaultBookedPipeline,
+  findDefaultBookedStage,
+  findDefaultFollowUpPipeline,
+  findDefaultFollowUpStage,
+  useGHLCalendars,
+  useGHLPipelines,
+} from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -93,6 +100,16 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const defaultBookedStage = useMemo(
     () => findDefaultBookedStage(defaultBookedPipeline),
     [defaultBookedPipeline],
+  );
+
+  const defaultFollowUpPipeline = useMemo(
+    () => findDefaultFollowUpPipeline(ghlPipelines),
+    [ghlPipelines],
+  );
+
+  const defaultFollowUpStage = useMemo(
+    () => findDefaultFollowUpStage(defaultFollowUpPipeline),
+    [defaultFollowUpPipeline],
   );
 
   // Set default rep to current user
@@ -303,6 +320,8 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             method: followUpMethod,
             contactName: selectedContact?.business_name ?? undefined,
             repName,
+            pipelineId: defaultFollowUpPipeline?.id,
+            pipelineStageId: defaultFollowUpStage?.id,
           }).catch(() => {});
 
           // If follow-up method is email, generate and push a draft email
@@ -323,7 +342,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create item");
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id]);
 
   const isBooked = pipelineType === "booked";
 

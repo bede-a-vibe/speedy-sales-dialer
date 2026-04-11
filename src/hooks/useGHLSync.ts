@@ -122,12 +122,17 @@ export function useGHLSync() {
         notes: notes ?? "",
       });
 
-      // If pipeline configured, create opportunity
-      if (pipelineId && pipelineStageId) {
+      const opportunityTarget = resolveGhlOpportunityTarget({
+        pipelineType: "booked",
+        pipelineId,
+        pipelineStageId,
+      });
+
+      if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
         await ghlCreateOpportunity({
           pipelineType: "booked",
-          pipelineId,
-          pipelineStageId,
+          pipelineId: opportunityTarget.pipelineId,
+          pipelineStageId: opportunityTarget.pipelineStageId,
           contactId: ghlContactId,
           name: `${contactName ?? "Contact"} – Booked ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
           status: "open",
