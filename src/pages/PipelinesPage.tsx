@@ -20,7 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 function getRepLabel(displayName: string | null, email: string | null) {
@@ -225,7 +225,12 @@ export default function PipelinesPage() {
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
   const defaultFollowUpPipeline = useMemo(
-    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    () => findDefaultFollowUpPipeline(ghlPipelines),
+    [ghlPipelines],
+  );
+
+  const defaultBookedPipeline = useMemo(
+    () => findDefaultBookedPipeline(ghlPipelines),
     [ghlPipelines],
   );
 
@@ -450,6 +455,7 @@ export default function PipelinesPage() {
 
         <TwoPipelineGuide
           currentView="pipelines"
+          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
           followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
         />
@@ -493,7 +499,11 @@ export default function PipelinesPage() {
               <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
             ) : (
               <>
-                <BookedPipelineBoard items={booked} repMap={repMap} />
+                <BookedPipelineBoard
+                  items={booked}
+                  repMap={repMap}
+                  bookedStageNames={defaultBookedPipeline?.stages.map((stage) => stage.name) ?? []}
+                />
                 <BookedAppointmentsTable
                   items={booked}
                   reps={reps}

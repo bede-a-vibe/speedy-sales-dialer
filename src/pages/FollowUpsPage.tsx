@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AlertTriangle, CalendarClock, ChevronRight, Clock3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultFollowUpPipeline, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { GHL_PIPELINE_DEFAULTS } from "@/lib/pipelineMappings";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
@@ -64,7 +64,7 @@ export default function FollowUpsPage() {
   const [forDate, setForDate] = useState<string | null>(null);
   const { data: ghlPipelines = [] } = useGHLPipelines();
   const defaultFollowUpPipeline = useMemo(
-    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    () => findDefaultFollowUpPipeline(ghlPipelines),
     [ghlPipelines],
   );
   const defaultFollowUpStage = useMemo(

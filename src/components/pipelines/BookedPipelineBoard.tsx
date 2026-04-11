@@ -7,7 +7,7 @@ type BoardStageKey = "stale" | "today" | "upcoming" | "overdue";
 
 type BoardStage = {
   key: BoardStageKey;
-  title: string;
+  fallbackTitle: string;
   description: string;
   tone: string;
   emptyLabel: string;
@@ -16,28 +16,28 @@ type BoardStage = {
 const BOARD_STAGES: BoardStage[] = [
   {
     key: "stale",
-    title: "Needs Outcome",
+    fallbackTitle: "Needs Outcome",
     description: "Booked appointments in the past with no result recorded yet.",
     tone: "border-amber-500/40 bg-amber-500/5",
     emptyLabel: "No stale appointments.",
   },
   {
     key: "today",
-    title: "Today",
+    fallbackTitle: "Today",
     description: "Appointments happening today.",
     tone: "border-primary/40 bg-primary/5",
     emptyLabel: "Nothing booked for today.",
   },
   {
     key: "upcoming",
-    title: "Upcoming",
+    fallbackTitle: "Upcoming",
     description: "Future appointments still on the board.",
     tone: "border-border bg-card",
     emptyLabel: "No upcoming appointments.",
   },
   {
     key: "overdue",
-    title: "Overdue",
+    fallbackTitle: "Overdue",
     description: "Past appointments that already have an outcome but still remain open.",
     tone: "border-destructive/40 bg-destructive/5",
     emptyLabel: "No overdue appointments.",
@@ -67,12 +67,15 @@ function getScheduleLabel(scheduledFor: string | null) {
 export function BookedPipelineBoard({
   items,
   repMap,
+  bookedStageNames = [],
 }: {
   items: PipelineItemWithRelations[];
   repMap: Map<string, string>;
+  bookedStageNames?: string[];
 }) {
-  const grouped = BOARD_STAGES.map((stage) => ({
+  const grouped = BOARD_STAGES.map((stage, index) => ({
     ...stage,
+    title: bookedStageNames[index] || stage.fallbackTitle,
     items: items
       .filter((item) => getBoardStage(item) === stage.key)
       .sort((a, b) => {
@@ -87,7 +90,7 @@ export function BookedPipelineBoard({
       <div className="flex items-center justify-between gap-3">
         <div>
           <h4 className="text-sm font-semibold text-foreground">Booked pipeline board</h4>
-          <p className="text-xs text-muted-foreground">A first GHL-style pass, open booked opportunities grouped into stage-like columns.</p>
+          <p className="text-xs text-muted-foreground">Open booked opportunities grouped into stage columns, using Sales & Growth Sessions names when available.</p>
         </div>
         <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">{items.length} open opportunities</p>
       </div>
