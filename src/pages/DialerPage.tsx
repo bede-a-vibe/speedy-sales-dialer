@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound } from "lucide-react";
+import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -13,6 +13,7 @@ import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,7 @@ import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { GHL_PIPELINE_DEFAULTS, getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
@@ -205,7 +206,12 @@ export default function DialerPage() {
   );
 
   const defaultFollowUpPipeline = useMemo(
-    () => ghlPipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_DEFAULTS.follow_up.pipelineId) ?? null,
+    () => findDefaultFollowUpPipeline(ghlPipelines),
+    [ghlPipelines],
+  );
+
+  const defaultBookedPipeline = useMemo(
+    () => findDefaultBookedPipeline(ghlPipelines),
     [ghlPipelines],
   );
 
@@ -285,7 +291,7 @@ export default function DialerPage() {
   const requiresBookedSchedule = session.selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
 
-  // Auto-select first GHL calendar and pipeline when available
+  // Auto-select the explicit booked pipeline contract when available
   useEffect(() => {
     if (!ghlCalendarId && ghlCalendars.length > 0) {
       setGhlCalendarId(ghlCalendars[0].id);
@@ -293,14 +299,14 @@ export default function DialerPage() {
   }, [ghlCalendars, ghlCalendarId]);
 
   useEffect(() => {
-    if (!ghlPipelineId && ghlPipelines.length > 0) {
-      setGhlPipelineId(ghlPipelines[0].id);
-      const firstStage = ghlPipelines[0].stages?.[0];
+    if (!ghlPipelineId && defaultBookedPipeline) {
+      setGhlPipelineId(defaultBookedPipeline.id);
+      const firstStage = defaultBookedPipeline.stages?.[0];
       if (firstStage && !ghlStageId) {
         setGhlStageId(firstStage.id);
       }
     }
-  }, [ghlPipelines, ghlPipelineId, ghlStageId]);
+  }, [defaultBookedPipeline, ghlPipelineId, ghlStageId]);
 
   useEffect(() => {
     if (!ghlPipelineId) {
@@ -691,6 +697,35 @@ export default function DialerPage() {
       withGatekeeperNotes: 0,
     });
   }, [remainingQueueContacts]);
+  const enrichmentQueueStats = useMemo(() => {
+    const total = remainingQueueContacts.length;
+    const needsDmPhone = remainingQueueContacts.filter((contact) => !(contact as Record<string, unknown>).dm_phone).length;
+    const routedWithoutNotes = remainingQueueContacts.filter((contact) => {
+      const meta = contact as Record<string, unknown>;
+      const isRoutedLine = contact.phone_type === "landline" || contact.phone_type === "business_line";
+      return isRoutedLine && !meta.gatekeeper_name && !meta.gatekeeper_notes;
+    }).length;
+    const readyForDirectOutreach = remainingQueueContacts.filter((contact) => !!(contact as Record<string, unknown>).dm_phone).length;
+    const enrichedShare = total > 0 ? Math.round((readyForDirectOutreach / total) * 100) : 0;
+
+    let nextAction = "Queue is empty right now.";
+    if (needsDmPhone > 0) {
+      nextAction = `Capture direct mobile or extension details on the next ${needsDmPhone} enrichment lead${needsDmPhone === 1 ? "" : "s"}.`;
+    } else if (routedWithoutNotes > 0) {
+      nextAction = `Add gatekeeper or routing notes on ${routedWithoutNotes} routed line${routedWithoutNotes === 1 ? "" : "s"} so the next rep lands faster.`;
+    } else if (readyForDirectOutreach > 0) {
+      nextAction = "Most of the live buffer is enriched, so prioritise direct decision-maker outreach.";
+    }
+
+    return {
+      total,
+      needsDmPhone,
+      routedWithoutNotes,
+      readyForDirectOutreach,
+      enrichedShare,
+      nextAction,
+    };
+  }, [remainingQueueContacts]);
   const nextLeadFacts = session.nextContact ? [
     session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : null,
     session.nextContact.industry,
@@ -999,7 +1034,34 @@ export default function DialerPage() {
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <>
+            {dialpad.dialpadHealth && (
+              <div
+                className={cn(
+                  "rounded-lg border px-4 py-3",
+                  dialpad.dialpadHealth.level === "healthy"
+                    ? "border-emerald-500/30 bg-emerald-500/10"
+                    : dialpad.dialpadHealth.level === "degraded"
+                      ? "border-destructive/30 bg-destructive/10"
+                      : "border-amber-500/30 bg-amber-500/10",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    {dialpad.dialpadHealth.level === "healthy" ? (
+                      <Radio className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle className={cn("h-4 w-4", dialpad.dialpadHealth.level === "degraded" ? "text-destructive" : "text-amber-600")} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{dialpad.dialpadHealth.title}</p>
+                    <p className="text-xs text-muted-foreground">{dialpad.dialpadHealth.detail}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <div className="rounded-lg border border-border bg-card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1026,7 +1088,7 @@ export default function DialerPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="mt-4 grid gap-3 xl:grid-cols-3">
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
@@ -1044,6 +1106,31 @@ export default function DialerPage() {
                     <p className="mt-3 text-xs text-muted-foreground">
                       Use routed-line leads to enrich the account, then move fastest on direct mobile leads with decision-maker details already captured.
                     </p>
+                  </div>
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-amber-300">Enrichment queue</p>
+                        <p className="text-sm text-foreground">Make the missing capture work explicit before the next requeue.</p>
+                      </div>
+                      <Badge variant="outline" className="border-amber-500/30 font-mono text-xs text-amber-200">
+                        {enrichmentQueueStats.enrichedShare}% ready direct
+                      </Badge>
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Direct DM phone captured</span>
+                          <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
+                        </div>
+                        <Progress value={enrichmentQueueStats.enrichedShare} className="h-2 bg-amber-950/40 [&>div]:bg-amber-400" />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} still need DM phone</Badge>
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} routed lines missing notes</Badge>
+                      </div>
+                      <p className="text-xs text-amber-100/90">{enrichmentQueueStats.nextAction}</p>
+                    </div>
                   </div>
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
@@ -1460,7 +1547,8 @@ export default function DialerPage() {
                 </Button>
               </div>
             </div>
-          </div>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">

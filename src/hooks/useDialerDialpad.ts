@@ -81,6 +81,37 @@ export function useDialerDialpad({
   const hasUnresolvedDialpadCall = !activeDialpadCallId
     && (isCallResolving || activeDialpadCallState === "connecting" || activeDialpadCallState === "calling" || activeDialpadCallState === "ringing");
   const isCallTerminal = (!activeDialpadCallId && !hasUnresolvedDialpadCall) || activeDialpadCallState === "hangup";
+  const dialpadHealth = hasTrackingRecoveryFailed
+    ? {
+        level: "degraded" as const,
+        title: "Dialpad tracking needs attention",
+        detail: "The live call could not relink automatically. Retry linking now or end the call when it is safe.",
+      }
+    : isRetryingUntrackedLiveCall
+      ? {
+          level: "degraded" as const,
+          title: "Dialpad tracking is recovering",
+          detail: "The call is still live, but tracking has not reattached yet. The dialer is retrying in the background.",
+        }
+      : isCallResolving
+        ? {
+            level: "warning" as const,
+            title: "Waiting for Dialpad confirmation",
+            detail: "The call was placed, but the dialer is still linking the live Dialpad call.",
+          }
+        : dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()
+          ? {
+              level: "warning" as const,
+              title: "Dialpad status checks are paused briefly",
+              detail: "Dialpad rate limited a status refresh. Realtime updates can still arrive while polling backs off.",
+            }
+          : activeDialpadCallId && activeDialpadCallState && activeDialpadCallState !== "hangup"
+            ? {
+                level: "healthy" as const,
+                title: "Dialpad tracking is healthy",
+                detail: `Live call linked. Current state: ${activeDialpadCallState}.`,
+              }
+            : null;
 
   const clearActiveDialRequest = useCallback(() => {
     clearActiveDialRequestLock(activeDialRequestRef.current);
@@ -473,6 +504,7 @@ export function useDialerDialpad({
     hasTrackingRecoveryFailed,
     isDialpadCallStatusPending,
     dialpadPollingBackoffUntil,
+    dialpadHealth,
     callStartedAt,
     // Mutations
     dialpadCall,
