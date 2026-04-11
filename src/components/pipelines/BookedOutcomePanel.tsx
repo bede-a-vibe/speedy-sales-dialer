@@ -12,6 +12,7 @@ import { BOOKED_APPOINTMENT_DEFAULT_TIME, type AppointmentOutcomeValue } from "@
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
+import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -87,6 +88,13 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         onChange={(e) => setOutcomeNotes(e.target.value)}
         placeholder="Optional notes about the appointment result"
         className="min-h-[72px] resize-none bg-background"
+      />
+
+      <GhlMirrorDetails
+        ghlContactId={item.contacts?.ghl_contact_id}
+        ghlOpportunityId={item.ghl_opportunity_id}
+        ghlPipelineId={item.ghl_pipeline_id}
+        ghlStageId={item.ghl_stage_id}
       />
 
       <div className="flex items-center gap-2">

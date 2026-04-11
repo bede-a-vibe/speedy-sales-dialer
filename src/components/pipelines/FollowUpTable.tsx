@@ -12,7 +12,8 @@ import { FollowUpMethodBadge, FollowUpMethodSelector } from "@/components/pipeli
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
-import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
+import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
+import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
 
 // ---------- Status helpers ----------
 
@@ -124,6 +125,12 @@ function FollowUpActionPanel({
         )}
       </div>
       {item.notes && <p className="text-xs italic text-muted-foreground">"{item.notes}"</p>}
+      <GhlMirrorDetails
+        ghlContactId={item.contacts?.ghl_contact_id}
+        ghlOpportunityId={item.ghl_opportunity_id}
+        ghlPipelineId={item.ghl_pipeline_id}
+        ghlStageId={item.ghl_stage_id}
+      />
 
       {/* Actions row */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
@@ -318,7 +325,16 @@ export function FollowUpTable({
     return (
       <div className="space-y-3">
         {filtersBar}
-        {filtered.map(({ item, status, rep }) => (
+        {filtered.map(({ item, status, rep }) => {
+          const ghlCue = getGhlMirrorCue({
+            pipelineType: item.pipeline_type,
+            ghlContactId: item.contacts?.ghl_contact_id,
+            ghlOpportunityId: item.ghl_opportunity_id,
+            ghlPipelineId: item.ghl_pipeline_id,
+            ghlStageId: item.ghl_stage_id,
+          });
+
+          return (
           <Collapsible key={item.id} open={expandedId === item.id} onOpenChange={() => toggle(item.id)}>
             <CollapsibleTrigger asChild>
               <button
@@ -338,12 +354,14 @@ export function FollowUpTable({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{rep}</span>
                     <GhlMirrorStatusBadge
+                      pipelineType={item.pipeline_type}
                       ghlContactId={item.contacts?.ghl_contact_id}
                       ghlOpportunityId={item.ghl_opportunity_id}
                       ghlPipelineId={item.ghl_pipeline_id}
                       ghlStageId={item.ghl_stage_id}
                     />
                   </div>
+                  <p className="text-[11px] text-muted-foreground">{ghlCue}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <FollowUpMethodBadge method={item.follow_up_method || "call"} />
@@ -366,7 +384,7 @@ export function FollowUpTable({
               </div>
             </CollapsibleContent>
           </Collapsible>
-        ))}
+        );})}
       </div>
     );
   }
@@ -390,6 +408,13 @@ export function FollowUpTable({
           <tbody>
             {filtered.map(({ item, status, rep }) => {
               const isOpen = expandedId === item.id;
+              const ghlCue = getGhlMirrorCue({
+                pipelineType: item.pipeline_type,
+                ghlContactId: item.contacts?.ghl_contact_id,
+                ghlOpportunityId: item.ghl_opportunity_id,
+                ghlPipelineId: item.ghl_pipeline_id,
+                ghlStageId: item.ghl_stage_id,
+              });
               return (
                 <Collapsible key={item.id} asChild open={isOpen} onOpenChange={() => toggle(item.id)}>
                   <>
@@ -407,6 +432,7 @@ export function FollowUpTable({
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
                             <GhlMirrorStatusBadge
+                              pipelineType={item.pipeline_type}
                               ghlContactId={item.contacts?.ghl_contact_id}
                               ghlOpportunityId={item.ghl_opportunity_id}
                               ghlPipelineId={item.ghl_pipeline_id}
@@ -414,8 +440,7 @@ export function FollowUpTable({
                             />
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {item.contacts?.contact_person || "No contact"}
-                            {!item.contacts?.ghl_contact_id ? " · sync waits on contact link" : !item.ghl_opportunity_id ? " · contact linked, mirror pending" : ""}
+                            {item.contacts?.contact_person || "No contact"} · {ghlCue}
                           </div>
                         </td>
                         <td className="px-4 py-3">
