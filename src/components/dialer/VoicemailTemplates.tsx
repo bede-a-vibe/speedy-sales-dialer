@@ -116,7 +116,7 @@ export function VoicemailTemplates(context: VoicemailTemplatesProps) {
       </div>
 
       <p className="mb-3 text-[10px] text-muted-foreground">
-        Keep it under 30 seconds. Leave one reason to call back. Hard cap: 2 voicemails per outbound sequence.
+        Keep it under 30 seconds. Leave one reason to call back, not a full pitch. Pair the voicemail with a callback task or SMS when the workflow allows. Hard cap: 2 voicemails per outbound sequence.
       </p>
 
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">

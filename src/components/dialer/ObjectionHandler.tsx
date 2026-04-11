@@ -34,18 +34,18 @@ const OBJECTION_SCRIPTS: ObjectionScript[] = [
     objection: "I'm flat out / Too busy right now",
     category: "timing",
     response:
-      "That's actually the best time to get this sorted — when you're busy, you've got cash flow to invest, and when it quietens down you'll already have leads coming through. Takes 15 minutes to get started. Can we lock in a quick chat this arvo or tomorrow morning?",
+      "No worries, sounds like I caught you mid-run. I do not want to force this if the timing is bad.",
     followUp:
-      "When's your quietest time of day? I'll make sure we keep it short and sharp.",
+      "When are you usually easiest to catch, later today or tomorrow? I only need 2 minutes and I'll keep it tight.",
   },
   {
     id: "already-have-someone",
     objection: "We already have a marketing guy / agency",
     category: "competition",
     response:
-      "No worries at all — that's actually pretty common. A lot of our best clients came to us while they were still with someone else. They just wanted a second opinion on whether they were getting the best bang for their buck. Would you be open to a quick comparison? No pressure, just a 10-minute look.",
+      "Makes sense. We usually help when there is already activity in place, not only when someone has nothing running.",
     followUp:
-      "Out of curiosity, do you know how many leads your current setup is generating each month?",
+      "What would you change first if your current setup worked exactly how you wanted?",
   },
   {
     id: "not-interested",
@@ -61,9 +61,9 @@ const OBJECTION_SCRIPTS: ObjectionScript[] = [
     objection: "Just send me an email / Send me some info",
     category: "timing",
     response:
-      "Happy to send something through — but honestly, a generic email won't do your business justice. I'd rather spend 2 minutes understanding what you actually need so I can send you something relevant. What type of work are you mainly chasing right now?",
+      "Happy to. So I send the right thing, I just need to know where the gap is first.",
     followUp:
-      "What's the best email for you? And just so I can tailor it — are you mainly after residential or commercial work?",
+      "What are you trying to improve most right now: lead volume, quote-to-job conversion, or follow-up speed?",
   },
   {
     id: "need-to-think",
@@ -159,6 +159,15 @@ export function ObjectionHandler() {
         <span className="ml-auto text-[9px] text-muted-foreground">
           {filteredScripts.length} scripts
         </span>
+      </div>
+
+      <div className="mb-3 rounded-md border border-primary/10 bg-primary/5 p-2.5">
+        <div className="text-[9px] font-bold uppercase tracking-wider text-primary mb-1">
+          Current guardrail
+        </div>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Treat objections as context, not a cue to argue. Respond briefly, learn what sits behind it, then either lock the next step or a clean callback window.
+        </p>
       </div>
 
       {/* Category filter pills */}
