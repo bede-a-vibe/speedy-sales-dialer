@@ -371,7 +371,7 @@ export default function DialerPage() {
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
-    && (!requiresBookedSchedule || (!!session.followUpTime && !!ghlCalendarId))
+    && (!requiresBookedSchedule || (!!session.followUpTime && !!ghlCalendarId && !!ghlPipelineId && !!ghlStageId))
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
@@ -1657,7 +1657,7 @@ export default function DialerPage() {
                       {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
                         <div>
                           <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                            Pipeline Stage
+                            Pipeline Stage <span className="text-primary">(required)</span>
                           </label>
                           <Select value={ghlStageId} onValueChange={setGhlStageId}>
                             <SelectTrigger className="w-full border-border bg-background">
@@ -1670,6 +1670,11 @@ export default function DialerPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                      )}
+                      {ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                        <p className="text-xs text-destructive">
+                          No stages were found for the selected GHL pipeline. Pick a different pipeline before logging a booked outcome.
+                        </p>
                       )}
 
                     </div>
@@ -1706,7 +1711,7 @@ export default function DialerPage() {
                     )}
                     {requiresBookedSchedule && ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
                       <p className="mt-1 text-amber-700 dark:text-amber-300">
-                        This pipeline has no stages, so the booking will sync to the calendar without creating an opportunity.
+                        This pipeline has no stages. Pick a different pipeline before logging a booked outcome.
                       </p>
                     )}
                   </div>

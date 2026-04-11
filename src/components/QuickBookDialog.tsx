@@ -218,8 +218,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
 
   const canSubmit = useMemo(
-    () => !!selectedContact && !!assignedRepId && !!scheduledDate && (pipelineType !== "booked" || !!ghlCalendarId),
-    [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId],
+    () => !!selectedContact
+      && !!assignedRepId
+      && !!scheduledDate
+      && (pipelineType !== "booked" || (!!ghlCalendarId && !!ghlPipelineId && !!ghlStageId)),
+    [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId, ghlPipelineId, ghlStageId],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -541,7 +544,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
                     <div>
                       <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                        Pipeline Stage
+                        Pipeline Stage <span className="text-primary">(required)</span>
                       </label>
                       <Select value={ghlStageId} onValueChange={setGhlStageId}>
                         <SelectTrigger className="w-full border-border bg-background">
@@ -554,6 +557,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                         </SelectContent>
                       </Select>
                     </div>
+                  )}
+                  {ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                    <p className="text-xs text-destructive">
+                      No stages were found for the selected GHL pipeline. Pick a different pipeline before creating a booking.
+                    </p>
                   )}
                 </div>
               )}

@@ -29,12 +29,14 @@ export function findGHLPipelineStageByName(stages: GHLPipelineStage[], stageName
 }
 
 export function findDefaultBookedPipeline(pipelines: GHLPipeline[]) {
-  return findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
+  return pipelines.find((pipeline) => pipeline.id === GHL_PIPELINE_CONTRACT.booked.pipelineId)
+    ?? findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
 }
 
 export function findDefaultBookedStage(pipeline: GHLPipeline | null | undefined) {
   if (!pipeline) return null;
-  return findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.booked.stageName);
+  return pipeline.stages.find((stage) => stage.id === GHL_PIPELINE_CONTRACT.booked.stageId)
+    ?? findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.booked.stageName);
 }
 
 export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {
