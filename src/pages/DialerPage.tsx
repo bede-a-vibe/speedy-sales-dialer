@@ -84,6 +84,27 @@ function getNextFollowUpRescheduleIso(currentScheduledFor?: string | null, fallb
   return next.toISOString();
 }
 
+function buildFollowUpNoteDraft(contact: Record<string, unknown> | null | undefined) {
+  if (!contact) return "";
+
+  const parts: string[] = [];
+  const dmName = typeof contact.dm_name === "string" ? contact.dm_name.trim() : "";
+  const dmPhone = typeof contact.dm_phone === "string" ? contact.dm_phone.trim() : "";
+  const bestTimeToCall = typeof contact.best_time_to_call === "string" ? contact.best_time_to_call.trim() : "";
+  const bestRoute = typeof contact.best_route_to_dm === "string" ? contact.best_route_to_dm.trim() : "";
+  const gatekeeperName = typeof contact.gatekeeper_name === "string" ? contact.gatekeeper_name.trim() : "";
+  const gatekeeperNotes = typeof contact.gatekeeper_notes === "string" ? contact.gatekeeper_notes.trim() : "";
+  const priorFollowUpNote = typeof contact.follow_up_note === "string" ? contact.follow_up_note.trim() : "";
+
+  if (bestTimeToCall) parts.push(`Best callback window: ${bestTimeToCall}`);
+  if (bestRoute) parts.push(`Best route: ${bestRoute}`);
+  if (dmName || dmPhone) parts.push(`Decision maker: ${[dmName, dmPhone].filter(Boolean).join(" · ")}`);
+  if (gatekeeperName || gatekeeperNotes) parts.push(`Gatekeeper: ${[gatekeeperName, gatekeeperNotes].filter(Boolean).join(" · ")}`);
+  if (priorFollowUpNote) parts.push(`Previous note: ${priorFollowUpNote}`);
+
+  return parts.join("\n");
+}
+
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
   <div ref={ref} className="rounded-lg border border-border bg-card p-4">
     <div className="space-y-3">
@@ -193,6 +214,18 @@ export default function DialerPage() {
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
+
+  const followUpNoteDraft = useMemo(
+    () => buildFollowUpNoteDraft(session.currentContact as Record<string, unknown> | null | undefined),
+    [session.currentContact],
+  );
+
+  useEffect(() => {
+    if (session.selectedOutcome !== "follow_up") return;
+    if (session.notes.trim()) return;
+    if (!followUpNoteDraft) return;
+    session.setNotes(followUpNoteDraft);
+  }, [followUpNoteDraft, session]);
 
   const selectedGhlPipeline = useMemo(
     () => ghlPipelines.find((p) => p.id === ghlPipelineId) ?? null,
@@ -1689,15 +1722,27 @@ export default function DialerPage() {
                     <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      Follow-up Notes
-                    </label>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Follow-up Notes
+                      </label>
+                      {followUpNoteDraft && (
+                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => session.setNotes(followUpNoteDraft)}>
+                          Refill from callback intel
+                        </Button>
+                      )}
+                    </div>
                     <Textarea
                       value={session.notes}
                       onChange={(e) => session.setNotes(e.target.value)}
                       placeholder="Enter follow-up details..."
                       className="min-h-[80px] resize-none border-border bg-background text-sm"
                     />
+                    {followUpNoteDraft && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Pulled from saved callback timing, routing, decision-maker, and prior follow-up notes.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
