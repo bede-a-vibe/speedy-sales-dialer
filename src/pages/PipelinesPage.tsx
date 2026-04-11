@@ -20,7 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
-import { findDefaultBookedPipeline, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
+import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 function getRepLabel(displayName: string | null, email: string | null) {
@@ -239,6 +239,10 @@ export default function PipelinesPage() {
     [defaultFollowUpPipeline],
   );
 
+  const defaultBookedStage = useMemo(
+    () => findDefaultBookedStage(defaultBookedPipeline),
+    [defaultBookedPipeline],
+  );
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -456,6 +460,7 @@ export default function PipelinesPage() {
         <TwoPipelineGuide
           currentView="pipelines"
           bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
+          bookedStageName={defaultBookedStage?.name ?? undefined}
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
           followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
         />
@@ -502,7 +507,8 @@ export default function PipelinesPage() {
                 <BookedPipelineBoard
                   items={booked}
                   repMap={repMap}
-                  bookedStageNames={defaultBookedPipeline?.stages.map((stage) => stage.name) ?? []}
+                  bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
+                  bookedEntryStageName={defaultBookedStage?.name ?? null}
                 />
                 <BookedAppointmentsTable
                   items={booked}

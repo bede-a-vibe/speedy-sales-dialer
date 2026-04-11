@@ -77,15 +77,17 @@ function getScheduleLabel(scheduledFor: string | null) {
 export function BookedPipelineBoard({
   items,
   repMap,
-  bookedStageNames = [],
+  bookedPipelineName,
+  bookedEntryStageName,
 }: {
   items: PipelineItemWithRelations[];
   repMap: Map<string, string>;
-  bookedStageNames?: string[];
+  bookedPipelineName?: string | null;
+  bookedEntryStageName?: string | null;
 }) {
-  const grouped = BOARD_STAGES.map((stage, index) => ({
+  const grouped = BOARD_STAGES.map((stage) => ({
     ...stage,
-    title: bookedStageNames[index] || stage.fallbackTitle,
+    title: stage.fallbackTitle,
     items: items
       .filter((item) => getBoardStage(item) === stage.key)
       .sort((a, b) => {
@@ -99,8 +101,12 @@ export function BookedPipelineBoard({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-semibold text-foreground">Booked pipeline board</h4>
-          <p className="text-xs text-muted-foreground">Open booked opportunities grouped into stage columns, using Sales & Growth Sessions names when available.</p>
+          <h4 className="text-sm font-semibold text-foreground">Booked execution board</h4>
+          <p className="text-xs text-muted-foreground">
+            Open booked opportunities grouped by appointment timing so reps can work the queue after routing lands in{" "}
+            <span className="font-medium text-foreground">{bookedPipelineName ?? "Sales & Growth Sessions"}</span>
+            {bookedEntryStageName ? <span className="text-muted-foreground"> {"→"} {bookedEntryStageName}</span> : null}.
+          </p>
         </div>
         <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">{items.length} open opportunities</p>
       </div>
