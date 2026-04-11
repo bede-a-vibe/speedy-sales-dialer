@@ -238,7 +238,7 @@ export default function DialerPage() {
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
-    && (!requiresBookedSchedule || !!ghlCalendarId)
+    && (!requiresBookedSchedule || (!!session.followUpTime && !!ghlCalendarId))
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
@@ -300,6 +300,10 @@ export default function DialerPage() {
       toast.error("Choose an appointment day.");
       return;
     }
+    if (outcomeToLog === "booked" && !session.followUpTime) {
+      toast.error("Choose an appointment time.");
+      return;
+    }
     const needsPipelineAssignment = outcomeToLog === "follow_up" || outcomeToLog === "booked";
     if (needsPipelineAssignment && !session.assignedRepId) {
       toast.error("Choose a sales rep.");
@@ -320,7 +324,7 @@ export default function DialerPage() {
     const contactName = session.currentContact.business_name;
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
-      ? combineDateAndTime(session.followUpDate, outcomeToLog === "follow_up" ? session.followUpTime : BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
+      ? combineDateAndTime(session.followUpDate, session.followUpTime || BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
       : null;
     const pipelineNotes = session.notes;
     const repId = session.assignedRepId;
@@ -1066,7 +1070,7 @@ export default function DialerPage() {
                     <div className="space-y-4">
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          Appointment Date <span className="text-primary">(required)</span>
+                          Appointment Date & Time <span className="text-primary">(required)</span>
                         </label>
                         <div className="space-y-2">
                           <div className="flex flex-wrap gap-2">
@@ -1092,6 +1096,11 @@ export default function DialerPage() {
                             </PopoverContent>
                           </Popover>
                           <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
+                          {session.followUpDate && session.followUpTime && (
+                            <p className="text-xs text-muted-foreground">
+                              Appointment will be logged for {format(combineDateAndTime(session.followUpDate, session.followUpTime), "PPP p")}.
+                            </p>
+                          )}
                         </div>
                       </div>
 
