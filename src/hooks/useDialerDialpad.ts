@@ -61,6 +61,7 @@ export function useDialerDialpad({
   const [isCallResolving, setIsCallResolving] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [isRetryingUntrackedLiveCall, setIsRetryingUntrackedLiveCall] = useState(false);
+  const [hasTrackingRecoveryFailed, setHasTrackingRecoveryFailed] = useState(false);
   const activeDialRequestRef = useRef<string | null>(null);
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
   const lastDialpadCallIdRef = useRef<string | null>(null);
@@ -95,6 +96,7 @@ export function useDialerDialpad({
     setIsCallResolving(false);
     setCallStartedAt(null);
     setIsRetryingUntrackedLiveCall(false);
+    setHasTrackingRecoveryFailed(false);
   }, [clearActiveDialRequest]);
 
   const resetDialpadState = useCallback(() => {
@@ -107,6 +109,7 @@ export function useDialerDialpad({
     setIsCallResolving(false);
     setCallStartedAt(null);
     setIsRetryingUntrackedLiveCall(false);
+    setHasTrackingRecoveryFailed(false);
   }, [clearActiveDialRequest]);
 
   const getDialpadCallIdForLog = useCallback(() => {
@@ -127,6 +130,7 @@ export function useDialerDialpad({
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
     setIsCallResolving(false);
+    setHasTrackingRecoveryFailed(false);
     setCallStartedAt(Date.now());
 
     const mutation = dialpadCallRef.current;
@@ -215,6 +219,7 @@ export function useDialerDialpad({
           setActiveDialpadCallState(result.state ?? "calling");
           setIsCallResolving(false);
           setIsRetryingUntrackedLiveCall(false);
+          setHasTrackingRecoveryFailed(false);
           toast.success("Active call linked to the dialer.");
           return;
         }
@@ -225,6 +230,7 @@ export function useDialerDialpad({
           setIsCallResolving(false);
           setActiveDialpadCallState("live");
           setIsRetryingUntrackedLiveCall(true);
+          setHasTrackingRecoveryFailed(false);
           toast.warning("Call is live but couldn't be linked yet. We'll keep retrying in the background.");
           return;
         }
@@ -275,6 +281,7 @@ export function useDialerDialpad({
           lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setIsRetryingUntrackedLiveCall(false);
+          setHasTrackingRecoveryFailed(false);
           toast.success("Recovered the live Dialpad call and resumed tracking.");
           return;
         }
@@ -287,6 +294,8 @@ export function useDialerDialpad({
       attempts += 1;
       if (attempts >= MAX_BACKGROUND_ATTEMPTS) {
         setIsRetryingUntrackedLiveCall(false);
+        setHasTrackingRecoveryFailed(true);
+        toast.error("Dialpad tracking could not reconnect automatically. Retry linking or end the call when it is safe.");
         return;
       }
 
@@ -427,6 +436,15 @@ export function useDialerDialpad({
     }
   }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, markCallAsEnded, myDialpadSettings, currentContact]);
 
+  const retryDialpadCallLink = useCallback(() => {
+    if (activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+    setHasTrackingRecoveryFailed(false);
+    setIsRetryingUntrackedLiveCall(false);
+    setIsCallResolving(true);
+    setActiveDialpadCallState("connecting");
+    toast.info("Retrying Dialpad call linking now.");
+  }, [activeDialpadCallId, currentContact, myDialpadSettings?.dialpad_user_id]);
+
   const fireAndForgetHangup = useCallback(() => {
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
       cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId }).catch(() => {});
@@ -452,6 +470,7 @@ export function useDialerDialpad({
     isEndingCall,
     isCallResolving,
     isRetryingUntrackedLiveCall,
+    hasTrackingRecoveryFailed,
     isDialpadCallStatusPending,
     dialpadPollingBackoffUntil,
     callStartedAt,
@@ -461,6 +480,7 @@ export function useDialerDialpad({
     linkDialpadCallLog,
     // Actions
     cancelActiveCall,
+    retryDialpadCallLink,
     fireAndForgetHangup,
     resetDialpadState,
     getDialpadCallIdForLog,

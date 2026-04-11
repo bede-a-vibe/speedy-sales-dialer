@@ -11,11 +11,13 @@ interface DialpadSyncPanelProps {
   activeDialpadCallId: string | null;
   activeDialpadCallState: string | null;
   onCancelCall: () => void;
+  onRetryLink?: () => void;
   isCancelling: boolean;
   isStatusPending: boolean;
   isEndingCall: boolean;
   isResolving?: boolean;
   isRetryingUntrackedLiveCall?: boolean;
+  hasTrackingRecoveryFailed?: boolean;
   enabled?: boolean;
   callStartedAt?: number | null;
 }
@@ -31,11 +33,13 @@ export function DialpadSyncPanel({
   activeDialpadCallId,
   activeDialpadCallState,
   onCancelCall,
+  onRetryLink,
   isCancelling,
   isStatusPending,
   isEndingCall,
   isResolving = false,
   isRetryingUntrackedLiveCall = false,
+  hasTrackingRecoveryFailed = false,
   enabled = true,
   callStartedAt = null,
 }: DialpadSyncPanelProps) {
@@ -170,27 +174,42 @@ export function DialpadSyncPanel({
                   : "Cancel Active Call"}
             </Button>
           </div>
-        ) : isResolving || isRetryingUntrackedLiveCall ? (
+        ) : isResolving || isRetryingUntrackedLiveCall || hasTrackingRecoveryFailed ? (
           <div className="space-y-3">
             <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 font-mono text-xs text-muted-foreground">
               <Loader2 className="mr-2 inline h-3 w-3 animate-spin" />
-              {isRetryingUntrackedLiveCall
-                ? "Call is live. Dialpad tracking is still reconnecting in the background."
-                : `Connecting to Dialpad… waiting for call confirmation (${linkingElapsed}s).`}
+              {hasTrackingRecoveryFailed
+                ? "Call is still live, but Dialpad tracking recovery stalled. Retry linking now or end the call once it is safe."
+                : isRetryingUntrackedLiveCall
+                  ? "Call is live. Dialpad tracking is still reconnecting in the background."
+                  : `Connecting to Dialpad… waiting for call confirmation (${linkingElapsed}s).`}
             </div>
-            <Button
-              variant="outline"
-              onClick={onCancelCall}
-              disabled={isCancelling || isEndingCall}
-              className="w-full border-destructive text-destructive hover:bg-destructive/10"
-            >
-              {isCancelling || isEndingCall ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <PhoneOff className="mr-2 h-4 w-4" />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {hasTrackingRecoveryFailed && onRetryLink && (
+                <Button
+                  variant="secondary"
+                  onClick={onRetryLink}
+                  disabled={isCancelling || isEndingCall}
+                  className="w-full"
+                >
+                  <Radio className="mr-2 h-4 w-4" />
+                  Retry Linking Now
+                </Button>
               )}
-              Cancel Call
-            </Button>
+              <Button
+                variant="outline"
+                onClick={onCancelCall}
+                disabled={isCancelling || isEndingCall}
+                className="w-full border-destructive text-destructive hover:bg-destructive/10"
+              >
+                {isCancelling || isEndingCall ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PhoneOff className="mr-2 h-4 w-4" />
+                )}
+                Cancel Call
+              </Button>
+            </div>
           </div>
         ) : (
           <p className="text-muted-foreground">

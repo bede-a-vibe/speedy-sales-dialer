@@ -1128,11 +1128,13 @@ export default function DialerPage() {
                   activeDialpadCallId={dialpad.activeDialpadCallId}
                   activeDialpadCallState={dialpad.activeDialpadCallState}
                   onCancelCall={dialpad.cancelActiveCall}
+                  onRetryLink={dialpad.retryDialpadCallLink}
                   isCancelling={dialpad.cancelDialpadCall.isPending}
                   isStatusPending={dialpad.isDialpadCallStatusPending}
                   isEndingCall={dialpad.isEndingCall}
                   isResolving={dialpad.isCallResolving}
                   isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
+                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
                   callStartedAt={dialpad.callStartedAt}
                   enabled
                 />
