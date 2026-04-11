@@ -183,9 +183,24 @@ export default function DialerPage() {
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
-  const ghlSelectedPipelineStages = useMemo(
-    () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
+  const selectedGhlPipeline = useMemo(
+    () => ghlPipelines.find((p) => p.id === ghlPipelineId) ?? null,
     [ghlPipelines, ghlPipelineId],
+  );
+
+  const ghlSelectedPipelineStages = useMemo(
+    () => selectedGhlPipeline?.stages ?? [],
+    [selectedGhlPipeline],
+  );
+
+  const selectedGhlStage = useMemo(
+    () => ghlSelectedPipelineStages.find((stage) => stage.id === ghlStageId) ?? null,
+    [ghlSelectedPipelineStages, ghlStageId],
+  );
+
+  const selectedGhlCalendar = useMemo(
+    () => ghlCalendars.find((calendar) => calendar.id === ghlCalendarId) ?? null,
+    [ghlCalendars, ghlCalendarId],
   );
 
   const queueLeadCount = useMemo(
@@ -234,6 +249,22 @@ export default function DialerPage() {
       }
     }
   }, [ghlPipelines, ghlPipelineId, ghlStageId]);
+
+  useEffect(() => {
+    if (!ghlPipelineId) {
+      if (ghlStageId) setGhlStageId("");
+      return;
+    }
+
+    if (ghlSelectedPipelineStages.length === 0) {
+      if (ghlStageId) setGhlStageId("");
+      return;
+    }
+
+    if (!ghlStageId || !ghlSelectedPipelineStages.some((stage) => stage.id === ghlStageId)) {
+      setGhlStageId(ghlSelectedPipelineStages[0].id);
+    }
+  }, [ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
   const canSubmit = !!session.selectedOutcome
     && (!requiresPipelineAssignment || !!session.assignedRepId)
@@ -1158,7 +1189,7 @@ export default function DialerPage() {
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                           GHL Pipeline <span className="text-primary">(required)</span>
                         </label>
-                        <Select value={ghlPipelineId} onValueChange={(v) => { setGhlPipelineId(v); setGhlStageId(""); }}>
+                        <Select value={ghlPipelineId} onValueChange={setGhlPipelineId}>
                           <SelectTrigger className="w-full border-border bg-background">
                             <SelectValue placeholder="Select pipeline" />
                           </SelectTrigger>
@@ -1188,6 +1219,31 @@ export default function DialerPage() {
                           </Select>
                         </div>
                       )}
+
+                      <div className="rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs">
+                        <p className="font-medium text-foreground">
+                          {requiresBookedSchedule ? "GHL booking destination" : "GHL follow-up destination"}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          {requiresBookedSchedule
+                            ? `Calendar: ${selectedGhlCalendar?.name ?? "Not selected yet"}`
+                            : "A GHL task will be created for the assigned rep."}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          Opportunity: {selectedGhlPipeline?.name ?? "No pipeline selected"}
+                          {selectedGhlStage ? ` → ${selectedGhlStage.name}` : ghlPipelineId ? " → No stage selected" : ""}
+                        </p>
+                        {!requiresBookedSchedule && !selectedGhlStage && (
+                          <p className="mt-1 text-amber-700 dark:text-amber-300">
+                            No stage selected. Follow-ups will fall back to the default GHL follow-up stage.
+                          </p>
+                        )}
+                        {requiresBookedSchedule && ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                          <p className="mt-1 text-amber-700 dark:text-amber-300">
+                            This pipeline has no stages, so the booking will sync to the calendar without creating an opportunity.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
