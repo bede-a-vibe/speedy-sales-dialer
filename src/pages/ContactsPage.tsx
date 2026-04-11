@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-import { useUpdateContact, useCreateContact, usePaginatedContacts } from "@/hooks/useContacts";
+import { useUpdateContact, useCreateContact, usePaginatedContacts, type ContactsSortOption } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -66,6 +66,13 @@ const APPOINTMENT_OUTCOME_FILTER_OPTIONS = [
   { value: "showed_no_close", label: "Showed - No Close" },
 ] as const;
 
+const CONTACT_SORT_OPTIONS: { value: ContactsSortOption; label: string }[] = [
+  { value: "operational", label: "Operational priority" },
+  { value: "updated_desc", label: "Recently updated" },
+  { value: "created_desc", label: "Recently created" },
+  { value: "business_name_asc", label: "Business name (A-Z)" },
+];
+
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   uncalled: "bg-muted text-muted-foreground",
   called: "bg-primary/10 text-primary",
@@ -92,6 +99,67 @@ const PHONE_TYPE_LABELS: Record<(typeof PHONE_TYPE_OPTIONS)[number], string> = {
   landline: "Landline",
   business_line: "Business Line",
 };
+
+type ContactIntegrityBadge = {
+  label: string;
+  className: string;
+  title: string;
+};
+
+function getContactIntegrityBadges(contact: Contact): ContactIntegrityBadge[] {
+  const badges: ContactIntegrityBadge[] = [];
+  const hasGhlLink = Boolean(contact.ghl_contact_id);
+  const hasBookedDate = Boolean(contact.meeting_booked_date || contact.latest_appointment_scheduled_for);
+  const hasFollowUpDate = Boolean(contact.next_followup_date);
+
+  badges.push(
+    hasGhlLink
+      ? {
+          label: "GHL linked",
+          className: "bg-emerald-500/10 text-emerald-700",
+          title: `Linked to GHL contact ${contact.ghl_contact_id}`,
+        }
+      : {
+          label: "Local only",
+          className: "bg-amber-500/10 text-amber-700",
+          title: "This contact has no saved GHL contact id yet, so remote sync can drift.",
+        },
+  );
+
+  if (contact.status === "booked" && !hasBookedDate) {
+    badges.push({
+      label: "Booked missing date",
+      className: "bg-destructive/10 text-destructive",
+      title: "Status is booked, but there is no booked appointment date saved on the contact.",
+    });
+  }
+
+  if (contact.status === "follow_up" && !hasFollowUpDate) {
+    badges.push({
+      label: "Follow-up missing date",
+      className: "bg-destructive/10 text-destructive",
+      title: "Status is follow_up, but there is no next follow-up date saved on the contact.",
+    });
+  }
+
+  if (contact.status !== "booked" && Boolean(contact.meeting_booked_date)) {
+    badges.push({
+      label: "Booked drift",
+      className: "bg-sky-500/10 text-sky-700",
+      title: "A booked date is still saved locally even though the contact status is no longer booked.",
+    });
+  }
+
+  if (contact.status !== "follow_up" && Boolean(contact.next_followup_date)) {
+    badges.push({
+      label: "Follow-up drift",
+      className: "bg-sky-500/10 text-sky-700",
+      title: "A follow-up date is still saved locally even though the contact status is no longer follow_up.",
+    });
+  }
+
+  return badges;
+}
 
 function getContactStage(contact: Contact) {
   if (contact.latest_appointment_outcome) return getAppointmentOutcomeLabel(contact.latest_appointment_outcome);
@@ -161,6 +229,7 @@ function PipelineTimeline({ contactId }: { contactId: string }) {
 }
 
 function ExpandedContactDetails({ contact }: { contact: Contact }) {
+  const integrityBadges = getContactIntegrityBadges(contact);
   const {
     data: callLogPages,
     isLoading: isLoadingCallLogs,
@@ -196,6 +265,25 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
         </span>
         {contact.prospect_tier && <span className="rounded bg-primary/10 px-2 py-1 font-mono text-primary">{contact.prospect_tier}</span>}
         {contact.buying_signal_strength && <span className="rounded bg-emerald-500/10 px-2 py-1 font-mono text-emerald-600">Signal: {contact.buying_signal_strength}</span>}
+      </div>
+
+      <div className="rounded border border-border bg-card px-3 py-3">
+        <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <CalendarClock className="h-3 w-3" /> GHL & Scheduling Integrity
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {integrityBadges.map((badge) => (
+            <span key={badge.label} className={`rounded px-2 py-1 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
+              {badge.label}
+            </span>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-1 text-xs text-muted-foreground md:grid-cols-2">
+          <p>GHL Contact ID: <span className="font-mono text-foreground">{contact.ghl_contact_id || "—"}</span></p>
+          <p>Next Follow-up: <span className="font-mono text-foreground">{contact.next_followup_date ? format(new Date(contact.next_followup_date), "MMM d, yyyy h:mm a") : "—"}</span></p>
+          <p>Meeting Booked: <span className="font-mono text-foreground">{contact.meeting_booked_date ? format(new Date(contact.meeting_booked_date), "MMM d, yyyy h:mm a") : "—"}</span></p>
+          <p>Eligibility: <span className="text-foreground">{contact.is_dnc ? "Blocked, DNC" : contact.phone ? "Callable" : "Missing phone"}</span></p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
@@ -336,6 +424,7 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
@@ -381,6 +470,7 @@ export default function ContactsPage() {
     search: debouncedSearch,
     page,
     pageSize: CONTACTS_PER_PAGE,
+    sortBy,
   });
 
   const contacts = data?.contacts ?? [];
@@ -443,7 +533,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter]);
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, sortBy]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -655,6 +745,14 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
+            <SelectTrigger className="w-[210px] border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
+            <SelectContent>
+              {CONTACT_SORT_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground">{totalCount} contacts · page {page} of {totalPages}</span>
             {isAdmin && (
@@ -683,12 +781,14 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
                     <th className="w-28 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contacts.map((contact) => {
                     const isExpanded = expandedId === contact.id;
+                    const integrityBadges = getContactIntegrityBadges(contact);
 
                     return (
                       <React.Fragment key={contact.id}>
@@ -713,6 +813,15 @@ export default function ContactsPage() {
                           </td>
                           <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                           <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {integrityBadges.slice(0, 2).map((badge) => (
+                                <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
+                                  {badge.label}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={(e) => openEdit(contact, e)} className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" title="Edit">
                                 <Pencil className="h-3.5 w-3.5" />
@@ -728,7 +837,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={6} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={7} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
