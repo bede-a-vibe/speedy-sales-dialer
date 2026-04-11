@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -166,6 +166,91 @@ function getContactStage(contact: Contact) {
   if (contact.latest_appointment_scheduled_for) return "Booked appointment";
   if (contact.last_outcome) return OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome;
   return "—";
+}
+
+function getOperationalRank(contact: Contact) {
+  let score = 0;
+
+  if (contact.status === "follow_up") score += 120;
+  if (contact.status === "booked") score += 105;
+  if (contact.latest_appointment_scheduled_for) score += 20;
+  if (contact.next_followup_date) score += 18;
+  if (contact.dm_phone) score += 40;
+  if (contact.dm_name) score += 10;
+  if (contact.ghl_contact_id) score += 16;
+  if (contact.best_time_to_call) score += 8;
+  if (contact.best_route_to_decision_maker) score += 6;
+  if (contact.gatekeeper_name) score += 5;
+  if (contact.phone_type === "mobile") score += 14;
+  if (contact.phone_type === "business_line") score += 4;
+  if (contact.phone_type === "landline") score -= 6;
+  if (contact.phone_number_quality === "confirmed") score += 10;
+  if (contact.phone_number_quality === "suspect") score -= 12;
+  if (contact.phone_number_quality === "dead") score -= 40;
+  if ((contact.call_attempt_count ?? 0) === 0) score += 8;
+  if ((contact.call_attempt_count ?? 0) >= 4) score -= 8;
+  if ((contact.voicemail_count ?? 0) >= 2) score -= 6;
+  if (contact.status === "closed") score -= 60;
+  if (contact.status === "not_interested") score -= 50;
+  if (contact.is_dnc || contact.status === "dnc") score -= 100;
+
+  return score;
+}
+
+function getQueueReadinessBadge(contact: Contact): ContactIntegrityBadge {
+  if (contact.is_dnc || contact.status === "dnc") {
+    return {
+      label: "Do not call",
+      className: "bg-destructive/10 text-destructive",
+      title: "This contact should stay out of the active queue.",
+    };
+  }
+
+  if (contact.status === "booked" || contact.latest_appointment_scheduled_for) {
+    return {
+      label: "Booked",
+      className: "bg-blue-500/10 text-blue-700",
+      title: "This contact already has a booked appointment state recorded.",
+    };
+  }
+
+  if (contact.status === "follow_up") {
+    return {
+      label: "Follow-up due",
+      className: "bg-amber-500/10 text-amber-700",
+      title: "This contact is sitting in follow-up and should be worked before cold leads.",
+    };
+  }
+
+  if (contact.dm_phone && contact.ghl_contact_id) {
+    return {
+      label: "Direct + linked",
+      className: "bg-emerald-500/10 text-emerald-700",
+      title: "Decision-maker direct line is captured and the contact is linked to GHL.",
+    };
+  }
+
+  if (contact.dm_phone) {
+    return {
+      label: "Direct path",
+      className: "bg-emerald-500/10 text-emerald-700",
+      title: "A direct decision-maker number is already captured.",
+    };
+  }
+
+  if (contact.phone_type === "landline" || contact.phone_type === "business_line") {
+    return {
+      label: "Needs routing",
+      className: "bg-orange-500/10 text-orange-700",
+      title: "This is a routed business line and still needs better gatekeeper or transfer intel.",
+    };
+  }
+
+  return {
+    label: "Needs enrichment",
+    className: "bg-muted text-muted-foreground",
+    title: "This lead still needs cleaner operational context before it is queue-ready.",
+  };
 }
 
 function TimelineSectionSkeleton() {
@@ -473,7 +558,24 @@ export default function ContactsPage() {
     sortBy,
   });
 
-  const contacts = data?.contacts ?? [];
+  const contacts = useMemo(() => {
+    const items = [...(data?.contacts ?? [])];
+
+    if (sortBy === "operational") {
+      items.sort((a, b) => {
+        const scoreDelta = getOperationalRank(b) - getOperationalRank(a);
+        if (scoreDelta !== 0) return scoreDelta;
+
+        const followUpTimeDelta = (a.next_followup_date ? new Date(a.next_followup_date).getTime() : Number.POSITIVE_INFINITY)
+          - (b.next_followup_date ? new Date(b.next_followup_date).getTime() : Number.POSITIVE_INFINITY);
+        if (followUpTimeDelta !== 0) return followUpTimeDelta;
+
+        return a.business_name.localeCompare(b.business_name);
+      });
+    }
+
+    return items;
+  }, [data?.contacts, sortBy]);
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
 
@@ -772,6 +874,12 @@ export default function ContactsPage() {
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
           <>
+            {sortBy === "operational" && (
+              <div className="rounded-lg border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
+                Operational priority pulls urgent follow-ups and booked contacts to the top, then favors leads with GHL linkage, a direct DM path, and stronger phone intel.
+              </div>
+            )}
+
             <div className="overflow-hidden rounded-lg border border-border bg-card">
               <table className="w-full text-sm">
                 <thead>
@@ -788,7 +896,7 @@ export default function ContactsPage() {
                 <tbody>
                   {contacts.map((contact) => {
                     const isExpanded = expandedId === contact.id;
-                    const integrityBadges = getContactIntegrityBadges(contact);
+                    const integrityBadges = [getQueueReadinessBadge(contact), ...getContactIntegrityBadges(contact)];
 
                     return (
                       <React.Fragment key={contact.id}>
