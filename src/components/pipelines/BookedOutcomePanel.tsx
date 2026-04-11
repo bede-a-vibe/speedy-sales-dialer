@@ -91,6 +91,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       />
 
       <GhlMirrorDetails
+        pipelineType="booked"
         ghlContactId={item.contacts?.ghl_contact_id}
         ghlOpportunityId={item.ghl_opportunity_id}
         ghlPipelineId={item.ghl_pipeline_id}

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
-import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
+import { GhlMirrorStatusBadge, getGhlMirrorCue, getGhlMirrorState } from "@/components/ghl/GhlMirrorStatusBadge";
 
 // ---------- Status helpers ----------
 
@@ -52,7 +52,7 @@ function StatusPill({ status }: { status: ItemStatus }) {
 // ---------- Types ----------
 
 type StatusFilter = "all" | "overdue" | "today" | "due_soon" | "upcoming";
-type GhlFilter = "all" | "mirrored" | "linked" | "blocked";
+type GhlFilter = "all" | "mirrored" | "off_path" | "linked" | "blocked";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -126,6 +126,7 @@ function FollowUpActionPanel({
       </div>
       {item.notes && <p className="text-xs italic text-muted-foreground">"{item.notes}"</p>}
       <GhlMirrorDetails
+        pipelineType="follow_up"
         ghlContactId={item.contacts?.ghl_contact_id}
         ghlOpportunityId={item.ghl_opportunity_id}
         ghlPipelineId={item.ghl_pipeline_id}
@@ -233,15 +234,39 @@ export function FollowUpTable({
     if (methodFilter !== "all") list = list.filter((r) => (r.item.follow_up_method || "call") === methodFilter);
     if (ghlFilter !== "all") {
       list = list.filter(({ item }) => {
-        const hasContactLink = Boolean(item.contacts?.ghl_contact_id);
-        const hasMirror = Boolean(item.ghl_opportunity_id);
-        if (ghlFilter === "mirrored") return hasMirror;
-        if (ghlFilter === "linked") return hasContactLink && !hasMirror;
-        return !hasContactLink;
+        const mirrorState = getGhlMirrorState({
+          pipelineType: item.pipeline_type,
+          ghlContactId: item.contacts?.ghl_contact_id,
+          ghlOpportunityId: item.ghl_opportunity_id,
+          ghlPipelineId: item.ghl_pipeline_id,
+          ghlStageId: item.ghl_stage_id,
+        });
+        if (ghlFilter === "mirrored") return mirrorState.hasMirror;
+        if (ghlFilter === "off_path") return mirrorState.hasTargetMismatch;
+        if (ghlFilter === "linked") return mirrorState.hasContactLink && !mirrorState.hasMirror;
+        return !mirrorState.hasContactLink;
       });
     }
     const order: Record<string, number> = { overdue: 0, today: 1, due_soon: 2, upcoming: 3 };
-    return [...list].sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
+    return [...list].sort((a, b) => {
+      const aMirrorState = getGhlMirrorState({
+        pipelineType: a.item.pipeline_type,
+        ghlContactId: a.item.contacts?.ghl_contact_id,
+        ghlOpportunityId: a.item.ghl_opportunity_id,
+        ghlPipelineId: a.item.ghl_pipeline_id,
+        ghlStageId: a.item.ghl_stage_id,
+      });
+      const bMirrorState = getGhlMirrorState({
+        pipelineType: b.item.pipeline_type,
+        ghlContactId: b.item.contacts?.ghl_contact_id,
+        ghlOpportunityId: b.item.ghl_opportunity_id,
+        ghlPipelineId: b.item.ghl_pipeline_id,
+        ghlStageId: b.item.ghl_stage_id,
+      });
+      const mirrorDifference = Number(bMirrorState.hasTargetMismatch) - Number(aMirrorState.hasTargetMismatch);
+      if (mirrorDifference !== 0) return mirrorDifference;
+      return (order[a.status] ?? 4) - (order[b.status] ?? 4);
+    });
   }, [enriched, repFilter, statusFilter, methodFilter, ghlFilter]);
 
   const overdueCount = enriched.filter((r) => r.status === "overdue").length;
@@ -291,6 +316,7 @@ export function FollowUpTable({
         <SelectContent>
           <SelectItem value="all">All GHL states</SelectItem>
           <SelectItem value="mirrored">Mirrored</SelectItem>
+          <SelectItem value="off_path">Off-path in GHL</SelectItem>
           <SelectItem value="linked">Linked only</SelectItem>
           <SelectItem value="blocked">Needs contact link</SelectItem>
         </SelectContent>

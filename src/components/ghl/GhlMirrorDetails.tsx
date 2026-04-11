@@ -2,8 +2,13 @@ import { useMemo } from "react";
 import { Link2, Route, ShieldAlert } from "lucide-react";
 import { useGHLPipelines } from "@/hooks/useGHLConfig";
 import { cn } from "@/lib/utils";
+import {
+  GHL_PIPELINE_CONTRACT,
+  type GhlPipelineType,
+} from "@/shared/ghlPipelineContract";
 
 interface GhlMirrorDetailsProps {
+  pipelineType?: GhlPipelineType | null;
   ghlContactId?: string | null;
   ghlOpportunityId?: string | null;
   ghlPipelineId?: string | null;
@@ -12,6 +17,7 @@ interface GhlMirrorDetailsProps {
 }
 
 export function GhlMirrorDetails({
+  pipelineType,
   ghlContactId,
   ghlOpportunityId,
   ghlPipelineId,
@@ -27,24 +33,33 @@ export function GhlMirrorDetails({
     const stage = ghlStageId && pipeline
       ? pipeline.stages.find((entry) => entry.id === ghlStageId) ?? null
       : null;
+    const configuredTarget = pipelineType ? GHL_PIPELINE_CONTRACT[pipelineType] : null;
+    const isConfiguredMismatch = Boolean(
+      configuredTarget && ghlPipelineId && ghlStageId
+      && (ghlPipelineId !== configuredTarget.pipelineId || ghlStageId !== configuredTarget.stageId),
+    );
 
     return {
       pipeline,
       stage,
+      configuredTarget,
       stageMissing: Boolean(ghlStageId && !stage),
+      isConfiguredMismatch,
     };
-  }, [ghlPipelineId, ghlPipelines, ghlStageId]);
+  }, [ghlPipelineId, ghlPipelines, ghlStageId, pipelineType]);
 
   const hasAnyIdentity = Boolean(ghlContactId || ghlOpportunityId || ghlPipelineId || ghlStageId);
-  if (!hasAnyIdentity) return null;
+  if (!hasAnyIdentity && !resolved.configuredTarget) return null;
 
   const targetLabel = resolved.pipeline
     ? resolved.stage
       ? `${resolved.pipeline.name} → ${resolved.stage.name}`
       : resolved.pipeline.name
-    : ghlPipelineId
-      ? `Pipeline ID ${ghlPipelineId}`
-      : "No pipeline target saved";
+    : resolved.configuredTarget && ghlPipelineId === resolved.configuredTarget.pipelineId && ghlStageId === resolved.configuredTarget.stageId
+      ? `${resolved.configuredTarget.pipelineName} → ${resolved.configuredTarget.stageName}`
+      : ghlPipelineId
+        ? `Pipeline ID ${ghlPipelineId}`
+        : "No pipeline target saved";
 
   return (
     <div className={cn("rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs", className)}>
@@ -64,6 +79,17 @@ export function GhlMirrorDetails({
       {(ghlPipelineId || ghlStageId) && (
         <p className="mt-1 font-mono text-[11px] text-muted-foreground">
           pipeline_id={ghlPipelineId ?? "—"} · stage_id={ghlStageId ?? "—"}
+        </p>
+      )}
+      {resolved.configuredTarget && (
+        <p className="mt-1 text-muted-foreground">
+          Expected path: <span className="font-medium text-foreground">{resolved.configuredTarget.pipelineName} → {resolved.configuredTarget.stageName}</span>
+        </p>
+      )}
+      {resolved.isConfiguredMismatch && resolved.configuredTarget && (
+        <p className="mt-2 inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+          <ShieldAlert className="h-3 w-3" />
+          Saved GHL target does not match the configured {pipelineType?.replace("_", " ") ?? "pipeline"} path.
         </p>
       )}
       {resolved.stageMissing && (
