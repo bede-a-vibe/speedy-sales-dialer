@@ -113,6 +113,8 @@ type ContactActionCue = {
   title: string;
 };
 
+type ContactFocusFilter = "all" | "follow_up" | "integrity" | "drift" | "queue_ready" | "enrichment";
+
 function getContactIntegrityBadges(contact: Contact): ContactIntegrityBadge[] {
   const badges: ContactIntegrityBadge[] = [];
   const hasGhlLink = Boolean(contact.ghl_contact_id);
@@ -258,6 +260,50 @@ function getQueueReadinessBadge(contact: Contact): ContactIntegrityBadge {
     className: "bg-muted text-muted-foreground",
     title: "This lead still needs cleaner operational context before it is queue-ready.",
   };
+}
+
+function hasIntegrityIssue(contact: Contact) {
+  return (contact.status === "booked" && !contact.meeting_booked_date && !contact.latest_appointment_scheduled_for)
+    || (contact.status === "follow_up" && !contact.next_followup_date);
+}
+
+function hasOperationalDrift(contact: Contact) {
+  return (!contact.ghl_contact_id && (contact.status === "follow_up" || contact.status === "booked"))
+    || (contact.status !== "booked" && Boolean(contact.meeting_booked_date))
+    || (contact.status !== "follow_up" && Boolean(contact.next_followup_date));
+}
+
+function isQueueReady(contact: Contact) {
+  if (contact.is_dnc || contact.status === "dnc" || contact.status === "booked" || contact.status === "follow_up" || contact.latest_appointment_scheduled_for) {
+    return false;
+  }
+
+  return Boolean(contact.dm_phone);
+}
+
+function needsEnrichment(contact: Contact) {
+  if (contact.is_dnc || contact.status === "dnc" || contact.status === "booked" || contact.status === "follow_up" || contact.latest_appointment_scheduled_for) {
+    return false;
+  }
+
+  return !contact.dm_phone || contact.phone_type === "landline" || contact.phone_type === "business_line" || !contact.ghl_contact_id;
+}
+
+function matchesFocusFilter(contact: Contact, focusFilter: ContactFocusFilter) {
+  switch (focusFilter) {
+    case "follow_up":
+      return contact.status === "follow_up";
+    case "integrity":
+      return hasIntegrityIssue(contact);
+    case "drift":
+      return hasOperationalDrift(contact);
+    case "queue_ready":
+      return isQueueReady(contact);
+    case "enrichment":
+      return needsEnrichment(contact);
+    default:
+      return true;
+  }
 }
 
 function getContactActionCue(contact: Contact): ContactActionCue {
@@ -618,6 +664,7 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
+  const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editContact, setEditContact] = useState<Contact | null>(null);
@@ -667,7 +714,7 @@ export default function ContactsPage() {
     sortBy,
   });
 
-  const contacts = useMemo(() => {
+  const allPageContacts = useMemo(() => {
     const items = [...(data?.contacts ?? [])];
 
     if (sortBy === "operational") {
@@ -685,6 +732,21 @@ export default function ContactsPage() {
 
     return items;
   }, [data?.contacts, sortBy]);
+
+  const focusCounts = useMemo(() => ({
+    all: allPageContacts.length,
+    follow_up: allPageContacts.filter((contact) => matchesFocusFilter(contact, "follow_up")).length,
+    integrity: allPageContacts.filter((contact) => matchesFocusFilter(contact, "integrity")).length,
+    drift: allPageContacts.filter((contact) => matchesFocusFilter(contact, "drift")).length,
+    queue_ready: allPageContacts.filter((contact) => matchesFocusFilter(contact, "queue_ready")).length,
+    enrichment: allPageContacts.filter((contact) => matchesFocusFilter(contact, "enrichment")).length,
+  }), [allPageContacts]);
+
+  const contacts = useMemo(
+    () => allPageContacts.filter((contact) => matchesFocusFilter(contact, focusFilter)),
+    [allPageContacts, focusFilter],
+  );
+
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
 
@@ -965,7 +1027,7 @@ export default function ContactsPage() {
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">{totalCount} contacts · page {page} of {totalPages}</span>
+            <span className="text-xs font-mono text-muted-foreground">{contacts.length}/{allPageContacts.length} visible · {totalCount} contacts · page {page} of {totalPages}</span>
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => { resetCreateForm(); setShowCreateDialog(true); }} className="border-border">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />New Contact
@@ -977,6 +1039,36 @@ export default function ContactsPage() {
           </div>
         </div>
 
+        {!isLoading && allPageContacts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-3">
+            <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Queue focus</span>
+            {[
+              { value: "all", label: "All on page" },
+              { value: "follow_up", label: "Follow-ups first" },
+              { value: "integrity", label: "Integrity fixes" },
+              { value: "drift", label: "Drift risk" },
+              { value: "queue_ready", label: "Queue ready" },
+              { value: "enrichment", label: "Needs enrichment" },
+            ].map((option) => {
+              const value = option.value as ContactFocusFilter;
+              const isActive = focusFilter === value;
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={isActive ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setFocusFilter(value)}
+                >
+                  {option.label}
+                  <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">{focusCounts[value]}</span>
+                </Button>
+              );
+            })}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
         ) : contacts.length === 0 ? (
@@ -985,7 +1077,7 @@ export default function ContactsPage() {
           <>
             {sortBy === "operational" && (
               <div className="rounded-lg border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
-                Operational priority pulls urgent follow-ups and booked contacts to the top, then favors leads with GHL linkage, a direct DM path, and stronger phone intel.
+                Operational priority pulls urgent follow-ups and booked contacts to the top, then favors leads with GHL linkage, a direct DM path, and stronger phone intel. Queue focus lets reps narrow the current page to integrity fixes, drift risk, queue-ready leads, or enrichment work without scanning row by row.
               </div>
             )}
 
