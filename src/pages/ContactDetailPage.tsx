@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
-import { useContactPipelineItems } from "@/hooks/usePipelineItems";
+import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -21,10 +21,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts">;
+
+const CONTACT_STATUS_OPTIONS = [
+  { value: "uncalled", label: "Uncalled" },
+  { value: "called", label: "Called" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "booked", label: "Booked" },
+  { value: "closed", label: "Closed" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "dnc", label: "Do Not Call" },
+] as const;
 
 function formatTimestamp(value?: string | null, pattern = "dd MMM yy · HH:mm") {
   if (!value) return "—";
@@ -76,6 +89,7 @@ export default function ContactDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const updateContact = useUpdateContact();
+  const createPipelineItem = useCreatePipelineItem();
 
   const { data: contact, isLoading, error } = useContact(id);
   const { data: callLogPages, fetchNextPage: fetchMoreLogs, hasNextPage: hasMoreLogs } = useContactCallLogs(id, 5, !!contact);
@@ -84,6 +98,9 @@ export default function ContactDetailPage() {
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [nextStatus, setNextStatus] = useState<string>("uncalled");
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingTime, setBookingTime] = useState("10:00");
 
   const allCallLogs = useMemo(() => callLogPages?.pages.flatMap((p) => p.items) ?? [], [callLogPages]);
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
@@ -92,6 +109,11 @@ export default function ContactDetailPage() {
   const nextPipelineItem = pipelineItems.find((item: any) => item.scheduled_for && item.status !== "completed") ?? pipelineItems[0];
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
+  const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
+
+  useEffect(() => {
+    setNextStatus(currentStatusValue);
+  }, [currentStatusValue, id]);
 
   const handleToggleDnc = async () => {
     if (!contact) return;
@@ -125,6 +147,58 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleStatusUpdate = async () => {
+    if (!contact || !user || nextStatus === currentStatusValue) return;
+
+    const isBooking = nextStatus === "booked";
+    if (isBooking && !bookingDate) {
+      toast.error("Please select a booking date.");
+      return;
+    }
+
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        status: nextStatus === "dnc" ? contact.status : nextStatus,
+        is_dnc: nextStatus === "dnc",
+      });
+
+      if (isBooking) {
+        const [hours, minutes] = bookingTime.split(":").map(Number);
+        const scheduled = new Date(bookingDate);
+        scheduled.setHours(hours || 10, minutes || 0, 0, 0);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: contact.id,
+          pipeline_type: "booked",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled.toISOString(),
+          notes: "Created from contact detail page",
+        });
+      } else if (nextStatus === "follow_up") {
+        const scheduled = new Date();
+        scheduled.setDate(scheduled.getDate() + 2);
+
+        await createPipelineItem.mutateAsync({
+          contact_id: contact.id,
+          pipeline_type: "follow_up",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled.toISOString(),
+          notes: contact.follow_up_note || "Created from contact detail page",
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      setBookingDate("");
+      setBookingTime("10:00");
+      toast.success(`Status updated to ${nextStatus}.`);
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
   if (isLoading) {
     return (
       <AppLayout title="Contact">
@@ -149,7 +223,6 @@ export default function ContactDetailPage() {
   return (
     <AppLayout title={contact.business_name}>
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Back + Header */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="flex items-center gap-3 lg:flex-1 lg:min-w-0">
             <Button variant="ghost" size="sm" onClick={() => navigate("/contacts")}>
@@ -159,8 +232,8 @@ export default function ContactDetailPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-foreground truncate">{contact.business_name}</h1>
                 <Badge variant="secondary" className="font-mono text-xs">{contact.industry}</Badge>
-                <Badge variant={contact.status === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
-                  {contact.status}
+                <Badge variant={currentStatusValue === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
+                  {currentStatusValue}
                 </Badge>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -225,7 +298,6 @@ export default function ContactDetailPage() {
           </div>
         </div>
 
-        {/* Contact Info Bar */}
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -276,11 +348,8 @@ export default function ContactDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Two-column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Call History + Notes */}
           <div className="space-y-6">
-            {/* Call History */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
@@ -322,7 +391,6 @@ export default function ContactDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Notes */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
@@ -373,9 +441,57 @@ export default function ContactDetailPage() {
             </Card>
           </div>
 
-          {/* Right: Pipeline + Metadata */}
           <div className="space-y-6">
-            {/* Pipeline Items */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
+                  Quick Status Update
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Select value={nextStatus} onValueChange={setNextStatus}>
+                    <SelectTrigger className="border-border bg-card"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTACT_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {nextStatus === "booked" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Booking Date *</Label>
+                      <Input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="border-border bg-card" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Booking Time</Label>
+                      <Input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="border-border bg-card" />
+                    </div>
+                  </div>
+                )}
+                {nextStatus === "follow_up" && (
+                  <p className="rounded border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                    This also creates a follow-up task scheduled in 2 days.
+                  </p>
+                )}
+                {nextStatus === "dnc" && (
+                  <p className="rounded border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-muted-foreground">
+                    This marks the contact as do not call without overwriting its existing status.
+                  </p>
+                )}
+                <Button
+                  onClick={handleStatusUpdate}
+                  disabled={updateContact.isPending || createPipelineItem.isPending || nextStatus === currentStatusValue}
+                  className="w-full"
+                >
+                  {updateContact.isPending || createPipelineItem.isPending ? "Saving…" : "Update Status"}
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
@@ -414,7 +530,6 @@ export default function ContactDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Contact Metadata */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
@@ -423,39 +538,39 @@ export default function ContactDetailPage() {
               </CardHeader>
               <CardContent>
                 <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Call Attempts</dt>
                     <dd className="font-mono font-medium text-foreground">{contact.call_attempt_count}</dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Last Outcome</dt>
-                    <dd className="font-mono text-foreground">
+                    <dd className="font-mono text-foreground text-right">
                       {contact.last_outcome
                         ? (OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome)
                         : "—"}
                     </dd>
                   </div>
                   {contact.latest_appointment_outcome && (
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Appt. Outcome</dt>
-                      <dd className="font-mono text-foreground">
+                      <dd className="font-mono text-foreground text-right">
                         {getAppointmentOutcomeLabel(contact.latest_appointment_outcome as AppointmentOutcomeValue)}
                       </dd>
                     </div>
                   )}
                   {contact.follow_up_note && (
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Follow-up Note</dt>
                       <dd className="text-foreground text-xs max-w-[200px] text-right">{contact.follow_up_note}</dd>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Created</dt>
                     <dd className="font-mono text-xs text-foreground">
                       {formatTimestamp(contact.created_at, "dd MMM yyyy")}
                     </dd>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">Updated</dt>
                     <dd className="font-mono text-xs text-foreground">
                       {formatTimestamp(contact.updated_at, "dd MMM yyyy")}
