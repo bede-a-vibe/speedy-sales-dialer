@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
@@ -24,6 +24,7 @@ const mainItems = [
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
+  { title: "Training", url: "/training", icon: GraduationCap },
 ];
 
 const adminItems = [

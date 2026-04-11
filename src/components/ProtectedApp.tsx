@@ -12,6 +12,7 @@ const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
 const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const TargetsPage = lazy(() => import("@/pages/TargetsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
+const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -55,6 +56,7 @@ function ProtectedRoutes() {
         <Route path="/contacts/:id" element={<ContactDetailPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route path="/follow-ups" element={<FollowUpsPage />} />
+        <Route path="/training" element={<TrainingPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route
           path="/targets"
