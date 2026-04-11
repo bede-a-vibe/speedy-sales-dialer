@@ -284,13 +284,18 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
       const newStatus = getContactStatusForPipelineType(pipelineType);
       const lifecycleFieldUpdates = pipelineType === "booked"
-        ? { meeting_booked_date: scheduledFor.toISOString() }
+        ? {
+            meeting_booked_date: scheduledFor.toISOString(),
+            next_followup_date: null,
+            follow_up_note: null,
+          }
         : {
+            meeting_booked_date: null,
             next_followup_date: scheduledFor.toISOString(),
             follow_up_note: notes.trim() || null,
           };
 
-      await supabase
+      const { error: contactMirrorError } = await supabase
         .from("contacts")
         .update({
           status: newStatus,
@@ -298,6 +303,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
           ...lifecycleFieldUpdates,
         })
         .eq("id", selectedContact.id);
+
+      if (contactMirrorError) {
+        throw contactMirrorError;
+      }
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
       let ghlSyncConfirmed = false;
