@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { resolveGhlOpportunityTarget } from "../../../src/shared/ghlPipelineContract.ts";
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
 const GHL_VERSION = "2021-07-28";
@@ -127,9 +128,31 @@ async function createOpportunity(
   locationId: string,
   body: Record<string, unknown>,
 ) {
+  const pipelineType = body.pipelineType === "follow_up" || body.pipelineType === "booked"
+    ? body.pipelineType
+    : null;
+
+  const resolvedTarget = pipelineType
+    ? resolveGhlOpportunityTarget({
+      pipelineType,
+      pipelineId: typeof body.pipelineId === "string" ? body.pipelineId : null,
+      pipelineStageId: typeof body.pipelineStageId === "string" ? body.pipelineStageId : null,
+    })
+    : {
+      pipelineId: typeof body.pipelineId === "string" ? body.pipelineId : undefined,
+      pipelineStageId: typeof body.pipelineStageId === "string" ? body.pipelineStageId : undefined,
+    };
+
+  const { pipelineType: _pipelineType, ...rest } = body;
+
   return ghlFetch("/opportunities/", apiKey, {
     method: "POST",
-    body: { ...body, locationId },
+    body: {
+      ...rest,
+      locationId,
+      pipelineId: resolvedTarget.pipelineId,
+      pipelineStageId: resolvedTarget.pipelineStageId,
+    },
   });
 }
 

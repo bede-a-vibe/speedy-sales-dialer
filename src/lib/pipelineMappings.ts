@@ -1,6 +1,11 @@
 import type { CallOutcome } from "@/data/constants";
 import type { FollowUpMethod, PipelineType } from "@/hooks/usePipelineItems";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
+export {
+  GHL_PIPELINE_CONTRACT,
+  GHL_PIPELINE_DEFAULTS,
+  resolveGhlOpportunityTarget,
+} from "@/shared/ghlPipelineContract";
 
 export type ContactLifecycleStatus =
   | "uncalled"
@@ -13,24 +18,6 @@ export type ContactLifecycleStatus =
 
 export const DEFAULT_MANUAL_FOLLOW_UP_DELAY_DAYS = 2;
 
-export const GHL_PIPELINE_CONTRACT = {
-  follow_up: {
-    pipelineName: "Outbound Prospecting",
-    pipelineId: "QuBn7UX5zebPTd4fqW9x",
-    stageId: "5102204c-7b00-48f9-94fb-70ca529841b9",
-  },
-  booked: {
-    pipelineName: "Sales & Growth Sessions",
-    stageName: "Booked Appointment",
-  },
-} as const;
-
-export const GHL_PIPELINE_DEFAULTS = {
-  follow_up: {
-    pipelineId: GHL_PIPELINE_CONTRACT.follow_up.pipelineId,
-    stageId: GHL_PIPELINE_CONTRACT.follow_up.stageId,
-  },
-} as const;
 
 export const CALL_OUTCOME_LABELS: Record<CallOutcome | "wrong_number", string> = {
   no_answer: "No Answer",
@@ -142,24 +129,6 @@ export function getDefaultManualFollowUpScheduledFor(base = new Date(), delayDay
   const scheduled = new Date(base);
   scheduled.setDate(scheduled.getDate() + delayDays);
   return scheduled;
-}
-
-export function resolveGhlOpportunityTarget(params: {
-  pipelineType: PipelineType;
-  pipelineId?: string | null;
-  pipelineStageId?: string | null;
-}): { pipelineId?: string; pipelineStageId?: string } {
-  if (params.pipelineType === "follow_up") {
-    return {
-      pipelineId: params.pipelineId || GHL_PIPELINE_DEFAULTS.follow_up.pipelineId,
-      pipelineStageId: params.pipelineStageId || GHL_PIPELINE_DEFAULTS.follow_up.stageId,
-    };
-  }
-
-  return {
-    pipelineId: params.pipelineId || undefined,
-    pipelineStageId: params.pipelineStageId || undefined,
-  };
 }
 
 export function getFollowUpTaskTitle(method?: FollowUpMethod) {

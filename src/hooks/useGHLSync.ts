@@ -112,6 +112,7 @@ export function useGHLSync() {
       // If pipeline configured, create opportunity
       if (pipelineId && pipelineStageId) {
         await ghlCreateOpportunity({
+          pipelineType: "booked",
           pipelineId,
           pipelineStageId,
           contactId: ghlContactId,
@@ -159,6 +160,7 @@ export function useGHLSync() {
       });
 
       await ghlCreateOpportunity({
+        pipelineType: "follow_up",
         pipelineId: opportunityTarget.pipelineId,
         pipelineStageId: opportunityTarget.pipelineStageId,
         contactId: ghlContactId,
