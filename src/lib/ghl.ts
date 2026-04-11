@@ -60,6 +60,10 @@ export async function ghlCreateOpportunity(payload: Record<string, unknown>) {
   return invokeGHL({ action: "create_opportunity", payload });
 }
 
+export async function ghlGetOpportunity(opportunityId: string) {
+  return invokeGHL({ action: "get_opportunity", opportunityId });
+}
+
 export async function ghlCreateAppointment(payload: Record<string, unknown>) {
   return invokeGHL({ action: "create_appointment", payload });
 }

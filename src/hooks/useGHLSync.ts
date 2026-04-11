@@ -7,9 +7,10 @@ import {
   ghlCreateTask,
   ghlCreateOpportunity,
   ghlCreateAppointment,
+  ghlGetOpportunity,
   ghlUpdateContact,
 } from "@/lib/ghl";
-import { extractGhlOpportunityId } from "@/lib/ghlOpportunityIdentity";
+import { extractGhlOpportunityId, extractGhlOpportunityTarget } from "@/lib/ghlOpportunityIdentity";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 import { CALL_OUTCOME_LABELS, getFollowUpTaskTitle, resolveGhlOpportunityTarget } from "@/lib/pipelineMappings";
 
@@ -72,6 +73,11 @@ interface PushFollowUpEmailDraftParams {
 interface PushDNCParams {
   ghlContactId: string;
   contactId?: string;
+}
+
+interface RefreshOpportunityMirrorParams {
+  pipelineItemId: string;
+  ghlOpportunityId: string;
 }
 
 function describeError(err: unknown) {
@@ -394,5 +400,24 @@ export function useGHLSync() {
     }
   }, []);
 
-  return { pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC };
+  const refreshOpportunityMirror = useCallback(async (params: RefreshOpportunityMirrorParams) => {
+    try {
+      const opportunity = await ghlGetOpportunity(params.ghlOpportunityId);
+      const target = extractGhlOpportunityTarget(opportunity);
+
+      await persistOpportunityIdentity({
+        pipelineItemId: params.pipelineItemId,
+        ghlPipelineId: target.pipelineId ?? undefined,
+        ghlStageId: target.stageId ?? undefined,
+        opportunityPayload: opportunity,
+      });
+
+      return target;
+    } catch (err) {
+      console.warn(`[GHL Sync] Failed to refresh opportunity ${params.ghlOpportunityId}:`, err);
+      return null;
+    }
+  }, []);
+
+  return { pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC, refreshOpportunityMirror };
 }

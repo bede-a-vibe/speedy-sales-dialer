@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
@@ -221,7 +221,7 @@ export default function PipelinesPage() {
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
   const { user } = useAuth();
-  const ghlSync = useGHLSync();
+  const { pushCallNote, pushFollowUp, refreshOpportunityMirror } = useGHLSync();
   const ghlLink = useGHLContactLink();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
@@ -244,6 +244,32 @@ export default function PipelinesPage() {
     () => findDefaultBookedStage(defaultBookedPipeline),
     [defaultBookedPipeline],
   );
+
+
+  useEffect(() => {
+    const mirrorCandidates = booked.filter((item) => item.ghl_opportunity_id);
+    if (mirrorCandidates.length === 0) return;
+
+    let cancelled = false;
+
+    const refresh = async () => {
+      await Promise.allSettled(
+        mirrorCandidates.map(async (item) => {
+          if (cancelled || !item.ghl_opportunity_id) return;
+          await refreshOpportunityMirror({
+            pipelineItemId: item.id,
+            ghlOpportunityId: item.ghl_opportunity_id,
+          });
+        }),
+      );
+    };
+
+    void refresh();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booked, refreshOpportunityMirror]);
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -338,7 +364,7 @@ export default function PipelinesPage() {
         if (dealValue != null && outcome === "showed_closed") noteParts.push(`Deal Value: $${dealValue.toLocaleString()}`);
         if (outcome === "rescheduled" && scheduledFor) noteParts.push(`Rescheduled to: ${new Date(scheduledFor).toLocaleString("en-AU")}`);
         noteParts.push(`Recorded via Speedy Sales Dialer at ${new Date().toLocaleString("en-AU")}`);
-        ghlSync.pushCallNote({
+        pushCallNote({
           ghlContactId: contactGhlId,
           outcome: outcomeSync.callOutcome,
           notes: noteParts.join("\n"),
@@ -346,7 +372,7 @@ export default function PipelinesPage() {
 
         // Push follow-up task to GHL if one was created
         if (followUpDate && outcomeSync.createsFollowUpTask) {
-          ghlSync.pushFollowUp({
+          pushFollowUp({
             ghlContactId: contactGhlId,
             contactId: item.contact_id,
             scheduledFor: followUpDate,

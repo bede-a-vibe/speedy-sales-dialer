@@ -166,6 +166,10 @@ async function createCalendarEvent(
   });
 }
 
+async function getOpportunity(apiKey: string, opportunityId: string) {
+  return ghlFetch(`/opportunities/${opportunityId}`, apiKey);
+}
+
 async function getCalendars(apiKey: string, locationId: string) {
   return ghlFetch("/calendars/", apiKey, {
     params: { locationId },
@@ -819,6 +823,11 @@ Deno.serve(async (req) => {
 
       case "create_opportunity":
         result = await createOpportunity(GHL_API_KEY, GHL_LOCATION_ID, body.payload ?? {});
+        break;
+
+      case "get_opportunity":
+        if (!body.opportunityId) return json({ error: "Missing opportunityId" }, 400);
+        result = await getOpportunity(GHL_API_KEY, body.opportunityId);
         break;
 
       case "create_appointment":
