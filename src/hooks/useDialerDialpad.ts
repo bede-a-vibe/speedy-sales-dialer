@@ -81,8 +81,24 @@ export function useDialerDialpad({
     && (isCallResolving || activeDialpadCallState === "connecting" || activeDialpadCallState === "calling" || activeDialpadCallState === "ringing");
   const isCallTerminal = (!activeDialpadCallId && !hasUnresolvedDialpadCall) || activeDialpadCallState === "hangup";
 
-  const resetDialpadState = useCallback(() => {
+  const clearActiveDialRequest = useCallback(() => {
     clearActiveDialRequestLock(activeDialRequestRef.current);
+    activeDialRequestRef.current = null;
+  }, []);
+
+  const markCallAsEnded = useCallback((nextState: string | null = "hangup") => {
+    clearActiveDialRequest();
+    setActiveDialpadCallId(null);
+    setActiveDialpadCallState(nextState);
+    setDialpadPollingBackoffUntil(null);
+    setIsEndingCall(false);
+    setIsCallResolving(false);
+    setCallStartedAt(null);
+    setIsRetryingUntrackedLiveCall(false);
+  }, [clearActiveDialRequest]);
+
+  const resetDialpadState = useCallback(() => {
+    clearActiveDialRequest();
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(null);
     lastDialpadCallIdRef.current = null;
@@ -91,8 +107,7 @@ export function useDialerDialpad({
     setIsCallResolving(false);
     setCallStartedAt(null);
     setIsRetryingUntrackedLiveCall(false);
-    activeDialRequestRef.current = null;
-  }, []);
+  }, [clearActiveDialRequest]);
 
   const getDialpadCallIdForLog = useCallback(() => {
     return activeDialpadCallId || lastDialpadCallIdRef.current;
@@ -317,8 +332,7 @@ export function useDialerDialpad({
             if (newState) {
               setActiveDialpadCallState(newState);
               if (newState === "hangup") {
-                setActiveDialpadCallId(null);
-                setDialpadPollingBackoffUntil(null);
+                markCallAsEnded("hangup");
               }
             }
           },
@@ -341,7 +355,7 @@ export function useDialerDialpad({
         realtimeChannelRef.current = null;
       }
     };
-  }, [activeDialpadCallId]);
+  }, [activeDialpadCallId, markCallAsEnded]);
 
   // ── Status polling (safety fallback — fixed 15s interval, Realtime handles fast path) ──
   useEffect(() => {
@@ -358,8 +372,7 @@ export function useDialerDialpad({
         if (cancelled) return;
         setActiveDialpadCallState(status.state);
         if (status.terminal) {
-          setActiveDialpadCallId(null);
-          setDialpadPollingBackoffUntil(null);
+          markCallAsEnded(status.state ?? "hangup");
         }
       } catch (error) {
         if (error instanceof Error && error.message.toLowerCase().includes("rate limit")) {
@@ -374,7 +387,7 @@ export function useDialerDialpad({
     const initialTimeout = window.setTimeout(poll, 3000);
     const id = window.setInterval(poll, 15000);
     return () => { cancelled = true; window.clearTimeout(initialTimeout); window.clearInterval(id); };
-  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus]);
+  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, markCallAsEnded]);
 
   // ── Cancel / hangup ──
   const cancelActiveCall = useCallback(async () => {
@@ -386,12 +399,7 @@ export function useDialerDialpad({
         const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
         setActiveDialpadCallState(result.state ?? "ending");
         if (result.already_ended || result.terminal) {
-          setActiveDialpadCallId(null);
-          setActiveDialpadCallState("hangup");
-          setDialpadPollingBackoffUntil(null);
-          setIsCallResolving(false);
-          setIsRetryingUntrackedLiveCall(false);
-          setCallStartedAt(null);
+          markCallAsEnded("hangup");
           toast.info("This call has already ended.");
           return;
         }
@@ -401,12 +409,7 @@ export function useDialerDialpad({
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           phone: currentContact.phone,
         });
-        setActiveDialpadCallId(null);
-        setActiveDialpadCallState("hangup");
-        setDialpadPollingBackoffUntil(null);
-        setIsCallResolving(false);
-        setIsRetryingUntrackedLiveCall(false);
-        setCallStartedAt(null);
+        markCallAsEnded("hangup");
         toast.success("Call ended.");
       } else {
         toast.info("No active call to cancel.");
@@ -422,7 +425,7 @@ export function useDialerDialpad({
     } finally {
       setIsEndingCall(false);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, myDialpadSettings, currentContact]);
+  }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, markCallAsEnded, myDialpadSettings, currentContact]);
 
   const fireAndForgetHangup = useCallback(() => {
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
@@ -434,7 +437,8 @@ export function useDialerDialpad({
       }).catch(() => {});
     }
     setCallStartedAt(null);
-  }, [activeDialpadCallId, activeDialpadCallState, cancelDialpadCall, currentContact, forceHangupCall, isCallTerminal, myDialpadSettings]);
+    clearActiveDialRequest();
+  }, [activeDialpadCallId, activeDialpadCallState, cancelDialpadCall, clearActiveDialRequest, currentContact, forceHangupCall, isCallTerminal, myDialpadSettings]);
 
   return {
     // Settings
