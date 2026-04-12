@@ -547,9 +547,9 @@ export default function DialerPage() {
             clear: () => setContactOwner("all"),
           }
         : null,
-      workType !== "all" ? { key: "workType", label: `Work: ${WORK_TYPES.find((item) => item.value === workType)?.label ?? workType}`, clear: () => setWorkType("all") } : null,
-      businessSize !== "all" ? { key: "businessSize", label: `Business: ${BUSINESS_SIZES.find((item) => item.value === businessSize)?.label ?? businessSize}`, clear: () => setBusinessSize("all") } : null,
-      prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${PROSPECT_TIERS.find((item) => item.value === prospectTier)?.label ?? prospectTier}`, clear: () => setProspectTier("all") } : null,
+      workType !== "all" ? { key: "workType", label: `Work: ${workType}`, clear: () => setWorkType("all") } : null,
+      businessSize !== "all" ? { key: "businessSize", label: `Business: ${businessSize}`, clear: () => setBusinessSize("all") } : null,
+      prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${prospectTier}`, clear: () => setProspectTier("all") } : null,
       hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
       hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
       buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
@@ -1287,7 +1287,7 @@ export default function DialerPage() {
     });
   }, [remainingQueueContacts]);
   const nextLeadFacts = session.nextContact ? [
-    session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : null,
+    session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : null,
     session.nextContact.industry,
     [session.nextContact.city, session.nextContact.state].filter(Boolean).join(", "),
     (session.nextContact as Record<string, unknown>).dm_phone ? "Direct DM phone captured" : null,
@@ -1906,7 +1906,7 @@ export default function DialerPage() {
                             <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
                           </div>
                           <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
-                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replaceAll("_", " ") : "phone"}
+                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
                           </Badge>
                         </div>
                         {nextLeadFacts.length > 0 && (
