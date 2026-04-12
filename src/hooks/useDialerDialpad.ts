@@ -19,26 +19,58 @@ function getDialRequestStorageKey(requestKey: string) {
   return `dialpad-request:${requestKey}`;
 }
 
-function hasActiveDialRequestLock(requestKey: string, maxAgeMs = 45000) {
+function readSessionStorageItem(key: string) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionStorageItem(key: string, value: string) {
   if (typeof window === "undefined") return false;
-  const raw = window.sessionStorage.getItem(getDialRequestStorageKey(requestKey));
-  if (!raw) return false;
-  const ts = Number(raw);
-  if (!Number.isFinite(ts) || Date.now() - ts > maxAgeMs) {
-    window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+
+  try {
+    window.sessionStorage.setItem(key, value);
+    return true;
+  } catch {
     return false;
   }
+}
+
+function removeSessionStorageItem(key: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage access failures in privacy-restricted browsers.
+  }
+}
+
+function hasActiveDialRequestLock(requestKey: string, maxAgeMs = 45000) {
+  const storageKey = getDialRequestStorageKey(requestKey);
+  const raw = readSessionStorageItem(storageKey);
+  if (!raw) return false;
+
+  const ts = Number(raw);
+  if (!Number.isFinite(ts) || Date.now() - ts > maxAgeMs) {
+    removeSessionStorageItem(storageKey);
+    return false;
+  }
+
   return true;
 }
 
 function setActiveDialRequestLock(requestKey: string) {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(getDialRequestStorageKey(requestKey), String(Date.now()));
+  writeSessionStorageItem(getDialRequestStorageKey(requestKey), String(Date.now()));
 }
 
 function clearActiveDialRequestLock(requestKey: string | null) {
-  if (typeof window === "undefined" || !requestKey) return;
-  window.sessionStorage.removeItem(getDialRequestStorageKey(requestKey));
+  if (!requestKey) return;
+  removeSessionStorageItem(getDialRequestStorageKey(requestKey));
 }
 
 export interface UseDialerDialpadOptions {
