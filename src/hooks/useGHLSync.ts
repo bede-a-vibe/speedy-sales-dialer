@@ -136,7 +136,15 @@ async function persistContactMirror(params: {
 }) {
   if (!params.contactId) return;
 
-  const updates: Record<string, string | boolean | null> & { ghl_contact_id: string; updated_at: string } = {
+  const updates: {
+    ghl_contact_id: string;
+    updated_at: string;
+    status?: string;
+    is_dnc?: boolean;
+    meeting_booked_date?: string | null;
+    next_followup_date?: string | null;
+    follow_up_note?: string | null;
+  } = {
     ghl_contact_id: params.ghlContactId,
     updated_at: new Date().toISOString(),
   };

@@ -291,37 +291,17 @@ export function FollowUpTable({
     if (methodFilter !== "all") list = list.filter((r) => (r.item.follow_up_method || "call") === methodFilter);
     if (ghlFilter !== "all") {
       list = list.filter(({ item }) => {
-        const mirrorState = getGhlMirrorState({
-          pipelineType: item.pipeline_type,
-          ghlContactId: item.contacts?.ghl_contact_id,
-          ghlOpportunityId: item.ghl_opportunity_id,
-          ghlPipelineId: item.ghl_pipeline_id,
-          ghlStageId: item.ghl_stage_id,
-        });
-        if (ghlFilter === "mirrored") return mirrorState.hasMirror;
-        if (ghlFilter === "off_path") return mirrorState.hasTargetMismatch;
-        if (ghlFilter === "linked") return mirrorState.hasContactLink && !mirrorState.hasMirror;
-        return !mirrorState.hasContactLink;
+        const hasContactLink = Boolean(item.contacts?.ghl_contact_id);
+        const hasMirror = Boolean(item.ghl_opportunity_id);
+        const hasTargetMismatch = false; // Simplified — no saved target data available without ghl columns
+        if (ghlFilter === "mirrored") return hasMirror;
+        if (ghlFilter === "off_path") return hasTargetMismatch;
+        if (ghlFilter === "linked") return hasContactLink && !hasMirror;
+        return !hasContactLink;
       });
     }
     const order: Record<string, number> = { overdue: 0, today: 1, due_soon: 2, upcoming: 3 };
     return [...list].sort((a, b) => {
-      const aMirrorState = getGhlMirrorState({
-        pipelineType: a.item.pipeline_type,
-        ghlContactId: a.item.contacts?.ghl_contact_id,
-        ghlOpportunityId: a.item.ghl_opportunity_id,
-        ghlPipelineId: a.item.ghl_pipeline_id,
-        ghlStageId: a.item.ghl_stage_id,
-      });
-      const bMirrorState = getGhlMirrorState({
-        pipelineType: b.item.pipeline_type,
-        ghlContactId: b.item.contacts?.ghl_contact_id,
-        ghlOpportunityId: b.item.ghl_opportunity_id,
-        ghlPipelineId: b.item.ghl_pipeline_id,
-        ghlStageId: b.item.ghl_stage_id,
-      });
-      const mirrorDifference = Number(bMirrorState.hasTargetMismatch) - Number(aMirrorState.hasTargetMismatch);
-      if (mirrorDifference !== 0) return mirrorDifference;
       return (order[a.status] ?? 4) - (order[b.status] ?? 4);
     });
   }, [enriched, repFilter, statusFilter, methodFilter, ghlFilter]);

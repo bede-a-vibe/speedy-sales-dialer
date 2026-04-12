@@ -1013,7 +1013,7 @@ export default function ContactsPage() {
           notes: "Created from contact status update",
         });
         toast.success("Contact updated & booked appointment created.");
-      } else if (statusChanged && shouldCreatePipelineItemForStatus(editForm.status) && editForm.status === "follow_up") {
+      } else if (statusChanged && shouldCreatePipelineItemForStatus(editForm.status as ContactLifecycleStatus) && editForm.status === "follow_up") {
         const scheduled = getDefaultManualFollowUpScheduledFor();
 
         await createPipelineItem.mutateAsync({
@@ -1067,7 +1067,7 @@ export default function ContactsPage() {
           scheduled_for: scheduled.toISOString(),
           notes: "Created from manual status change",
         });
-      } else if (shouldCreatePipelineItemForStatus(newStatus) && newStatus === "follow_up") {
+      } else if (shouldCreatePipelineItemForStatus(newStatus as ContactLifecycleStatus) && newStatus === "follow_up") {
         const scheduled = getDefaultManualFollowUpScheduledFor();
 
         await createPipelineItem.mutateAsync({

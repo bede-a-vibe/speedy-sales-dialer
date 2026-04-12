@@ -302,7 +302,7 @@ export default function ContactDetailPage() {
           scheduled_for: bookingScheduledAt,
           notes: "Created from contact detail page",
         });
-      } else if (shouldCreatePipelineItemForStatus(nextStatus) && nextStatus === "follow_up" && followUpScheduledAt) {
+      } else if (shouldCreatePipelineItemForStatus(nextStatus as ContactLifecycleStatus) && nextStatus === "follow_up" && followUpScheduledAt) {
         await createPipelineItem.mutateAsync({
           contact_id: contact.id,
           pipeline_type: nextStatus,
