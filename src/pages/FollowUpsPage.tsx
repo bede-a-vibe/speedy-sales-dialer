@@ -20,6 +20,7 @@ type FollowUpContact = {
 };
 
 type FollowUpScope = "today" | "overdue" | "week";
+type DraftFilter = "all" | "withDraft" | "withoutDraft";
 type FollowUpItem = {
   task_id: string | null;
   title: string | null;
@@ -81,6 +82,7 @@ export default function FollowUpsPage() {
   const [items, setItems] = useState<FollowUpItem[]>([]);
   const [draftsByContactId, setDraftsByContactId] = useState<Record<string, EmailDraftSuggestion>>({});
   const [scope, setScope] = useState<FollowUpScope>("today");
+  const [draftFilter, setDraftFilter] = useState<DraftFilter>("all");
   const [anchorDate, setAnchorDate] = useState(todayIso);
   const [taskCount, setTaskCount] = useState(0);
   const [forDate, setForDate] = useState<string | null>(null);
@@ -131,6 +133,18 @@ export default function FollowUpsPage() {
     () => sortedItems.filter((item) => Boolean(draftsByContactId[item.contact.id])),
     [sortedItems, draftsByContactId],
   );
+
+  const visibleItems = useMemo(() => {
+    if (draftFilter === "withDraft") {
+      return sortedItems.filter((item) => Boolean(draftsByContactId[item.contact.id]));
+    }
+
+    if (draftFilter === "withoutDraft") {
+      return sortedItems.filter((item) => !draftsByContactId[item.contact.id]);
+    }
+
+    return sortedItems;
+  }, [draftFilter, sortedItems, draftsByContactId]);
 
   const nextDraftReviewItem = useMemo(() => {
     return draftedItems.find((item) => !item.contact.is_dnc) ?? draftedItems[0] ?? null;
@@ -313,7 +327,7 @@ export default function FollowUpsPage() {
             />
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Showing <span className="font-medium">{taskCount}</span> open tasks
+            Showing <span className="font-medium">{visibleItems.length}</span> of <span className="font-medium">{taskCount}</span> open tasks
             {forDate ? ` for ${forDate}` : ""} in <span className="font-medium">{scope}</span> scope.
             {summary.unscheduled > 0 ? ` ${summary.unscheduled} task${summary.unscheduled === 1 ? " is" : "s are"} missing a due date.` : ""}
           </p>
@@ -341,6 +355,26 @@ export default function FollowUpsPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Saved email draft suggestions already attached to contacts in this queue.
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {([
+                    { value: "all", label: "All tasks" },
+                    { value: "withDraft", label: "Draft ready" },
+                    { value: "withoutDraft", label: "No draft" },
+                  ] as const).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setDraftFilter(option.value)}
+                      className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        draftFilter === option.value
+                          ? "border-violet-500 bg-violet-500 text-white"
+                          : "border-border bg-background text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
                 {nextDraftReviewItem ? (
                   <div className="mt-3 rounded-md border border-violet-500/20 bg-violet-500/5 p-3">
                     <p className="text-sm font-medium text-foreground">{nextDraftReviewItem.contact.business_name}</p>
@@ -372,6 +406,14 @@ export default function FollowUpsPage() {
                           >
                             <Copy className="h-3.5 w-3.5" />
                             Copy body
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyDraft(`Subject: ${nextDraftSuggestion.subject}\n\n${nextDraftSuggestion.body}`, "Full draft")}
+                            className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy full draft
                           </button>
                         </div>
                       </>
@@ -432,9 +474,15 @@ export default function FollowUpsPage() {
 
         {!loading && !error && (
           <div className="rounded-lg border border-border bg-card divide-y">
-            {sortedItems.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">{emptyStateByScope[scope]}</div>
-            ) : sortedItems.map((item, idx) => {
+            {visibleItems.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">
+                {draftFilter === "all"
+                  ? emptyStateByScope[scope]
+                  : draftFilter === "withDraft"
+                    ? "No saved review-only drafts match this queue yet."
+                    : "Every visible follow-up already has a saved draft suggestion."}
+              </div>
+            ) : visibleItems.map((item, idx) => {
               const bucket = getTaskBucket(item.due_date);
               const draft = draftsByContactId[item.contact.id];
               return (
@@ -535,6 +583,14 @@ export default function FollowUpsPage() {
                         >
                           <Copy className="h-3.5 w-3.5" />
                           Copy body
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyDraft(`Subject: ${draft.subject}\n\n${draft.body}`, "Full draft")}
+                          className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy full draft
                         </button>
                       </div>
                     </div>
