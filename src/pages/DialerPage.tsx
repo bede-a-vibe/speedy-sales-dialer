@@ -1294,6 +1294,15 @@ export default function DialerPage() {
       direct: { ready: 0, needsPhone: 0 },
     });
   }, [remainingQueueContacts]);
+  const liveBufferPosition = useMemo(() => {
+    if (session.currentIndex === null || !session.currentContact) return null;
+
+    return {
+      position: session.currentIndex + 1,
+      total: Math.max(session.queue.contacts.length, session.currentIndex + 1),
+      visibleInScope: session.queue.queueSupervisor.lastKnownAvailableCount ?? queueLeadCount,
+    };
+  }, [queueLeadCount, session.currentContact, session.currentIndex, session.queue.contacts.length, session.queue.queueSupervisor.lastKnownAvailableCount]);
   const nextLeadFacts = session.nextContact ? [
     session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : null,
     session.nextContact.industry,
@@ -1775,8 +1784,13 @@ export default function DialerPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[250px]">
                     <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <div className="text-muted-foreground">Queue position</div>
-                      <div className="font-mono text-foreground">{session.currentIndex !== null ? `${session.currentIndex + 1} / ${Math.max(session.queue.contacts.length, session.currentIndex + 1)}` : "-"}</div>
+                      <div className="text-muted-foreground">Live buffer position</div>
+                      <div className="font-mono text-foreground">{liveBufferPosition ? `${liveBufferPosition.position} / ${liveBufferPosition.total}` : "-"}</div>
+                      {liveBufferPosition && (
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          {liveBufferPosition.visibleInScope} visible in queue scope
+                        </div>
+                      )}
                     </div>
                     <div className="rounded-md border border-border bg-background px-3 py-2">
                       <div className="text-muted-foreground">Session pace</div>
