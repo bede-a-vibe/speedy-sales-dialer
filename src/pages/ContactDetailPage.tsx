@@ -167,11 +167,11 @@ export default function ContactDetailPage() {
           }
         : null,
       recentCalls: allCallLogs.slice(0, 3).map((call) => ({
-        createdAt: call.created_at,
-        outcome: call.outcome,
+        created_at: call.created_at,
         notes: call.notes,
-        summary: call.dialpad_summary,
-        transcriptExcerpt: call.dialpad_transcript,
+        dialpad_summary: call.dialpad_summary,
+        outcome: call.outcome,
+        dialpad_transcript: call.dialpad_transcript,
       })),
       scheduledFor: nextPipelineItem?.scheduled_for ?? null,
     });
