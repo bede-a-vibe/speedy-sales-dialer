@@ -55,6 +55,7 @@ export function useDialerDialpad({
   selectedCallerId,
 }: UseDialerDialpadOptions) {
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
+  const [syncTrackedDialpadCallId, setSyncTrackedDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
   const [dialpadPollingBackoffUntil, setDialpadPollingBackoffUntil] = useState<number | null>(null);
   const [isEndingCall, setIsEndingCall] = useState(false);
@@ -124,6 +125,7 @@ export function useDialerDialpad({
 
   const markCallAsEnded = useCallback((nextState: string | null = "hangup") => {
     clearActiveDialRequest();
+    setSyncTrackedDialpadCallId((current) => current || activeDialpadCallId || lastDialpadCallIdRef.current);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(nextState);
     setDialpadPollingBackoffUntil(null);
@@ -134,11 +136,12 @@ export function useDialerDialpad({
     setHasTrackingRecoveryFailed(false);
     setLastLinkAttemptAt(null);
     setNextAutoRetryAt(null);
-  }, [clearActiveDialRequest]);
+  }, [activeDialpadCallId, clearActiveDialRequest]);
 
   const resetDialpadState = useCallback(() => {
     clearActiveDialRequest();
     setActiveDialpadCallId(null);
+    setSyncTrackedDialpadCallId(null);
     setActiveDialpadCallState(null);
     lastDialpadCallIdRef.current = null;
     setDialpadPollingBackoffUntil(null);
@@ -165,6 +168,7 @@ export function useDialerDialpad({
     activeDialRequestRef.current = requestKey;
     setActiveDialRequestLock(requestKey);
     setActiveDialpadCallId(null);
+    setSyncTrackedDialpadCallId(null);
     setActiveDialpadCallState(null);
     setDialpadPollingBackoffUntil(null);
     setIsEndingCall(false);
@@ -185,6 +189,7 @@ export function useDialerDialpad({
 
         if (response.dialpad_call_id) {
           setActiveDialpadCallId(response.dialpad_call_id);
+          setSyncTrackedDialpadCallId(response.dialpad_call_id);
           lastDialpadCallIdRef.current = response.dialpad_call_id;
           setActiveDialpadCallState(response.state ?? "calling");
           setIsCallResolving(false);
@@ -223,6 +228,7 @@ export function useDialerDialpad({
         clearActiveDialRequestLock(requestKey);
         activeDialRequestRef.current = null;
         setActiveDialpadCallId(null);
+        setSyncTrackedDialpadCallId(null);
         setActiveDialpadCallState(null);
         setIsCallResolving(false);
         setCallStartedAt(null);
@@ -256,6 +262,7 @@ export function useDialerDialpad({
         if (cancelled) return;
         if (result.dialpad_call_id) {
           setActiveDialpadCallId(result.dialpad_call_id);
+          setSyncTrackedDialpadCallId(result.dialpad_call_id);
           lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setIsCallResolving(false);
@@ -325,6 +332,7 @@ export function useDialerDialpad({
 
         if (result.dialpad_call_id) {
           setActiveDialpadCallId(result.dialpad_call_id);
+          setSyncTrackedDialpadCallId(result.dialpad_call_id);
           lastDialpadCallIdRef.current = result.dialpad_call_id;
           setActiveDialpadCallState(result.state ?? "calling");
           setIsRetryingUntrackedLiveCall(false);
@@ -517,6 +525,7 @@ export function useDialerDialpad({
     hasDialpadAssignment,
     // Call state
     activeDialpadCallId,
+    syncTrackedDialpadCallId,
     activeDialpadCallState: activeDialpadCallState ?? (isCallResolving ? "connecting" : null),
     isCallTerminal,
     isEndingCall,

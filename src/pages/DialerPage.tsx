@@ -333,6 +333,75 @@ export default function DialerPage() {
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
     [session.queue.totalCount, session.queue.contacts.length],
   );
+  const queueSupervisorSummary = useMemo(() => {
+    const { queueSupervisor, contacts, isLoading, isPrefetching } = session.queue;
+    const availableCount = queueSupervisor.lastKnownAvailableCount ?? queueLeadCount;
+    const bufferCount = contacts.length;
+    const isHealthy = queueSupervisor.health === "healthy";
+    const isAttention = queueSupervisor.health === "degraded" || queueSupervisor.health === "exhausted";
+    const badgeClassName = isHealthy
+      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
+      : isAttention
+        ? "border-destructive/30 text-destructive"
+        : "border-amber-500/30 text-amber-700 dark:text-amber-300";
+
+    let label = "Idle";
+    let detail = "Queue preview is standing by.";
+
+    if (isLoading && !session.isSessionActive) {
+      label = "Checking queue";
+      detail = "Loading the next available lead count for this filter set.";
+    } else if (queueSupervisor.health === "bootstrapping") {
+      label = "Starting buffer";
+      detail = "Claiming the first batch of leads for this session.";
+    } else if (queueSupervisor.health === "refilling") {
+      label = "Refilling";
+      detail = bufferCount > 0
+        ? `Low buffer, pulling more leads now. ${bufferCount} still in hand.`
+        : "The live buffer is empty, checking for more claimable leads now.";
+    } else if (queueSupervisor.health === "healthy") {
+      label = "Healthy";
+      detail = bufferCount > 0
+        ? `${bufferCount} lead${bufferCount === 1 ? "" : "s"} in the live buffer, with ${availableCount} visible in queue scope.`
+        : `${availableCount} lead${availableCount === 1 ? "" : "s"} available in queue scope.`;
+    } else if (queueSupervisor.health === "degraded") {
+      label = "Needs attention";
+      detail = availableCount > 0
+        ? `Queue still shows ${availableCount} lead${availableCount === 1 ? "" : "s"}, but this session is not claiming them cleanly yet.`
+        : "The queue is thin right now, and the dialer is retrying before it marks the session exhausted.";
+    } else if (queueSupervisor.health === "exhausted") {
+      label = "Exhausted";
+      detail = "No more claimable leads were confirmed for this filter set.";
+    }
+
+    const checkpoints = [
+      {
+        label: "Visible in scope",
+        value: isLoading ? "Loading..." : `${availableCount}`,
+      },
+      {
+        label: "Live buffer",
+        value: isPrefetching && bufferCount > 0 ? `${bufferCount} · refilling` : `${bufferCount}`,
+      },
+      {
+        label: "Last good claim",
+        value: queueSupervisor.lastSuccessfulClaimAt
+          ? format(new Date(queueSupervisor.lastSuccessfulClaimAt), "h:mm a")
+          : "None yet",
+      },
+      {
+        label: "Empty refill streak",
+        value: `${queueSupervisor.consecutiveEmptyRefills}`,
+      },
+    ];
+
+    return {
+      label,
+      detail,
+      badgeClassName,
+      checkpoints,
+    };
+  }, [queueLeadCount, session.isSessionActive, session.queue]);
 
   const startReadinessItems = useMemo(() => {
     const items = [
@@ -1385,66 +1454,89 @@ export default function DialerPage() {
         )}
 
         {!session.isSessionActive && (
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
-                <p className="text-sm text-foreground">Quick operator preflight before the next dial session.</p>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "font-mono text-[10px] uppercase tracking-widest",
-                  startReadinessOpenItems.length === 0
-                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
-                    : "border-amber-500/30 text-amber-700 dark:text-amber-300",
-                )}
-              >
-                {startReadinessSummary}
-              </Badge>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {startReadinessItems.map((item) => (
-                <div
-                  key={item.label}
+          <div className="grid gap-4 xl:grid-cols-[1.35fr,0.95fr]">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
+                  <p className="text-sm text-foreground">Quick operator preflight before the next dial session.</p>
+                </div>
+                <Badge
+                  variant="outline"
                   className={cn(
-                    "rounded-md border px-3 py-3 text-xs",
-                    item.ready
-                      ? "border-emerald-500/20 bg-emerald-500/10"
-                      : "border-amber-500/20 bg-amber-500/10",
+                    "font-mono text-[10px] uppercase tracking-widest",
+                    startReadinessOpenItems.length === 0
+                      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
+                      : "border-amber-500/30 text-amber-700 dark:text-amber-300",
                   )}
                 >
-                  <div className="flex items-start gap-2">
-                    {item.label === "Network" ? (
-                      item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                    ) : item.ready ? (
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                    ) : (
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                  {startReadinessSummary}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {startReadinessItems.map((item) => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      "rounded-md border px-3 py-3 text-xs",
+                      item.ready
+                        ? "border-emerald-500/20 bg-emerald-500/10"
+                        : "border-amber-500/20 bg-amber-500/10",
                     )}
-                    <div>
-                      <p className="font-semibold text-foreground">{item.label}</p>
-                      <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                  >
+                    <div className="flex items-start gap-2">
+                      {item.label === "Network" ? (
+                        item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                      ) : item.ready ? (
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                      ) : (
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                      )}
+                      <div>
+                        <p className="font-semibold text-foreground">{item.label}</p>
+                        <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {startReadinessOpenItems.length > 0 && (
+                <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
+                  <p className="font-medium">Recommended before you start</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {startReadinessOpenItems.map((item) => (
+                      <li key={item.label} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                        <span>{item.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
+              )}
             </div>
 
-            {startReadinessOpenItems.length > 0 && (
-              <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
-                <p className="font-medium">Recommended before you start</p>
-                <ul className="mt-2 space-y-1.5">
-                  {startReadinessOpenItems.map((item) => (
-                    <li key={item.label} className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-                      <span>{item.detail}</span>
-                    </li>
-                  ))}
-                </ul>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
+                  <p className="text-sm text-foreground">Operator visibility into claimable scope before you hit start.</p>
+                </div>
+                <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
+                  {queueSupervisorSummary.label}
+                </Badge>
               </div>
-            )}
+              <p className="mt-3 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {queueSupervisorSummary.checkpoints.map((item) => (
+                  <div key={item.label} className="rounded-md border border-border bg-background px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                    <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1712,7 +1804,7 @@ export default function DialerPage() {
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
                 <DialpadSyncPanel
                   contactId={session.currentContact.id}
-                  activeDialpadCallId={dialpad.activeDialpadCallId}
+                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
                   activeDialpadCallState={dialpad.activeDialpadCallState}
                   onCancelCall={dialpad.cancelActiveCall}
                   onRetryLink={dialpad.retryDialpadCallLink}
