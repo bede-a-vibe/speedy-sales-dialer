@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
+import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";

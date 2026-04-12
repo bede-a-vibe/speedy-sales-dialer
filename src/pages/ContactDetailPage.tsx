@@ -28,7 +28,7 @@ import {
   loadStoredEmailDraftSuggestion,
   saveStoredEmailDraftSuggestion,
 } from "@/lib/emailDraftStore";
-import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
+import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
