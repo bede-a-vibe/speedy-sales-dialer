@@ -407,6 +407,8 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     return items;
   }, [selectedContact, pipelineType, contactLinkStatus, ghlCalendarId, ghlPipelineId, ghlStageId, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, followUpMethod]);
 
+  const isBooked = pipelineType === "booked";
+
   const canSubmit = useMemo(
     () => !!selectedContact
       && !!assignedRepId
@@ -558,8 +560,6 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setIsSubmitting(false);
     }
   }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
-
-  const isBooked = pipelineType === "booked";
 
   useEffect(() => {
     if (!open) return;
