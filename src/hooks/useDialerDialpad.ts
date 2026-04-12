@@ -484,13 +484,14 @@ export function useDialerDialpad({
     let cancelled = false;
     let inFlight = false;
 
-    const poll = async () => {
+    const poll = async (options?: { force?: boolean }) => {
       if (cancelled || inFlight) return;
-      if (dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()) return;
+      if (!options?.force && dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()) return;
       inFlight = true;
       try {
         const status = await fetchDialpadCallStatus(activeDialpadCallId);
         if (cancelled) return;
+        setDialpadPollingBackoffUntil(null);
         setActiveDialpadCallState(status.state);
         if (status.terminal) {
           markCallAsEnded(status.state ?? "hangup");
@@ -504,10 +505,34 @@ export function useDialerDialpad({
       }
     };
 
+    const handleOnline = () => {
+      setDialpadPollingBackoffUntil(null);
+      void poll({ force: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      void poll({ force: true });
+    };
+
     // Initial poll after 3s (Realtime should beat this)
-    const initialTimeout = window.setTimeout(poll, 3000);
-    const id = window.setInterval(poll, 15000);
-    return () => { cancelled = true; window.clearTimeout(initialTimeout); window.clearInterval(id); };
+    const initialTimeout = window.setTimeout(() => {
+      void poll();
+    }, 3000);
+    const id = window.setInterval(() => {
+      void poll();
+    }, 15000);
+
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialTimeout);
+      window.clearInterval(id);
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, markCallAsEnded]);
 
   // ── Cancel / hangup ──
