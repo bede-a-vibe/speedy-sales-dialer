@@ -434,7 +434,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   }, [selectedContact, assignedRepId, scheduledDate, isBooked, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedContact || !assignedRepId || !scheduledDate || !user || isSubmitting) return;
+    if (!selectedContact || !assignedRepId || !scheduledDate || !user || isSubmitting || !canSubmit) return;
 
     const scheduledFor = new Date(
       scheduledDate.getFullYear(),
@@ -560,6 +560,21 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
 
   const isBooked = pipelineType === "booked";
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+      if (!canSubmit || createPipelineItem.isPending || isSubmitting) return;
+
+      event.preventDefault();
+      void handleSubmit();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, canSubmit, createPipelineItem.isPending, isSubmitting, handleSubmit]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -967,6 +982,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 )}
                 {isBooked ? "Create Booking" : "Create Follow-up"}
               </Button>
+              <p className="text-center text-[11px] text-muted-foreground">
+                Tip: press {navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl"}+Enter to save.
+              </p>
             </div>
           </div>
         )}
