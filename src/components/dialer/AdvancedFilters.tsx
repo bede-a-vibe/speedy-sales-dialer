@@ -1,6 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   TRADE_TYPES,
   WORK_TYPES,
@@ -21,6 +22,8 @@ export interface SalesRepOption {
   display_name: string | null;
   email: string | null;
 }
+
+export type DialerFilterPreset = "all" | "hot_today" | "dm_direct" | "dm_capture" | "google_ads" | "high_review" | "landline_enrichment";
 
 interface AdvancedFiltersProps {
   industries: string[];
@@ -52,6 +55,8 @@ interface AdvancedFiltersProps {
   setPhoneType: (v: string) => void;
   hasDmPhone: string;
   setHasDmPhone: (v: string) => void;
+  selectedPreset: DialerFilterPreset;
+  onPresetChange: (preset: DialerFilterPreset) => void;
   onReset: () => void;
   disabled?: boolean;
 }
@@ -83,6 +88,7 @@ export function AdvancedFilters({
   buyingSignalStrength, setBuyingSignalStrength,
   phoneType, setPhoneType,
   hasDmPhone, setHasDmPhone,
+  selectedPreset, onPresetChange,
   onReset,
   disabled = false,
 }: AdvancedFiltersProps) {
@@ -93,6 +99,21 @@ export function AdvancedFilters({
         <Button variant="ghost" size="sm" onClick={onReset} disabled={disabled} className="text-xs text-muted-foreground">
           Reset All
         </Button>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-muted-foreground">Calling presets</p>
+          {selectedPreset !== "all" ? <Badge variant="secondary" className="text-[10px]">Preset active</Badge> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant={selectedPreset === "hot_today" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("hot_today")} disabled={disabled}>Hot today</Button>
+          <Button type="button" variant={selectedPreset === "dm_direct" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("dm_direct")} disabled={disabled}>DM direct dials</Button>
+          <Button type="button" variant={selectedPreset === "dm_capture" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("dm_capture")} disabled={disabled}>DM capture</Button>
+          <Button type="button" variant={selectedPreset === "google_ads" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("google_ads")} disabled={disabled}>Google Ads</Button>
+          <Button type="button" variant={selectedPreset === "high_review" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("high_review")} disabled={disabled}>High reviews</Button>
+          <Button type="button" variant={selectedPreset === "landline_enrichment" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onPresetChange("landline_enrichment")} disabled={disabled}>Landline enrichment</Button>
+        </div>
       </div>
 
       {/* Row 0: Core Filters — Industry (multi), State (multi), Contact Owner */}
@@ -154,7 +175,7 @@ export function AdvancedFilters({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Decision Maker</label>
+          <label className="text-xs font-medium text-muted-foreground">DM Reachability</label>
           <Select value={hasDmPhone} onValueChange={setHasDmPhone} disabled={disabled}>
             <SelectTrigger className="h-8 border-border bg-card text-xs">
               <SelectValue placeholder="Any" />

@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
 
-import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
+import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
@@ -59,8 +59,8 @@ const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
 };
 
 const DM_PHONE_FILTER_LABELS: Record<string, string> = {
-  yes: "Has DM Phone",
-  no: "No DM Phone",
+  yes: "DM reachable",
+  no: "Need DM capture",
 };
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
@@ -192,6 +192,7 @@ type StoredDialerFilters = {
   phoneType?: string;
   hasDmPhone?: string;
   showAdvancedFilters?: boolean;
+  selectedPreset?: DialerFilterPreset;
 };
 
 function readStoredDialerFilters(): StoredDialerFilters | null {
@@ -230,6 +231,7 @@ export default function DialerPage() {
   const [ghlStageId, setGhlStageId] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
+  const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // Dialpad CTI Client ID from environment variable
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
@@ -298,6 +300,7 @@ export default function DialerPage() {
     setBuyingSignalStrength("all");
     setPhoneType("all");
     setHasDmPhone("all");
+    setSelectedPreset("all");
   }, []);
 
   useEffect(() => {
@@ -320,6 +323,7 @@ export default function DialerPage() {
           phoneType,
           hasDmPhone,
           showAdvancedFilters,
+          selectedPreset,
         } satisfies StoredDialerFilters),
       );
     } catch {
@@ -341,6 +345,7 @@ export default function DialerPage() {
     phoneType,
     hasDmPhone,
     showAdvancedFilters,
+    selectedPreset,
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
@@ -554,7 +559,7 @@ export default function DialerPage() {
       hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
       buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
       phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
-      hasDmPhone !== "all" ? { key: "hasDmPhone", label: `Decision maker: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
+      hasDmPhone !== "all" ? { key: "hasDmPhone", label: `DM reachability: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
       minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
     ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
@@ -606,6 +611,50 @@ export default function DialerPage() {
     if (startReadinessOpenItems.length === 1) return "1 item to fix before starting.";
     return `${startReadinessOpenItems.length} items to fix before starting.`;
   }, [startReadinessOpenItems.length]);
+
+  const applyDialerPreset = useCallback((preset: DialerFilterPreset) => {
+    setSelectedPreset(preset);
+
+    if (preset === "all") {
+      resetAdvancedFilters();
+      return;
+    }
+
+    resetAdvancedFilters();
+
+    if (preset === "hot_today") {
+      setProspectTier("Tier 1 - Hot");
+      setBuyingSignalStrength("Strong");
+      return;
+    }
+
+    if (preset === "dm_direct") {
+      setHasDmPhone("yes");
+      setPhoneType("mobile");
+      return;
+    }
+
+    if (preset === "dm_capture") {
+      setHasDmPhone("no");
+      return;
+    }
+
+    if (preset === "google_ads") {
+      setHasGoogleAds("Yes - Active");
+      return;
+    }
+
+    if (preset === "high_review") {
+      setMinReviewCount(100);
+      setMinGbpRating(4);
+      return;
+    }
+
+    if (preset === "landline_enrichment") {
+      setPhoneType("landline");
+      setHasDmPhone("no");
+    }
+  }, [resetAdvancedFilters]);
 
   const queueFocusLabel = useMemo(() => {
     if (phoneType === "landline") return "Landline queue";
@@ -1587,6 +1636,8 @@ export default function DialerPage() {
             setPhoneType={setPhoneType}
             hasDmPhone={hasDmPhone}
             setHasDmPhone={setHasDmPhone}
+            selectedPreset={selectedPreset}
+            onPresetChange={applyDialerPreset}
             onReset={resetAdvancedFilters}
             disabled={session.isSessionActive}
           />
