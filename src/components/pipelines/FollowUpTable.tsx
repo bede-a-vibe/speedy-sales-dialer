@@ -194,6 +194,7 @@ function FollowUpActionPanel({
         <FollowUpMethodSelector
           value={item.follow_up_method || "call"}
           onChange={(method) => onChangeMethod(item.id, method)}
+          allowedMethods={["call", "email"]}
         />
 
         <Select value={item.assigned_user_id} onValueChange={(value) => onAssign(item.id, value)}>

@@ -124,7 +124,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
         {wantsFollowUp && (
           <div className="flex flex-col gap-2 pl-6">
-            <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+            <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} allowedMethods={["call", "email"]} />
             <div className="flex flex-wrap items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>

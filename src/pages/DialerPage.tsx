@@ -2330,7 +2330,7 @@ export default function DialerPage() {
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                       Follow-up Type
                     </label>
-                    <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                    <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} allowedMethods={["call", "email"]} />
                   </div>
                   <div className="rounded-md border border-border/70 bg-background/80 px-3 py-3">
                     <div className="flex items-center justify-between gap-2">

@@ -767,7 +767,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                     Follow-up Type
                   </label>
-                  <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
+                  <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} allowedMethods={["call", "email"]} />
                 </div>
               )}
 

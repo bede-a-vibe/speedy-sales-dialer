@@ -1,4 +1,5 @@
 import { Phone, Mail, Search } from "lucide-react";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { FollowUpMethod } from "@/hooks/usePipelineItems";
 
@@ -12,12 +13,23 @@ interface FollowUpMethodSelectorProps {
   value: FollowUpMethod;
   onChange: (method: FollowUpMethod) => void;
   className?: string;
+  allowedMethods?: FollowUpMethod[];
 }
 
-export function FollowUpMethodSelector({ value, onChange, className }: FollowUpMethodSelectorProps) {
+export function FollowUpMethodSelector({ value, onChange, className, allowedMethods }: FollowUpMethodSelectorProps) {
+  const visibleMethods = allowedMethods?.length
+    ? METHODS.filter(({ value: method }) => allowedMethods.includes(method))
+    : METHODS;
+
+  useEffect(() => {
+    if (!visibleMethods.some(({ value: method }) => method === value)) {
+      onChange(visibleMethods[0]?.value ?? "call");
+    }
+  }, [onChange, value, visibleMethods]);
+
   return (
     <div className={cn("flex gap-1", className)}>
-      {METHODS.map(({ value: v, label, icon: Icon }) => (
+      {visibleMethods.map(({ value: v, label, icon: Icon }) => (
         <button
           key={v}
           type="button"

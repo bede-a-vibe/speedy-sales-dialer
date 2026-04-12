@@ -229,6 +229,7 @@ export function PipelineItemCard({
                 value={item.follow_up_method || "call"}
                 onChange={(method) => onChangeMethod(item.id, method)}
                 className="lg:ml-auto"
+                allowedMethods={["call", "email"]}
               />
             )}
 
