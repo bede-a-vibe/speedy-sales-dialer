@@ -294,6 +294,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
   const stopInFlightRef = useRef<Promise<void> | null>(null);
   const startingRef = useRef(false);
   const previewSessionIdRef = useRef<string>(crypto.randomUUID());
+  const previewRefreshTimeoutRef = useRef<number | null>(null);
 
   const setQueueHealth = useCallback((health: DialerQueueHealth) => {
     setQueueSupervisor((current) => ({ ...current, health }));
@@ -688,6 +689,34 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
   }, [refreshPreviewCount, sessionId]);
 
   useEffect(() => {
+    const schedulePreviewRefresh = () => {
+      if (sessionRef.current) return;
+      if (previewRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(previewRefreshTimeoutRef.current);
+      }
+      previewRefreshTimeoutRef.current = window.setTimeout(() => {
+        previewRefreshTimeoutRef.current = null;
+        void refreshPreviewCount();
+      }, DIALER_PREVIEW_DEBOUNCE_MS);
+    };
+
+    const handleOnline = () => {
+      if (sessionRef.current) {
+        void reconcileQueue("periodic_sweep");
+        return;
+      }
+      schedulePreviewRefresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (sessionRef.current) {
+        void reconcileQueue("periodic_sweep");
+        return;
+      }
+      schedulePreviewRefresh();
+    };
+
     const handlePageHide = () => {
       const activeSessionId = sessionRef.current;
       if (activeSessionId) {
@@ -695,9 +724,20 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
       }
     };
 
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageHide);
-    return () => window.removeEventListener("pagehide", handlePageHide);
-  }, []);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      if (previewRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(previewRefreshTimeoutRef.current);
+        previewRefreshTimeoutRef.current = null;
+      }
+    };
+  }, [reconcileQueue, refreshPreviewCount]);
 
   useEffect(() => () => {
     const activeSessionId = sessionRef.current;
