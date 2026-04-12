@@ -588,6 +588,13 @@ export default function DialerPage() {
     && !createPipelineItem.isPending
     && !dialpad.linkDialpadCallLog.isPending;
 
+  const isFastLogOutcome = (outcome: CallOutcome) => (
+    outcome === "no_answer"
+    || outcome === "voicemail"
+    || outcome === "not_interested"
+    || outcome === "dnc"
+  );
+
   const primaryActionLabel = requiresBookedSchedule
     ? (session.isSessionPaused ? "Booked & Hold Session" : "Booked & Next Lead")
     : (session.isSessionPaused ? "Log & Hold Session" : "Log & Next Lead");
@@ -1968,15 +1975,28 @@ export default function DialerPage() {
                   Call Outcome <span className="text-primary">(required)</span>
                 </label>
                 <div className="space-y-2">
-                  {outcomes.map((outcome) => (
-                    <OutcomeButton
-                      key={outcome}
-                      outcome={outcome}
-                      label={outcome === "booked" ? "Book" : undefined}
-                      selected={session.selectedOutcome === outcome}
-                      onClick={session.setSelectedOutcome}
-                    />
-                  ))}
+                  {outcomes.map((outcome) => {
+                    const isSelected = session.selectedOutcome === outcome;
+                    const canFastLogThisOutcome = canSubmit && isFastLogOutcome(outcome);
+
+                    return (
+                      <OutcomeButton
+                        key={outcome}
+                        outcome={outcome}
+                        label={outcome === "booked" ? "Book" : undefined}
+                        selected={isSelected}
+                        hint={isSelected && canFastLogThisOutcome ? "Click again to save" : undefined}
+                        onClick={(nextOutcome) => {
+                          if (session.selectedOutcome === nextOutcome && canFastLogThisOutcome) {
+                            void logAndNext(nextOutcome);
+                            return;
+                          }
+
+                          session.setSelectedOutcome(nextOutcome);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 
