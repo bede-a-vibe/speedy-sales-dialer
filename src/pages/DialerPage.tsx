@@ -26,6 +26,7 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
@@ -164,6 +165,7 @@ const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height 
 PanelSkeleton.displayName = "PanelSkeleton";
 
 export default function DialerPage() {
+  const isOnline = useNetworkStatus();
   const [industries, setIndustries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [contactOwner, setContactOwner] = useState<string>("all");
@@ -446,7 +448,8 @@ export default function DialerPage() {
     }
   }, [defaultBookedPipeline?.id, defaultBookedStage, ghlPipelineId, ghlSelectedPipelineStages, ghlStageId]);
 
-  const canSubmit = !!session.selectedOutcome
+  const canSubmit = isOnline
+    && !!session.selectedOutcome
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
@@ -463,6 +466,7 @@ export default function DialerPage() {
   const submitReadinessItems = useMemo(() => {
     const items: string[] = [];
 
+    if (!isOnline) items.push("Reconnect to the internet before saving this lead");
     if (!session.selectedOutcome) items.push("Select a call outcome");
     if (requiresPipelineAssignment && !session.assignedRepId) items.push("Assign a sales rep");
     if (requiresAnySchedule && !session.followUpDate) items.push(requiresBookedSchedule ? "Choose an appointment date" : "Choose a follow-up date");
@@ -487,6 +491,7 @@ export default function DialerPage() {
     createCallLog.isPending,
     createPipelineItem.isPending,
     dialpad.linkDialpadCallLog.isPending,
+    isOnline,
   ]);
 
   // Reset pipeline fields when outcome changes
@@ -532,6 +537,10 @@ export default function DialerPage() {
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? session.selectedOutcome;
     if (!outcomeToLog || !session.currentContact || !session.user || session.leadAdvanceInFlightRef.current) return;
+    if (!isOnline) {
+      toast.error("You're offline. Reconnect before logging this lead.");
+      return;
+    }
 
     if (outcomeToLog === "follow_up" && (!session.followUpDate || !session.followUpTime)) {
       toast.error("Choose a follow-up date and time.");
@@ -762,10 +771,15 @@ export default function DialerPage() {
     ghlStageId,
     defaultFollowUpPipeline?.id,
     defaultFollowUpStage?.id,
+    isOnline,
   ]);
 
   const skipLead = useCallback(async () => {
     if (session.currentIndex === null || !session.currentContact) return;
+    if (!isOnline) {
+      toast.error("You're offline. Reconnect before skipping this lead.");
+      return;
+    }
 
     if (!dialpad.isCallTerminal) {
       void dialpad.cancelActiveCall();
@@ -791,9 +805,13 @@ export default function DialerPage() {
     if (session.currentIndex >= nextLength) {
       session.setCurrentIndex(nextLength - 1);
     }
-  }, [session, dialpad, updateContact]);
+  }, [session, dialpad, isOnline, updateContact]);
 
   const stopSessionSafely = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("You're offline. Reconnect before stopping the session so locks release cleanly.");
+      return;
+    }
     if (!dialpad.isCallTerminal) {
       toast.info("Ending the live call before stopping your session.");
       try {
@@ -805,9 +823,13 @@ export default function DialerPage() {
     }
 
     session.stopSession();
-  }, [dialpad, session]);
+  }, [dialpad, isOnline, session]);
 
   const recoverQueueSafely = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("You're offline. Reconnect before recovering the queue.");
+      return;
+    }
     if (!dialpad.isCallTerminal) {
       toast.info("Ending the live call before recovering your queue.");
       try {
@@ -819,7 +841,7 @@ export default function DialerPage() {
     }
 
     await session.recoverQueue();
-  }, [dialpad, session]);
+  }, [dialpad, isOnline, session]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -834,6 +856,10 @@ export default function DialerPage() {
       if (e.key === "s" || e.key === "S") { e.preventDefault(); skipLead(); }
       if ((e.key === "p" || e.key === "P") && dialpad.isCallTerminal) {
         e.preventDefault();
+        if (!isOnline) {
+          toast.error("You're offline. Reconnect before pausing or resuming the session.");
+          return;
+        }
         if (session.isDialing) {
           session.pauseSession(async () => {
             if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
@@ -848,7 +874,7 @@ export default function DialerPage() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canSubmit, session.currentContact, dialpad.isCallTerminal, session.isDialing, session.isSessionActive, session.isSessionPaused, logAndNext, skipLead]);
+  }, [canSubmit, isOnline, session.currentContact, dialpad.isCallTerminal, session.isDialing, session.isSessionActive, session.isSessionPaused, logAndNext, skipLead]);
 
   const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked"];
   const currentLeadMeta = session.currentContact ? (session.currentContact as Record<string, unknown>) : null;
@@ -1100,6 +1126,11 @@ export default function DialerPage() {
                 Dialpad status refresh paused briefly after rate limiting.
               </span>
             )}
+            {!isOnline && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
+              </div>
+            )}
             {session.isSessionActive && (
               <>
                 <span className="text-xs font-mono text-primary">
@@ -1122,7 +1153,7 @@ export default function DialerPage() {
             <>
               <Button
                 onClick={session.startDialing}
-                disabled={session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
+                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
                 className="px-6 font-semibold"
               >
                 {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
@@ -1131,7 +1162,7 @@ export default function DialerPage() {
               <Button
                 variant="outline"
                 onClick={() => void recoverQueueSafely()}
-                disabled={session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
+                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
                 className="px-6 font-semibold"
               >
                 {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
@@ -1141,7 +1172,7 @@ export default function DialerPage() {
           ) : (
             <>
               {session.isSessionPaused ? (
-                <Button onClick={session.resumeSession} className="px-6 font-semibold">
+                <Button onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
                   <Play className="mr-2 h-4 w-4" />
                   Resume Dialing
                 </Button>
@@ -1153,20 +1184,20 @@ export default function DialerPage() {
                       try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
                     }
                   })}
-                  disabled={dialpad.isEndingCall}
+                  disabled={!isOnline || dialpad.isEndingCall}
                   className="px-6 font-semibold"
                 >
                   <Pause className="mr-2 h-4 w-4" />
                   Pause Dialing
                 </Button>
               )}
-              <Button variant="outline" onClick={() => void stopSessionSafely()} className="border-destructive text-destructive hover:bg-destructive/10">
+              <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
                 Stop Session
               </Button>
               <Button
                 variant="outline"
                 onClick={() => void recoverQueueSafely()}
-                disabled={session.isRecoveringQueue || session.isStartingSession}
+                disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
                 className="px-6 font-semibold"
               >
                 {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
@@ -1177,7 +1208,7 @@ export default function DialerPage() {
 
           <Dialog open={manualOpen} onOpenChange={setManualOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="border-border">
+              <Button variant="outline" className="border-border" disabled={!isOnline}>
                 <PhoneCall className="mr-2 h-4 w-4" />
                 Manual Dial
               </Button>
@@ -1196,6 +1227,10 @@ export default function DialerPage() {
                   className="font-mono text-lg tracking-wider"
                   onKeyDown={async (e) => {
                     if (e.key === "Enter" && manualPhone.trim() && dialpad.myDialpadSettings?.dialpad_user_id) {
+                      if (!isOnline) {
+                        toast.error("You're offline. Reconnect before placing a manual call.");
+                        return;
+                      }
                       try {
                         await dialpad.dialpadCall.mutateAsync({
                           phone: manualPhone.trim(),
@@ -1213,8 +1248,12 @@ export default function DialerPage() {
                 />
                 <Button
                   className="w-full font-semibold"
-                  disabled={!manualPhone.trim() || !dialpad.myDialpadSettings?.dialpad_user_id || dialpad.dialpadCall.isPending}
+                  disabled={!isOnline || !manualPhone.trim() || !dialpad.myDialpadSettings?.dialpad_user_id || dialpad.dialpadCall.isPending}
                   onClick={async () => {
+                    if (!isOnline) {
+                      toast.error("You're offline. Reconnect before placing a manual call.");
+                      return;
+                    }
                     try {
                       await dialpad.dialpadCall.mutateAsync({
                         phone: manualPhone.trim(),
@@ -1931,7 +1970,7 @@ export default function DialerPage() {
                     Ready to save <span className="font-medium text-foreground">{primaryActionLabel}</span> for this lead.
                   </p>
                 )}
-                <Button variant="outline" onClick={skipLead} className="w-full border-border text-muted-foreground hover:text-foreground">
+                <Button variant="outline" onClick={skipLead} disabled={!isOnline} className="w-full border-border text-muted-foreground hover:text-foreground">
                   <SkipForward className="mr-2 h-4 w-4" />
                   Skip Lead
                   <kbd className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono opacity-70">S</kbd>
