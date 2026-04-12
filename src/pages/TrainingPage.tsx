@@ -1,4 +1,4 @@
-import { BookOpenText, Brain, CheckCircle2, ChevronRight, ClipboardCheck, Database, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
+import { ArrowRight, BookOpenText, Brain, CheckCircle2, ChevronRight, ClipboardCheck, Database, Handshake, MessageSquareQuote, Target, TimerReset, Workflow } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -171,6 +171,24 @@ const transcriptDrills = [
   },
 ];
 
+const objectionEventPacketMap: Record<string, string> = {
+  "obj-bad-time-001": "bad-time-recovery",
+  "obj-send-info-001": "send-info-diagnosis",
+};
+
+const coachingSpotlights = objectionEventDrafts.map((event) => {
+  const packet = reviewPackets.find((candidate) => candidate.id === objectionEventPacketMap[event.id]);
+  const reviewDraft = reviewSubmissionDrafts.find((draft) => draft.packetId === packet?.id);
+  const managerTask = managerCoachingTasks.find((task) => task.packetId === packet?.id);
+
+  return {
+    event,
+    packet,
+    reviewDraft,
+    managerTask,
+  };
+});
+
 export default function TrainingPage() {
   return (
     <AppLayout title="Training">
@@ -211,6 +229,56 @@ export default function TrainingPage() {
                 <CardContent className="text-xs text-muted-foreground">Roleplay libraries, scorecards, onboarding paths, and campaign-specific packs can live here next.</CardContent>
               </Card>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-3xl">
+              <Badge variant="secondary" className="w-fit text-[10px] uppercase tracking-widest">
+                New coaching artifacts, surfaced
+              </Badge>
+              <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground">From objection event to coaching action in one glance</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Reps and managers can now see the objection evidence, linked review packet, and next coaching action together instead of hunting across tabs.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">Built from the typed objection, review, and task drafts already on the page.</p>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            {coachingSpotlights.map(({ event, packet, reviewDraft, managerTask }) => (
+              <div key={event.id} className="rounded-xl border border-border bg-card/90 p-4 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{event.objectionType}</Badge>
+                  <Badge variant={event.coachingVerdict === "Strong" ? "default" : "outline"}>{event.coachingVerdict}</Badge>
+                  {managerTask ? <Badge variant={managerTask.priority === "High" ? "destructive" : "outline"}>{managerTask.workflowStatus}</Badge> : null}
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_auto_1fr_auto_1fr] lg:items-start">
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">What happened</p>
+                    <p className="mt-2 text-sm text-foreground">{event.prospectWording}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{event.repResponse}</p>
+                  </div>
+                  <div className="hidden lg:flex h-full items-center justify-center text-muted-foreground">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Review packet</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{packet?.trigger ?? "No linked packet yet"}</p>
+                    {packet ? <p className="mt-2 text-xs text-muted-foreground">Rep action: {packet.repAction}</p> : null}
+                  </div>
+                  <div className="hidden lg:flex h-full items-center justify-center text-muted-foreground">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Coach next</p>
+                    <p className="mt-2 text-sm text-foreground">{managerTask?.summary ?? reviewDraft?.coachingActions[0] ?? event.coachingNote}</p>
+                    {reviewDraft ? <p className="mt-2 text-xs text-muted-foreground">Latest review: {reviewDraft.repName} scored {reviewDraft.overallScore}.</p> : null}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
