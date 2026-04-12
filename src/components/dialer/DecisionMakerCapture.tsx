@@ -113,7 +113,8 @@ export function DecisionMakerCapture({
     setGatekeeperNotes(existingGatekeeperNotes || "");
     setBestRoute(existingBestRouteToDecisionMaker || "");
     setBestTimeToCall(existingBestTimeToCall || "");
-    setIsExpanded(false);
+    setIsExpanded(!hasExistingContext);
+    setIsSaving(false);
   }, [
     contactId,
     existingDmName,
@@ -125,6 +126,7 @@ export function DecisionMakerCapture({
     existingGatekeeperNotes,
     existingBestRouteToDecisionMaker,
     existingBestTimeToCall,
+    hasExistingContext,
   ]);
 
   const hasDmData = !!(existingDmName || existingDmPhone);
@@ -138,8 +140,26 @@ export function DecisionMakerCapture({
       : "Capture the name and best route before moving on";
 
   const handleSave = useCallback(async () => {
-    if (!dmName.trim() && !gatekeeperName.trim()) {
-      toast.error("Please enter at least a decision maker name or gatekeeper name.");
+    const nextDmName = dmName.trim();
+    const nextDmPhone = dmPhone.trim();
+    const nextDmEmail = dmEmail.trim();
+    const nextDmLinkedin = dmLinkedin.trim();
+    const nextGatekeeperName = gatekeeperName.trim();
+    const nextGatekeeperNotes = gatekeeperNotes.trim();
+    const hasAnyIntel = Boolean(
+      nextDmName
+        || dmTitle
+        || nextDmPhone
+        || nextDmEmail
+        || nextDmLinkedin
+        || nextGatekeeperName
+        || nextGatekeeperNotes
+        || bestRoute
+        || bestTimeToCall,
+    );
+
+    if (!hasAnyIntel) {
+      toast.error("Add at least one decision-maker detail before saving.");
       return;
     }
 
@@ -147,22 +167,16 @@ export function DecisionMakerCapture({
     try {
       let ghlSyncFailed = false;
       let ghlSyncErrorMessage = "";
-      const updates: Record<string, string | null> = {};
-
-      // DM fields
-      if (dmName.trim()) updates.dm_name = dmName.trim();
-      if (dmTitle) updates.dm_role = dmTitle;
-      if (dmPhone.trim()) {
-        updates.dm_phone = dmPhone.trim();
-      }
-      if (dmEmail.trim()) updates.dm_email = dmEmail.trim();
-      if (dmLinkedin.trim()) updates.dm_linkedin = dmLinkedin.trim();
-
-      // Gatekeeper fields
-      if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
-      if (gatekeeperNotes.trim()) updates.gatekeeper_notes = gatekeeperNotes.trim();
-      if (bestRoute) updates.best_route_to_decision_maker = bestRoute;
-      if (bestTimeToCall) (updates as any).best_time_to_call = bestTimeToCall;
+      const updates: Record<string, string | null> = {
+        dm_name: nextDmName || null,
+        dm_role: dmTitle || null,
+        dm_phone: nextDmPhone || null,
+        dm_email: nextDmEmail || null,
+        gatekeeper_name: nextGatekeeperName || null,
+        gatekeeper_notes: nextGatekeeperNotes || null,
+        best_route_to_decision_maker: bestRoute || null,
+        best_time_to_call: bestTimeToCall || null,
+      };
 
       const { error } = await supabase
         .from("contacts")
@@ -175,12 +189,12 @@ export function DecisionMakerCapture({
       if (ghlContactId) {
         try {
           const ghlFields: Record<string, string> = {};
-          if (dmName.trim()) ghlFields["contact.decision_maker_name"] = dmName.trim();
-          if (dmPhone.trim()) ghlFields["contact.decision_maker_direct_line"] = dmPhone.trim();
-          if (dmEmail.trim()) ghlFields["contact.decision_maker_email"] = dmEmail.trim();
-          if (dmLinkedin.trim()) ghlFields["contact.decision_maker_linkedin"] = dmLinkedin.trim();
-          if (gatekeeperName.trim()) ghlFields["contact.gatekeeper_name"] = gatekeeperName.trim();
-          if (gatekeeperNotes.trim()) ghlFields["contact.gatekeeper_notes"] = gatekeeperNotes.trim();
+          if (nextDmName) ghlFields["contact.decision_maker_name"] = nextDmName;
+          if (nextDmPhone) ghlFields["contact.decision_maker_direct_line"] = nextDmPhone;
+          if (nextDmEmail) ghlFields["contact.decision_maker_email"] = nextDmEmail;
+          if (nextDmLinkedin) ghlFields["contact.decision_maker_linkedin"] = nextDmLinkedin;
+          if (nextGatekeeperName) ghlFields["contact.gatekeeper_name"] = nextGatekeeperName;
+          if (nextGatekeeperNotes) ghlFields["contact.gatekeeper_notes"] = nextGatekeeperNotes;
           if (bestRoute) ghlFields["contact.best_route_to_dm"] = bestRoute;
           if (bestTimeToCall) ghlFields["contact.best_time_to_call"] = bestTimeToCall;
 
