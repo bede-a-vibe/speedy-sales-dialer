@@ -9,6 +9,7 @@ import { OutcomeButton } from "@/components/OutcomeButton";
 import { AdvancedFilters } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
+import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { Badge } from "@/components/ui/badge";
@@ -602,6 +603,8 @@ export default function DialerPage() {
 
     // Background DB writes
     (async () => {
+      let createdPipelineItem: { id: string } | null = null;
+
       try {
         const [insertedLog] = await Promise.all([
           createCallLog.mutateAsync({
@@ -1619,6 +1622,13 @@ export default function DialerPage() {
                 )}
               </div>
 
+              <ContactNotesPanel
+                contactId={session.currentContact.id}
+                notes={session.notes}
+                onNotesChange={session.setNotes}
+                enabled={session.isSessionActive}
+              />
+
               <div className="rounded-lg border border-border bg-card p-4">
                 <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Outcome <span className="text-primary">(required)</span>
@@ -1844,11 +1854,12 @@ export default function DialerPage() {
                     </label>
                     <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} />
                   </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className="block text-[10px] uppercase tracking-widest text-muted-foreground">
-                        Follow-up Notes
-                      </label>
+                  <div className="rounded-md border border-border/70 bg-background/80 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Follow-up note prep</p>
+                        <p className="text-sm text-foreground">Use the shared notes panel above to capture the exact callback brief.</p>
+                      </div>
                       {followUpNoteDraft && (
                         <Button
                           type="button"
@@ -1861,17 +1872,9 @@ export default function DialerPage() {
                         </Button>
                       )}
                     </div>
-                    <Textarea
-                      value={session.notes}
-                      onChange={(e) => session.setNotes(e.target.value)}
-                      placeholder="Enter follow-up details..."
-                      className="min-h-[80px] resize-none border-border bg-background text-sm"
-                    />
-                    {followUpNoteDraft && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Adds a reusable follow-up note shell plus saved callback timing, routing, decision-maker, and prior follow-up notes without wiping anything already typed.
-                      </p>
-                    )}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Reps can now see prior synced notes and recent call outcomes while writing the next-step brief, so follow-ups stay grounded in the latest contact history.
+                    </p>
                   </div>
                 </div>
               )}
