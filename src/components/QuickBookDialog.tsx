@@ -95,6 +95,13 @@ function buildFollowUpContext(contact: Contact | null) {
   return ["Next step:", "Reason for follow-up:", ...contextLines].join("\n");
 }
 
+function getQuickCreateDefaultSchedule(type: PipelineType) {
+  const now = new Date();
+  const next = addDays(now, 1);
+  const defaultHour = type === "booked" ? 9 : 11;
+  return setMinutes(setHours(next, defaultHour), 0);
+}
+
 export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { user } = useAuth();
   const { data: salesReps = [] } = useSalesReps();
@@ -353,6 +360,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setNotes(draft);
     }
   }, [pipelineType, selectedContact, notes]);
+
+  useEffect(() => {
+    if (!open || !selectedContact || scheduledDate) return;
+
+    const defaultSchedule = getQuickCreateDefaultSchedule(pipelineType);
+    setScheduledDate(defaultSchedule);
+    setScheduledTime(format(defaultSchedule, "HH:mm"));
+  }, [open, selectedContact, scheduledDate, pipelineType]);
 
   const syncReadiness = useMemo(() => {
     if (!selectedContact) return [] as { label: string; status: string; detail: string }[];
