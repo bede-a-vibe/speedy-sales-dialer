@@ -825,6 +825,8 @@ export default function DialerPage() {
     const userId = session.user.id;
     const contactFollowUpNote = currentContactSnapshot.follow_up_note;
     const contactNextFollowUpDate = currentContactSnapshot.next_followup_date;
+    const contactAssignedUserId = (currentContactSnapshot as Record<string, unknown>).assigned_user_id as string | null;
+    const existingPipelineItemId = (currentContactSnapshot as Record<string, unknown>).pipeline_item_id as string | null;
     const contactGhlId = (currentContactSnapshot as Record<string, unknown>).ghl_contact_id as string | null
       ?? ghlLink.getCachedGHLId(currentContactSnapshot.id);
     const contactName = currentContactSnapshot.business_name;
@@ -895,7 +897,9 @@ export default function DialerPage() {
         ]);
 
         const pipelineType = getPipelineTypeForOutcome(outcomeToLog);
-        if (pipelineType) {
+        const shouldReuseOpenFollowUp = pipelineType === "follow_up" && !!existingPipelineItemId;
+
+        if (pipelineType && !shouldReuseOpenFollowUp) {
           createdPipelineItem = await createPipelineItem.mutateAsync({
             contact_id: contactId,
             source_call_log_id: insertedLog.id,
@@ -909,7 +913,7 @@ export default function DialerPage() {
         }
 
         // If this was an active follow-up and got no_answer, roll it forward automatically.
-        if (outcomeToLog === "no_answer" && (contactFollowUpNote || contactNextFollowUpDate)) {
+        if (outcomeToLog === "no_answer" && existingPipelineItemId && (contactFollowUpNote || contactNextFollowUpDate)) {
           const nextScheduled = getNextFollowUpRescheduleIso(contactNextFollowUpDate, new Date());
 
           if (nextScheduled) {
@@ -917,7 +921,7 @@ export default function DialerPage() {
               contact_id: contactId,
               source_call_log_id: insertedLog.id,
               pipeline_type: "follow_up",
-              assigned_user_id: repId || userId,
+              assigned_user_id: contactAssignedUserId || repId || userId,
               created_by: userId,
               scheduled_for: nextScheduled,
               notes: contactFollowUpNote || pipelineNotes || "Auto-rescheduled after no answer",
@@ -929,6 +933,7 @@ export default function DialerPage() {
               next_followup_date: nextScheduled,
               follow_up_note: contactFollowUpNote || pipelineNotes || "Auto-rescheduled after no answer",
               meeting_booked_date: null,
+              assigned_user_id: contactAssignedUserId || repId || userId,
             });
           }
         }
