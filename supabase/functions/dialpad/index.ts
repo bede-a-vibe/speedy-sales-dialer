@@ -1450,6 +1450,141 @@ async function requeueFailedPendingGhlPushes(params: {
   return { requeued: ids.length };
 }
 
+
+async function processPendingTranscriptSyncs(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  limit?: number;
+}) {
+  const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
+  const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString();
+
+  const { data: retryableRows, error: retryableError } = await params.adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, sync_status, call_state, created_at, updated_at")
+    .in("sync_status", ["processing", "failed"])
+    .is("transcript_synced_at", null)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+
+  if (retryableError) throw retryableError;
+
+  const remainingLimit = Math.max(0, limit - (retryableRows?.length ?? 0));
+  let stalePendingRows: typeof retryableRows = [];
+
+  if (remainingLimit > 0) {
+    const { data: pendingRows, error: pendingError } = await params.adminClient
+      .from("dialpad_calls")
+      .select("id, dialpad_call_id, sync_status, call_state, created_at, updated_at")
+      .eq("sync_status", "pending")
+      .is("transcript_synced_at", null)
+      .lte("created_at", staleBefore)
+      .order("updated_at", { ascending: true })
+      .limit(remainingLimit);
+
+    if (pendingError) throw pendingError;
+    stalePendingRows = pendingRows ?? [];
+  }
+
+  const seenIds = new Set<string>();
+  const candidates = [...(retryableRows ?? []), ...(stalePendingRows ?? [])].filter((row) => {
+    if (seenIds.has(row.id)) return false;
+    seenIds.add(row.id);
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    return { processed: 0, synced: 0, failed: 0, skipped: 0, errors: [] as string[] };
+  }
+
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    if (!candidate.dialpad_call_id) {
+      await params.adminClient
+        .from("dialpad_calls")
+        .update({
+          sync_status: "failed",
+          sync_error: "Missing dialpad_call_id for transcript retry",
+        })
+        .eq("id", candidate.id);
+      failed += 1;
+      errors.push(`${candidate.id}: missing dialpad_call_id`);
+      continue;
+    }
+
+    const retryState = candidate.call_state === "hangup" ? "hangup" : "call_transcription";
+
+    try {
+      const result = await syncWebhookPayload({
+        adminClient: params.adminClient,
+        apiKey: params.apiKey,
+        payload: {
+          call_id: candidate.dialpad_call_id,
+          state: retryState,
+        },
+      });
+
+      if (result.ignored) {
+        const reason = typeof result.reason === "string" ? result.reason : "Transcript sync ignored";
+        await params.adminClient
+          .from("dialpad_calls")
+          .update({
+            sync_status: "failed",
+            sync_error: reason,
+          })
+          .eq("id", candidate.id);
+        failed += 1;
+        errors.push(`${candidate.dialpad_call_id}: ${reason}`);
+        continue;
+      }
+
+      if (result.sync_status === "synced") {
+        synced += 1;
+        continue;
+      }
+
+      const reason = typeof result.sync_status === "string"
+        ? `Transcript retry left row in ${result.sync_status}`
+        : "Transcript retry did not reach synced state";
+
+      await params.adminClient
+        .from("dialpad_calls")
+        .update({
+          sync_status: "failed",
+          sync_error: reason,
+        })
+        .eq("id", candidate.id);
+
+      failed += 1;
+      skipped += 1;
+      errors.push(`${candidate.dialpad_call_id}: ${reason}`);
+    } catch (syncError) {
+      const reason = syncError instanceof Error ? syncError.message : "Transcript sync retry failed";
+      await params.adminClient
+        .from("dialpad_calls")
+        .update({
+          sync_status: "failed",
+          sync_error: reason,
+        })
+        .eq("id", candidate.id);
+      failed += 1;
+      errors.push(`${candidate.dialpad_call_id}: ${reason}`);
+    }
+  }
+
+  return {
+    processed: candidates.length,
+    synced,
+    failed,
+    skipped,
+    errors,
+  };
+}
+
 // ── Process AI Summary and Push to GHL ──────────────────────────────────
 async function processAiSummaryAndPushToGhl(params: {
   adminClient: ReturnType<typeof createClient>;
@@ -2078,7 +2213,7 @@ async function syncWebhookPayload(params: {
                 await adminClient.from("dialpad_calls").update({
                   sync_status: nextStatus,
                   transcript_synced_at: syncedAt ?? undefined,
-                  sync_error: null,
+                  sync_error: nextStatus === "processing" ? "Waiting for Dialpad transcript or summary" : null,
                 }).eq("id", newTracked.id);
 
                 return {
@@ -2253,7 +2388,7 @@ async function syncWebhookPayload(params: {
       sync_status: nextStatus,
       call_state: payload.state === "hangup" ? "hangup" : undefined,
       transcript_synced_at: syncedAt ?? undefined,
-      sync_error: null,
+      sync_error: nextStatus === "processing" ? "Waiting for Dialpad transcript or summary" : null,
     })
     .eq("id", trackedCall.id);
 
@@ -3437,6 +3572,16 @@ Deno.serve(async (req) => {
 
         const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
         const summary = await processPendingGhlPushes({ adminClient, limit });
+        return jsonResponse({ ok: true, ...summary }, 200);
+      }
+
+      case "process_pending_transcript_syncs": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+
+        const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
+        const summary = await processPendingTranscriptSyncs({ adminClient, apiKey: DIALPAD_API_KEY, limit });
         return jsonResponse({ ok: true, ...summary }, 200);
       }
 
