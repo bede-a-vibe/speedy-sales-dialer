@@ -553,6 +553,14 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const TRANSCRIPT_RELEVANT_OUTCOMES = new Set(["booked", "follow_up", "not_interested"]);
+
+function normalizeCallOutcome(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+}
+
 async function findMatchingActiveCallWithRetries(params: {
   action: string;
   apiKey: string;
@@ -1971,6 +1979,37 @@ async function findCallLogByFallback(
   return data?.id ?? null;
 }
 
+async function getTranscriptEligibleCallLog(adminClient: ReturnType<typeof createClient>, callLogId: string | null) {
+  if (!callLogId) {
+    return { eligible: false as const, reason: "No linked call log for transcript workflow", outcome: null };
+  }
+
+  const { data, error } = await adminClient
+    .from("call_logs")
+    .select("id, outcome")
+    .eq("id", callLogId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const outcome = normalizeCallOutcome(data?.outcome);
+  if (!outcome) {
+    return { eligible: false as const, reason: "Call outcome missing for transcript workflow", outcome: null };
+  }
+
+  if (!TRANSCRIPT_RELEVANT_OUTCOMES.has(outcome)) {
+    return {
+      eligible: false as const,
+      reason: `Transcript workflow skipped for outcome ${outcome}`,
+      outcome,
+    };
+  }
+
+  return { eligible: true as const, reason: null, outcome, callLogId: data.id };
+}
+
 async function syncWebhookPayload(params: {
   adminClient: ReturnType<typeof createClient>;
   payload: DialpadWebhookPayload;
@@ -2309,15 +2348,19 @@ async function syncWebhookPayload(params: {
     }
   }
 
+  const transcriptEligibleCall = await getTranscriptEligibleCallLog(adminClient, resolvedCallLogId);
+
   if (resolvedCallLogId) {
     const updatePayload: Record<string, unknown> = {
       dialpad_call_id: dialpadCallId,
     };
-    if (summary !== undefined) updatePayload.dialpad_summary = summary;
-    if (transcript !== undefined) updatePayload.dialpad_transcript = transcript;
-    if (syncedAt) updatePayload.transcript_synced_at = syncedAt;
     if (talkTimeSeconds !== null) updatePayload.dialpad_talk_time_seconds = talkTimeSeconds;
     if (totalDurationSeconds !== null) updatePayload.dialpad_total_duration_seconds = totalDurationSeconds;
+    if (transcriptEligibleCall.eligible) {
+      if (summary !== undefined) updatePayload.dialpad_summary = summary;
+      if (transcript !== undefined) updatePayload.dialpad_transcript = transcript;
+      if (syncedAt) updatePayload.transcript_synced_at = syncedAt;
+    }
 
     const { error: callLogError } = await adminClient
       .from("call_logs")
@@ -2331,7 +2374,7 @@ async function syncWebhookPayload(params: {
     console.warn(`[syncWebhookPayload] No call_log found for dialpad_call_id=${dialpadCallId} — talk time data will be lost`);
   }
 
-  if (hasSummary) {
+  if (transcriptEligibleCall.eligible && hasSummary) {
     await upsertContactNote(adminClient, {
       contactId: trackedCall.contact_id,
       createdBy: trackedCall.user_id,
@@ -2341,7 +2384,7 @@ async function syncWebhookPayload(params: {
     });
   }
 
-  if (hasTranscript) {
+  if (transcriptEligibleCall.eligible && hasTranscript) {
     await upsertContactNote(adminClient, {
       contactId: trackedCall.contact_id,
       createdBy: trackedCall.user_id,
@@ -2352,10 +2395,8 @@ async function syncWebhookPayload(params: {
   }
 
   // ── AI Summary Processing & GHL Push ──────────────────────────────────
-  // Trigger when we have a transcript (connected call that ended)
   let aiResult: { aiGenerated: boolean; ghlNotePushed: boolean; ghlFieldsPushed: boolean; fieldsExtracted?: number } | null = null;
-  if (hasTranscript && transcript && talkTimeSeconds != null && talkTimeSeconds > 15) {
-    // Only process calls with >15 seconds of talk time (skip voicemails, no-answers, etc.)
+  if (transcriptEligibleCall.eligible && hasTranscript && transcript && talkTimeSeconds != null && talkTimeSeconds > 15) {
     console.log(`[syncWebhookPayload] Triggering AI summary for dialpad_call_id=${dialpadCallId} (talk_time=${talkTimeSeconds}s)`);
     try {
       aiResult = await processAiSummaryAndPushToGhl({
@@ -2372,23 +2413,31 @@ async function syncWebhookPayload(params: {
     } catch (aiErr) {
       console.error(`[syncWebhookPayload] AI summary processing failed:`, aiErr);
     }
-  } else if (hasTranscript) {
+  } else if (transcriptEligibleCall.eligible && hasTranscript) {
     console.log(`[syncWebhookPayload] Skipping AI summary for dialpad_call_id=${dialpadCallId} — talk_time=${talkTimeSeconds ?? 'null'}s (below 15s threshold)`);
   }
 
-  const nextStatus = hasSummary || hasTranscript
-    ? "synced"
-    : payload.state === "hangup"
-      ? "processing"
-      : "pending";
+  const nextStatus = transcriptEligibleCall.eligible
+    ? hasSummary || hasTranscript
+      ? "synced"
+      : payload.state === "hangup"
+        ? "processing"
+        : "pending"
+    : "synced";
+
+  const nextError = transcriptEligibleCall.eligible
+    ? nextStatus === "processing"
+      ? "Waiting for Dialpad transcript or summary"
+      : null
+    : transcriptEligibleCall.reason;
 
   const { error: trackingError } = await adminClient
     .from("dialpad_calls")
     .update({
       sync_status: nextStatus,
       call_state: payload.state === "hangup" ? "hangup" : undefined,
-      transcript_synced_at: syncedAt ?? undefined,
-      sync_error: nextStatus === "processing" ? "Waiting for Dialpad transcript or summary" : null,
+      transcript_synced_at: transcriptEligibleCall.eligible ? syncedAt ?? undefined : undefined,
+      sync_error: nextError,
     })
     .eq("id", trackedCall.id);
 
