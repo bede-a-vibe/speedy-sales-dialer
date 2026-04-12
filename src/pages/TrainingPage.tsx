@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
+import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, objectionEventDrafts, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -501,6 +501,33 @@ export default function TrainingPage() {
                 </TabsContent>
 
                 <TabsContent value="playbook">
+                  <div className="space-y-4 rounded-xl border border-border bg-background/60 p-4">
+                    <div className="flex items-start gap-3">
+                      <Database className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">Objection events flowing into training</h3>
+                        <p className="text-sm text-muted-foreground">The same transcript pass should create structured objection events that can feed coaching, drills, and review queues, not just CRM notes.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {objectionEventDrafts.map((event) => (
+                        <div key={event.id} className="rounded-lg border border-border bg-card/70 p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">{event.objectionType}</Badge>
+                            <Badge variant={event.coachingVerdict === "Strong" ? "default" : "outline"}>{event.coachingVerdict}</Badge>
+                            <Badge variant="outline">{event.outcome}</Badge>
+                          </div>
+                          <div className="mt-3 space-y-2 text-sm">
+                            <p><span className="font-medium text-foreground">Prospect:</span> <span className="text-muted-foreground">{event.prospectWording}</span></p>
+                            <p><span className="font-medium text-foreground">Rep:</span> <span className="text-muted-foreground">{event.repResponse}</span></p>
+                            <p><span className="font-medium text-foreground">Coaching:</span> <span className="text-muted-foreground">{event.coachingNote}</span></p>
+                            <p><span className="font-medium text-foreground">Evidence:</span> <span className="text-muted-foreground">{event.evidence.join(" ")}</span></p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border border-border bg-background/60 p-4">
                     <div className="mb-4 flex items-start gap-3">
                       <Target className="mt-0.5 h-5 w-5 text-primary" />

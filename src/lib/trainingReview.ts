@@ -36,6 +36,22 @@ export const reviewScoreSchema = z.object({
   coachingNote: z.string().min(1),
 });
 
+export const objectionEventSchema = z.object({
+  id: z.string().min(1),
+  callLogId: z.string().min(1),
+  contactId: z.string().min(1),
+  objectionType: z.string().min(1),
+  prospectWording: z.string().min(1),
+  repResponse: z.string().min(1),
+  outcome: z.enum(["advanced", "stalled", "booked", "follow_up", "lost"]),
+  coachingVerdict: z.enum(["Strong", "Needs work", "Missed"]),
+  coachingNote: z.string().min(1),
+  linkedModule: trainingModuleSchema,
+  createdAt: z.string().min(1),
+  evidence: z.array(z.string().min(1)).min(1),
+  drillCandidate: z.boolean(),
+});
+
 export const reviewSubmissionSchema = z.object({
   id: z.string().min(1),
   packetId: z.string().min(1),
@@ -67,6 +83,7 @@ export type TrainingModule = z.infer<typeof trainingModuleSchema>;
 export type ReviewPacket = z.infer<typeof reviewPacketSchema>;
 export type ReviewRubricItem = z.infer<typeof reviewRubricItemSchema>;
 export type ReviewScore = z.infer<typeof reviewScoreSchema>;
+export type ObjectionEvent = z.infer<typeof objectionEventSchema>;
 export type ReviewSubmission = z.infer<typeof reviewSubmissionSchema>;
 export type ManagerCoachingTask = z.infer<typeof managerCoachingTaskSchema>;
 
@@ -202,6 +219,45 @@ export function buildReviewSubmissionDraft(args: {
 
   return reviewSubmissionSchema.parse(submission);
 }
+
+export const objectionEventDrafts: ObjectionEvent[] = objectionEventSchema.array().parse([
+  {
+    id: "obj-bad-time-001",
+    callLogId: "call-log-bad-time-001",
+    contactId: "contact-bad-time-001",
+    objectionType: "Too busy right now",
+    prospectWording: "I'm on a job, mate, now's not great.",
+    repResponse: "No worries, sounds like I caught you mid-run. When are you usually easiest to catch, after 3 or first thing tomorrow?",
+    outcome: "follow_up",
+    coachingVerdict: "Strong",
+    coachingNote: "Rep treated the objection as a timing issue and secured a concrete callback window instead of pushing discovery.",
+    linkedModule: "Objections",
+    createdAt: "2026-04-13T08:20:00+10:00",
+    evidence: [
+      "Prospect explicitly said it was a bad time.",
+      "Rep asked for a specific callback window and confirmed the next step.",
+    ],
+    drillCandidate: true,
+  },
+  {
+    id: "obj-send-info-001",
+    callLogId: "call-log-send-info-001",
+    contactId: "contact-send-info-001",
+    objectionType: "Send me information",
+    prospectWording: "Just send me something.",
+    repResponse: "Sure, what's your email?",
+    outcome: "stalled",
+    coachingVerdict: "Missed",
+    coachingNote: "Rep accepted the brush-off without diagnosing the real problem, so the next touch stays generic.",
+    linkedModule: "Patterns",
+    createdAt: "2026-04-13T08:21:00+10:00",
+    evidence: [
+      "Prospect gave a generic send-me-info objection.",
+      "Rep moved straight to capture without earning one useful business context detail.",
+    ],
+    drillCandidate: true,
+  },
+]);
 
 export const reviewSubmissionDrafts: ReviewSubmission[] = [
   buildReviewSubmissionDraft({
