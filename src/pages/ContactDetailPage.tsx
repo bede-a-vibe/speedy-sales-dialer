@@ -7,6 +7,7 @@ import {
   Calendar, Send, Loader2, Building2, StickyNote, PhoneCall,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -15,6 +16,13 @@ import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipel
 import { useUpdateContact } from "@/hooks/useContacts";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
+import {
+  buildEmailDraftSuggestionContext,
+  createEmailDraftSuggestion,
+  type EmailDraftSuggestion,
+  type EmailDraftSuggestionStatus,
+} from "@/lib/emailDraftSuggestions";
 import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,6 +110,8 @@ export default function ContactDetailPage() {
   const [nextStatus, setNextStatus] = useState<string>("uncalled");
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("10:00");
+  const [draftSuggestion, setDraftSuggestion] = useState<EmailDraftSuggestion | null>(null);
+  const [draftSuggestionStatus, setDraftSuggestionStatus] = useState<EmailDraftSuggestionStatus>("idle");
 
   const allCallLogs = useMemo(() => callLogPages?.pages.flatMap((p) => p.items) ?? [], [callLogPages]);
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
@@ -115,6 +125,61 @@ export default function ContactDetailPage() {
   useEffect(() => {
     setNextStatus(currentStatusValue);
   }, [currentStatusValue, id]);
+
+  useEffect(() => {
+    setDraftSuggestion(null);
+    setDraftSuggestionStatus("idle");
+  }, [id]);
+
+  const handleGenerateDraftSuggestion = async () => {
+    if (!contact) return;
+
+    const repName = user?.user_metadata?.full_name || user?.email || "The Odin Team";
+    const draftContext = buildEmailDraftSuggestionContext({
+      contact,
+      repName,
+      latestCall: latestCall
+        ? {
+            created_at: latestCall.created_at,
+            notes: latestCall.notes,
+            dialpad_summary: latestCall.dialpad_summary,
+          }
+        : null,
+      latestNote: latestNote
+        ? {
+            created_at: latestNote.created_at,
+            content: latestNote.content,
+          }
+        : null,
+      scheduledFor: nextPipelineItem?.scheduled_for ?? null,
+    });
+
+    setDraftSuggestionStatus("generating");
+
+    try {
+      const generatedDraft = await generateFollowUpEmailDraft({
+        contactName: draftContext.contactName,
+        businessName: draftContext.businessName,
+        industry: draftContext.industry || undefined,
+        repName: draftContext.repName,
+        callNotes: draftContext.callNotes || undefined,
+        callTranscriptSummary: draftContext.callTranscriptSummary || undefined,
+        scheduledFor: draftContext.scheduledFor || undefined,
+      });
+
+      if (!generatedDraft) throw new Error("No draft returned");
+
+      setDraftSuggestion(createEmailDraftSuggestion({
+        subject: generatedDraft.subject,
+        body: generatedDraft.body,
+        context: draftContext,
+      }));
+      setDraftSuggestionStatus("ready");
+    } catch {
+      setDraftSuggestionStatus("failed");
+      toast.error("Failed to generate draft suggestion");
+    }
+  };
 
   const handleToggleDnc = async () => {
     if (!contact) return;
@@ -517,6 +582,13 @@ export default function ContactDetailPage() {
                 </Button>
               </CardContent>
             </Card>
+
+            <EmailDraftSuggestionCard
+              suggestion={draftSuggestion}
+              status={draftSuggestionStatus}
+              onGenerate={handleGenerateDraftSuggestion}
+              disabled={!contact.email && !contact.dm_email}
+            />
 
             <Card>
               <CardHeader className="pb-3">
