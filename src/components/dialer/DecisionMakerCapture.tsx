@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,7 +80,14 @@ export function DecisionMakerCapture({
   existingBestTimeToCall,
   onSaved,
 }: DecisionMakerCaptureProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const hasExistingContext = Boolean(
+    existingDmName
+      || existingDmPhone
+      || existingGatekeeperName
+      || existingBestRouteToDecisionMaker
+      || existingBestTimeToCall,
+  );
+  const [isExpanded, setIsExpanded] = useState(!hasExistingContext);
   const [isSaving, setIsSaving] = useState(false);
 
   // DM fields
@@ -96,8 +103,39 @@ export function DecisionMakerCapture({
   const [bestRoute, setBestRoute] = useState(existingBestRouteToDecisionMaker || "");
   const [bestTimeToCall, setBestTimeToCall] = useState(existingBestTimeToCall || "");
 
+  useEffect(() => {
+    setDmName(existingDmName || "");
+    setDmTitle(existingDmTitle || "");
+    setDmPhone(existingDmPhone || "");
+    setDmEmail(existingDmEmail || "");
+    setDmLinkedin(existingDmLinkedin || "");
+    setGatekeeperName(existingGatekeeperName || "");
+    setGatekeeperNotes(existingGatekeeperNotes || "");
+    setBestRoute(existingBestRouteToDecisionMaker || "");
+    setBestTimeToCall(existingBestTimeToCall || "");
+    setIsExpanded(false);
+  }, [
+    contactId,
+    existingDmName,
+    existingDmTitle,
+    existingDmPhone,
+    existingDmEmail,
+    existingDmLinkedin,
+    existingGatekeeperName,
+    existingGatekeeperNotes,
+    existingBestRouteToDecisionMaker,
+    existingBestTimeToCall,
+  ]);
+
   const hasDmData = !!(existingDmName || existingDmPhone);
   const hasGatekeeperData = !!existingGatekeeperName;
+  const hasBestRoute = !!existingBestRouteToDecisionMaker;
+  const hasBestTime = !!existingBestTimeToCall;
+  const summaryText = hasDmData
+    ? "Decision maker captured"
+    : hasGatekeeperData
+      ? "Gatekeeper intel captured"
+      : "Capture the name and best route before moving on";
 
   const handleSave = useCallback(async () => {
     if (!dmName.trim() && !gatekeeperName.trim()) {
@@ -118,9 +156,11 @@ export function DecisionMakerCapture({
         updates.dm_phone = dmPhone.trim();
       }
       if (dmEmail.trim()) updates.dm_email = dmEmail.trim();
+      if (dmLinkedin.trim()) updates.dm_linkedin = dmLinkedin.trim();
 
       // Gatekeeper fields
       if (gatekeeperName.trim()) updates.gatekeeper_name = gatekeeperName.trim();
+      if (gatekeeperNotes.trim()) updates.gatekeeper_notes = gatekeeperNotes.trim();
       if (bestRoute) updates.best_route_to_decision_maker = bestRoute;
       if (bestTimeToCall) (updates as any).best_time_to_call = bestTimeToCall;
 
@@ -175,25 +215,44 @@ export function DecisionMakerCapture({
         className="cursor-pointer select-none px-4 py-3"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <UserPlus className="h-4 w-4 text-primary" />
-            Decision Maker
-            {hasDmData && (
-              <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-400">
-                {existingDmName}
-              </span>
-            )}
-            {!hasDmData && hasGatekeeperData && (
-              <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">
-                Gatekeeper only
-              </span>
-            )}
-          </CardTitle>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Decision Maker
+              {hasDmData && (
+                <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-400">
+                  {existingDmName || "Direct line captured"}
+                </span>
+              )}
+              {!hasDmData && hasGatekeeperData && (
+                <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">
+                  Gatekeeper only
+                </span>
+              )}
+              {!hasExistingContext && (
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+                  Start here
+                </span>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">{summaryText}</p>
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
+              {existingDmPhone && (
+                <span className="rounded-full border border-border bg-background px-2 py-0.5 text-foreground">Direct phone saved</span>
+              )}
+              {hasBestRoute && (
+                <span className="rounded-full border border-border bg-background px-2 py-0.5 text-foreground">Route: {existingBestRouteToDecisionMaker}</span>
+              )}
+              {hasBestTime && (
+                <span className="rounded-full border border-border bg-background px-2 py-0.5 text-foreground">Best time: {existingBestTimeToCall}</span>
+              )}
+            </div>
+          </div>
           {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            <ChevronUp className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           )}
         </div>
       </CardHeader>
