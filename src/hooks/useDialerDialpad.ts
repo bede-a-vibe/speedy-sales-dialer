@@ -289,6 +289,7 @@ export function useDialerDialpad({
     return () => {
       cancelled = true;
       if (activeDialRequestRef.current === requestKey) {
+        clearActiveDialRequestLock(requestKey);
         activeDialRequestRef.current = null;
       }
     };
