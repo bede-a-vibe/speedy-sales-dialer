@@ -344,16 +344,30 @@ export default function FollowUpsPage() {
                         ) : null}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {item.contact.contact_person ? `${item.contact.contact_person} · ` : ""}{item.contact.phone}
+                        {item.contact.contact_person ? `${item.contact.contact_person} · ` : ""}
+                        <a href={`tel:${item.contact.phone}`} className="font-medium text-foreground hover:underline">
+                          {item.contact.phone}
+                        </a>
                       </div>
                     </div>
-                    <Link
-                      to={`/contacts/${item.contact.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      Open contact
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      {!item.contact.is_dnc ? (
+                        <a
+                          href={`tel:${item.contact.phone}`}
+                          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          Call now
+                        </a>
+                      ) : null}
+                      <Link
+                        to={`/contacts/${item.contact.id}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                      >
+                        Open contact
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
                   </div>
                   {item.title ? <div className="mt-3 text-sm text-foreground">{item.title}</div> : null}
                   {item.body ? <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.body}</div> : null}
