@@ -192,6 +192,25 @@ function getManagerTaskDueLabel(outcome: ReviewSubmission["outcome"]) {
   return "Weekly coaching wrap-up";
 }
 
+function buildManagerTaskSummary(args: {
+  submission: ReviewSubmission;
+  packet?: ReviewPacket;
+  coachingFocus: string[];
+}) {
+  const focusText = args.coachingFocus.length
+    ? `${args.submission.repName} needs manager follow-up on ${args.coachingFocus.join(", ")}.`
+    : `${args.submission.repName} produced a reinforcement-ready call review.`;
+
+  const firstAction = args.submission.coachingActions[0];
+  const crmFieldsText = args.submission.requiredCrmFields.length
+    ? `CRM check: ${args.submission.requiredCrmFields.join(", ")}.`
+    : null;
+  const packetTriggerText = args.packet ? `Watch for: ${args.packet.trigger}` : null;
+  const actionText = args.coachingFocus.length && firstAction ? `Coach next: ${firstAction}` : null;
+
+  return [focusText, packetTriggerText, actionText, crmFieldsText].filter(Boolean).join(" ");
+}
+
 export function buildReviewSubmissionDraft(args: {
   id: string;
   packet: ReviewPacket;
@@ -205,6 +224,8 @@ export function buildReviewSubmissionDraft(args: {
     return total + ((score.score / 5) * ratio * 100);
   }, 0);
 
+  const coachingActions = args.rubricScores.filter((score) => score.score <= 3).map((score) => score.coachingNote);
+
   const submission = {
     id: args.id,
     packetId: args.packet.id,
@@ -213,7 +234,7 @@ export function buildReviewSubmissionDraft(args: {
     overallScore: Math.round(weightedScore),
     outcome: getReviewOutcome(weightedScore),
     requiredCrmFields: extractCrmFields(args.packet.crmRequirement),
-    coachingActions: args.rubricScores.filter((score) => score.score <= 3).map((score) => score.coachingNote),
+    coachingActions: coachingActions.length ? coachingActions : ["Share this call as a reinforcement example in the next coaching session."],
     rubricScores: args.rubricScores,
   };
 
@@ -355,9 +376,11 @@ export function buildManagerCoachingTasks(submissions: ReviewSubmission[], packe
         priority: getManagerTaskPriority(submission.outcome),
         workflowStatus: getManagerWorkflowStatus(submission.outcome),
         dueLabel: getManagerTaskDueLabel(submission.outcome),
-        summary: coachingFocus.length
-          ? `${submission.repName} needs manager follow-up on ${coachingFocus.join(", ")}.`
-          : `${submission.repName} produced a reinforcement-ready call review.`,
+        summary: buildManagerTaskSummary({
+          submission,
+          packet,
+          coachingFocus,
+        }),
         ownerRole: getManagerTaskOwner(submission.outcome),
         coachingFocus: coachingFocus.length ? coachingFocus : ["Share winning call in team coaching"],
         requiredCrmFields: submission.requiredCrmFields,
