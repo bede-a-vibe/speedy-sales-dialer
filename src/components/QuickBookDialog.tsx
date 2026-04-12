@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { addDays, setHours, setMinutes } from "date-fns";
-import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList, Plus } from "lucide-react";
+import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList, Plus, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -47,6 +47,26 @@ interface QuickBookDialogProps {
 
 function getRepLabel(name: string | null, email: string | null) {
   return name || email?.split("@")[0] || "Unknown";
+}
+
+function buildFollowUpContext(contact: Contact | null) {
+  if (!contact) return "";
+
+  const contextLines = [
+    contact.follow_up_note?.trim() ? `Previous note: ${contact.follow_up_note.trim()}` : null,
+    contact.best_time_to_call?.trim() ? `Best callback window: ${contact.best_time_to_call.trim()}` : null,
+    contact.best_route_to_dm?.trim() ? `Best route: ${contact.best_route_to_dm.trim()}` : null,
+    contact.dm_name?.trim() || contact.dm_phone?.trim()
+      ? `Decision maker: ${[contact.dm_name?.trim(), contact.dm_phone?.trim()].filter(Boolean).join(" · ")}`
+      : null,
+    contact.gatekeeper_name?.trim() || contact.gatekeeper_notes?.trim()
+      ? `Gatekeeper: ${[contact.gatekeeper_name?.trim(), contact.gatekeeper_notes?.trim()].filter(Boolean).join(" · ")}`
+      : null,
+  ].filter(Boolean) as string[];
+
+  if (contextLines.length === 0) return "";
+
+  return ["Next step:", "Reason for follow-up:", ...contextLines].join("\n");
 }
 
 export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
@@ -267,6 +287,39 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     }
     return { tone: "warning", label: "Will link on save", detail: "The app will try to create or match the GHL contact when you submit." };
   }, [selectedContact]);
+
+  const existingScheduleWarning = useMemo(() => {
+    if (!selectedContact) return null;
+
+    const bookedAt = selectedContact.meeting_booked_date ? new Date(selectedContact.meeting_booked_date) : null;
+    const followUpAt = selectedContact.next_followup_date ? new Date(selectedContact.next_followup_date) : null;
+    const now = Date.now();
+
+    if (pipelineType === "booked" && followUpAt && !Number.isNaN(followUpAt.getTime()) && followUpAt.getTime() >= now) {
+      return {
+        title: "This contact already has a follow-up scheduled",
+        detail: `Saving this booking will replace the current follow-up timing of ${format(followUpAt, "PPP p")} on the contact record.`,
+      };
+    }
+
+    if (pipelineType === "follow_up" && bookedAt && !Number.isNaN(bookedAt.getTime()) && bookedAt.getTime() >= now) {
+      return {
+        title: "This contact is already marked as booked",
+        detail: `Saving this follow-up will clear the booked date of ${format(bookedAt, "PPP p")} on the contact record.`,
+      };
+    }
+
+    return null;
+  }, [selectedContact, pipelineType]);
+
+  useEffect(() => {
+    if (pipelineType !== "follow_up" || !selectedContact || notes.trim()) return;
+
+    const draft = buildFollowUpContext(selectedContact);
+    if (draft) {
+      setNotes(draft);
+    }
+  }, [pipelineType, selectedContact, notes]);
 
   const syncReadiness = useMemo(() => {
     if (!selectedContact) return [] as { label: string; status: string; detail: string }[];
@@ -798,6 +851,18 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   className="min-h-[60px] resize-none border-border bg-background text-sm"
                 />
               </div>
+
+              {existingScheduleWarning && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+                    <div>
+                      <p className="font-medium text-amber-900 dark:text-amber-100">{existingScheduleWarning.title}</p>
+                      <p className="text-xs text-amber-800/90 dark:text-amber-200/90">{existingScheduleWarning.detail}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
                 <div className="space-y-1">
