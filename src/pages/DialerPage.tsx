@@ -623,17 +623,42 @@ export default function DialerPage() {
     isOnline,
   ]);
 
-  // Reset pipeline fields when outcome changes
+  // Reset or prime fields when outcome changes
   useEffect(() => {
     if (!requiresPipelineAssignment && session.user?.id) {
       session.setAssignedRepId(session.user.id);
     }
+
     if (!requiresAnySchedule) {
       session.setFollowUpDate(undefined);
       session.setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
+      return;
     }
 
-  }, [requiresAnySchedule, requiresBookedSchedule, requiresPipelineAssignment, session.user?.id]);
+    if (session.followUpDate) return;
+
+    if (session.selectedOutcome === "follow_up") {
+      const next = roundUpToNextQuarterHour(new Date(Date.now() + (2 * 60 * 60 * 1000)));
+      session.setFollowUpDate(next);
+      session.setFollowUpTime(formatTimeInputValue(next));
+      return;
+    }
+
+    if (session.selectedOutcome === "booked") {
+      const next = getNextBusinessDay(new Date());
+      session.setFollowUpDate(next);
+      session.setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
+    }
+  }, [
+    requiresAnySchedule,
+    requiresPipelineAssignment,
+    session.user?.id,
+    session.followUpDate,
+    session.selectedOutcome,
+    session.setAssignedRepId,
+    session.setFollowUpDate,
+    session.setFollowUpTime,
+  ]);
 
   // Preload lazy panels when session starts
   useEffect(() => {
