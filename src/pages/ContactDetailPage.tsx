@@ -28,7 +28,7 @@ import {
   loadStoredEmailDraftSuggestion,
   saveStoredEmailDraftSuggestion,
 } from "@/lib/emailDraftStore";
-import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
+import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -187,7 +187,7 @@ export default function ContactDetailPage() {
         draftGoal: draftContext.draftGoal,
         callNotes: draftContext.callNotes || undefined,
         callTranscriptSummary: draftContext.callTranscriptSummary || undefined,
-        recentCallContexts: draftContext.recentCallContexts,
+        recentCallContexts: draftContext.recentCallContexts as Array<{ createdAt: string; outcome: string; notes?: string | null; summary?: string | null; transcriptExcerpt?: string | null }>,
         scheduledFor: draftContext.scheduledFor || undefined,
       });
 
@@ -302,7 +302,7 @@ export default function ContactDetailPage() {
           scheduled_for: bookingScheduledAt,
           notes: "Created from contact detail page",
         });
-      } else if (shouldCreatePipelineItemForStatus(nextStatus) && nextStatus === "follow_up" && followUpScheduledAt) {
+      } else if (shouldCreatePipelineItemForStatus(nextStatus as ContactLifecycleStatus) && nextStatus === "follow_up" && followUpScheduledAt) {
         await createPipelineItem.mutateAsync({
           contact_id: contact.id,
           pipeline_type: nextStatus,

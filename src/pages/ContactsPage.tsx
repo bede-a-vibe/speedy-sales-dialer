@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
-import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
+import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
@@ -1013,7 +1013,7 @@ export default function ContactsPage() {
           notes: "Created from contact status update",
         });
         toast.success("Contact updated & booked appointment created.");
-      } else if (statusChanged && shouldCreatePipelineItemForStatus(editForm.status) && editForm.status === "follow_up") {
+      } else if (statusChanged && shouldCreatePipelineItemForStatus(editForm.status as ContactLifecycleStatus) && editForm.status === "follow_up") {
         const scheduled = getDefaultManualFollowUpScheduledFor();
 
         await createPipelineItem.mutateAsync({
@@ -1067,7 +1067,7 @@ export default function ContactsPage() {
           scheduled_for: scheduled.toISOString(),
           notes: "Created from manual status change",
         });
-      } else if (shouldCreatePipelineItemForStatus(newStatus) && newStatus === "follow_up") {
+      } else if (shouldCreatePipelineItemForStatus(newStatus as ContactLifecycleStatus) && newStatus === "follow_up") {
         const scheduled = getDefaultManualFollowUpScheduledFor();
 
         await createPipelineItem.mutateAsync({

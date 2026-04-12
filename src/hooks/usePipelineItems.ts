@@ -116,9 +116,6 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_notes,
           deal_value,
           follow_up_method,
-          ghl_opportunity_id,
-          ghl_pipeline_id,
-          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -144,7 +141,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as PipelineItemWithRelations[];
+      return (data ?? []).map((row) => ({ ...row, ghl_opportunity_id: null, ghl_pipeline_id: null, ghl_stage_id: null } as PipelineItemWithRelations));
     },
   });
 }
@@ -187,9 +184,6 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_notes,
           deal_value,
           follow_up_method,
-          ghl_opportunity_id,
-          ghl_pipeline_id,
-          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -209,7 +203,7 @@ export function useContactPipelineItems(contactId?: string) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data ?? []) as PipelineItemWithRelations[];
+      return (data ?? []).map((row) => ({ ...row, ghl_opportunity_id: null, ghl_pipeline_id: null, ghl_stage_id: null } as PipelineItemWithRelations));
     },
   });
 }
@@ -253,12 +247,13 @@ export function useCreatePipelineItem() {
 
   return useMutation({
     mutationFn: async (payload: PipelineItemInsert) => {
+      const { ghl_opportunity_id, ghl_pipeline_id, ghl_stage_id, ...dbPayload } = payload;
       const { data, error } = await supabase
         .from("pipeline_items")
         .insert({
           notes: "",
           status: "open",
-          ...payload,
+          ...dbPayload,
         })
         .select("id")
         .single();
@@ -280,7 +275,7 @@ export function useUpdatePipelineItem() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: PipelineItemUpdate) => {
+    mutationFn: async ({ id, ghl_opportunity_id, ghl_pipeline_id, ghl_stage_id, ...updates }: PipelineItemUpdate) => {
       const { error } = await supabase.from("pipeline_items").update(updates).eq("id", id);
       if (error) throw error;
     },
