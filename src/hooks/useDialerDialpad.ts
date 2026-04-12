@@ -205,6 +205,9 @@ export function useDialerDialpad({
     const requestKey = `${currentContact.id}:${currentContact.phone}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
 
+    let cancelled = false;
+    const isStaleAttempt = () => cancelled || activeDialRequestRef.current !== requestKey;
+
     activeDialRequestRef.current = requestKey;
     setActiveDialRequestLock(requestKey);
     setActiveDialpadCallId(null);
@@ -226,6 +229,8 @@ export function useDialerDialpad({
           contact_id: currentContact.id,
           caller_id: selectedCallerId || undefined,
         });
+
+        if (isStaleAttempt()) return;
 
         if (response.dialpad_call_id) {
           setActiveDialpadCallId(response.dialpad_call_id);
@@ -253,6 +258,8 @@ export function useDialerDialpad({
         const is429 = message.includes("429") || normalized.includes("rate_limit") || normalized.includes("rate limit");
         const isAlreadyOnCall = normalized.includes("currently on a call");
 
+        if (isStaleAttempt()) return;
+
         if (isAlreadyOnCall) {
           setIsCallResolving(true);
           setActiveDialpadCallState("connecting");
@@ -262,6 +269,7 @@ export function useDialerDialpad({
 
         if ((is409 || is429) && retriesLeft > 0) {
           await new Promise((r) => setTimeout(r, is429 ? 2500 : 1500));
+          if (isStaleAttempt()) return;
           return attemptDial(retriesLeft - 1);
         }
 
@@ -277,6 +285,13 @@ export function useDialerDialpad({
     };
 
     void attemptDial(2);
+
+    return () => {
+      cancelled = true;
+      if (activeDialRequestRef.current === requestKey) {
+        activeDialRequestRef.current = null;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDialing, isOnline, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
 
