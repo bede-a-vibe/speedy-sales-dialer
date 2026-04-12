@@ -61,6 +61,19 @@ function buildDraftPreview(body: string, maxLength = 180) {
   return `${singleLine.slice(0, maxLength).trimEnd()}…`;
 }
 
+function formatDraftTimestamp(value?: string | null) {
+  if (!value) return "Unknown";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Unknown";
+  return parsed.toLocaleString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function FollowUpsPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const [loading, setLoading] = useState(true);
@@ -423,6 +436,7 @@ export default function FollowUpsPage() {
               <div className="p-4 text-sm text-muted-foreground">{emptyStateByScope[scope]}</div>
             ) : sortedItems.map((item, idx) => {
               const bucket = getTaskBucket(item.due_date);
+              const draft = draftsByContactId[item.contact.id];
               return (
                 <div key={item.task_id ?? `${item.contact.id}:${idx}`} className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -445,7 +459,7 @@ export default function FollowUpsPage() {
                             DNC flagged
                           </span>
                         ) : null}
-                        {draftsByContactId[item.contact.id] ? (
+                        {draft ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-violet-700">
                             <Sparkles className="h-3 w-3" />
                             Draft ready
@@ -484,10 +498,47 @@ export default function FollowUpsPage() {
                     <span>Status: {item.contact.status}</span>
                     <span>Task source: GHL</span>
                     <span>{item.due_date ? `Due: ${new Date(item.due_date).toLocaleString()}` : "Due date missing"}</span>
-                    {draftsByContactId[item.contact.id] ? (
-                      <span>Email draft: {draftsByContactId[item.contact.id]?.subject}</span>
-                    ) : null}
+                    {draft ? <span>Email draft: {draft.subject}</span> : null}
                   </div>
+                  {draft ? (
+                    <div className="mt-3 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-violet-700">Review-only email draft</p>
+                          <p className="mt-1 text-sm font-medium text-foreground">{draft.subject}</p>
+                        </div>
+                        <span className="rounded-full border border-violet-500/20 bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                          Saved {formatDraftTimestamp(draft.generatedAt)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        {buildDraftPreview(draft.body, 240)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                        <span>Recipient: {draft.context.contactEmail || "No email captured"}</span>
+                        <span>Source: {draft.source}</span>
+                        <span>Review only, not sent</span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyDraft(draft.subject, "Subject")}
+                          className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy subject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyDraft(draft.body, "Draft body")}
+                          className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy body
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

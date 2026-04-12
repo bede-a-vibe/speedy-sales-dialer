@@ -65,6 +65,26 @@ function combineDateTime(date: Date, time: string) {
   return next.toISOString();
 }
 
+function roundUpToNextQuarterHour(base = new Date()) {
+  const next = new Date(base);
+  next.setSeconds(0, 0);
+  const minutes = next.getMinutes();
+  const roundedMinutes = Math.ceil((minutes + 1) / 15) * 15;
+  next.setMinutes(roundedMinutes, 0, 0);
+  return next;
+}
+
+function startOfTomorrow(base = new Date()) {
+  const next = new Date(base);
+  next.setDate(next.getDate() + 1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function toTimeInputValue(date: Date) {
+  return format(date, "HH:mm");
+}
+
 // ---------- Props ----------
 
 interface FollowUpTableProps {
@@ -104,6 +124,24 @@ function FollowUpActionPanel({
     item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : "09:00",
   );
 
+  const applyQuickReschedule = (date: Date) => {
+    setRescheduleDate(date);
+    setRescheduleTime(toTimeInputValue(date));
+    void onReschedule(item.id, date.toISOString());
+  };
+
+  const quickRescheduleOptions = useMemo(() => {
+    const now = new Date();
+    const laterToday = roundUpToNextQuarterHour(addHours(now, 2));
+    const tomorrowMorning = startOfTomorrow(now);
+    tomorrowMorning.setHours(9, 0, 0, 0);
+
+    return [
+      { label: "In 2h", date: laterToday },
+      { label: "Tomorrow 9am", date: tomorrowMorning },
+    ];
+  }, []);
+
   return (
     <div className="space-y-3">
       {/* Contact details */}
@@ -134,7 +172,25 @@ function FollowUpActionPanel({
       />
 
       {/* Actions row */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Quick reschedule</span>
+          {quickRescheduleOptions.map((option) => (
+            <Button
+              key={option.label}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 bg-background"
+              onClick={() => applyQuickReschedule(option.date)}
+              disabled={isSaving}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <FollowUpMethodSelector
           value={item.follow_up_method || "call"}
           onChange={(method) => onChangeMethod(item.id, method)}
@@ -189,10 +245,11 @@ function FollowUpActionPanel({
           </Button>
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => onComplete(item.id)} disabled={isSaving} className="sm:ml-auto">
-          <Check className="h-4 w-4" />
-          Mark complete
-        </Button>
+          <Button variant="outline" size="sm" onClick={() => onComplete(item.id)} disabled={isSaving} className="sm:ml-auto">
+            <Check className="h-4 w-4" />
+            Mark complete
+          </Button>
+        </div>
       </div>
     </div>
   );
