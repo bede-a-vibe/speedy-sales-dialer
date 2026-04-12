@@ -187,7 +187,7 @@ export default function ContactDetailPage() {
         draftGoal: draftContext.draftGoal,
         callNotes: draftContext.callNotes || undefined,
         callTranscriptSummary: draftContext.callTranscriptSummary || undefined,
-        recentCallContexts: draftContext.recentCallContexts,
+        recentCallContexts: draftContext.recentCallContexts as Array<{ createdAt: string; outcome: string; notes?: string | null; summary?: string | null; transcriptExcerpt?: string | null }>,
         scheduledFor: draftContext.scheduledFor || undefined,
       });
 
