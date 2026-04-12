@@ -9,6 +9,8 @@ export const GHL_PIPELINE_CONTRACT = {
   },
   booked: {
     pipelineName: "Sales & Growth Sessions",
+    pipelineId: "",
+    stageId: "",
     stageName: "Booked Appointment",
   },
 } as const;

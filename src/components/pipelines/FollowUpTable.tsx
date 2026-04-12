@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
-import { GhlMirrorStatusBadge, getGhlMirrorCue, getGhlMirrorState } from "@/components/ghl/GhlMirrorStatusBadge";
+import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
 
 // ---------- Status helpers ----------
 

@@ -186,7 +186,7 @@ export function BookedPipelineBoard({
                                   : "Prep sequence"}
                           </span>
                           <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {item.appointment_outcome ? `Outcome: ${item.appointment_outcome.replaceAll("_", " ")}` : "Outcome pending"}
+                            {item.appointment_outcome ? `Outcome: ${item.appointment_outcome.replace(/_/g, " ")}` : "Outcome pending"}
                           </span>
                         </div>
                         {item.notes ? <p className="line-clamp-2 italic text-muted-foreground">"{item.notes}"</p> : null}

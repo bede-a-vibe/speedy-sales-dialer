@@ -81,11 +81,11 @@ function personaliseScript(template: VoicemailTemplate, context: VoicemailTempla
   const season = getSeason();
 
   return template.script
-    .replaceAll("[BUSINESS NAME]", businessName)
-    .replaceAll("[TRADE]", trade)
-    .replaceAll("[AREA]", area)
-    .replaceAll("[NEARBY SUBURB]", nearbySuburb)
-    .replaceAll("[SEASON]", season);
+    .replace(/\[BUSINESS NAME\]/g, businessName)
+    .replace(/\[TRADE\]/g, trade)
+    .replace(/\[AREA\]/g, area)
+    .replace(/\[NEARBY SUBURB\]/g, nearbySuburb)
+    .replace(/\[SEASON\]/g, season);
 }
 
 export function VoicemailTemplates(context: VoicemailTemplatesProps) {

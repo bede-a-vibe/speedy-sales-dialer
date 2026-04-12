@@ -79,14 +79,14 @@ function buildFollowUpContext(contact: Contact | null) {
   const contextLines = [
     contact.follow_up_note?.trim() ? `Previous note: ${contact.follow_up_note.trim()}` : null,
     contact.best_time_to_call?.trim() ? `Best callback window: ${contact.best_time_to_call.trim()}` : null,
-    (contact.best_route_to_decision_maker?.trim() || contact.best_route_to_dm?.trim())
-      ? `Best route: ${contact.best_route_to_decision_maker?.trim() || contact.best_route_to_dm?.trim()}`
+    contact.best_route_to_decision_maker?.trim()
+      ? `Best route: ${contact.best_route_to_decision_maker.trim()}`
       : null,
     contact.dm_name?.trim() || contact.dm_phone?.trim()
       ? `Decision maker: ${[contact.dm_name?.trim(), contact.dm_phone?.trim()].filter(Boolean).join(" · ")}`
       : null,
-    contact.gatekeeper_name?.trim() || contact.gatekeeper_notes?.trim()
-      ? `Gatekeeper: ${[contact.gatekeeper_name?.trim(), contact.gatekeeper_notes?.trim()].filter(Boolean).join(" · ")}`
+    contact.gatekeeper_name?.trim()
+      ? `Gatekeeper: ${contact.gatekeeper_name.trim()}`
       : null,
   ].filter(Boolean) as string[];
 
