@@ -107,17 +107,25 @@ function getNextFollowUpRescheduleIso(currentScheduledFor?: string | null, fallb
   return next.toISOString();
 }
 
+function readContactText(contact: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = contact[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
 function buildFollowUpNoteDraft(contact: Record<string, unknown> | null | undefined) {
   if (!contact) return "";
 
   const intel: string[] = [];
-  const dmName = typeof contact.dm_name === "string" ? contact.dm_name.trim() : "";
-  const dmPhone = typeof contact.dm_phone === "string" ? contact.dm_phone.trim() : "";
-  const bestTimeToCall = typeof contact.best_time_to_call === "string" ? contact.best_time_to_call.trim() : "";
-  const bestRoute = typeof contact.best_route_to_dm === "string" ? contact.best_route_to_dm.trim() : "";
-  const gatekeeperName = typeof contact.gatekeeper_name === "string" ? contact.gatekeeper_name.trim() : "";
-  const gatekeeperNotes = typeof contact.gatekeeper_notes === "string" ? contact.gatekeeper_notes.trim() : "";
-  const priorFollowUpNote = typeof contact.follow_up_note === "string" ? contact.follow_up_note.trim() : "";
+  const dmName = readContactText(contact, "dm_name");
+  const dmPhone = readContactText(contact, "dm_phone");
+  const bestTimeToCall = readContactText(contact, "best_time_to_call");
+  const bestRoute = readContactText(contact, "best_route_to_decision_maker", "best_route_to_dm");
+  const gatekeeperName = readContactText(contact, "gatekeeper_name");
+  const gatekeeperNotes = readContactText(contact, "gatekeeper_notes");
+  const priorFollowUpNote = readContactText(contact, "follow_up_note");
 
   if (bestTimeToCall) intel.push(`Best callback window: ${bestTimeToCall}`);
   if (bestRoute) intel.push(`Best route: ${bestRoute}`);
@@ -1006,7 +1014,9 @@ export default function DialerPage() {
     const isRoutedLine = session.currentContact.phone_type === "landline" || session.currentContact.phone_type === "business_line";
     const hasDmName = Boolean(meta.dm_name);
     const hasDmPhone = Boolean(meta.dm_phone);
-    const hasRoutingIntel = Boolean(meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_dm);
+    const hasRoutingIntel = Boolean(
+      meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_decision_maker || meta.best_route_to_dm,
+    );
     const hasBestTimeToCall = Boolean(meta.best_time_to_call);
     const checklist = [
       { label: "Decision-maker name confirmed", done: hasDmName },
@@ -1124,7 +1134,9 @@ export default function DialerPage() {
   const enrichmentLaneStats = useMemo(() => {
     return remainingQueueContacts.reduce((summary, contact) => {
       const meta = contact as Record<string, unknown>;
-      const hasRoutingNotes = Boolean(meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_dm);
+      const hasRoutingNotes = Boolean(
+        meta.gatekeeper_name || meta.gatekeeper_notes || meta.best_route_to_decision_maker || meta.best_route_to_dm,
+      );
       const hasDirectDmPhone = Boolean(meta.dm_phone);
       const isRoutedLine = contact.phone_type === "landline" || contact.phone_type === "business_line";
 
@@ -1798,7 +1810,10 @@ export default function DialerPage() {
                 existingDmLinkedin={(session.currentContact as any).dm_linkedin}
                 existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
                 existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                existingBestRouteToDecisionMaker={(session.currentContact as any).best_route_to_dm}
+                existingBestRouteToDecisionMaker={
+                  (session.currentContact as any).best_route_to_decision_maker
+                  ?? (session.currentContact as any).best_route_to_dm
+                }
               />
 
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
