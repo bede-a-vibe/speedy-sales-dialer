@@ -48,6 +48,18 @@ import {
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
 } from "@/data/constants";
+
+const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
+  mobile: "Mobile",
+  landline: "Landline",
+  business_line: "Business Line",
+  unknown: "Unknown",
+};
+
+const DM_PHONE_FILTER_LABELS: Record<string, string> = {
+  yes: "Has DM Phone",
+  no: "No DM Phone",
+};
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { toast } from "sonner";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
@@ -450,21 +462,27 @@ export default function DialerPage() {
 
   const activeFilterSummary = useMemo(
     () => [
-      formatFilterSummary("Industry", industries),
-      formatFilterSummary("State", states),
-      formatFilterSummary("Trade", tradeTypes),
-      contactOwner !== "all" ? `Owner: ${getRepLabel(salesReps.find((rep) => rep.user_id === contactOwner)?.display_name ?? null, salesReps.find((rep) => rep.user_id === contactOwner)?.email ?? contactOwner)}` : null,
-      workType !== "all" ? `Work: ${WORK_TYPES.find((item) => item.value === workType)?.label ?? workType}` : null,
-      businessSize !== "all" ? `Business: ${BUSINESS_SIZES.find((item) => item.value === businessSize)?.label ?? businessSize}` : null,
-      prospectTier !== "all" ? `Tier: ${PROSPECT_TIERS.find((item) => item.value === prospectTier)?.label ?? prospectTier}` : null,
-      hasGoogleAds !== "all" ? `Google Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasGoogleAds)?.label ?? hasGoogleAds}` : null,
-      hasFacebookAds !== "all" ? `Facebook Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasFacebookAds)?.label ?? hasFacebookAds}` : null,
-      buyingSignalStrength !== "all" ? `Buying signal: ${BUYING_SIGNAL_OPTIONS.find((item) => item.value === buyingSignalStrength)?.label ?? buyingSignalStrength}` : null,
-      phoneType !== "all" ? `Phone: ${phoneType}` : null,
-      hasDmPhone !== "all" ? `DM phone: ${hasDmPhone}` : null,
-      minGbpRating ? `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}` : null,
-      minReviewCount ? `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}` : null,
-    ].filter(Boolean) as string[],
+      industries.length > 0 ? { key: "industries", label: formatFilterSummary("Industry", industries)!, clear: () => setIndustries([]) } : null,
+      states.length > 0 ? { key: "states", label: formatFilterSummary("State", states)!, clear: () => setStates([]) } : null,
+      tradeTypes.length > 0 ? { key: "tradeTypes", label: formatFilterSummary("Trade", tradeTypes)!, clear: () => setTradeTypes([]) } : null,
+      contactOwner !== "all"
+        ? {
+            key: "contactOwner",
+            label: `Owner: ${getRepLabel(salesReps.find((rep) => rep.user_id === contactOwner)?.display_name ?? null, salesReps.find((rep) => rep.user_id === contactOwner)?.email ?? contactOwner)}`,
+            clear: () => setContactOwner("all"),
+          }
+        : null,
+      workType !== "all" ? { key: "workType", label: `Work: ${WORK_TYPES.find((item) => item.value === workType)?.label ?? workType}`, clear: () => setWorkType("all") } : null,
+      businessSize !== "all" ? { key: "businessSize", label: `Business: ${BUSINESS_SIZES.find((item) => item.value === businessSize)?.label ?? businessSize}`, clear: () => setBusinessSize("all") } : null,
+      prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${PROSPECT_TIERS.find((item) => item.value === prospectTier)?.label ?? prospectTier}`, clear: () => setProspectTier("all") } : null,
+      hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasGoogleAds)?.label ?? hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
+      hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasFacebookAds)?.label ?? hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
+      buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${BUYING_SIGNAL_OPTIONS.find((item) => item.value === buyingSignalStrength)?.label ?? buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
+      phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
+      hasDmPhone !== "all" ? { key: "hasDmPhone", label: `Decision maker: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
+      minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
+      minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
+    ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
     [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, minGbpRating, minReviewCount],
   );
 
@@ -517,26 +535,26 @@ export default function DialerPage() {
   const queueFocusLabel = useMemo(() => {
     if (phoneType === "landline") return "Landline queue";
     if (phoneType === "business_line") return "Business line queue";
-    if (phoneType === "mobile" && hasDmPhone === "with_dm_phone") return "Direct DM mobile queue";
+    if (phoneType === "mobile" && hasDmPhone === "yes") return "Direct DM mobile queue";
     if (phoneType === "mobile") return "Mobile queue";
-    if (hasDmPhone === "with_dm_phone") return "Decision-maker direct queue";
-    if (hasDmPhone === "without_dm_phone") return "Decision-maker capture queue";
+    if (hasDmPhone === "yes") return "Decision-maker direct queue";
+    if (hasDmPhone === "no") return "Decision-maker capture queue";
     return null;
   }, [phoneType, hasDmPhone]);
 
   const queueGuidance = useMemo(() => {
     if (phoneType === "landline" || phoneType === "business_line") {
-      if (hasDmPhone === "with_dm_phone") {
+      if (hasDmPhone === "yes") {
         return "Prioritise the direct decision-maker number first, then use the main line only for routing or fallback.";
       }
       return "Use each call to capture the fastest route to the decision maker, including a direct mobile, extension, or gatekeeper notes before requeueing.";
     }
 
-    if (hasDmPhone === "without_dm_phone") {
+    if (hasDmPhone === "no") {
       return "This queue is best for contact enrichment. Confirm the right decision maker and capture a direct number before moving on.";
     }
 
-    if (hasDmPhone === "with_dm_phone") {
+    if (hasDmPhone === "yes") {
       return "This queue is already enriched. Move fast on direct outreach and use the main line only when the direct path fails.";
     }
 
@@ -1495,9 +1513,17 @@ export default function DialerPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {activeFilterSummary.map((item) => (
-                <Badge key={item} variant="secondary" className="px-2.5 py-1 text-xs font-medium">
-                  {item}
-                </Badge>
+                <Button
+                  key={item.key}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={item.clear}
+                  className="h-auto gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                >
+                  <span>{item.label}</span>
+                  <span className="text-[10px] text-muted-foreground">×</span>
+                </Button>
               ))}
             </div>
           </div>
@@ -2294,7 +2320,7 @@ export default function DialerPage() {
             {activeFilterSummary.length > 0 && !session.queue.isLoading && (
               <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
                 {activeFilterSummary.slice(0, 6).map((item) => (
-                  <Badge key={item} variant="outline" className="text-xs">{item}</Badge>
+                  <Badge key={item.key} variant="outline" className="text-xs">{item.label}</Badge>
                 ))}
               </div>
             )}
