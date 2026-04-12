@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Mail, Phone, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Copy, Mail, Phone, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { loadAllStoredEmailDraftSuggestions } from "@/lib/emailDraftStore";
 import type { EmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
+import { toast } from "sonner";
 
 type FollowUpContact = {
   id: string;
@@ -52,6 +53,12 @@ function getTaskBucketLabel(bucket: ReturnType<typeof getTaskBucket>) {
     case "unscheduled":
       return "No due date";
   }
+}
+
+function buildDraftPreview(body: string, maxLength = 180) {
+  const singleLine = body.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= maxLength) return singleLine;
+  return `${singleLine.slice(0, maxLength).trimEnd()}…`;
 }
 
 export default function FollowUpsPage() {
@@ -115,6 +122,10 @@ export default function FollowUpsPage() {
   const nextDraftReviewItem = useMemo(() => {
     return draftedItems.find((item) => !item.contact.is_dnc) ?? draftedItems[0] ?? null;
   }, [draftedItems]);
+
+  const nextDraftSuggestion = nextDraftReviewItem
+    ? draftsByContactId[nextDraftReviewItem.contact.id] ?? null
+    : null;
 
   const nextPriorityGuidance = useMemo(() => {
     if (!nextPriorityItem) return null;
@@ -184,7 +195,7 @@ export default function FollowUpsPage() {
           date?: string;
         } | null) ?? null;
         setItems(payload?.items ?? []);
-        setTaskCount(typeof payload?.task_count === "number" ? payload.task_count : 0);
+        setTaskCount(typeof payload?.task_count === "number" ? payload?.task_count : 0);
         setForDate(payload?.date ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load follow-ups");
@@ -193,6 +204,15 @@ export default function FollowUpsPage() {
       }
     })();
   }, [scope, anchorDate]);
+
+  const handleCopyDraft = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error(`Couldn't copy ${label.toLowerCase()}`);
+    }
+  };
 
   return (
     <AppLayout title="Follow-Ups">
@@ -312,8 +332,37 @@ export default function FollowUpsPage() {
                   <div className="mt-3 rounded-md border border-violet-500/20 bg-violet-500/5 p-3">
                     <p className="text-sm font-medium text-foreground">{nextDraftReviewItem.contact.business_name}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {draftsByContactId[nextDraftReviewItem.contact.id]?.subject || "Draft ready to review"}
+                      {nextDraftSuggestion?.subject || "Draft ready to review"}
                     </p>
+                    {nextDraftSuggestion ? (
+                      <>
+                        <div className="mt-3 rounded-md border border-violet-500/15 bg-background/80 p-3">
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Draft preview</p>
+                          <p className="mt-2 text-sm font-medium text-foreground">{nextDraftSuggestion.subject}</p>
+                          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                            {buildDraftPreview(nextDraftSuggestion.body)}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyDraft(nextDraftSuggestion.subject, "Subject")}
+                            className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy subject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyDraft(nextDraftSuggestion.body, "Draft body")}
+                            className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy body
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
                     <Link
                       to={`/contacts/${nextDraftReviewItem.contact.id}`}
                       className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-700 hover:underline"
