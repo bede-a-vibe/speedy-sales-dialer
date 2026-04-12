@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound } from "lucide-react";
+import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -333,6 +333,52 @@ export default function DialerPage() {
     () => Math.max(session.queue.totalCount, session.queue.contacts.length),
     [session.queue.totalCount, session.queue.contacts.length],
   );
+
+  const startReadinessItems = useMemo(() => {
+    const items = [
+      {
+        label: "Network",
+        ready: isOnline,
+        detail: isOnline ? "Connected. Changes can sync normally." : "Offline. Reconnect before starting so calls and notes can sync.",
+      },
+      {
+        label: "Dialpad assignment",
+        ready: dialpad.hasDialpadAssignment,
+        detail: dialpad.hasDialpadAssignment
+          ? `Ready on ${dialpad.myDialpadSettings?.dialpad_phone_number || dialpad.myDialpadSettings?.dialpad_user_id}`
+          : "No active Dialpad number is assigned to this user.",
+      },
+      {
+        label: "Lead buffer",
+        ready: !session.queue.isLoading && queueLeadCount > 0,
+        detail: session.queue.isLoading
+          ? "Loading queue preview..."
+          : queueLeadCount > 0
+            ? `${queueLeadCount} lead${queueLeadCount === 1 ? "" : "s"} ready in the current queue.`
+            : "No leads available in the current queue.",
+      },
+      {
+        label: "Targeting",
+        ready: activeFilterSummary.length > 0 || queueLeadCount > 0,
+        detail: activeFilterSummary.length > 0
+          ? `${activeFilterSummary.length} active filter${activeFilterSummary.length === 1 ? "" : "s"} shaping this session.`
+          : "No filters applied. You can still start, but this session will use the full available queue.",
+      },
+    ];
+
+    return items;
+  }, [activeFilterSummary.length, dialpad.hasDialpadAssignment, dialpad.myDialpadSettings?.dialpad_phone_number, dialpad.myDialpadSettings?.dialpad_user_id, isOnline, queueLeadCount, session.queue.isLoading]);
+
+  const startReadinessOpenItems = useMemo(
+    () => startReadinessItems.filter((item) => !item.ready),
+    [startReadinessItems],
+  );
+
+  const startReadinessSummary = useMemo(() => {
+    if (startReadinessOpenItems.length === 0) return "Ready to start dialing.";
+    if (startReadinessOpenItems.length === 1) return "1 item to fix before starting.";
+    return `${startReadinessOpenItems.length} items to fix before starting.`;
+  }, [startReadinessOpenItems.length]);
 
   const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9") => {
     const now = new Date();
@@ -1335,6 +1381,70 @@ export default function DialerPage() {
                 </Badge>
               ))}
             </div>
+          </div>
+        )}
+
+        {!session.isSessionActive && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
+                <p className="text-sm text-foreground">Quick operator preflight before the next dial session.</p>
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-mono text-[10px] uppercase tracking-widest",
+                  startReadinessOpenItems.length === 0
+                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
+                    : "border-amber-500/30 text-amber-700 dark:text-amber-300",
+                )}
+              >
+                {startReadinessSummary}
+              </Badge>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {startReadinessItems.map((item) => (
+                <div
+                  key={item.label}
+                  className={cn(
+                    "rounded-md border px-3 py-3 text-xs",
+                    item.ready
+                      ? "border-emerald-500/20 bg-emerald-500/10"
+                      : "border-amber-500/20 bg-amber-500/10",
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    {item.label === "Network" ? (
+                      item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                    ) : item.ready ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                    ) : (
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-foreground">{item.label}</p>
+                      <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {startReadinessOpenItems.length > 0 && (
+              <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
+                <p className="font-medium">Recommended before you start</p>
+                <ul className="mt-2 space-y-1.5">
+                  {startReadinessOpenItems.map((item) => (
+                    <li key={item.label} className="flex items-start gap-2">
+                      <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                      <span>{item.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
