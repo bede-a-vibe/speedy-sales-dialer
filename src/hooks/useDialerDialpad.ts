@@ -378,7 +378,27 @@ export function useDialerDialpad({
       return;
     }
 
+    let cancelled = false;
+    let reconnectTimeoutId: number | null = null;
+
+    const clearReconnectTimeout = () => {
+      if (reconnectTimeoutId !== null) {
+        window.clearTimeout(reconnectTimeoutId);
+        reconnectTimeoutId = null;
+      }
+    };
+
+    const teardownChannel = () => {
+      clearReconnectTimeout();
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+    };
+
     const setupChannel = () => {
+      if (cancelled) return;
+
       if (realtimeChannelRef.current) {
         supabase.removeChannel(realtimeChannelRef.current);
       }
@@ -406,8 +426,12 @@ export function useDialerDialpad({
         )
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
-            console.warn("[Realtime] Channel error — reconnecting in 2s");
-            setTimeout(setupChannel, 2000);
+            console.warn("[Realtime] Channel error, reconnecting in 2s");
+            clearReconnectTimeout();
+            reconnectTimeoutId = window.setTimeout(() => {
+              reconnectTimeoutId = null;
+              setupChannel();
+            }, 2000);
           }
         });
 
@@ -417,10 +441,8 @@ export function useDialerDialpad({
     setupChannel();
 
     return () => {
-      if (realtimeChannelRef.current) {
-        supabase.removeChannel(realtimeChannelRef.current);
-        realtimeChannelRef.current = null;
-      }
+      cancelled = true;
+      teardownChannel();
     };
   }, [activeDialpadCallId, markCallAsEnded]);
 
