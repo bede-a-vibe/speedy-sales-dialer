@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Phone } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Mail, Phone, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
+import { loadAllStoredEmailDraftSuggestions } from "@/lib/emailDraftStore";
+import type { EmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
 
 type FollowUpContact = {
   id: string;
@@ -57,6 +59,7 @@ export default function FollowUpsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<FollowUpItem[]>([]);
+  const [draftsByContactId, setDraftsByContactId] = useState<Record<string, EmailDraftSuggestion>>({});
   const [scope, setScope] = useState<FollowUpScope>("today");
   const [anchorDate, setAnchorDate] = useState(todayIso);
   const [taskCount, setTaskCount] = useState(0);
@@ -104,6 +107,15 @@ export default function FollowUpsPage() {
     return sortedItems.find((item) => !item.contact.is_dnc) ?? sortedItems[0] ?? null;
   }, [sortedItems]);
 
+  const draftedItems = useMemo(
+    () => sortedItems.filter((item) => Boolean(draftsByContactId[item.contact.id])),
+    [sortedItems, draftsByContactId],
+  );
+
+  const nextDraftReviewItem = useMemo(() => {
+    return draftedItems.find((item) => !item.contact.is_dnc) ?? draftedItems[0] ?? null;
+  }, [draftedItems]);
+
   const nextPriorityGuidance = useMemo(() => {
     if (!nextPriorityItem) return null;
 
@@ -141,6 +153,17 @@ export default function FollowUpsPage() {
       detail: "Urgent follow-ups are clear, so you can pull this forward next.",
     };
   }, [nextPriorityItem]);
+
+  useEffect(() => {
+    setDraftsByContactId(loadAllStoredEmailDraftSuggestions());
+
+    const handleStorage = () => {
+      setDraftsByContactId(loadAllStoredEmailDraftSuggestions());
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -265,15 +288,46 @@ export default function FollowUpsPage() {
 
         {!loading && !error && sortedItems.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue guidance</p>
-              <p className="mt-2 text-sm text-foreground">
-                {summary.overdue > 0
-                  ? `Work the ${summary.overdue} overdue follow-up${summary.overdue === 1 ? "" : "s"} first, then clear today's queue.`
-                  : summary.today > 0
-                    ? `No overdue tasks. Focus on the ${summary.today} follow-up${summary.today === 1 ? "" : "s"} due today next.`
-                    : "Nothing urgent is overdue today, so you can work ahead on upcoming follow-ups."}
-              </p>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue guidance</p>
+                <p className="mt-2 text-sm text-foreground">
+                  {summary.overdue > 0
+                    ? `Work the ${summary.overdue} overdue follow-up${summary.overdue === 1 ? "" : "s"} first, then clear today's queue.`
+                    : summary.today > 0
+                      ? `No overdue tasks. Focus on the ${summary.today} follow-up${summary.today === 1 ? "" : "s"} due today next.`
+                      : "Nothing urgent is overdue today, so you can work ahead on upcoming follow-ups."}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-center gap-2 text-violet-600">
+                  <Mail className="h-4 w-4" />
+                  <p className="text-[10px] uppercase tracking-widest">Review-ready drafts</p>
+                </div>
+                <p className="mt-2 text-3xl font-bold text-foreground">{draftedItems.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Saved email draft suggestions already attached to contacts in this queue.
+                </p>
+                {nextDraftReviewItem ? (
+                  <div className="mt-3 rounded-md border border-violet-500/20 bg-violet-500/5 p-3">
+                    <p className="text-sm font-medium text-foreground">{nextDraftReviewItem.contact.business_name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {draftsByContactId[nextDraftReviewItem.contact.id]?.subject || "Draft ready to review"}
+                    </p>
+                    <Link
+                      to={`/contacts/${nextDraftReviewItem.contact.id}`}
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-700 hover:underline"
+                    >
+                      Open draft review
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Generate a draft from any contact detail page and it will show up here for reps to review.
+                  </p>
+                )}
+              </div>
             </div>
             {nextPriorityItem && nextPriorityGuidance ? (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
@@ -342,6 +396,12 @@ export default function FollowUpsPage() {
                             DNC flagged
                           </span>
                         ) : null}
+                        {draftsByContactId[item.contact.id] ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-violet-700">
+                            <Sparkles className="h-3 w-3" />
+                            Draft ready
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {item.contact.contact_person ? `${item.contact.contact_person} · ` : ""}
@@ -375,6 +435,9 @@ export default function FollowUpsPage() {
                     <span>Status: {item.contact.status}</span>
                     <span>Task source: GHL</span>
                     <span>{item.due_date ? `Due: ${new Date(item.due_date).toLocaleString()}` : "Due date missing"}</span>
+                    {draftsByContactId[item.contact.id] ? (
+                      <span>Email draft: {draftsByContactId[item.contact.id]?.subject}</span>
+                    ) : null}
                   </div>
                 </div>
               );

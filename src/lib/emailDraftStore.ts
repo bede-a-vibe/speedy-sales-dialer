@@ -47,6 +47,10 @@ export function loadStoredEmailDraftSuggestion(contactId?: string | null) {
   return drafts[contactId] ?? null;
 }
 
+export function loadAllStoredEmailDraftSuggestions() {
+  return readDraftMap();
+}
+
 export function saveStoredEmailDraftSuggestion(suggestion: EmailDraftSuggestion) {
   const drafts = readDraftMap();
   drafts[suggestion.context.contactId] = suggestion;
