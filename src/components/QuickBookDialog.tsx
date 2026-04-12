@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { addDays, setHours, setMinutes } from "date-fns";
 import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -312,6 +313,24 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       && (pipelineType !== "booked" || (!!ghlCalendarId && !!ghlPipelineId && !!ghlStageId)),
     [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId, ghlPipelineId, ghlStageId],
   );
+
+  const quickScheduleOptions = useMemo(() => {
+    const tomorrow = addDays(new Date(), 1);
+    return [
+      { label: "Tomorrow 9:00", date: setMinutes(setHours(tomorrow, 9), 0) },
+      { label: "Tomorrow 11:00", date: setMinutes(setHours(tomorrow, 11), 0) },
+      { label: "Tomorrow 2:00", date: setMinutes(setHours(tomorrow, 14), 0) },
+      { label: "Next day 9:00", date: setMinutes(setHours(addDays(new Date(), 2), 9), 0) },
+    ];
+  }, []);
+
+  const submitReadinessMessage = useMemo(() => {
+    if (!selectedContact) return "Pick a contact to continue.";
+    if (!assignedRepId) return "Assign a sales rep before saving.";
+    if (!scheduledDate) return isBooked ? "Confirm the appointment date before saving." : "Pick a follow-up date before saving.";
+    if (isBooked && (!ghlCalendarId || !ghlPipelineId || !ghlStageId)) return "Choose the GHL calendar, pipeline, and stage before creating the booking.";
+    return null;
+  }, [selectedContact, assignedRepId, scheduledDate, isBooked, ghlCalendarId, ghlPipelineId, ghlStageId]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedContact || !assignedRepId || !scheduledDate || !user || isSubmitting) return;
@@ -709,6 +728,26 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   {isBooked ? "Confirm Booked Date" : "Follow-up Date"}
                 </label>
                 <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {quickScheduleOptions.map((option) => {
+                      const isActive = scheduledForPreview && scheduledForPreview.getTime() === option.date.getTime();
+                      return (
+                        <Button
+                          key={option.label}
+                          type="button"
+                          variant={isActive ? "secondary" : "outline"}
+                          size="sm"
+                          className="h-8"
+                          onClick={() => {
+                            setScheduledDate(option.date);
+                            setScheduledTime(format(option.date, "HH:mm"));
+                          }}
+                        >
+                          {option.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -786,6 +825,10 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
               </div>
 
               {/* Submit */}
+              {submitReadinessMessage && (
+                <p className="text-xs text-muted-foreground">{submitReadinessMessage}</p>
+              )}
+
               <Button
                 onClick={handleSubmit}
                 disabled={!canSubmit || createPipelineItem.isPending || isSubmitting}
