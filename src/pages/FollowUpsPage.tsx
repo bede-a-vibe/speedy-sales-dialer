@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { AlertTriangle, CalendarClock, ChevronRight, Clock3 } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
@@ -99,6 +99,48 @@ export default function FollowUpsPage() {
       { total: 0, overdue: 0, today: 0, upcoming: 0, unscheduled: 0, dnc: 0 },
     );
   }, [sortedItems]);
+
+  const nextPriorityItem = useMemo(() => {
+    return sortedItems.find((item) => !item.contact.is_dnc) ?? sortedItems[0] ?? null;
+  }, [sortedItems]);
+
+  const nextPriorityGuidance = useMemo(() => {
+    if (!nextPriorityItem) return null;
+
+    const bucket = getTaskBucket(nextPriorityItem.due_date);
+    if (nextPriorityItem.contact.is_dnc) {
+      return {
+        title: "Review before outreach",
+        detail: "This contact is DNC flagged, so open the record first and confirm the right next step before calling.",
+      };
+    }
+
+    if (bucket === "overdue") {
+      return {
+        title: "Call this one first",
+        detail: "It is already overdue, so clear it before working newer follow-ups.",
+      };
+    }
+
+    if (bucket === "today") {
+      return {
+        title: "Best next follow-up",
+        detail: "Nothing older is ahead of it, so this is the cleanest next task to work now.",
+      };
+    }
+
+    if (bucket === "unscheduled") {
+      return {
+        title: "Needs a due date",
+        detail: "Open the contact and set clear timing so it re-enters the queue properly.",
+      };
+    }
+
+    return {
+      title: "Work ahead",
+      detail: "Urgent follow-ups are clear, so you can pull this forward next.",
+    };
+  }, [nextPriorityItem]);
 
   useEffect(() => {
     (async () => {
@@ -222,15 +264,50 @@ export default function FollowUpsPage() {
         </div>
 
         {!loading && !error && sortedItems.length > 0 ? (
-          <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue guidance</p>
-            <p className="mt-2 text-sm text-foreground">
-              {summary.overdue > 0
-                ? `Work the ${summary.overdue} overdue follow-up${summary.overdue === 1 ? "" : "s"} first, then clear today's queue.`
-                : summary.today > 0
-                  ? `No overdue tasks. Focus on the ${summary.today} follow-up${summary.today === 1 ? "" : "s"} due today next.`
-                  : "Nothing urgent is overdue today, so you can work ahead on upcoming follow-ups."}
-            </p>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue guidance</p>
+              <p className="mt-2 text-sm text-foreground">
+                {summary.overdue > 0
+                  ? `Work the ${summary.overdue} overdue follow-up${summary.overdue === 1 ? "" : "s"} first, then clear today's queue.`
+                  : summary.today > 0
+                    ? `No overdue tasks. Focus on the ${summary.today} follow-up${summary.today === 1 ? "" : "s"} due today next.`
+                    : "Nothing urgent is overdue today, so you can work ahead on upcoming follow-ups."}
+              </p>
+            </div>
+            {nextPriorityItem && nextPriorityGuidance ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <p className="text-[10px] uppercase tracking-widest text-primary">Start here</p>
+                <p className="mt-2 text-base font-semibold text-foreground">{nextPriorityItem.contact.business_name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {nextPriorityItem.contact.contact_person ? `${nextPriorityItem.contact.contact_person} · ` : ""}
+                  {nextPriorityItem.contact.phone}
+                </p>
+                <p className="mt-3 text-sm font-medium text-foreground">{nextPriorityGuidance.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{nextPriorityGuidance.detail}</p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {nextPriorityItem.due_date ? `Due ${new Date(nextPriorityItem.due_date).toLocaleString()}` : "No due date set"}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {!nextPriorityItem.contact.is_dnc ? (
+                    <a
+                      href={`tel:${nextPriorityItem.contact.phone}`}
+                      className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                    >
+                      <Phone className="h-4 w-4" />
+                      Call now
+                    </a>
+                  ) : null}
+                  <Link
+                    to={`/contacts/${nextPriorityItem.contact.id}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    Open contact
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
