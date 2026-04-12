@@ -597,9 +597,8 @@ export default function DialerPage() {
     session.recordOutcome(outcomeToLog);
     session.leadAdvanceInFlightRef.current = false;
 
-    if (nextLength <= 0) {
-      session.stopSession();
-    }
+    // Do not stop from a transient local empty buffer.
+    // Let the queue reconciler decide whether the session is truly exhausted.
 
     // Background DB writes
     (async () => {
@@ -785,8 +784,7 @@ export default function DialerPage() {
     void session.queue.ensureBuffer();
 
     if (nextLength <= 0) {
-      toast.info("No more leads in queue.");
-      session.stopSession();
+      toast.info("Checking for more leads...");
       return;
     }
 

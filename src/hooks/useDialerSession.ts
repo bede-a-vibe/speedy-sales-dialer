@@ -203,16 +203,22 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     }
     if (queue.contacts.length === 0) {
       if (isBootstrappingSession) return;
-      void queue.reconcileQueue("buffer_empty");
-      if (queue.queueHealth === "exhausted") {
-        stopSession();
-      }
-      return;
+
+      let cancelled = false;
+      void queue.reconcileQueue("buffer_empty").then((reconciliation) => {
+        if (!cancelled && reconciliation.health === "exhausted") {
+          stopSession();
+        }
+      }).catch(() => {});
+
+      return () => {
+        cancelled = true;
+      };
     }
     if (currentIndex >= queue.contacts.length) {
       setCurrentIndex(queue.contacts.length - 1);
     }
-  }, [queue.contacts.length, queue.queueHealth, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
+  }, [queue.contacts.length, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
 
   const recoverQueue = useCallback(async () => {
     if (!user?.id || isRecoveringQueue) return;
