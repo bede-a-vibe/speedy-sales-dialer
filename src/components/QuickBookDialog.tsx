@@ -49,6 +49,30 @@ function getRepLabel(name: string | null, email: string | null) {
   return name || email?.split("@")[0] || "Unknown";
 }
 
+function normalizeSearchValue(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function rankSearchResult(contact: Contact, query: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) return 0;
+
+  const businessName = normalizeSearchValue(contact.business_name);
+  const contactPerson = normalizeSearchValue(contact.contact_person);
+  const phone = normalizeSearchValue(contact.phone);
+
+  if (phone === normalizedQuery) return 400;
+  if (businessName === normalizedQuery) return 320;
+  if (contactPerson === normalizedQuery) return 280;
+  if (businessName.startsWith(normalizedQuery)) return 220;
+  if (contactPerson.startsWith(normalizedQuery)) return 180;
+  if (phone.includes(normalizedQuery)) return 140;
+  if (businessName.includes(normalizedQuery)) return 120;
+  if (contactPerson.includes(normalizedQuery)) return 100;
+
+  return 0;
+}
+
 function buildFollowUpContext(contact: Contact | null) {
   if (!contact) return "";
 
@@ -212,7 +236,12 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
         if (!controller.signal.aborted) {
           if (error) throw error;
-          setResults(data || []);
+          const rankedResults = [...(data || [])].sort((left, right) => {
+            const scoreDifference = rankSearchResult(right, trimmed) - rankSearchResult(left, trimmed);
+            if (scoreDifference !== 0) return scoreDifference;
+            return left.business_name.localeCompare(right.business_name);
+          });
+          setResults(rankedResults);
         }
       } catch {
         if (!controller.signal.aborted) setResults([]);
@@ -276,6 +305,8 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       : null,
     [salesReps, assignedRepId],
   );
+
+  const topSearchResult = useMemo(() => results[0] ?? null, [results]);
 
   const contactLinkStatus = useMemo(() => {
     if (!selectedContact) return null;
@@ -533,6 +564,11 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   placeholder="Search by business name, phone, or contact person..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || !topSearchResult) return;
+                    e.preventDefault();
+                    setSelectedContact(topSearchResult);
+                  }}
                   className="pl-10"
                   autoFocus
                 />
@@ -570,6 +606,12 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 <div className="py-8 text-center text-sm text-muted-foreground">
                   Type at least 2 characters to search
                 </div>
+              )}
+
+              {!isSearching && query.length >= 2 && topSearchResult && (
+                <p className="pb-2 text-xs text-muted-foreground">
+                  Press Enter to open the top match, or click a contact below.
+                </p>
               )}
 
               <div className="space-y-1">
