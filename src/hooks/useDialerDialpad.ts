@@ -12,6 +12,7 @@ import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // ── Storage lock helpers ──
@@ -98,6 +99,7 @@ export function useDialerDialpad({
   const [lastLinkAttemptAt, setLastLinkAttemptAt] = useState<number | null>(null);
   const [nextAutoRetryAt, setNextAutoRetryAt] = useState<number | null>(null);
   const activeDialRequestRef = useRef<string | null>(null);
+  const isOnline = useNetworkStatus();
   const dialpadCallRef = useRef<ReturnType<typeof useDialpadCall> | null>(null);
   const lastDialpadCallIdRef = useRef<string | null>(null);
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
@@ -116,13 +118,19 @@ export function useDialerDialpad({
   const hasUnresolvedDialpadCall = !activeDialpadCallId
     && (isCallResolving || activeDialpadCallState === "connecting" || activeDialpadCallState === "calling" || activeDialpadCallState === "ringing");
   const isCallTerminal = (!activeDialpadCallId && !hasUnresolvedDialpadCall) || activeDialpadCallState === "hangup";
-  const dialpadHealth = hasTrackingRecoveryFailed
+  const dialpadHealth = !isOnline
     ? {
-        level: "degraded" as const,
-        title: "Dialpad tracking needs attention",
-        detail: "The live call could not relink automatically. Retry linking now or end the call when it is safe.",
+        level: "warning" as const,
+        title: "Dialpad syncing is paused while offline",
+        detail: "Reconnect to resume live call linking, status checks, and realtime updates.",
       }
-    : isRetryingUntrackedLiveCall
+    : hasTrackingRecoveryFailed
+      ? {
+          level: "degraded" as const,
+          title: "Dialpad tracking needs attention",
+          detail: "The live call could not relink automatically. Retry linking now or end the call when it is safe.",
+        }
+      : isRetryingUntrackedLiveCall
       ? {
           level: "degraded" as const,
           title: "Dialpad tracking is recovering",
@@ -192,7 +200,7 @@ export function useDialerDialpad({
 
   // ── Place call effect ──
   useEffect(() => {
-    if (!isDialing || isSessionPaused || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+    if (!isOnline || !isDialing || isSessionPaused || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
 
     const requestKey = `${currentContact.id}:${currentContact.phone}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
@@ -270,11 +278,11 @@ export function useDialerDialpad({
 
     void attemptDial(2);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDialing, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
+  }, [isDialing, isOnline, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
 
   // ── Resolution polling ──
   useEffect(() => {
-    if (!isCallResolving || activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+    if (!isOnline || !isCallResolving || activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
 
     let cancelled = false;
     let timeoutId: number | null = null;
@@ -328,12 +336,13 @@ export function useDialerDialpad({
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeDialpadCallId, currentContact, isCallResolving, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+  }, [activeDialpadCallId, currentContact, isCallResolving, isOnline, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
   // ── Background reconciliation for delayed live calls ──
   useEffect(() => {
     if (
-      activeDialpadCallId
+      !isOnline
+      || activeDialpadCallId
       || activeDialpadCallState !== "live"
       || !currentContact
       || !myDialpadSettings?.dialpad_user_id
@@ -398,11 +407,11 @@ export function useDialerDialpad({
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeDialpadCallId, activeDialpadCallState, currentContact, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isOnline, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
 
   // ── Realtime subscription for call state (with resilience) ──
   useEffect(() => {
-    if (!activeDialpadCallId) {
+    if (!isOnline || !activeDialpadCallId) {
       if (realtimeChannelRef.current) {
         supabase.removeChannel(realtimeChannelRef.current);
         realtimeChannelRef.current = null;
@@ -476,16 +485,16 @@ export function useDialerDialpad({
       cancelled = true;
       teardownChannel();
     };
-  }, [activeDialpadCallId, markCallAsEnded]);
+  }, [activeDialpadCallId, isOnline, markCallAsEnded]);
 
   // ── Status polling (safety fallback — fixed 15s interval, Realtime handles fast path) ──
   useEffect(() => {
-    if (!activeDialpadCallId) return;
+    if (!isOnline || !activeDialpadCallId) return;
     let cancelled = false;
     let inFlight = false;
 
     const poll = async (options?: { force?: boolean }) => {
-      if (cancelled || inFlight) return;
+      if (cancelled || inFlight || !navigator.onLine) return;
       if (!options?.force && dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()) return;
       inFlight = true;
       try {
@@ -533,7 +542,7 @@ export function useDialerDialpad({
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, markCallAsEnded]);
+  }, [activeDialpadCallId, dialpadPollingBackoffUntil, fetchDialpadCallStatus, isOnline, markCallAsEnded]);
 
   // ── Cancel / hangup ──
   const cancelActiveCall = useCallback(async () => {
@@ -574,6 +583,10 @@ export function useDialerDialpad({
   }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, markCallAsEnded, myDialpadSettings, currentContact]);
 
   const retryDialpadCallLink = useCallback(() => {
+    if (!isOnline) {
+      toast.warning("You're offline. Reconnect before retrying Dialpad linking.");
+      return;
+    }
     if (activeDialpadCallId || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
     setHasTrackingRecoveryFailed(false);
     setIsRetryingUntrackedLiveCall(false);
@@ -582,7 +595,7 @@ export function useDialerDialpad({
     setIsCallResolving(true);
     setActiveDialpadCallState("connecting");
     toast.info("Retrying Dialpad call linking now.");
-  }, [activeDialpadCallId, currentContact, myDialpadSettings?.dialpad_user_id]);
+  }, [activeDialpadCallId, currentContact, isOnline, myDialpadSettings?.dialpad_user_id]);
 
   const fireAndForgetHangup = useCallback(() => {
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
