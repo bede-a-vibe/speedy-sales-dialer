@@ -7,6 +7,7 @@ export const trainingModuleSchema = z.enum([
   "Patterns",
   "Examples",
   "Reviews",
+  "Packets",
   "Playbook",
 ]);
 
