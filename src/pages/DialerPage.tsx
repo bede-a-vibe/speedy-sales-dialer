@@ -1850,149 +1850,20 @@ export default function DialerPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                  <div className="rounded-md border border-sky-500/20 bg-sky-500/5 px-3 py-3 xl:col-span-3">
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-widest text-sky-300">Operator prompt</p>
-                        <p className="text-sm font-semibold text-foreground">{currentLeadActionPlan?.headline ?? "Lead guidance unavailable."}</p>
-                        <p className="mt-1 text-xs text-sky-50/90">{currentLeadActionPlan?.detail ?? ""}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Primary route</p>
+                        <p className="text-sm font-medium text-foreground">{currentLeadActionPlan?.headline ?? "Lead guidance unavailable."}</p>
                       </div>
-                      <Badge variant="outline" className="border-sky-500/30 font-mono text-[10px] text-sky-100">
-                        {currentLeadActionPlan?.outstandingCount ?? 0} open capture item{currentLeadActionPlan?.outstandingCount === 1 ? "" : "s"}
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {currentLeadActionPlan?.outstandingCount ?? 0} open
                       </Badge>
                     </div>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                      {currentLeadActionPlan?.checklist.map((item) => (
-                        <div
-                          key={item.label}
-                          className={cn(
-                            "rounded-md border px-3 py-2 text-xs",
-                            item.done
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-50"
-                              : "border-amber-500/20 bg-amber-500/10 text-amber-50",
-                          )}
-                        >
-                          <div className="flex items-start gap-2">
-                            {item.done ? (
-                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                            ) : (
-                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
-                            )}
-                            <span>{item.label}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {currentLeadActionPlan && currentLeadActionPlan.coachingSteps.length > 0 && (
-                      <div className="mt-3 rounded-md border border-sky-500/20 bg-sky-500/10 px-3 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-widest text-sky-200">Rep coaching</p>
-                            <p className="text-sm text-sky-50">Use these asks to make this enrichment call actionable.</p>
-                          </div>
-                          <Badge variant="outline" className="border-sky-500/30 font-mono text-[10px] text-sky-100">
-                            next best moves
-                          </Badge>
-                        </div>
-                        <div className="mt-3 space-y-2">
-                          {currentLeadActionPlan.coachingSteps.map((step, index) => (
-                            <div key={step.title} className="rounded-md border border-sky-500/20 bg-sky-950/20 px-3 py-2 text-xs text-sky-50">
-                              <p className="font-semibold text-sky-100">{index + 1}. {step.title}</p>
-                              <p className="mt-1 text-sky-50/90">{step.prompt}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
-                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
-                    </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Use routed-line leads to enrich the account, then move fastest on direct mobile leads with decision-maker details already captured.
-                    </p>
-                  </div>
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-amber-300">Enrichment queue</p>
-                        <p className="text-sm text-foreground">Make the missing capture work explicit before the next requeue.</p>
-                      </div>
-                      <Badge variant="outline" className="border-amber-500/30 font-mono text-xs text-amber-200">
-                        {enrichmentQueueStats.enrichedShare}% ready direct
-                      </Badge>
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                          <span>Direct DM phone captured</span>
-                          <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
-                        </div>
-                        <Progress value={enrichmentQueueStats.enrichedShare} className="h-2 bg-amber-950/40 [&>div]:bg-amber-400" />
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="rounded-md border border-amber-500/20 bg-amber-950/30 px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-widest text-amber-200">Routed-line workflow</p>
-                            <Badge variant="outline" className="border-amber-500/30 font-mono text-[10px] text-amber-100">
-                              {enrichmentLaneStats.routed.ready}/{Math.max(enrichmentLaneStats.routed.total, 1)} prepped
-                            </Badge>
-                          </div>
-                          <p className="mt-2 text-xs text-amber-50/90">{enrichmentLaneStats.routed.needsNotes} still need gatekeeper or routing notes before the next requeue.</p>
-                        </div>
-                        <div className="rounded-md border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-widest text-emerald-200">Direct-outreach workflow</p>
-                            <Badge variant="outline" className="border-emerald-500/30 font-mono text-[10px] text-emerald-100">
-                              {enrichmentLaneStats.direct.ready} ready now
-                            </Badge>
-                          </div>
-                          <p className="mt-2 text-xs text-emerald-50/90">{enrichmentLaneStats.direct.needsPhone} leads still need a direct DM phone or extension captured.</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} still need DM phone</Badge>
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} routed lines missing notes</Badge>
-                      </div>
-                      <p className="text-xs text-amber-100/90">{enrichmentQueueStats.nextAction}</p>
-                    </div>
-                  </div>
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
-                    {session.nextContact ? (
-                      <>
-                        <div className="mt-1 flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
-                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
-                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
-                          </Badge>
-                        </div>
-                        {nextLeadFacts.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {nextLeadFacts.map((fact) => (
-                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="mt-1 text-sm text-muted-foreground">No next lead loaded yet. The queue will prefetch more leads automatically.</p>
-                    )}
+                    {currentLeadActionPlan?.detail ? (
+                      <p className="mt-2 text-sm text-muted-foreground">{currentLeadActionPlan.detail}</p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2049,26 +1920,6 @@ export default function DialerPage() {
                 }
                 existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
               />
-
-              <Suspense fallback={<PanelSkeleton height="h-36" />}>
-                <DialpadSyncPanel
-                  contactId={session.currentContact.id}
-                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
-                  activeDialpadCallState={dialpad.activeDialpadCallState}
-                  onCancelCall={dialpad.cancelActiveCall}
-                  onRetryLink={dialpad.retryDialpadCallLink}
-                  isCancelling={dialpad.cancelDialpadCall.isPending}
-                  isStatusPending={dialpad.isDialpadCallStatusPending}
-                  isEndingCall={dialpad.isEndingCall}
-                  isResolving={dialpad.isCallResolving}
-                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
-                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
-                  callStartedAt={dialpad.callStartedAt}
-                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
-                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
-                  enabled
-                />
-              </Suspense>
 
               {/* Power Hour Timer — Fanatical Prospecting */}
               <PowerHourTimer
@@ -2136,6 +1987,100 @@ export default function DialerPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <Suspense fallback={<PanelSkeleton height="h-36" />}>
+                <DialpadSyncPanel
+                  contactId={session.currentContact.id}
+                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
+                  activeDialpadCallState={dialpad.activeDialpadCallState}
+                  onCancelCall={dialpad.cancelActiveCall}
+                  onRetryLink={dialpad.retryDialpadCallLink}
+                  isCancelling={dialpad.cancelDialpadCall.isPending}
+                  isStatusPending={dialpad.isDialpadCallStatusPending}
+                  isEndingCall={dialpad.isEndingCall}
+                  isResolving={dialpad.isCallResolving}
+                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
+                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
+                  callStartedAt={dialpad.callStartedAt}
+                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
+                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
+                  enabled
+                />
+              </Suspense>
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
+                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
+                        <p className="text-sm text-foreground">Next claimed lead in your buffer.</p>
+                      </div>
+                    </div>
+                    {session.nextContact ? (
+                      <>
+                        <div className="mt-2 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
+                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
+                          </Badge>
+                        </div>
+                        {nextLeadFacts.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {nextLeadFacts.map((fact) => (
+                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No next lead loaded yet.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Enrichment queue</p>
+                        <p className="text-sm text-foreground">Capture what is missing before requeue.</p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {enrichmentQueueStats.enrichedShare}% ready direct
+                      </Badge>
+                    </div>
+                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Direct DM phone captured</span>
+                        <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
+                      </div>
+                      <Progress value={enrichmentQueueStats.enrichedShare} className="h-2" />
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} need DM phone</Badge>
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} missing notes</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <ContactNotesPanel
