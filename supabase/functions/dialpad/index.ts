@@ -813,9 +813,10 @@ const AI_SYSTEM_PROMPT = `You are an expert sales manager and call reviewer for 
 
 Your task is to analyse a raw sales call transcript and extract actionable sales intelligence.
 
-You MUST return a valid JSON object with two keys:
+You MUST return a valid JSON object with three keys:
 1. "fields" — structured key/value pairs for CRM custom fields
 2. "note" — a formatted rich text summary for the CRM contact note
+3. "objections" — an array of structured objection/coaching events for training and review
 
 Core Methodologies to Look For:
 1. Openers: Did the rep use a context-led opener (e.g., "Heard the name tossed around" or tailored permission) instead of banned openers like "How's your day going?"
@@ -832,6 +833,7 @@ IMPORTANT RULES:
 - For DATE fields, use YYYY-MM-DD format.
 - For TEXT and LARGE_TEXT fields, use concise, specific strings.
 - The "note" field contains the full formatted summary as a single string with \n for line breaks.
+- The "objections" field should be an array. If there were no meaningful objections, return an empty array.
 - Use Australian English spelling throughout.
 
 Available fields and their valid options:
@@ -920,7 +922,18 @@ Rep: [Rep Name] | Duration: [Duration] | Number: [Phone Number]
 \u{1F527} REP COACHING NOTES
 \u2022 [Observations on opener, pitch, objection handling, tone]
 
-Only include sections where meaningful information exists. Omit empty sections entirely.`;
+Only include sections where meaningful information exists. Omit empty sections entirely.
+
+For each objection event in "objections", use this shape:
+- objection_type: concise label for the objection
+- prospect_wording: verbatim or near-verbatim prospect phrasing
+- rep_response: concise summary of how the rep handled it
+- outcome: one of "advanced", "stalled", "booked", "follow_up", "lost"
+- coaching_verdict: one of "Strong", "Needs work", "Missed"
+- coaching_note: one concrete coaching observation
+- evidence: array of short evidence strings
+- drill_candidate: boolean
+- linked_module: one of "Objections", "Patterns", "Reviews", "Examples"`;
 
 // ── AI Summary Generation ───────────────────────────────────────────────
 async function generateAiSummary(params: {
@@ -990,7 +1003,21 @@ ${params.transcript}`;
     }
 
     const parsed = JSON.parse(content);
-    return parsed as { fields?: Record<string, unknown>; note?: string };
+    return parsed as {
+      fields?: Record<string, unknown>;
+      note?: string;
+      objections?: Array<{
+        objection_type?: string;
+        prospect_wording?: string;
+        rep_response?: string;
+        outcome?: string;
+        coaching_verdict?: string;
+        coaching_note?: string;
+        evidence?: string[];
+        drill_candidate?: boolean;
+        linked_module?: string;
+      }>;
+    };
   } catch (err) {
     console.error("[AI Summary] Failed to generate AI summary:", err);
     return null;
@@ -1594,6 +1621,37 @@ async function processPendingTranscriptSyncs(params: {
 }
 
 // ── Process AI Summary and Push to GHL ──────────────────────────────────
+function buildObjectionEventNote(objection: {
+  objection_type?: string;
+  prospect_wording?: string;
+  rep_response?: string;
+  outcome?: string;
+  coaching_verdict?: string;
+  coaching_note?: string;
+  evidence?: string[];
+  drill_candidate?: boolean;
+  linked_module?: string;
+}) {
+  const lines = ["Training Objection Event"];
+
+  if (objection.objection_type) lines.push(`- Objection: ${objection.objection_type}`);
+  if (objection.prospect_wording) lines.push(`- Prospect wording: ${objection.prospect_wording}`);
+  if (objection.rep_response) lines.push(`- Rep response: ${objection.rep_response}`);
+  if (objection.outcome) lines.push(`- Outcome: ${objection.outcome}`);
+  if (objection.coaching_verdict) lines.push(`- Coaching verdict: ${objection.coaching_verdict}`);
+  if (objection.coaching_note) lines.push(`- Coaching note: ${objection.coaching_note}`);
+  if (objection.linked_module) lines.push(`- Linked module: ${objection.linked_module}`);
+  if (typeof objection.drill_candidate === "boolean") lines.push(`- Drill candidate: ${objection.drill_candidate ? "yes" : "no"}`);
+  if (Array.isArray(objection.evidence) && objection.evidence.length > 0) {
+    lines.push("- Evidence:");
+    for (const item of objection.evidence) {
+      if (typeof item === "string" && item.trim()) lines.push(`  • ${item.trim()}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 async function processAiSummaryAndPushToGhl(params: {
   adminClient: ReturnType<typeof createClient>;
   contactId: string;
@@ -1643,6 +1701,26 @@ async function processAiSummaryAndPushToGhl(params: {
     }).catch((err: unknown) => {
       console.error("[AI→GHL] Failed to save AI note to Supabase:", err);
     });
+  }
+
+  if (Array.isArray(aiResult.objections)) {
+    for (let index = 0; index < aiResult.objections.length; index += 1) {
+      const objection = aiResult.objections[index];
+      if (!objection || typeof objection !== "object") continue;
+      const objectionType = typeof objection.objection_type === "string" ? objection.objection_type.trim() : "";
+      const coachingNote = typeof objection.coaching_note === "string" ? objection.coaching_note.trim() : "";
+      if (!objectionType && !coachingNote) continue;
+
+      await upsertContactNote(params.adminClient, {
+        contactId: params.contactId,
+        createdBy: params.userId,
+        dialpadCallId: `${params.dialpadCallId}:objection:${index + 1}`,
+        source: "dialpad_training_objection",
+        content: buildObjectionEventNote(objection),
+      }).catch((err: unknown) => {
+        console.error("[AI→GHL] Failed to save objection event note to Supabase:", err);
+      });
+    }
   }
 
   // Look up ghl_contact_id from contacts table
@@ -1879,7 +1957,7 @@ async function upsertContactNote(adminClient: ReturnType<typeof createClient>, p
   contactId: string;
   createdBy: string;
   dialpadCallId: string;
-  source: "dialpad_summary" | "dialpad_transcript";
+  source: "dialpad_summary" | "dialpad_transcript" | "dialpad_training_objection";
   content: string;
 }) {
   const { data: existing, error: existingError } = await adminClient
