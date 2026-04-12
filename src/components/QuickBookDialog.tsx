@@ -235,6 +235,76 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   }, [newContact, createContactMutation]);
 
 
+  const scheduledForPreview = useMemo(() => {
+    if (!scheduledDate) return null;
+
+    return new Date(
+      scheduledDate.getFullYear(),
+      scheduledDate.getMonth(),
+      scheduledDate.getDate(),
+      ...scheduledTime.split(":").map(Number) as [number, number],
+    );
+  }, [scheduledDate, scheduledTime]);
+
+  const selectedRepLabel = useMemo(
+    () => salesReps.find((rep) => rep.user_id === assignedRepId)
+      ? getRepLabel(
+          salesReps.find((rep) => rep.user_id === assignedRepId)?.display_name ?? null,
+          salesReps.find((rep) => rep.user_id === assignedRepId)?.email ?? null,
+        )
+      : null,
+    [salesReps, assignedRepId],
+  );
+
+  const contactLinkStatus = useMemo(() => {
+    if (!selectedContact) return null;
+    if ((selectedContact as Record<string, unknown>).ghl_contact_id) {
+      return { tone: "success", label: "Linked to GHL", detail: "Existing GHL contact link is already saved." };
+    }
+    if (!selectedContact.phone?.trim()) {
+      return { tone: "danger", label: "Cannot link to GHL", detail: "This contact has no phone number, so GHL sync will be skipped." };
+    }
+    return { tone: "warning", label: "Will link on save", detail: "The app will try to create or match the GHL contact when you submit." };
+  }, [selectedContact]);
+
+  const syncReadiness = useMemo(() => {
+    if (!selectedContact) return [] as { label: string; status: string; detail: string }[];
+
+    const localStatusTarget = getContactStatusForPipelineType(pipelineType);
+    const items = [
+      {
+        label: "Local record",
+        status: "ready",
+        detail: `Will create a ${pipelineType === "booked" ? "booking" : "follow-up"} item and set contact status to ${localStatusTarget}.`,
+      },
+      {
+        label: "GHL contact",
+        status: contactLinkStatus?.tone === "danger" ? "warning" : "ready",
+        detail: contactLinkStatus?.detail ?? "Contact link status unknown.",
+      },
+    ];
+
+    if (pipelineType === "booked") {
+      items.push({
+        label: "GHL booking sync",
+        status: ghlCalendarId && ghlPipelineId && ghlStageId ? "ready" : "warning",
+        detail: ghlCalendarId && ghlPipelineId && ghlStageId
+          ? "Calendar, pipeline, and stage are selected, so the booking can be mirrored to GHL."
+          : "Pick a GHL calendar, pipeline, and stage before creating the booking.",
+      });
+    } else {
+      items.push({
+        label: "GHL follow-up sync",
+        status: defaultFollowUpPipeline?.id && defaultFollowUpStage?.id ? "ready" : "warning",
+        detail: defaultFollowUpPipeline?.id && defaultFollowUpStage?.id
+          ? `Will create a ${followUpMethod} follow-up task and mirror it into the default follow-up pipeline.`
+          : "Follow-up pipeline defaults are not fully configured, so GHL opportunity mirroring may be incomplete.",
+      });
+    }
+
+    return items;
+  }, [selectedContact, pipelineType, contactLinkStatus, ghlCalendarId, ghlPipelineId, ghlStageId, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, followUpMethod]);
+
   const canSubmit = useMemo(
     () => !!selectedContact
       && !!assignedRepId
@@ -497,21 +567,33 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             <div className="space-y-4 pb-1">
               {/* Selected contact summary */}
               <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-foreground">{selectedContact.business_name}</h3>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {selectedContact.phone}
-                      </span>
-                      {selectedContact.contact_person && (
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div>
+                      <h3 className="font-semibold text-foreground">{selectedContact.business_name}</h3>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          {selectedContact.contact_person}
+                          <Phone className="h-3 w-3" />
+                          {selectedContact.phone}
                         </span>
-                      )}
+                        {selectedContact.contact_person && (
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {selectedContact.contact_person}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    {contactLinkStatus && (
+                      <div className={cn(
+                        "inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium",
+                        contactLinkStatus.tone === "success" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                        contactLinkStatus.tone === "warning" && "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                        contactLinkStatus.tone === "danger" && "bg-destructive/10 text-destructive",
+                      )}>
+                        {contactLinkStatus.label}
+                      </div>
+                    )}
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedContact(null)}>
                     Change
@@ -676,6 +758,31 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                   placeholder={isBooked ? "Any booking notes..." : "Follow-up details..."}
                   className="min-h-[60px] resize-none border-border bg-background text-sm"
                 />
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Execution preview</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {isBooked ? "Booking" : "Follow-up"}
+                    {scheduledForPreview ? ` for ${format(scheduledForPreview, "PPP p")}` : " timing pending"}
+                    {selectedRepLabel ? `, assigned to ${selectedRepLabel}` : ""}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {syncReadiness.map((item) => (
+                    <div key={item.label} className="flex items-start gap-2 text-sm">
+                      <span className={cn(
+                        "mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
+                        item.status === "ready" ? "bg-emerald-500" : "bg-amber-500",
+                      )} />
+                      <div>
+                        <p className="font-medium text-foreground">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Submit */}
