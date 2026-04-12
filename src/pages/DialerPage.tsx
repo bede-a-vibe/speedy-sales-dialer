@@ -793,6 +793,34 @@ export default function DialerPage() {
     }
   }, [session, dialpad, updateContact]);
 
+  const stopSessionSafely = useCallback(async () => {
+    if (!dialpad.isCallTerminal) {
+      toast.info("Ending the live call before stopping your session.");
+      try {
+        await dialpad.cancelActiveCall();
+      } catch {
+        toast.error("Couldn't confirm the call ended. Finish the call in Dialpad, then stop the session again.");
+        return;
+      }
+    }
+
+    session.stopSession();
+  }, [dialpad, session]);
+
+  const recoverQueueSafely = useCallback(async () => {
+    if (!dialpad.isCallTerminal) {
+      toast.info("Ending the live call before recovering your queue.");
+      try {
+        await dialpad.cancelActiveCall();
+      } catch {
+        toast.error("Couldn't confirm the call ended. Finish the call in Dialpad, then recover the queue again.");
+        return;
+      }
+    }
+
+    await session.recoverQueue();
+  }, [dialpad, session]);
+
   // Keyboard shortcuts
   useEffect(() => {
     if (!session.isSessionActive || !session.currentContact) return;
@@ -1102,7 +1130,7 @@ export default function DialerPage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => void session.recoverQueue()}
+                onClick={() => void recoverQueueSafely()}
                 disabled={session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
                 className="px-6 font-semibold"
               >
@@ -1132,12 +1160,12 @@ export default function DialerPage() {
                   Pause Dialing
                 </Button>
               )}
-              <Button variant="outline" onClick={session.stopSession} className="border-destructive text-destructive hover:bg-destructive/10">
+              <Button variant="outline" onClick={() => void stopSessionSafely()} className="border-destructive text-destructive hover:bg-destructive/10">
                 Stop Session
               </Button>
               <Button
                 variant="outline"
-                onClick={() => void session.recoverQueue()}
+                onClick={() => void recoverQueueSafely()}
                 disabled={session.isRecoveringQueue || session.isStartingSession}
                 className="px-6 font-semibold"
               >
