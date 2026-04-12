@@ -126,6 +126,8 @@ export default function ContactDetailPage() {
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
+  const directDecisionMakerPhone = contact?.dm_phone?.trim() || null;
+  const hasDecisionMakerDial = Boolean(directDecisionMakerPhone);
 
   useEffect(() => {
     setNextStatus(currentStatusValue);
@@ -410,26 +412,52 @@ export default function ContactDetailPage() {
 
         <Card>
           <CardContent className="p-4 space-y-4">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-primary hover:underline font-mono">
-                <Phone className="h-3.5 w-3.5" /> {contact.phone}
-              </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild size="sm" className="font-semibold">
+                <a href={`tel:${hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone}`}>
+                  <Phone className="mr-1.5 h-3.5 w-3.5" />
+                  {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
+                </a>
+              </Button>
+              {hasDecisionMakerDial && (
+                <Button asChild size="sm" variant="outline" className="font-mono">
+                  <a href={`tel:${contact.phone}`}>
+                    <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
+                    {contact.phone}
+                  </a>
+                </Button>
+              )}
               {contact.email && (
-                <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
                   <Mail className="h-3.5 w-3.5" /> {contact.email}
                 </a>
               )}
               {websiteUrl && (
-                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
                   <Globe className="h-3.5 w-3.5" /> Website
                 </a>
               )}
               {gmbUrl && (
-                <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
                   <ExternalLink className="h-3.5 w-3.5" /> GMB
                 </a>
               )}
             </div>
+
+            {hasDecisionMakerDial && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
+                  {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
+                  <a href={`tel:${directDecisionMakerPhone}`} className="font-mono text-emerald-700 hover:underline dark:text-emerald-300">
+                    {directDecisionMakerPhone}
+                  </a>
+                  {contact.dm_phone_type && (
+                    <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-border bg-muted/30 p-3">
