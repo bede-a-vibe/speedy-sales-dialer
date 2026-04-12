@@ -535,6 +535,7 @@ function PipelineTimeline({ contactId }: { contactId: string }) {
             )}
             <GhlMirrorDetails
               className="bg-background/40"
+              pipelineType={item.pipeline_type}
               ghlContactId={item.contacts?.ghl_contact_id}
               ghlOpportunityId={item.ghl_opportunity_id}
               ghlPipelineId={item.ghl_pipeline_id}
