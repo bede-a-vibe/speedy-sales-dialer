@@ -820,13 +820,16 @@ export default function DialerPage() {
     dialpad.fireAndForgetHangup();
 
     // Capture values before advancing
-    const contactId = session.currentContact.id;
+    const currentContactSnapshot = session.currentContact;
+    const contactId = currentContactSnapshot.id;
     const userId = session.user.id;
-    const contactFollowUpNote = session.currentContact.follow_up_note;
-    const contactNextFollowUpDate = session.currentContact.next_followup_date;
-    const contactGhlId = (session.currentContact as Record<string, unknown>).ghl_contact_id as string | null
-      ?? ghlLink.getCachedGHLId(session.currentContact.id);
-    const contactName = session.currentContact.business_name;
+    const contactFollowUpNote = currentContactSnapshot.follow_up_note;
+    const contactNextFollowUpDate = currentContactSnapshot.next_followup_date;
+    const contactGhlId = (currentContactSnapshot as Record<string, unknown>).ghl_contact_id as string | null
+      ?? ghlLink.getCachedGHLId(currentContactSnapshot.id);
+    const contactName = currentContactSnapshot.business_name;
+    const contactIndustry = (currentContactSnapshot as Record<string, unknown>).industry as string | undefined;
+    const currentVoicemailCount = Number((currentContactSnapshot as Record<string, unknown>).voicemail_count ?? 0);
     const dialpadCallId = dialpad.getDialpadCallIdForLog();
     const scheduledFor = session.followUpDate
       ? combineDateAndTime(session.followUpDate, session.followUpTime || BOOKED_APPOINTMENT_DEFAULT_TIME).toISOString()
@@ -887,7 +890,7 @@ export default function DialerPage() {
             follow_up_note: outcomeToLog === "follow_up"
               ? (pipelineNotes || contactFollowUpNote || null)
               : null,
-            ...(outcomeToLog === "voicemail" ? { voicemail_count: ((session.currentContact as any)?.voicemail_count ?? 0) + 1 } : {}),
+            ...(outcomeToLog === "voicemail" ? { voicemail_count: currentVoicemailCount + 1 } : {}),
           }),
         ]);
 
@@ -996,8 +999,8 @@ export default function DialerPage() {
             ghlSync.pushFollowUpEmailDraft({
               ghlContactId: contactGhlId,
               contactName: contactName ?? "there",
-              businessName: (session.currentContact as any)?.business_name ?? contactName ?? "",
-              industry: (session.currentContact as any)?.industry ?? undefined,
+              businessName: contactName ?? "",
+              industry: contactIndustry,
               repName: repName ?? "The Odin Team",
               callNotes: pipelineNotes || undefined,
               callTranscriptSummary: latestSummary ?? undefined,
@@ -1974,6 +1977,7 @@ export default function DialerPage() {
                   (session.currentContact as any).best_route_to_decision_maker
                   ?? (session.currentContact as any).best_route_to_dm
                 }
+                existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
               />
 
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
