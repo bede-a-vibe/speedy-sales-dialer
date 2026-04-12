@@ -417,52 +417,6 @@ export default function DialerPage() {
     };
   }, [queueLeadCount, session.isSessionActive, session.queue]);
 
-  const startReadinessItems = useMemo(() => {
-    const items = [
-      {
-        label: "Network",
-        ready: isOnline,
-        detail: isOnline ? "Connected. Changes can sync normally." : "Offline. Reconnect before starting so calls and notes can sync.",
-      },
-      {
-        label: "Dialpad assignment",
-        ready: dialpad.hasDialpadAssignment,
-        detail: dialpad.hasDialpadAssignment
-          ? `Ready on ${dialpad.myDialpadSettings?.dialpad_phone_number || dialpad.myDialpadSettings?.dialpad_user_id}`
-          : "No active Dialpad number is assigned to this user.",
-      },
-      {
-        label: "Lead buffer",
-        ready: !session.queue.isLoading && queueLeadCount > 0,
-        detail: session.queue.isLoading
-          ? "Loading queue preview..."
-          : queueLeadCount > 0
-            ? `${queueLeadCount} lead${queueLeadCount === 1 ? "" : "s"} ready in the current queue.`
-            : "No leads available in the current queue.",
-      },
-      {
-        label: "Targeting",
-        ready: activeFilterSummary.length > 0 || queueLeadCount > 0,
-        detail: activeFilterSummary.length > 0
-          ? `${activeFilterSummary.length} active filter${activeFilterSummary.length === 1 ? "" : "s"} shaping this session.`
-          : "No filters applied. You can still start, but this session will use the full available queue.",
-      },
-    ];
-
-    return items;
-  }, [activeFilterSummary.length, dialpad.hasDialpadAssignment, dialpad.myDialpadSettings?.dialpad_phone_number, dialpad.myDialpadSettings?.dialpad_user_id, isOnline, queueLeadCount, session.queue.isLoading]);
-
-  const startReadinessOpenItems = useMemo(
-    () => startReadinessItems.filter((item) => !item.ready),
-    [startReadinessItems],
-  );
-
-  const startReadinessSummary = useMemo(() => {
-    if (startReadinessOpenItems.length === 0) return "Ready to start dialing.";
-    if (startReadinessOpenItems.length === 1) return "1 item to fix before starting.";
-    return `${startReadinessOpenItems.length} items to fix before starting.`;
-  }, [startReadinessOpenItems.length]);
-
   const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9") => {
     const now = new Date();
 
@@ -513,6 +467,52 @@ export default function DialerPage() {
     ].filter(Boolean) as string[],
     [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, minGbpRating, minReviewCount],
   );
+
+  const startReadinessItems = useMemo(() => {
+    const items = [
+      {
+        label: "Network",
+        ready: isOnline,
+        detail: isOnline ? "Connected. Changes can sync normally." : "Offline. Reconnect before starting so calls and notes can sync.",
+      },
+      {
+        label: "Dialpad assignment",
+        ready: dialpad.hasDialpadAssignment,
+        detail: dialpad.hasDialpadAssignment
+          ? `Ready on ${dialpad.myDialpadSettings?.dialpad_phone_number || dialpad.myDialpadSettings?.dialpad_user_id}`
+          : "No active Dialpad number is assigned to this user.",
+      },
+      {
+        label: "Lead buffer",
+        ready: !session.queue.isLoading && queueLeadCount > 0,
+        detail: session.queue.isLoading
+          ? "Loading queue preview..."
+          : queueLeadCount > 0
+            ? `${queueLeadCount} lead${queueLeadCount === 1 ? "" : "s"} ready in the current queue.`
+            : "No leads available in the current queue.",
+      },
+      {
+        label: "Targeting",
+        ready: activeFilterSummary.length > 0 || queueLeadCount > 0,
+        detail: activeFilterSummary.length > 0
+          ? `${activeFilterSummary.length} active filter${activeFilterSummary.length === 1 ? "" : "s"} shaping this session.`
+          : "No filters applied. You can still start, but this session will use the full available queue.",
+      },
+    ];
+
+    return items;
+  }, [activeFilterSummary.length, dialpad.hasDialpadAssignment, dialpad.myDialpadSettings?.dialpad_phone_number, dialpad.myDialpadSettings?.dialpad_user_id, isOnline, queueLeadCount, session.queue.isLoading]);
+
+  const startReadinessOpenItems = useMemo(
+    () => startReadinessItems.filter((item) => !item.ready),
+    [startReadinessItems],
+  );
+
+  const startReadinessSummary = useMemo(() => {
+    if (startReadinessOpenItems.length === 0) return "Ready to start dialing.";
+    if (startReadinessOpenItems.length === 1) return "1 item to fix before starting.";
+    return `${startReadinessOpenItems.length} items to fix before starting.`;
+  }, [startReadinessOpenItems.length]);
 
   const queueFocusLabel = useMemo(() => {
     if (phoneType === "landline") return "Landline queue";
