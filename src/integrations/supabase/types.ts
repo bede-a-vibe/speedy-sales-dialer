@@ -744,6 +744,7 @@ export type Database = {
         | "manual"
         | "dialpad_summary"
         | "dialpad_transcript"
+        | "dialpad_training_objection"
         | "ai_summary"
       phone_number_quality: "unconfirmed" | "confirmed" | "suspect" | "dead"
       pipeline_status: "open" | "completed" | "canceled"
@@ -896,6 +897,7 @@ export const Constants = {
         "manual",
         "dialpad_summary",
         "dialpad_transcript",
+        "dialpad_training_objection",
         "ai_summary",
       ],
       phone_number_quality: ["unconfirmed", "confirmed", "suspect", "dead"],

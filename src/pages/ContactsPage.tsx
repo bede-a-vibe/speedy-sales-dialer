@@ -46,6 +46,7 @@ const NOTE_SOURCE_LABELS = {
   manual: "Manual note",
   dialpad_summary: "Dialpad summary",
   dialpad_transcript: "Dialpad transcript",
+  dialpad_training_objection: "Training objection",
 } as const;
 
 const CONTACT_STATUS_OPTIONS = [

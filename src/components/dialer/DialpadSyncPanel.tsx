@@ -123,6 +123,7 @@ export function DialpadSyncPanel({
 
   const latestDialpadSummary = contactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
+  const latestTrainingObjection = contactNotes.find((note) => note.source === "dialpad_training_objection") ?? null;
 
   const isCallActive = activeDialpadCallId && activeDialpadCallState !== "hangup";
   const nextRetrySeconds = nextAutoRetryAt && nextAutoRetryAt > Date.now()
@@ -161,6 +162,13 @@ export function DialpadSyncPanel({
         ? `Transcript received ${format(new Date(latestDialpadTranscript.created_at), "h:mm a")}.`
         : "Transcript has not landed yet.",
     },
+    {
+      label: "Training objection extracted",
+      ready: Boolean(latestTrainingObjection),
+      detail: latestTrainingObjection
+        ? `Coaching note received ${format(new Date(latestTrainingObjection.created_at), "h:mm a")}.`
+        : "No training objection note has landed yet.",
+    },
   ];
   const readinessComplete = readinessItems.filter((item) => item.ready).length;
   const nextExpectedStep = hasTrackingRecoveryFailed
@@ -171,7 +179,9 @@ export function DialpadSyncPanel({
         ? "Finish the conversation before moving on."
         : !latestDialpadSummary || !latestDialpadTranscript
           ? "Wait for Dialpad to finish syncing the summary and transcript before closing out reporting."
-          : "Sync evidence is in. You can log the outcome and move to the next lead.";
+          : !latestTrainingObjection
+            ? "Summary and transcript are in. Training extraction can land after that, so you can move on unless you are explicitly QAing coaching output."
+            : "Sync evidence is in. You can log the outcome and move to the next lead.";
   const operatorGuidance: OperatorGuidance | null = activeDialpadCallId
     ? {
         title: "Tracking is attached",
