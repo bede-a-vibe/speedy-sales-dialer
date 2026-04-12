@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { format } from "date-fns";
-import { Loader2, Mail, Sparkles } from "lucide-react";
+import { Check, Copy, Loader2, Mail, Sparkles } from "lucide-react";
 import type { EmailDraftSuggestion, EmailDraftSuggestionStatus } from "@/lib/emailDraftSuggestions";
 import { buildEmailDraftSuggestionAuditTrail } from "@/lib/emailDraftSuggestions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 interface EmailDraftSuggestionCardProps {
   suggestion: EmailDraftSuggestion | null;
@@ -24,6 +26,18 @@ function formatStamp(value?: string | null) {
 
 export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, onClear, disabled }: EmailDraftSuggestionCardProps) {
   const isGenerating = status === "generating";
+  const [lastCopied, setLastCopied] = useState<"subject" | "body" | "full" | null>(null);
+
+  const handleCopy = async (type: "subject" | "body" | "full", value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setLastCopied(type);
+      toast.success(type === "full" ? "Draft copied" : `${type === "body" ? "Body" : "Subject"} copied`);
+      window.setTimeout(() => setLastCopied((current) => (current === type ? null : current)), 1500);
+    } catch {
+      toast.error("Could not copy draft content");
+    }
+  };
 
   return (
     <Card>
@@ -68,12 +82,45 @@ export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, onCle
         ) : (
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Subject</p>
-                <p className="mt-1 text-sm font-medium text-foreground">{suggestion.subject}</p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Subject</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{suggestion.subject}</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCopy("subject", suggestion.subject)}
+                >
+                  {lastCopied === "subject" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  Copy subject
+                </Button>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Body</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Body</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopy("body", suggestion.body)}
+                    >
+                      {lastCopied === "body" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      Copy body
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopy("full", `Subject: ${suggestion.subject}\n\n${suggestion.body}`)}
+                    >
+                      {lastCopied === "full" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      Copy full draft
+                    </Button>
+                  </div>
+                </div>
                 <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-sm text-foreground">
                   {suggestion.body}
                 </pre>
