@@ -30,6 +30,12 @@ interface OperatorGuidance {
   toneClassName: string;
 }
 
+interface ReadinessItem {
+  label: string;
+  ready: boolean;
+  detail: string;
+}
+
 function formatElapsed(seconds: number) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -122,6 +128,50 @@ export function DialpadSyncPanel({
   const nextRetrySeconds = nextAutoRetryAt && nextAutoRetryAt > Date.now()
     ? Math.max(1, Math.ceil((nextAutoRetryAt - Date.now()) / 1000))
     : null;
+  const readinessItems: ReadinessItem[] = [
+    {
+      label: "Live call linked",
+      ready: Boolean(activeDialpadCallId),
+      detail: activeDialpadCallId
+        ? "Dialpad is attached to this lead."
+        : isResolving || isRetryingUntrackedLiveCall || hasTrackingRecoveryFailed
+          ? "Still waiting for tracking to attach."
+          : "No active linked call yet.",
+    },
+    {
+      label: "Call finished",
+      ready: activeDialpadCallState === "hangup",
+      detail: activeDialpadCallState === "hangup"
+        ? "Dialpad marked the call as ended."
+        : isCallActive
+          ? "Stay on this lead until the conversation ends."
+          : "Waiting for Dialpad to confirm the final state.",
+    },
+    {
+      label: "AI summary synced",
+      ready: Boolean(latestDialpadSummary),
+      detail: latestDialpadSummary
+        ? `Summary received ${format(new Date(latestDialpadSummary.created_at), "h:mm a")}.`
+        : "Summary has not landed yet.",
+    },
+    {
+      label: "Transcript synced",
+      ready: Boolean(latestDialpadTranscript),
+      detail: latestDialpadTranscript
+        ? `Transcript received ${format(new Date(latestDialpadTranscript.created_at), "h:mm a")}.`
+        : "Transcript has not landed yet.",
+    },
+  ];
+  const readinessComplete = readinessItems.filter((item) => item.ready).length;
+  const nextExpectedStep = hasTrackingRecoveryFailed
+    ? "Retry linking now, or end the call here once the conversation is safely over."
+    : !activeDialpadCallId && (isResolving || isRetryingUntrackedLiveCall)
+      ? "Keep this lead open until tracking attaches."
+      : activeDialpadCallState !== "hangup"
+        ? "Finish the conversation before moving on."
+        : !latestDialpadSummary || !latestDialpadTranscript
+          ? "Wait for Dialpad to finish syncing the summary and transcript before closing out reporting."
+          : "Sync evidence is in. You can log the outcome and move to the next lead.";
   const operatorGuidance: OperatorGuidance | null = activeDialpadCallId
     ? {
         title: "Tracking is attached",
@@ -266,6 +316,30 @@ export function DialpadSyncPanel({
             Waiting for a tracked Dialpad call to reach a loggable state.
           </p>
         )}
+
+        <div className="rounded-md border border-border bg-background px-3 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-primary">Sync readiness</p>
+              <p className="text-xs text-muted-foreground">{readinessComplete}/{readinessItems.length} checkpoints complete</p>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-medium">
+              {readinessComplete === readinessItems.length ? "Ready to wrap" : "Still syncing"}
+            </Badge>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {readinessItems.map((item) => (
+              <div key={item.label} className="rounded-md border border-border/70 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${item.ready ? "bg-emerald-500" : "bg-amber-500"}`} />
+                  <p className="font-medium text-foreground">{item.label}</p>
+                </div>
+                <p className="mt-1 text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">Next step: {nextExpectedStep}</p>
+        </div>
 
         {operatorGuidance && (
           <div className={`rounded-md border px-3 py-3 text-xs ${operatorGuidance.toneClassName}`}>
