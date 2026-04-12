@@ -10,6 +10,7 @@ interface EmailDraftSuggestionCardProps {
   suggestion: EmailDraftSuggestion | null;
   status: EmailDraftSuggestionStatus;
   onGenerate: () => void;
+  onClear?: () => void;
   disabled?: boolean;
 }
 
@@ -21,7 +22,7 @@ function formatStamp(value?: string | null) {
   return format(parsed, "dd MMM yy · HH:mm");
 }
 
-export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, disabled }: EmailDraftSuggestionCardProps) {
+export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, onClear, disabled }: EmailDraftSuggestionCardProps) {
   const isGenerating = status === "generating";
 
   return (
@@ -47,6 +48,11 @@ export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, disab
             {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
             {suggestion ? "Refresh suggestion" : "Generate suggestion"}
           </Button>
+          {suggestion && onClear ? (
+            <Button variant="outline" onClick={onClear} disabled={isGenerating}>
+              Clear draft
+            </Button>
+          ) : null}
           <Badge variant={suggestion ? "secondary" : "outline"}>{status}</Badge>
           {suggestion?.context.contactEmail && (
             <Badge variant="outline" className="gap-1">

@@ -23,6 +23,11 @@ import {
   type EmailDraftSuggestion,
   type EmailDraftSuggestionStatus,
 } from "@/lib/emailDraftSuggestions";
+import {
+  clearStoredEmailDraftSuggestion,
+  loadStoredEmailDraftSuggestion,
+  saveStoredEmailDraftSuggestion,
+} from "@/lib/emailDraftStore";
 import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus } from "@/lib/pipelineMappings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,9 +132,15 @@ export default function ContactDetailPage() {
   }, [currentStatusValue, id]);
 
   useEffect(() => {
-    setDraftSuggestion(null);
-    setDraftSuggestionStatus("idle");
+    const storedDraft = loadStoredEmailDraftSuggestion(id);
+    setDraftSuggestion(storedDraft);
+    setDraftSuggestionStatus(storedDraft ? "ready" : "idle");
   }, [id]);
+
+  useEffect(() => {
+    if (!draftSuggestion || draftSuggestionStatus !== "ready") return;
+    saveStoredEmailDraftSuggestion(draftSuggestion);
+  }, [draftSuggestion, draftSuggestionStatus]);
 
   const handleGenerateDraftSuggestion = async () => {
     if (!contact) return;
@@ -179,6 +190,14 @@ export default function ContactDetailPage() {
       setDraftSuggestionStatus("failed");
       toast.error("Failed to generate draft suggestion");
     }
+  };
+
+  const handleClearDraftSuggestion = () => {
+    if (!contact) return;
+    clearStoredEmailDraftSuggestion(contact.id);
+    setDraftSuggestion(null);
+    setDraftSuggestionStatus("idle");
+    toast.success("Saved draft cleared");
   };
 
   const handleToggleDnc = async () => {
@@ -587,6 +606,7 @@ export default function ContactDetailPage() {
               suggestion={draftSuggestion}
               status={draftSuggestionStatus}
               onGenerate={handleGenerateDraftSuggestion}
+              onClear={handleClearDraftSuggestion}
               disabled={!contact.email && !contact.dm_email}
             />
 
