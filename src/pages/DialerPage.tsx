@@ -1952,43 +1952,6 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <label className="block text-[10px] uppercase tracking-widest text-muted-foreground">Rep cheat sheet</label>
-                  <Badge variant="outline" className="text-[10px]">Fast keys</Badge>
-                </div>
-                <div className="grid gap-2 text-xs sm:grid-cols-2">
-                  <div className="rounded-md border border-border bg-background px-3 py-2">
-                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-3 w-3" /> Outcomes</div>
-                    <div className="font-mono text-foreground">1-6 select outcome</div>
-                  </div>
-                  <div className="rounded-md border border-border bg-background px-3 py-2">
-                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><NotebookPen className="h-3 w-3" /> Log lead</div>
-                    <div className="font-mono text-foreground">Enter saves + advances</div>
-                  </div>
-                  <div className="rounded-md border border-border bg-background px-3 py-2">
-                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><SkipForward className="h-3 w-3" /> Skip</div>
-                    <div className="font-mono text-foreground">S holds nothing, moves on</div>
-                  </div>
-                  <div className="rounded-md border border-border bg-background px-3 py-2">
-                    <div className="mb-1 flex items-center gap-2 text-muted-foreground"><TimerReset className="h-3 w-3" /> Pause</div>
-                    <div className="font-mono text-foreground">P toggles when call ends</div>
-                  </div>
-                </div>
-                {currentLeadMeta && (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
-                      <div className="text-muted-foreground">Attempts</div>
-                      <div className="font-mono text-foreground">{String(session.currentContact.call_attempt_count ?? 0)}</div>
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
-                      <div className="text-muted-foreground">Decision maker</div>
-                      <div className="font-mono text-foreground">{currentLeadMeta.dm_name ? <span className="inline-flex items-center gap-1"><UserCheck className="h-3 w-3 text-primary" /> Captured</span> : "Not captured"}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
                 <DialpadSyncPanel
                   contactId={session.currentContact.id}
