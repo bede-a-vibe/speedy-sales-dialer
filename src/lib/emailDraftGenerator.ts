@@ -7,8 +7,16 @@ interface EmailDraftParams {
   businessName: string;
   industry?: string;
   repName: string;
+  draftGoal?: "follow_up" | "booked_prep";
   callNotes?: string;
   callTranscriptSummary?: string;
+  recentCallContexts?: Array<{
+    createdAt: string;
+    outcome: string;
+    notes?: string | null;
+    summary?: string | null;
+    transcriptExcerpt?: string | null;
+  }>;
   scheduledFor?: string;
 }
 
@@ -117,8 +125,12 @@ export async function generateFollowUpEmailDraft(
 }
 
 function buildUserPrompt(params: EmailDraftParams): string {
+  const isBookedPrep = params.draftGoal === "booked_prep";
   const parts = [
-    `Write a follow-up email from ${params.repName} at Odin Digital to ${params.contactName} at ${params.businessName}.`,
+    isBookedPrep
+      ? `Write a booked appointment prep email from ${params.repName} at Odin Digital to ${params.contactName} at ${params.businessName}.`
+      : `Write a follow-up email from ${params.repName} at Odin Digital to ${params.contactName} at ${params.businessName}.`,
+    `Draft goal: ${isBookedPrep ? "Confirm the value of the booked meeting, reflect the latest conversation, and prepare them for the session." : "Follow up after the latest conversation and move them toward the next step."}`,
   ];
 
   if (params.industry) {
@@ -129,6 +141,20 @@ function buildUserPrompt(params: EmailDraftParams): string {
     parts.push(`\nCall Summary:\n${params.callTranscriptSummary}`);
   }
 
+  if (params.recentCallContexts?.length) {
+    parts.push(`\nRecent call context (latest first):\n${params.recentCallContexts
+      .map((call, index) => {
+        const sections = [
+          `Call ${index + 1} (${call.createdAt}, outcome: ${call.outcome})`,
+          call.summary ? `Summary: ${call.summary}` : null,
+          call.notes ? `Notes: ${call.notes}` : null,
+          call.transcriptExcerpt ? `Transcript excerpt: ${call.transcriptExcerpt}` : null,
+        ].filter(Boolean);
+        return sections.join("\n");
+      })
+      .join("\n\n")}`);
+  }
+
   if (params.callNotes) {
     parts.push(`\nRep's Notes:\n${params.callNotes}`);
   }
@@ -137,7 +163,9 @@ function buildUserPrompt(params: EmailDraftParams): string {
     parts.push(`\nFollow-up scheduled for: ${new Date(params.scheduledFor).toLocaleDateString("en-AU")}`);
   }
 
-  parts.push("\nGenerate a personalised follow-up email based on the above context.");
+  parts.push(isBookedPrep
+    ? "\nGenerate a personalised review-only booked meeting prep email based on the above context."
+    : "\nGenerate a personalised follow-up email based on the above context.");
 
   return parts.join("\n");
 }
@@ -148,21 +176,46 @@ function generateTemplateFallback(params: EmailDraftParams): EmailDraftResult {
   const biz = params.businessName || "your business";
   const trade = params.industry || "trade";
 
+  const isBookedPrep = params.draftGoal === "booked_prep";
   const hasNotes = params.callNotes || params.callTranscriptSummary;
   const noteRef = hasNotes
-    ? `Following up on our chat — really appreciated you taking the time to run through where ${biz} is at with your marketing.`
-    : `Just wanted to touch base after our call — great to learn a bit more about ${biz} and what you're working on.`;
+    ? `Really appreciated the chat and the context you shared about ${biz}.`
+    : `Great speaking with you about ${biz}.`;
+
+  if (isBookedPrep) {
+    const scheduledLabel = params.scheduledFor
+      ? new Date(params.scheduledFor).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
+      : "our upcoming session";
+
+    return {
+      subject: `Looking forward to our session with ${biz}`,
+      body: [
+        `Hi ${firstName},`,
+        "",
+        `${noteRef} Looking forward to meeting on ${scheduledLabel}.`,
+        "",
+        `Ahead of the session, we'll come prepared with a few practical ideas around lead flow, website conversion opportunities, and where Odin Digital could help ${trade} businesses like yours grow more predictably.`,
+        "",
+        `If there’s anything specific you want us to look at before we jump on, just reply here and I’ll make sure it’s covered.`,
+        "",
+        `Cheers,`,
+        repFirst,
+        `Odin Digital`,
+        `odindigital.com.au`,
+      ].join("\n"),
+    };
+  }
 
   const body = [
     `Hi ${firstName},`,
     "",
-    noteRef,
+    `${noteRef} Just wanted to follow up while it’s still fresh.`,
     "",
-    `A lot of ${trade} businesses we work with are in a similar spot — they know they need more leads but aren't sure what's actually going to move the needle. That's exactly where we come in.`,
+    `A lot of ${trade} businesses we work with are in a similar spot, they know they need more leads but aren't sure what's actually going to move the needle. That's exactly where we come in.`,
     "",
-    `We've helped trades businesses across Australia grow their leads by 340%+ on average through a combination of Google Ads, SEO, and conversion-focused websites — all backed by our 90-day KPI guarantee.`,
+    `We've helped trades businesses across Australia grow their leads by 340%+ on average through a combination of Google Ads, SEO, and conversion-focused websites, all backed by our 90-day KPI guarantee.`,
     "",
-    `Happy to put together a quick, no-obligation Growth Blueprint for ${biz} — it'll show you exactly where the biggest opportunities are and what a realistic growth plan looks like.`,
+    `Happy to put together a quick, no-obligation Growth Blueprint for ${biz}, it'll show you exactly where the biggest opportunities are and what a realistic growth plan looks like.`,
     "",
     `Would you be open to a quick 15-minute chat to go through it?`,
     "",
@@ -173,7 +226,7 @@ function generateTemplateFallback(params: EmailDraftParams): EmailDraftResult {
   ].join("\n");
 
   return {
-    subject: `Quick follow-up — growth ideas for ${biz}`,
+    subject: `Quick follow-up, growth ideas for ${biz}`,
     body,
   };
 }

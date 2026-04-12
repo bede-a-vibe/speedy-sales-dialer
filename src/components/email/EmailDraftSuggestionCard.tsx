@@ -48,7 +48,7 @@ export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, onCle
               Draft Email Suggestion
             </CardTitle>
             <p className="mt-2 text-sm text-muted-foreground">
-              Generate a review-only follow-up draft from the latest call context. Nothing is sent from here.
+              Generate a review-only draft from recent call context. For booked contacts, this now starts shaping pre-meeting prep emails from multiple transcripts. Nothing is sent from here.
             </p>
           </div>
           <Badge variant="outline" className="shrink-0">
@@ -142,10 +142,27 @@ export function EmailDraftSuggestionCard({ suggestion, status, onGenerate, onCle
                 <li>Contact: {suggestion.context.contactName}</li>
                 <li>Business: {suggestion.context.businessName}</li>
                 <li>Industry: {suggestion.context.industry || "Not captured"}</li>
+                <li>Draft goal: {suggestion.context.draftGoal === "booked_prep" ? "Booked prep" : "Follow-up"}</li>
                 <li>Latest call: {formatStamp(suggestion.context.latestCallAt)}</li>
                 <li>Latest note: {formatStamp(suggestion.context.latestNoteAt)}</li>
+                <li>Recent calls included: {suggestion.context.recentCallContexts.length}</li>
               </ul>
             </div>
+
+            {suggestion.context.recentCallContexts.length > 0 ? (
+              <div className="rounded-lg border border-border bg-muted/10 p-4">
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Recent call sources</p>
+                <div className="mt-2 space-y-3">
+                  {suggestion.context.recentCallContexts.map((call, index) => (
+                    <div key={`${call.createdAt}-${index}`} className="rounded-md border border-border/70 p-3 text-sm">
+                      <p className="font-medium text-foreground">Call {index + 1} · {formatStamp(call.createdAt)} · {call.outcome}</p>
+                      {call.summary ? <p className="mt-1 text-muted-foreground">Summary: {call.summary}</p> : null}
+                      {call.transcriptExcerpt ? <p className="mt-1 text-muted-foreground">Transcript: {call.transcriptExcerpt}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </CardContent>

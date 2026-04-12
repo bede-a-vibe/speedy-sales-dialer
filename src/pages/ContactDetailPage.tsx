@@ -156,6 +156,8 @@ export default function ContactDetailPage() {
             created_at: latestCall.created_at,
             notes: latestCall.notes,
             dialpad_summary: latestCall.dialpad_summary,
+            outcome: latestCall.outcome,
+            dialpad_transcript: latestCall.dialpad_transcript,
           }
         : null,
       latestNote: latestNote
@@ -164,6 +166,13 @@ export default function ContactDetailPage() {
             content: latestNote.content,
           }
         : null,
+      recentCalls: allCallLogs.slice(0, 3).map((call) => ({
+        created_at: call.created_at,
+        notes: call.notes,
+        dialpad_summary: call.dialpad_summary,
+        outcome: call.outcome,
+        dialpad_transcript: call.dialpad_transcript,
+      })),
       scheduledFor: nextPipelineItem?.scheduled_for ?? null,
     });
 
@@ -175,8 +184,10 @@ export default function ContactDetailPage() {
         businessName: draftContext.businessName,
         industry: draftContext.industry || undefined,
         repName: draftContext.repName,
+        draftGoal: draftContext.draftGoal,
         callNotes: draftContext.callNotes || undefined,
         callTranscriptSummary: draftContext.callTranscriptSummary || undefined,
+        recentCallContexts: draftContext.recentCallContexts,
         scheduledFor: draftContext.scheduledFor || undefined,
       });
 
