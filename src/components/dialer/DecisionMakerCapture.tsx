@@ -65,6 +65,56 @@ const TIME_TO_CALL_OPTIONS = [
   "After Hours",
 ];
 
+const QUICK_TITLE_OPTIONS = ["Owner", "Director", "Marketing Manager", "Office Manager"];
+const QUICK_ROUTE_OPTIONS = ["Direct Line", "Ask for by Name", "Gatekeeper Friendly", "Callback Scheduled"];
+const QUICK_TIME_OPTIONS = ["Morning", "Afternoon", "After Hours"];
+
+function QuickPickButtons({
+  label,
+  options,
+  value,
+  onSelect,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onSelect: (next: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">{label}</span>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onSelect("")}
+            className="text-[11px] font-medium text-primary hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((option) => {
+          const isActive = value === option;
+          return (
+            <Button
+              key={option}
+              type="button"
+              variant={isActive ? "secondary" : "outline"}
+              size="sm"
+              className="h-7 px-2.5 text-[11px]"
+              onClick={() => onSelect(option)}
+            >
+              {option}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function DecisionMakerCapture({
   contactId,
   businessName,
@@ -305,6 +355,13 @@ export function DecisionMakerCapture({
               </div>
             </div>
 
+            <QuickPickButtons
+              label="Quick role picks"
+              options={QUICK_TITLE_OPTIONS}
+              value={dmTitle}
+              onSelect={setDmTitle}
+            />
+
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="space-y-1">
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -376,6 +433,13 @@ export function DecisionMakerCapture({
               </div>
             </div>
 
+            <QuickPickButtons
+              label="Quick route picks"
+              options={QUICK_ROUTE_OPTIONS}
+              value={bestRoute}
+              onSelect={setBestRoute}
+            />
+
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Gatekeeper Notes</label>
               <Textarea
@@ -400,6 +464,13 @@ export function DecisionMakerCapture({
                 </SelectContent>
               </Select>
             </div>
+
+            <QuickPickButtons
+              label="Quick callback windows"
+              options={QUICK_TIME_OPTIONS}
+              value={bestTimeToCall}
+              onSelect={setBestTimeToCall}
+            />
           </div>
 
           {/* Save Button */}
