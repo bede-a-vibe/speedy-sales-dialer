@@ -48,6 +48,8 @@ import {
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
 } from "@/data/constants";
+import type { DialerFilterOptions } from "@/hooks/useContacts";
+import { toast } from "sonner";
 
 const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
   mobile: "Mobile",
@@ -60,8 +62,6 @@ const DM_PHONE_FILTER_LABELS: Record<string, string> = {
   yes: "Has DM Phone",
   no: "No DM Phone",
 };
-import type { DialerFilterOptions } from "@/hooks/useContacts";
-import { toast } from "sonner";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 const loadDialpadSyncPanel = () =>
@@ -174,6 +174,37 @@ function mergeFollowUpNotes(existingNotes: string, draft: string) {
   return `${existing}\n${existing.endsWith("\n") ? "" : "\n"}${missingLines.join("\n")}`;
 }
 
+const DIALER_FILTERS_STORAGE_KEY = "dialer:advanced-filters:v1";
+
+type StoredDialerFilters = {
+  industries?: string[];
+  states?: string[];
+  contactOwner?: string;
+  tradeTypes?: string[];
+  workType?: string;
+  businessSize?: string;
+  prospectTier?: string;
+  minGbpRating?: number | null;
+  minReviewCount?: number | null;
+  hasGoogleAds?: string;
+  hasFacebookAds?: string;
+  buyingSignalStrength?: string;
+  phoneType?: string;
+  hasDmPhone?: string;
+  showAdvancedFilters?: boolean;
+};
+
+function readStoredDialerFilters(): StoredDialerFilters | null {
+  try {
+    const raw = window.localStorage.getItem(DIALER_FILTERS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed as StoredDialerFilters : null;
+  } catch {
+    return null;
+  }
+}
+
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
   <div ref={ref} className="rounded-lg border border-border bg-card p-4">
     <div className="space-y-3">
@@ -185,10 +216,11 @@ const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height 
 PanelSkeleton.displayName = "PanelSkeleton";
 
 export default function DialerPage() {
+  const storedFilters = useMemo(() => readStoredDialerFilters(), []);
   const isOnline = useNetworkStatus();
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [contactOwner, setContactOwner] = useState<string>("all");
+  const [industries, setIndustries] = useState<string[]>(() => storedFilters?.industries ?? []);
+  const [states, setStates] = useState<string[]>(() => storedFilters?.states ?? []);
+  const [contactOwner, setContactOwner] = useState<string>(() => storedFilters?.contactOwner ?? "all");
   const [manualPhone, setManualPhone] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedCallerId, setSelectedCallerId] = useState<string>("");
@@ -196,24 +228,24 @@ export default function DialerPage() {
   const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
 
   // Dialpad CTI Client ID from environment variable
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
 
   // Advanced dialer filters
-  const [tradeTypes, setTradeTypes] = useState<string[]>([]);
-  const [workType, setWorkType] = useState<string>("all");
-  const [businessSize, setBusinessSize] = useState<string>("all");
-  const [prospectTier, setProspectTier] = useState<string>("all");
-  const [minGbpRating, setMinGbpRating] = useState<number | null>(null);
-  const [minReviewCount, setMinReviewCount] = useState<number | null>(null);
-  const [hasGoogleAds, setHasGoogleAds] = useState<string>("all");
-  const [hasFacebookAds, setHasFacebookAds] = useState<string>("all");
-  const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>("all");
-  const [phoneType, setPhoneType] = useState<string>("all");
-  const [hasDmPhone, setHasDmPhone] = useState<string>("all");
+  const [tradeTypes, setTradeTypes] = useState<string[]>(() => storedFilters?.tradeTypes ?? []);
+  const [workType, setWorkType] = useState<string>(() => storedFilters?.workType ?? "all");
+  const [businessSize, setBusinessSize] = useState<string>(() => storedFilters?.businessSize ?? "all");
+  const [prospectTier, setProspectTier] = useState<string>(() => storedFilters?.prospectTier ?? "all");
+  const [minGbpRating, setMinGbpRating] = useState<number | null>(() => storedFilters?.minGbpRating ?? null);
+  const [minReviewCount, setMinReviewCount] = useState<number | null>(() => storedFilters?.minReviewCount ?? null);
+  const [hasGoogleAds, setHasGoogleAds] = useState<string>(() => storedFilters?.hasGoogleAds ?? "all");
+  const [hasFacebookAds, setHasFacebookAds] = useState<string>(() => storedFilters?.hasFacebookAds ?? "all");
+  const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
+  const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
+  const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -267,6 +299,49 @@ export default function DialerPage() {
     setPhoneType("all");
     setHasDmPhone("all");
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        DIALER_FILTERS_STORAGE_KEY,
+        JSON.stringify({
+          industries,
+          states,
+          contactOwner,
+          tradeTypes,
+          workType,
+          businessSize,
+          prospectTier,
+          minGbpRating,
+          minReviewCount,
+          hasGoogleAds,
+          hasFacebookAds,
+          buyingSignalStrength,
+          phoneType,
+          hasDmPhone,
+          showAdvancedFilters,
+        } satisfies StoredDialerFilters),
+      );
+    } catch {
+      // localStorage unavailable
+    }
+  }, [
+    industries,
+    states,
+    contactOwner,
+    tradeTypes,
+    workType,
+    businessSize,
+    prospectTier,
+    minGbpRating,
+    minReviewCount,
+    hasGoogleAds,
+    hasFacebookAds,
+    buyingSignalStrength,
+    phoneType,
+    hasDmPhone,
+    showAdvancedFilters,
+  ]);
 
   const session = useDialerSession({ filters: advancedFilters });
   const dialpad = useDialerDialpad({
@@ -475,9 +550,9 @@ export default function DialerPage() {
       workType !== "all" ? { key: "workType", label: `Work: ${WORK_TYPES.find((item) => item.value === workType)?.label ?? workType}`, clear: () => setWorkType("all") } : null,
       businessSize !== "all" ? { key: "businessSize", label: `Business: ${BUSINESS_SIZES.find((item) => item.value === businessSize)?.label ?? businessSize}`, clear: () => setBusinessSize("all") } : null,
       prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${PROSPECT_TIERS.find((item) => item.value === prospectTier)?.label ?? prospectTier}`, clear: () => setProspectTier("all") } : null,
-      hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasGoogleAds)?.label ?? hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
-      hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${AD_STATUS_OPTIONS.find((item) => item.value === hasFacebookAds)?.label ?? hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
-      buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${BUYING_SIGNAL_OPTIONS.find((item) => item.value === buyingSignalStrength)?.label ?? buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
+      hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
+      hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
+      buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
       phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
       hasDmPhone !== "all" ? { key: "hasDmPhone", label: `Decision maker: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
