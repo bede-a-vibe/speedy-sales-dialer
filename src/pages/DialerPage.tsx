@@ -2288,7 +2288,6 @@ export default function DialerPage() {
             </div>
           </>
         ) : (
-                      <SelectContent>
                         {salesReps.map((rep) => (
                           <SelectItem key={rep.user_id} value={rep.user_id}>
                             {getRepLabel(rep.display_name, rep.email)}
