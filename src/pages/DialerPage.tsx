@@ -2286,10 +2286,7 @@ export default function DialerPage() {
                 </div>
               </div>
             </div>
-                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-                  <div>
-                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      Assigned Sales Rep
+          <>
                     </label>
                     <Select value={session.assignedRepId} onValueChange={session.setAssignedRepId}>
                       <SelectTrigger className="w-full border-border bg-background">
