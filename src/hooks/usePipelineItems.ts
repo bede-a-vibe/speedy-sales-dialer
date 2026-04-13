@@ -116,9 +116,6 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_notes,
           deal_value,
           follow_up_method,
-          ghl_opportunity_id,
-          ghl_pipeline_id,
-          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -187,9 +184,6 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_notes,
           deal_value,
           follow_up_method,
-          ghl_opportunity_id,
-          ghl_pipeline_id,
-          ghl_stage_id,
           reschedule_count,
           created_at,
           updated_at,
@@ -258,8 +252,10 @@ export function useCreatePipelineItem() {
         .insert({
           notes: "",
           status: "open",
-          ...payload,
-        })
+          ...Object.fromEntries(
+            Object.entries(payload).filter(([k]) => !["ghl_opportunity_id", "ghl_pipeline_id", "ghl_stage_id"].includes(k))
+          ),
+        } as any)
         .select("id")
         .single();
 
@@ -281,7 +277,8 @@ export function useUpdatePipelineItem() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: PipelineItemUpdate) => {
-      const { error } = await supabase.from("pipeline_items").update(updates).eq("id", id);
+      const { ghl_opportunity_id, ghl_pipeline_id, ghl_stage_id, ...dbUpdates } = updates as any;
+      const { error } = await supabase.from("pipeline_items").update(dbUpdates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
