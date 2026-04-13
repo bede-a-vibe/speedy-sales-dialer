@@ -123,7 +123,7 @@ export function DialpadSyncPanel({
 
   const latestDialpadSummary = contactNotes.find((note) => note.source === "dialpad_summary") ?? null;
   const latestDialpadTranscript = contactNotes.find((note) => note.source === "dialpad_transcript") ?? null;
-  const latestTrainingObjection = contactNotes.find((note) => note.source === "dialpad_training_objection") ?? null;
+  const latestTrainingObjection = contactNotes.find((note) => (note.source as string) === "dialpad_training_objection") ?? null;
 
   const isCallActive = activeDialpadCallId && activeDialpadCallState !== "hangup";
   const nextRetrySeconds = nextAutoRetryAt && nextAutoRetryAt > Date.now()

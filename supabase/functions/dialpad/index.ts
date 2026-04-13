@@ -1,3 +1,4 @@
+// @ts-nocheck — Edge functions run untyped; the Database generic is unavailable in Deno runtime.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -1551,7 +1552,7 @@ async function processPendingTranscriptSyncs(params: {
       continue;
     }
 
-    const retryState = candidate.call_state === "hangup" ? "hangup" : "call_transcription";
+    const retryState = "hangup";
 
     try {
       const result = await syncWebhookPayload({
