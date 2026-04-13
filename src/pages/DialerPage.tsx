@@ -1885,6 +1885,312 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+              {/* Call Outcome — top of right column for speed */}
+              <div className="rounded-lg border border-border bg-card p-4">
+                <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Call Outcome <span className="text-primary">(required)</span>
+                </label>
+                <div className="space-y-2">
+                  {outcomes.map((outcome) => {
+                    const isSelected = session.selectedOutcome === outcome;
+                    const canFastLogThisOutcome = canSubmit && isFastLogOutcome(outcome);
+
+                    return (
+                      <OutcomeButton
+                        key={outcome}
+                        outcome={outcome}
+                        label={outcome === "booked" ? "Book" : undefined}
+                        selected={isSelected}
+                        hint={isSelected && canFastLogThisOutcome ? "Click again to save" : undefined}
+                        onClick={(nextOutcome) => {
+                          if (session.selectedOutcome === nextOutcome && canFastLogThisOutcome) {
+                            void logAndNext(nextOutcome);
+                            return;
+                          }
+                          session.setSelectedOutcome(nextOutcome);
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {requiresPipelineAssignment && (
+                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Assigned Sales Rep
+                    </label>
+                    <Select value={session.assignedRepId} onValueChange={session.setAssignedRepId}>
+                      <SelectTrigger className="w-full border-border bg-background">
+                        <SelectValue placeholder="Choose a sales rep" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {salesReps.map((rep) => (
+                          <SelectItem key={rep.user_id} value={rep.user_id}>
+                            {getRepLabel(rep.display_name, rep.email)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <UserRound className="h-3 w-3" />
+                      {session.assignedRepId
+                        ? getRepLabel(salesReps.find((r) => r.user_id === session.assignedRepId)?.display_name || null, salesReps.find((r) => r.user_id === session.assignedRepId)?.email || null)
+                        : "No rep selected"}
+                    </div>
+                  </div>
+
+                  {requiresFollowUpSchedule && (
+                    <div>
+                      <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                        Follow-up Schedule
+                      </label>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
+                          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("in_2_hours")}>In 2 hours</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
+                          <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("next_business_day_9")}>Next business day 9:00</Button>
+                        </div>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {session.followUpDate ? format(session.followUpDate, "PPP") : "Pick a date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={session.followUpDate} onSelect={session.setFollowUpDate} disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))} initialFocus className="pointer-events-auto p-3" />
+                          </PopoverContent>
+                        </Popover>
+                        <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
+                      </div>
+                    </div>
+                  )}
+
+                  {requiresBookedSchedule && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Appointment Date & Time <span className="text-primary">(required)</span>
+                        </label>
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => session.setFollowUpDate(new Date())}>Today</Button>
+                            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("next_business_day_9")}>Next business day 9:00</Button>
+                          </div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className={cn("w-full justify-start border-border bg-background text-left font-normal", !session.followUpDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {session.followUpDate ? format(session.followUpDate, "PPP") : "Pick appointment date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={session.followUpDate}
+                                onSelect={session.setFollowUpDate}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                initialFocus
+                                className="pointer-events-auto p-3"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
+                          {session.followUpDate && session.followUpTime && (
+                            <p className="text-xs text-muted-foreground">
+                              Appointment will be logged for {format(combineDateAndTime(session.followUpDate, session.followUpTime), "PPP p")}.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* GHL Calendar selector */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          GHL Calendar <span className="text-primary">(required)</span>
+                        </label>
+                        <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
+                          <SelectTrigger className="w-full border-border bg-background">
+                            <SelectValue placeholder="Select GHL calendar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ghlCalendars.map((cal) => (
+                              <SelectItem key={cal.id} value={cal.id}>{cal.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* GHL Pipeline selector */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          GHL Pipeline <span className="text-primary">(required)</span>
+                        </label>
+                        <Select value={ghlPipelineId} onValueChange={setGhlPipelineId}>
+                          <SelectTrigger className="w-full border-border bg-background">
+                            <SelectValue placeholder="Select pipeline" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ghlPipelines.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* GHL Stage selector */}
+                      {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
+                        <div>
+                          <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                            Pipeline Stage <span className="text-primary">(required)</span>
+                          </label>
+                          <Select value={ghlStageId} onValueChange={setGhlStageId}>
+                            <SelectTrigger className="w-full border-border bg-background">
+                              <SelectValue placeholder="Select stage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ghlSelectedPipelineStages.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                        <p className="text-xs text-destructive">
+                          No stages were found for the selected GHL pipeline. Pick a different pipeline before logging a booked outcome.
+                        </p>
+                      )}
+
+                    </div>
+                  )}
+
+                  <div className="rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs">
+                    <p className="font-medium text-foreground">
+                      {session.selectedOutcome === "booked" ? "GHL booked pipeline destination" : "GHL follow-up pipeline destination"}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {session.selectedOutcome === "booked"
+                        ? `Calendar: ${selectedGhlCalendar?.name ?? "Not selected yet"}`
+                        : `Follow-up task: ${followUpMethod} for ${session.assignedRepId
+                            ? getRepLabel(
+                                salesReps.find((rep) => rep.user_id === session.assignedRepId)?.display_name ?? null,
+                                salesReps.find((rep) => rep.user_id === session.assignedRepId)?.email ?? null,
+                              )
+                            : "assigned rep"}`}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Opportunity: {selectedOpportunityPipeline?.name ?? (session.selectedOutcome === "follow_up" ? "Default follow-up pipeline" : "No pipeline selected")}
+                      {selectedOpportunityStage
+                        ? ` → ${selectedOpportunityStage.name}`
+                        : session.selectedOutcome === "follow_up"
+                          ? " → Default follow-up stage"
+                          : ghlPipelineId
+                            ? " → No stage selected"
+                            : ""}
+                    </p>
+                    {session.selectedOutcome === "follow_up" && !selectedOpportunityPipeline && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-300">
+                        The app will still use the configured default GHL follow-up pipeline IDs even if the names have not loaded yet.
+                      </p>
+                    )}
+                    {requiresBookedSchedule && ghlPipelineId && ghlSelectedPipelineStages.length === 0 && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-300">
+                        This pipeline has no stages. Pick a different pipeline before logging a booked outcome.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {session.selectedOutcome === "follow_up" && (
+                <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Follow-up Type
+                    </label>
+                    <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} allowedMethods={["call", "email"]} />
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-background/80 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Follow-up note prep</p>
+                        <p className="text-sm text-foreground">Use the shared notes panel above to capture the exact callback brief.</p>
+                      </div>
+                      {followUpNoteDraft && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => session.setNotes(mergeFollowUpNotes(session.notes, followUpNoteDraft))}
+                        >
+                          Top up from callback intel
+                        </Button>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Reps can now see prior synced notes and recent call outcomes while writing the next-step brief, so follow-ups stay grounded in the latest contact history.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Log & Skip actions */}
+              <div className="space-y-2">
+                <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
+                  {createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  {primaryActionLabel}
+                  <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-mono opacity-70">Enter</kbd>
+                </Button>
+                {!canSubmit && submitReadinessItems.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+                    <p className="font-medium">Before you can continue:</p>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {submitReadinessItems.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {canSubmit && session.selectedOutcome && (
+                  <p className="text-xs text-muted-foreground">
+                    Ready to save <span className="font-medium text-foreground">{primaryActionLabel}</span> for this lead.
+                  </p>
+                )}
+                <Button variant="outline" onClick={skipLead} disabled={!isOnline} className="w-full border-border text-muted-foreground hover:text-foreground">
+                  <SkipForward className="mr-2 h-4 w-4" />
+                  Skip Lead
+                  <kbd className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono opacity-70">S</kbd>
+                </Button>
+              </div>
+
+              {/* Notes */}
+              <ContactNotesPanel
+                contactId={session.currentContact.id}
+                notes={session.notes}
+                onNotesChange={session.setNotes}
+                enabled={session.isSessionActive}
+              />
+
+              {/* Dialpad Sync — lower priority, moved below actions */}
               <Suspense fallback={<PanelSkeleton height="h-36" />}>
                 <DialpadSyncPanel
                   contactId={session.currentContact.id}
@@ -1905,6 +2211,7 @@ export default function DialerPage() {
                 />
               </Suspense>
 
+              {/* Queue intel panels */}
               <div className="rounded-lg border border-border bg-card p-4">
                 <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
                   <div className="rounded-md border border-border bg-background px-3 py-3">
@@ -1978,45 +2285,7 @@ export default function DialerPage() {
                   </div>
                 </div>
               </div>
-
-              <ContactNotesPanel
-                contactId={session.currentContact.id}
-                notes={session.notes}
-                onNotesChange={session.setNotes}
-                enabled={session.isSessionActive}
-              />
-
-              <div className="rounded-lg border border-border bg-card p-4">
-                <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Call Outcome <span className="text-primary">(required)</span>
-                </label>
-                <div className="space-y-2">
-                  {outcomes.map((outcome) => {
-                    const isSelected = session.selectedOutcome === outcome;
-                    const canFastLogThisOutcome = canSubmit && isFastLogOutcome(outcome);
-
-                    return (
-                      <OutcomeButton
-                        key={outcome}
-                        outcome={outcome}
-                        label={outcome === "booked" ? "Book" : undefined}
-                        selected={isSelected}
-                        hint={isSelected && canFastLogThisOutcome ? "Click again to save" : undefined}
-                        onClick={(nextOutcome) => {
-                          if (session.selectedOutcome === nextOutcome && canFastLogThisOutcome) {
-                            void logAndNext(nextOutcome);
-                            return;
-                          }
-
-                          session.setSelectedOutcome(nextOutcome);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {requiresPipelineAssignment && (
+            </div>
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
                   <div>
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
