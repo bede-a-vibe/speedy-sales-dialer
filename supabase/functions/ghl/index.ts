@@ -1,5 +1,31 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveGhlOpportunityTarget } from "../../../src/shared/ghlPipelineContract.ts";
+
+// Inlined from src/shared/ghlPipelineContract.ts to avoid cross-boundary import
+type GhlPipelineType = "follow_up" | "booked";
+
+const GHL_PIPELINE_DEFAULTS = {
+  follow_up: {
+    pipelineId: "QuBn7UX5zebPTd4fqW9x",
+    stageId: "5102204c-7b00-48f9-94fb-70ca529841b9",
+  },
+} as const;
+
+function resolveGhlOpportunityTarget(params: {
+  pipelineType: GhlPipelineType;
+  pipelineId?: string | null;
+  pipelineStageId?: string | null;
+}): { pipelineId?: string; pipelineStageId?: string } {
+  if (params.pipelineType === "follow_up") {
+    return {
+      pipelineId: params.pipelineId || GHL_PIPELINE_DEFAULTS.follow_up.pipelineId,
+      pipelineStageId: params.pipelineStageId || GHL_PIPELINE_DEFAULTS.follow_up.stageId,
+    };
+  }
+  return {
+    pipelineId: params.pipelineId || undefined,
+    pipelineStageId: params.pipelineStageId || undefined,
+  };
+}
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
 const GHL_VERSION = "2021-07-28";
