@@ -1820,79 +1820,6 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Current lead</p>
-                    <h2 className="text-lg font-semibold text-foreground">{session.currentContact.business_name}</h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {quickFacts.map((fact) => (
-                        <Badge key={fact} variant="outline" className="text-xs">
-                          {fact}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[250px]">
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <div className="text-muted-foreground">Live buffer position</div>
-                      <div className="font-mono text-foreground">{liveBufferPosition ? `${liveBufferPosition.position} / ${liveBufferPosition.total}` : "-"}</div>
-                      {liveBufferPosition && (
-                        <div className="mt-1 text-[10px] text-muted-foreground">
-                          {liveBufferPosition.visibleInScope} visible in queue scope
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <div className="text-muted-foreground">Session pace</div>
-                      <div className="font-mono text-foreground">{session.totalDialingMs > 60000 ? `${Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}/hr` : "Warming up"}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Primary route</p>
-                        <p className="text-sm font-medium text-foreground">{currentLeadActionPlan?.headline ?? "Lead guidance unavailable."}</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {currentLeadActionPlan?.outstandingCount ?? 0} open
-                      </Badge>
-                    </div>
-                    {currentLeadActionPlan?.detail ? (
-                      <p className="mt-2 text-sm text-muted-foreground">{currentLeadActionPlan.detail}</p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <a href={`tel:${session.currentContact.phone}`} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <span className="truncate font-mono">{session.currentContact.phone}</span>
-                  </a>
-                  <a href={session.currentContact.website || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Globe className="h-4 w-4 text-primary" />
-                    <span className="truncate">{session.currentContact.website ? "Open website" : "No website"}</span>
-                  </a>
-                  <a href={session.currentContact.email ? `mailto:${session.currentContact.email}` : "#"} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span className="truncate">{session.currentContact.email || "No email"}</span>
-                  </a>
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="truncate">{[session.currentContact.city, session.currentContact.state].filter(Boolean).join(", ") || "Location unknown"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {session.isSessionPaused && (
-                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                  Session paused — this lead is held in your queue and no new call will start until you resume.
-                </div>
-              )}
-
               <ContactCard
                 contact={session.currentContact}
                 onMarkPhoneQuality={(quality) => {
@@ -1902,6 +1829,12 @@ export default function DialerPage() {
                   }).catch(() => {});
                 }}
               />
+
+              {session.isSessionPaused && (
+                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                  Session paused — this lead is held in your queue and no new call will start until you resume.
+                </div>
+              )}
 
               <DecisionMakerCapture
                 contactId={session.currentContact.id}
@@ -1952,107 +1885,7 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
-              <Suspense fallback={<PanelSkeleton height="h-36" />}>
-                <DialpadSyncPanel
-                  contactId={session.currentContact.id}
-                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
-                  activeDialpadCallState={dialpad.activeDialpadCallState}
-                  onCancelCall={dialpad.cancelActiveCall}
-                  onRetryLink={dialpad.retryDialpadCallLink}
-                  isCancelling={dialpad.cancelDialpadCall.isPending}
-                  isStatusPending={dialpad.isDialpadCallStatusPending}
-                  isEndingCall={dialpad.isEndingCall}
-                  isResolving={dialpad.isCallResolving}
-                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
-                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
-                  callStartedAt={dialpad.callStartedAt}
-                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
-                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
-                  enabled
-                />
-              </Suspense>
-
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
-                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
-                        <p className="text-sm text-foreground">Next claimed lead in your buffer.</p>
-                      </div>
-                    </div>
-                    {session.nextContact ? (
-                      <>
-                        <div className="mt-2 flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
-                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
-                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
-                          </Badge>
-                        </div>
-                        {nextLeadFacts.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {nextLeadFacts.map((fact) => (
-                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="mt-2 text-sm text-muted-foreground">No next lead loaded yet.</p>
-                    )}
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Enrichment queue</p>
-                        <p className="text-sm text-foreground">Capture what is missing before requeue.</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {enrichmentQueueStats.enrichedShare}% ready direct
-                      </Badge>
-                    </div>
-                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>Direct DM phone captured</span>
-                        <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
-                      </div>
-                      <Progress value={enrichmentQueueStats.enrichedShare} className="h-2" />
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} need DM phone</Badge>
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} missing notes</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <ContactNotesPanel
-                contactId={session.currentContact.id}
-                notes={session.notes}
-                onNotesChange={session.setNotes}
-                enabled={session.isSessionActive}
-              />
-
+              {/* Call Outcome — top of right column for speed */}
               <div className="rounded-lg border border-border bg-card p-4">
                 <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Call Outcome <span className="text-primary">(required)</span>
@@ -2074,7 +1907,6 @@ export default function DialerPage() {
                             void logAndNext(nextOutcome);
                             return;
                           }
-
                           session.setSelectedOutcome(nextOutcome);
                         }}
                       />
@@ -2316,6 +2148,7 @@ export default function DialerPage() {
                 </div>
               )}
 
+              {/* Log & Skip actions */}
               <div className="space-y-2">
                 <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
                   {createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending
@@ -2348,7 +2181,110 @@ export default function DialerPage() {
                   <kbd className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono opacity-70">S</kbd>
                 </Button>
               </div>
-            </div>
+
+              {/* Notes */}
+              <ContactNotesPanel
+                contactId={session.currentContact.id}
+                notes={session.notes}
+                onNotesChange={session.setNotes}
+                enabled={session.isSessionActive}
+              />
+
+              {/* Dialpad Sync — lower priority, moved below actions */}
+              <Suspense fallback={<PanelSkeleton height="h-36" />}>
+                <DialpadSyncPanel
+                  contactId={session.currentContact.id}
+                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
+                  activeDialpadCallState={dialpad.activeDialpadCallState}
+                  onCancelCall={dialpad.cancelActiveCall}
+                  onRetryLink={dialpad.retryDialpadCallLink}
+                  isCancelling={dialpad.cancelDialpadCall.isPending}
+                  isStatusPending={dialpad.isDialpadCallStatusPending}
+                  isEndingCall={dialpad.isEndingCall}
+                  isResolving={dialpad.isCallResolving}
+                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
+                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
+                  callStartedAt={dialpad.callStartedAt}
+                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
+                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
+                  enabled
+                />
+              </Suspense>
+
+              {/* Queue intel panels */}
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
+                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
+                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
+                        <p className="text-sm text-foreground">Next claimed lead in your buffer.</p>
+                      </div>
+                    </div>
+                    {session.nextContact ? (
+                      <>
+                        <div className="mt-2 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
+                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
+                          </Badge>
+                        </div>
+                        {nextLeadFacts.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {nextLeadFacts.map((fact) => (
+                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No next lead loaded yet.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Enrichment queue</p>
+                        <p className="text-sm text-foreground">Capture what is missing before requeue.</p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {enrichmentQueueStats.enrichedShare}% ready direct
+                      </Badge>
+                    </div>
+                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Direct DM phone captured</span>
+                        <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
+                      </div>
+                      <Progress value={enrichmentQueueStats.enrichedShare} className="h-2" />
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} need DM phone</Badge>
+                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} missing notes</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </>
         ) : (
