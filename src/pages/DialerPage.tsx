@@ -1396,7 +1396,6 @@ export default function DialerPage() {
             variant={showAdvancedFilters ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            disabled={session.isSessionActive}
             className="relative gap-1.5"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
