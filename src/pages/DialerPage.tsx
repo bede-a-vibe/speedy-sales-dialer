@@ -1820,79 +1820,6 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Current lead</p>
-                    <h2 className="text-lg font-semibold text-foreground">{session.currentContact.business_name}</h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {quickFacts.map((fact) => (
-                        <Badge key={fact} variant="outline" className="text-xs">
-                          {fact}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[250px]">
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <div className="text-muted-foreground">Live buffer position</div>
-                      <div className="font-mono text-foreground">{liveBufferPosition ? `${liveBufferPosition.position} / ${liveBufferPosition.total}` : "-"}</div>
-                      {liveBufferPosition && (
-                        <div className="mt-1 text-[10px] text-muted-foreground">
-                          {liveBufferPosition.visibleInScope} visible in queue scope
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-md border border-border bg-background px-3 py-2">
-                      <div className="text-muted-foreground">Session pace</div>
-                      <div className="font-mono text-foreground">{session.totalDialingMs > 60000 ? `${Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}/hr` : "Warming up"}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Primary route</p>
-                        <p className="text-sm font-medium text-foreground">{currentLeadActionPlan?.headline ?? "Lead guidance unavailable."}</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {currentLeadActionPlan?.outstandingCount ?? 0} open
-                      </Badge>
-                    </div>
-                    {currentLeadActionPlan?.detail ? (
-                      <p className="mt-2 text-sm text-muted-foreground">{currentLeadActionPlan.detail}</p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <a href={`tel:${session.currentContact.phone}`} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <span className="truncate font-mono">{session.currentContact.phone}</span>
-                  </a>
-                  <a href={session.currentContact.website || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Globe className="h-4 w-4 text-primary" />
-                    <span className="truncate">{session.currentContact.website ? "Open website" : "No website"}</span>
-                  </a>
-                  <a href={session.currentContact.email ? `mailto:${session.currentContact.email}` : "#"} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span className="truncate">{session.currentContact.email || "No email"}</span>
-                  </a>
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="truncate">{[session.currentContact.city, session.currentContact.state].filter(Boolean).join(", ") || "Location unknown"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {session.isSessionPaused && (
-                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                  Session paused — this lead is held in your queue and no new call will start until you resume.
-                </div>
-              )}
-
               <ContactCard
                 contact={session.currentContact}
                 onMarkPhoneQuality={(quality) => {
@@ -1902,6 +1829,12 @@ export default function DialerPage() {
                   }).catch(() => {});
                 }}
               />
+
+              {session.isSessionPaused && (
+                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                  Session paused — this lead is held in your queue and no new call will start until you resume.
+                </div>
+              )}
 
               <DecisionMakerCapture
                 contactId={session.currentContact.id}
