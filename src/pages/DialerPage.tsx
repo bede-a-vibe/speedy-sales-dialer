@@ -982,7 +982,7 @@ export default function DialerPage() {
               next_followup_date: nextScheduled,
               follow_up_note: contactFollowUpNote || pipelineNotes || "Auto-rescheduled after no answer",
               meeting_booked_date: null,
-              ...(contactAssignedUserId || repId ? {} : {}),
+              
             });
           }
         }
