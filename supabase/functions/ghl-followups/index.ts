@@ -99,6 +99,8 @@ async function fetchDueTasks(apiKey: string, locationId: string, dateIso: string
     return tasks as GhlTask[];
   };
 
+  const fallbackErrors: string[] = [];
+
   // Try common GET endpoint shape first for same-day queries.
   if (scope === "today") {
     const getUrl = new URL(`${GHL_BASE}/tasks`);
@@ -111,6 +113,8 @@ async function fetchDueTasks(apiKey: string, locationId: string, dateIso: string
       const payload = await getRes.json().catch(() => ({}));
       return parseTasks(payload);
     }
+    const details = await getRes.text().catch(() => "");
+    fallbackErrors.push(`GET /tasks failed: ${getRes.status} ${details}`.trim());
   }
 
   // Fallback POST search endpoint, with bounded pagination.
@@ -131,7 +135,8 @@ async function fetchDueTasks(apiKey: string, locationId: string, dateIso: string
 
     if (!postRes.ok) {
       const details = await postRes.text().catch(() => "");
-      throw new Error(`Unable to fetch GHL tasks: ${postRes.status} ${details}`);
+      fallbackErrors.push(`POST /tasks/search failed: ${postRes.status} ${details}`.trim());
+      break;
     }
 
     const payload = await postRes.json().catch(() => ({}));
@@ -140,7 +145,12 @@ async function fetchDueTasks(apiKey: string, locationId: string, dateIso: string
     if (pageTasks.length < pageLimit) break;
   }
 
-  return allTasks;
+  if (allTasks.length > 0) {
+    return allTasks;
+  }
+
+  console.error(`[ghl-followups] Task fetch failed for scope=${scope} date=${dueDate}: ${fallbackErrors.join(" | ")}`);
+  return [];
 }
 
 async function resolveCurrentGhlUserId(apiKey: string, locationId: string, email: string | null) {
