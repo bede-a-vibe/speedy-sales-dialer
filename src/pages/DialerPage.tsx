@@ -2286,9 +2286,8 @@ export default function DialerPage() {
                 </div>
               </div>
             </div>
-            </div>
-          <>
-                      </SelectTrigger>
+          </>
+        ) : (
                       <SelectContent>
                         {salesReps.map((rep) => (
                           <SelectItem key={rep.user_id} value={rep.user_id}>
