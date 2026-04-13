@@ -509,7 +509,7 @@ export default function DialerPage() {
     };
   }, [queueLeadCount, session.isSessionActive, session.queue]);
 
-  const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9") => {
+  const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9" | "in_1_month" | "in_3_months") => {
     const now = new Date();
 
     if (preset === "in_2_hours") {
@@ -532,6 +532,22 @@ export default function DialerPage() {
       next.setDate(next.getDate() + 1);
       session.setFollowUpDate(next);
       session.setFollowUpTime("14:00");
+      return;
+    }
+
+    if (preset === "in_1_month") {
+      const next = new Date(now);
+      next.setMonth(next.getMonth() + 1);
+      session.setFollowUpDate(next);
+      session.setFollowUpTime("09:00");
+      return;
+    }
+
+    if (preset === "in_3_months") {
+      const next = new Date(now);
+      next.setMonth(next.getMonth() + 3);
+      session.setFollowUpDate(next);
+      session.setFollowUpTime("09:00");
       return;
     }
 
