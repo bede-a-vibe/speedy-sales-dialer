@@ -1771,6 +1771,12 @@ export default function DialerPage() {
                 ))}
               </div>
             </div>
+
+            {/* Power Hour Timer — Fanatical Prospecting */}
+            <PowerHourTimer
+              sessionCallCount={session.callCount}
+              isSessionActive={session.isSessionActive}
+            />
           </div>
         )}
 
@@ -1869,11 +1875,6 @@ export default function DialerPage() {
                 existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
               />
 
-              {/* Power Hour Timer — Fanatical Prospecting */}
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-              />
 
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
               <SalesToolkit
