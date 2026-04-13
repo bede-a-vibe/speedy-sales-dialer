@@ -2287,8 +2287,6 @@ export default function DialerPage() {
               </div>
             </div>
           <>
-                    </label>
-                    <Select value={session.assignedRepId} onValueChange={session.setAssignedRepId}>
                       <SelectTrigger className="w-full border-border bg-background">
                         <SelectValue placeholder="Choose a sales rep" />
                       </SelectTrigger>
