@@ -2286,9 +2286,8 @@ export default function DialerPage() {
                 </div>
               </div>
             </div>
+            </div>
           <>
-                      <SelectTrigger className="w-full border-border bg-background">
-                        <SelectValue placeholder="Choose a sales rep" />
                       </SelectTrigger>
                       <SelectContent>
                         {salesReps.map((rep) => (
