@@ -2286,6 +2286,7 @@ export default function DialerPage() {
                 </div>
               </div>
             </div>
+          </div>
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
