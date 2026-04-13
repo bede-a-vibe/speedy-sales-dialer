@@ -2006,6 +2006,8 @@ export default function DialerPage() {
                             <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
                             <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
                             <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("next_business_day_9")}>Next business day 9:00</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("in_1_month")}>In 1 month</Button>
+                            <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("in_3_months")}>In 3 months</Button>
                           </div>
                           <Popover>
                             <PopoverTrigger asChild>
