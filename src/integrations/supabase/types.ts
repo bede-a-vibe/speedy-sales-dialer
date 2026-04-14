@@ -125,6 +125,7 @@ export type Database = {
           contact_person: string | null
           created_at: string
           dm_email: string | null
+          dm_linkedin: string | null
           dm_name: string | null
           dm_phone: string | null
           dm_phone_type: string | null
@@ -132,6 +133,7 @@ export type Database = {
           email: string | null
           follow_up_note: string | null
           gatekeeper_name: string | null
+          gatekeeper_notes: string | null
           gbp_rating: number | null
           ghl_contact_id: string | null
           gmb_link: string | null
@@ -180,6 +182,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           dm_email?: string | null
+          dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
           dm_phone_type?: string | null
@@ -187,6 +190,7 @@ export type Database = {
           email?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
+          gatekeeper_notes?: string | null
           gbp_rating?: number | null
           ghl_contact_id?: string | null
           gmb_link?: string | null
@@ -235,6 +239,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           dm_email?: string | null
+          dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
           dm_phone_type?: string | null
@@ -242,6 +247,7 @@ export type Database = {
           email?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
+          gatekeeper_notes?: string | null
           gbp_rating?: number | null
           ghl_contact_id?: string | null
           gmb_link?: string | null
