@@ -230,7 +230,7 @@ export function DecisionMakerCapture({
 
       const { error } = await supabase
         .from("contacts")
-        .update(updates as any)
+        .update(updates)
         .eq("id", contactId);
 
       if (error) throw error;
