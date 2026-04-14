@@ -217,11 +217,12 @@ export function DecisionMakerCapture({
     try {
       let ghlSyncFailed = false;
       let ghlSyncErrorMessage = "";
-      const updates: Record<string, string | null> = {
+      const updates = {
         dm_name: nextDmName || null,
         dm_role: dmTitle || null,
         dm_phone: nextDmPhone || null,
         dm_email: nextDmEmail || null,
+        dm_linkedin: nextDmLinkedin || null,
         gatekeeper_name: nextGatekeeperName || null,
         gatekeeper_notes: nextGatekeeperNotes || null,
         best_route_to_decision_maker: bestRoute || null,
@@ -230,7 +231,7 @@ export function DecisionMakerCapture({
 
       const { error } = await supabase
         .from("contacts")
-        .update(updates as any)
+        .update(updates)
         .eq("id", contactId);
 
       if (error) throw error;
