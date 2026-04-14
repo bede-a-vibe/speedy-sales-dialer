@@ -12,8 +12,6 @@ export type ContactLifecycleStatus =
   | "called"
   | "follow_up"
   | "booked"
-  | "closed"
-  | "not_interested"
   | "dnc";
 
 export const DEFAULT_MANUAL_FOLLOW_UP_DELAY_DAYS = 2;
@@ -50,7 +48,7 @@ const CALL_OUTCOME_MAP: Record<CallOutcome, {
     ghlLabel: CALL_OUTCOME_LABELS.voicemail,
   },
   not_interested: {
-    contactStatus: "not_interested",
+    contactStatus: "called",
     pipelineType: null,
     ghlLabel: CALL_OUTCOME_LABELS.not_interested,
   },
