@@ -368,6 +368,10 @@ export default function DialerPage() {
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
+  const { data: freeSlots = [], isLoading: isLoadingSlots } = useGHLFreeSlots(
+    ghlCalendarId || undefined,
+    session.followUpDate,
+  );
 
   const followUpNoteDraft = useMemo(
     () => buildFollowUpNoteDraft(session.currentContact as Record<string, unknown> | null | undefined),
