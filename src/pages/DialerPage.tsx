@@ -31,6 +31,7 @@ import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
+import { useGHLFreeSlots } from "@/hooks/useGHLFreeSlots";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
@@ -230,6 +231,7 @@ export default function DialerPage() {
   const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
+  const [appointmentTitle, setAppointmentTitle] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
