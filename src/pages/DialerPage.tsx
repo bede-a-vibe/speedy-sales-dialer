@@ -2023,6 +2023,19 @@ export default function DialerPage() {
 
                   {requiresBookedSchedule && (
                     <div className="space-y-4">
+                      {/* Appointment Title */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Appointment Title
+                        </label>
+                        <Input
+                          value={appointmentTitle}
+                          onChange={(e) => setAppointmentTitle(e.target.value)}
+                          placeholder="(eg) Appointment with Contact Name"
+                          className="border-border bg-background"
+                        />
+                      </div>
+
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                           Appointment Date & Time <span className="text-primary">(required)</span>
@@ -2057,7 +2070,50 @@ export default function DialerPage() {
                               />
                             </PopoverContent>
                           </Popover>
-                          <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
+
+                          {/* Slot picker — fetches available GHL calendar slots */}
+                          {ghlCalendarId && session.followUpDate ? (
+                            isLoadingSlots ? (
+                              <Skeleton className="h-10 w-full" />
+                            ) : freeSlots.length > 0 ? (
+                              <Select
+                                value={session.followUpTime}
+                                onValueChange={(slotStartIso) => {
+                                  // The value is the ISO start time — extract HH:mm for followUpTime
+                                  const d = new Date(slotStartIso);
+                                  if (!Number.isNaN(d.getTime())) {
+                                    session.setFollowUpTime(formatTimeInputValue(d));
+                                  } else {
+                                    session.setFollowUpTime(slotStartIso);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-full border-border bg-background">
+                                  <SelectValue placeholder="Select an available slot" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {freeSlots.map((slot) => (
+                                    <SelectItem key={slot.startTime} value={slot.startTime}>
+                                      {slot.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                                No available slots for this date. Try a different day or use a manual time below.
+                              </div>
+                            )
+                          ) : null}
+
+                          {/* Fallback manual time input — always available */}
+                          <Input
+                            type="time"
+                            value={session.followUpTime}
+                            onChange={(e) => session.setFollowUpTime(e.target.value)}
+                            className="border-border bg-background"
+                          />
+
                           {session.followUpDate && session.followUpTime && (
                             <p className="text-xs text-muted-foreground">
                               Appointment will be logged for {format(combineDateAndTime(session.followUpDate, session.followUpTime), "PPP p")}.
