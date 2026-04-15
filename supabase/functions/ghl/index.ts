@@ -196,6 +196,29 @@ async function getOpportunity(apiKey: string, opportunityId: string) {
   return ghlFetch(`/opportunities/${opportunityId}`, apiKey);
 }
 
+async function updateOpportunity(
+  apiKey: string,
+  opportunityId: string,
+  body: Record<string, unknown>,
+) {
+  return ghlFetch(`/opportunities/${opportunityId}`, apiKey, {
+    method: "PUT",
+    body,
+  });
+}
+
+async function searchOpportunities(
+  apiKey: string,
+  locationId: string,
+  pipelineId: string,
+  contactId: string,
+) {
+  return ghlFetch("/opportunities/search", apiKey, {
+    method: "GET",
+    params: { location_id: locationId, pipeline_id: pipelineId, contact_id: contactId },
+  });
+}
+
 async function getCalendars(apiKey: string, locationId: string) {
   return ghlFetch("/calendars/", apiKey, {
     params: { locationId },
@@ -945,6 +968,17 @@ Deno.serve(async (req) => {
           dueDate: body.payload.dueDate,
           assignedTo: body.payload.assignedTo,
         });
+        break;
+
+      case "update_opportunity":
+        if (!body.opportunityId) return json({ error: "Missing opportunityId" }, 400);
+        result = await updateOpportunity(GHL_API_KEY, body.opportunityId, body.payload ?? {});
+        break;
+
+      case "search_opportunities":
+        if (!body.pipelineId) return json({ error: "Missing pipelineId" }, 400);
+        if (!body.contactId) return json({ error: "Missing contactId" }, 400);
+        result = await searchOpportunities(GHL_API_KEY, GHL_LOCATION_ID, body.pipelineId, body.contactId);
         break;
 
       default:

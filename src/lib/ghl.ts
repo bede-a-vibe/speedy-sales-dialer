@@ -64,6 +64,18 @@ export async function ghlGetOpportunity(opportunityId: string) {
   return invokeGHL({ action: "get_opportunity", opportunityId });
 }
 
+export async function ghlUpdateOpportunity(opportunityId: string, payload: Record<string, unknown>) {
+  return invokeGHL({ action: "update_opportunity", opportunityId, payload });
+}
+
+export async function ghlSearchOpportunities(pipelineId: string, contactId: string) {
+  return invokeGHL<{ opportunities?: Array<{ id: string; stageId?: string; status?: string; [key: string]: unknown }> }>({
+    action: "search_opportunities",
+    pipelineId,
+    contactId,
+  });
+}
+
 export async function ghlCreateAppointment(payload: Record<string, unknown>) {
   return invokeGHL({ action: "create_appointment", payload });
 }
