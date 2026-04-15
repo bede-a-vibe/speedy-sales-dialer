@@ -140,11 +140,17 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
+  const [appointmentTitle, setAppointmentTitle] = useState("");
 
   const [ghlCalendarId, setGhlCalendarId] = useState("");
   const [ghlPipelineId, setGhlPipelineId] = useState("");
   const [ghlStageId, setGhlStageId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: freeSlots = [], isLoading: isLoadingSlots } = useGHLFreeSlots(
+    ghlCalendarId || undefined,
+    scheduledDate,
+  );
 
   const ghlSelectedPipelineStages = useMemo(
     () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
