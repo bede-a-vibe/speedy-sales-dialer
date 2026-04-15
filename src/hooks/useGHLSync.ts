@@ -46,6 +46,7 @@ interface PushBookingParams {
   pipelineStageId?: string;
   contactName?: string;
   repName?: string;
+  ghlUserId?: string;
 }
 
 interface PushFollowUpParams {
@@ -229,6 +230,7 @@ export function useGHLSync() {
         startTime: scheduledFor,
         title: title ?? "Appointment booked via Dialer",
         notes: notes ?? "",
+        ...(params.ghlUserId ? { assignedUserId: params.ghlUserId } : {}),
       });
 
       const opportunityTarget = resolveGhlOpportunityTarget({

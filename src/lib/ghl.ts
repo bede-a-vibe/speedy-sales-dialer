@@ -84,6 +84,21 @@ export async function ghlGetCalendars() {
   return invokeGHL({ action: "get_calendars" });
 }
 
+export async function ghlGetFreeSlots(
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+  timezone = "Australia/Sydney",
+) {
+  return invokeGHL<Record<string, string[]>>({
+    action: "get_free_slots",
+    calendarId,
+    startDate,
+    endDate,
+    timezone,
+  });
+}
+
 export async function ghlGetPipelines() {
   return invokeGHL({ action: "get_pipelines" });
 }

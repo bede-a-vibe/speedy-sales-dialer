@@ -31,6 +31,7 @@ import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
+import { useGHLFreeSlots } from "@/hooks/useGHLFreeSlots";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
@@ -230,6 +231,7 @@ export default function DialerPage() {
   const [ghlCalendarId, setGhlCalendarId] = useState<string>("");
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
+  const [appointmentTitle, setAppointmentTitle] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
@@ -366,6 +368,10 @@ export default function DialerPage() {
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
+  const { data: freeSlots = [], isLoading: isLoadingSlots } = useGHLFreeSlots(
+    ghlCalendarId || undefined,
+    session.followUpDate,
+  );
 
   const followUpNoteDraft = useMemo(
     () => buildFollowUpNoteDraft(session.currentContact as Record<string, unknown> | null | undefined),
@@ -815,6 +821,11 @@ export default function DialerPage() {
       const next = getNextBusinessDay(new Date());
       session.setFollowUpDate(next);
       session.setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
+      // Auto-populate appointment title with contact name
+      const cName = session.currentContact?.business_name || session.currentContact?.contact_person;
+      if (cName && !appointmentTitle) {
+        setAppointmentTitle(`Appointment with ${cName}`);
+      }
     }
   }, [
     requiresAnySchedule,
@@ -909,6 +920,7 @@ export default function DialerPage() {
     const calendarId = ghlCalendarId;
     const pipelineId = ghlPipelineId;
     const stageId = ghlStageId;
+    const bookingTitle = appointmentTitle;
     const followUpPipelineId = defaultFollowUpPipeline?.id;
     const followUpStageId = defaultFollowUpStage?.id;
     const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
@@ -924,6 +936,7 @@ export default function DialerPage() {
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
     setFollowUpMethod("call");
+    setAppointmentTitle("");
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
@@ -1037,12 +1050,14 @@ export default function DialerPage() {
             contactId,
             calendarId,
             scheduledFor,
+            title: bookingTitle || undefined,
             contactName,
             repName,
             notes: pipelineNotes || undefined,
             pipelineItemId: createdPipelineItem?.id,
             pipelineId: pipelineId || undefined,
             pipelineStageId: stageId || undefined,
+            ghlUserId: myGhlUserId ?? undefined,
           }).catch(() => {});
         }
 
@@ -2008,6 +2023,19 @@ export default function DialerPage() {
 
                   {requiresBookedSchedule && (
                     <div className="space-y-4">
+                      {/* Appointment Title */}
+                      <div>
+                        <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Appointment Title
+                        </label>
+                        <Input
+                          value={appointmentTitle}
+                          onChange={(e) => setAppointmentTitle(e.target.value)}
+                          placeholder="(eg) Appointment with Contact Name"
+                          className="border-border bg-background"
+                        />
+                      </div>
+
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                           Appointment Date & Time <span className="text-primary">(required)</span>
@@ -2042,7 +2070,50 @@ export default function DialerPage() {
                               />
                             </PopoverContent>
                           </Popover>
-                          <Input type="time" value={session.followUpTime} onChange={(e) => session.setFollowUpTime(e.target.value)} className="border-border bg-background" />
+
+                          {/* Slot picker — fetches available GHL calendar slots */}
+                          {ghlCalendarId && session.followUpDate ? (
+                            isLoadingSlots ? (
+                              <Skeleton className="h-10 w-full" />
+                            ) : freeSlots.length > 0 ? (
+                              <Select
+                                value={session.followUpTime}
+                                onValueChange={(slotStartIso) => {
+                                  // The value is the ISO start time — extract HH:mm for followUpTime
+                                  const d = new Date(slotStartIso);
+                                  if (!Number.isNaN(d.getTime())) {
+                                    session.setFollowUpTime(formatTimeInputValue(d));
+                                  } else {
+                                    session.setFollowUpTime(slotStartIso);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-full border-border bg-background">
+                                  <SelectValue placeholder="Select an available slot" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {freeSlots.map((slot) => (
+                                    <SelectItem key={slot.startTime} value={slot.startTime}>
+                                      {slot.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                                No available slots for this date. Try a different day or use a manual time below.
+                              </div>
+                            )
+                          ) : null}
+
+                          {/* Fallback manual time input — always available */}
+                          <Input
+                            type="time"
+                            value={session.followUpTime}
+                            onChange={(e) => session.setFollowUpTime(e.target.value)}
+                            className="border-border bg-background"
+                          />
+
                           {session.followUpDate && session.followUpTime && (
                             <p className="text-xs text-muted-foreground">
                               Appointment will be logged for {format(combineDateAndTime(session.followUpDate, session.followUpTime), "PPP p")}.

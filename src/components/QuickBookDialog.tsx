@@ -15,6 +15,7 @@ import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
+import { useGHLFreeSlots } from "@/hooks/useGHLFreeSlots";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import {
   findDefaultBookedPipeline,
@@ -33,6 +34,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -138,11 +140,17 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
+  const [appointmentTitle, setAppointmentTitle] = useState("");
 
   const [ghlCalendarId, setGhlCalendarId] = useState("");
   const [ghlPipelineId, setGhlPipelineId] = useState("");
   const [ghlStageId, setGhlStageId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: freeSlots = [], isLoading: isLoadingSlots } = useGHLFreeSlots(
+    ghlCalendarId || undefined,
+    scheduledDate,
+  );
 
   const ghlSelectedPipelineStages = useMemo(
     () => ghlPipelines.find((p) => p.id === ghlPipelineId)?.stages ?? [],
@@ -218,6 +226,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setScheduledDate(undefined);
       setScheduledTime("09:00");
       setNotes("");
+      setAppointmentTitle("");
       setAssignedRepId(user?.id || "");
       setGhlCalendarId("");
       setGhlPipelineId("");
@@ -520,12 +529,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             contactId: selectedContact.id,
             calendarId: ghlCalendarId,
             scheduledFor: scheduledFor.toISOString(),
+            title: appointmentTitle || undefined,
             contactName: selectedContact.business_name,
             repName,
             notes: notes.trim() || undefined,
             pipelineItemId: createdPipelineItem.id,
             pipelineId: ghlPipelineId || undefined,
             pipelineStageId: ghlStageId || undefined,
+            ghlUserId: myGhlUserId ?? undefined,
           });
         }
         if (pipelineType === "follow_up") {
@@ -860,6 +871,21 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </div>
               )}
 
+              {/* Appointment Title — only for booked type */}
+              {isBooked && (
+                <div>
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Appointment Title
+                  </label>
+                  <Input
+                    value={appointmentTitle}
+                    onChange={(e) => setAppointmentTitle(e.target.value)}
+                    placeholder={selectedContact ? `Appointment with ${selectedContact.business_name}` : "(eg) Appointment with Contact Name"}
+                    className="border-border bg-background"
+                  />
+                </div>
+              )}
+
               {/* Date / time */}
               <div>
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -914,6 +940,42 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                       />
                     </PopoverContent>
                   </Popover>
+
+                  {/* Slot picker for booked type */}
+                  {isBooked && ghlCalendarId && scheduledDate ? (
+                    isLoadingSlots ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : freeSlots.length > 0 ? (
+                      <Select
+                        value={scheduledTime}
+                        onValueChange={(slotStartIso) => {
+                          const d = new Date(slotStartIso);
+                          if (!Number.isNaN(d.getTime())) {
+                            setScheduledTime(format(d, "HH:mm"));
+                          } else {
+                            setScheduledTime(slotStartIso);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full border-border bg-background">
+                          <SelectValue placeholder="Select an available slot" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {freeSlots.map((slot) => (
+                            <SelectItem key={slot.startTime} value={slot.startTime}>
+                              {slot.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                        No available slots for this date. Try a different day or use a manual time below.
+                      </div>
+                    )
+                  ) : null}
+
+                  {/* Manual time input — always available as fallback */}
                   <Input
                     type="time"
                     value={scheduledTime}
