@@ -821,6 +821,11 @@ export default function DialerPage() {
       const next = getNextBusinessDay(new Date());
       session.setFollowUpDate(next);
       session.setFollowUpTime(BOOKED_APPOINTMENT_DEFAULT_TIME);
+      // Auto-populate appointment title with contact name
+      const cName = session.currentContact?.business_name || session.currentContact?.contact_person;
+      if (cName && !appointmentTitle) {
+        setAppointmentTitle(`Appointment with ${cName}`);
+      }
     }
   }, [
     requiresAnySchedule,
@@ -930,6 +935,7 @@ export default function DialerPage() {
     session.resetLeadState(userId);
     dialpad.resetDialpadState();
     setFollowUpMethod("call");
+    setAppointmentTitle("");
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
