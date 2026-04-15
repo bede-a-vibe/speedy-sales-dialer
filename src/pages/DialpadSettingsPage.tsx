@@ -223,6 +223,63 @@ export default function DialpadSettingsPage() {
             </Table>
           )}
         </div>
+
+        {/* GHL User ID Mapping */}
+        <div className="pt-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              GHL User Mapping
+            </h2>
+            <p className="text-sm text-muted-foreground">Map team members to their GHL user IDs so tasks are assigned to the correct rep.</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>GHL User ID</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profiles.map((p) => {
+                  const editValue = ghlEdits[p.user_id];
+                  const currentValue = editValue ?? p.ghl_user_id ?? "";
+                  const isDirty = editValue !== undefined && editValue !== (p.ghl_user_id ?? "");
+                  return (
+                    <TableRow key={p.user_id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-foreground">{p.display_name || "Unknown"}</p>
+                          <p className="text-xs text-muted-foreground">{p.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={currentValue}
+                          onChange={(e) => setGhlEdits((prev) => ({ ...prev, [p.user_id]: e.target.value }))}
+                          placeholder="e.g. NFi3vzrTHSOW3wpzu2yU"
+                          className="font-mono text-sm max-w-xs"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={!isDirty || saveGhlUserId.isPending}
+                          onClick={() => saveGhlUserId.mutate({ userId: p.user_id, ghlUserId: currentValue })}
+                        >
+                          {saveGhlUserId.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     </AppLayout>
   );
