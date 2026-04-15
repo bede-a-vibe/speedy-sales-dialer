@@ -1050,12 +1050,14 @@ export default function DialerPage() {
             contactId,
             calendarId,
             scheduledFor,
+            title: bookingTitle || undefined,
             contactName,
             repName,
             notes: pipelineNotes || undefined,
             pipelineItemId: createdPipelineItem?.id,
             pipelineId: pipelineId || undefined,
             pipelineStageId: stageId || undefined,
+            ghlUserId: myGhlUserId ?? undefined,
           }).catch(() => {});
         }
 
