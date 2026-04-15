@@ -1,38 +1,62 @@
 
 
-## Plan: Assign GHL tasks to the matching rep
+## Plan: Full GHL slot picker for booking appointments
 
-### Current State
-- The `create_task` action in the GHL edge function already supports an `assignedTo` field (GHL user ID)
-- A `get_users` action exists to fetch GHL users
-- Tasks are currently created **without** `assignedTo`, so they appear unassigned in GHL
-- There is **no mapping** between Supabase users and GHL users stored anywhere
+### What we're building
+Replace the manual date/time picker in the booking form with a GHL-native slot picker that fetches available time slots from the GHL calendar API. Add an appointment title field and auto-assign the team member from the rep's GHL user ID.
 
-### GHL User Mapping (from your screenshot)
-| Name | Email | GHL User ID |
-|------|-------|-------------|
-| Bede Alexander | bede@odindigital.com.au | NFi3vzrTHSOW3wpzu2yU |
-| Dean Lodge | dean@odindigital.com.au | YmANuBMRtWVjCVDZ2mRV |
-| Kobi Miller | Kobi@odindigital.com.au | ikvOR4Mk6ntXL1DPaBd1 |
+### GHL Calendar Free Slots API
+The LeadConnector API provides `GET /calendars/{calendarId}/free-slots?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timezone=Australia/Sydney` which returns available appointment slots grouped by date.
 
 ### Changes
 
-**1. Add `ghl_user_id` column to `profiles` table**
-- Migration: `ALTER TABLE profiles ADD COLUMN ghl_user_id text;`
-- This stores the GHL user ID for each Supabase user
+**1. Add `get_free_slots` action to the GHL edge function** (`supabase/functions/ghl/index.ts`)
+- New function: `getCalendarFreeSlots(apiKey, calendarId, startDate, endDate, timezone)`
+- Calls `GET /calendars/{calendarId}/free-slots` with date range and timezone params
+- New action case: `"get_free_slots"` dispatches to this function
 
-**2. Auto-populate GHL user IDs**
-- Match by email: compare `profiles.email` against the GHL users list
-- Seed the three known mappings via a migration or a one-time edge function call
+**2. Add client-side wrapper** (`src/lib/ghl.ts`)
+- `ghlGetFreeSlots(calendarId, startDate, endDate, timezone)` — calls the edge function
 
-**3. Pass `assignedTo` when creating GHL tasks**
-- In `useGHLSync.pushFollowUp`: look up the current user's `ghl_user_id` from their profile and pass it as `assignedTo` in the `ghlCreateTask` call
-- This ensures follow-up tasks in GHL are assigned to the rep who created them
+**3. Create `useGHLFreeSlots` hook** (`src/hooks/useGHLFreeSlots.ts`)
+- React Query hook that fetches available slots for a given calendar + date
+- Accepts `calendarId`, `date` (Date object), `timezone` (default `"Australia/Sydney"`)
+- Queries a single day's slots (startDate = endDate = selected date)
+- Returns `{ slots: Array<{ startTime: string; endTime: string }>, isLoading }`
+- Refetches when calendar or date changes; disabled when either is missing
 
-**4. Expose GHL user mapping in Dialpad Settings or a new admin section** (optional)
-- Allow admins to manually set/override the `ghl_user_id` for each user
-- Use the existing `ghlGetUsers()` to populate a dropdown
+**4. Add appointment title state** (`src/pages/DialerPage.tsx`)
+- New state: `appointmentTitle` (string, default empty)
+- Input field labelled "Appointment Title" with placeholder "(eg) Appointment with [Contact Name]"
+- Auto-populated with contact name when outcome switches to "booked"
+- Passed to `pushBooking` as the `title` parameter
+- Reset on lead advance
 
-### Result
-When a rep creates a follow-up, the GHL task will be assigned to their matching GHL user account. Tasks will show up in the correct rep's task list in GHL.
+**5. Replace time input with slot dropdown** (`src/pages/DialerPage.tsx`)
+- Keep the existing date picker (calendar popover) — it works well
+- Replace the `<Input type="time">` with a `<Select>` dropdown populated by `useGHLFreeSlots`
+- Each slot rendered as "3:40 pm - 3:55 pm" (formatted from ISO times)
+- Show loading skeleton while slots are fetching
+- Show "No slots available" message if the API returns empty
+- When a slot is selected, set both `followUpTime` and a new `selectedSlotEnd` state
+- Pass the slot's `startTime` ISO string as the `scheduledFor` value
+
+**6. Auto-assign team member** (`src/hooks/useGHLSync.ts`)
+- `pushBooking` already receives the rep's info, but the `ghlCreateAppointment` call doesn't pass `assignedUserId`
+- Add the rep's `ghlUserId` to the appointment payload so GHL shows the correct team member
+- Update `PushBookingParams` to include optional `ghlUserId`
+- Wire `myGhlUserId` from `DialerPage.tsx` into the `pushBooking` call
+
+**7. Apply same changes to QuickBookDialog.tsx**
+- Add appointment title field
+- Add slot picker (replacing time input)
+- Pass `ghlUserId` for team member assignment
+
+### Technical details
+- The GHL free slots API uses `YYYY-MM-DD` format for dates
+- Timezone parameter ensures slots match the rep's local time (AEST)
+- Slots are returned as ISO strings; we format them to "h:mm a" for display
+- The slot picker is disabled until both a calendar and date are selected
+- Preset buttons (Tomorrow 9:00, etc.) will still work by setting the date and auto-selecting the nearest available slot
+- Pipeline/stage selectors remain unchanged — only the time selection and title are affected
 
