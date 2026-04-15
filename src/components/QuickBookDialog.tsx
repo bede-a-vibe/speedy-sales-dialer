@@ -15,6 +15,7 @@ import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hook
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
+import { useGHLFreeSlots } from "@/hooks/useGHLFreeSlots";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import {
   findDefaultBookedPipeline,
@@ -33,6 +34,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
