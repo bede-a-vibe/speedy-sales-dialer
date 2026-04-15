@@ -870,6 +870,21 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                 </div>
               )}
 
+              {/* Appointment Title — only for booked type */}
+              {isBooked && (
+                <div>
+                  <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Appointment Title
+                  </label>
+                  <Input
+                    value={appointmentTitle}
+                    onChange={(e) => setAppointmentTitle(e.target.value)}
+                    placeholder={selectedContact ? `Appointment with ${selectedContact.business_name}` : "(eg) Appointment with Contact Name"}
+                    className="border-border bg-background"
+                  />
+                </div>
+              )}
+
               {/* Date / time */}
               <div>
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -924,6 +939,42 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
                       />
                     </PopoverContent>
                   </Popover>
+
+                  {/* Slot picker for booked type */}
+                  {isBooked && ghlCalendarId && scheduledDate ? (
+                    isLoadingSlots ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : freeSlots.length > 0 ? (
+                      <Select
+                        value={scheduledTime}
+                        onValueChange={(slotStartIso) => {
+                          const d = new Date(slotStartIso);
+                          if (!Number.isNaN(d.getTime())) {
+                            setScheduledTime(format(d, "HH:mm"));
+                          } else {
+                            setScheduledTime(slotStartIso);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full border-border bg-background">
+                          <SelectValue placeholder="Select an available slot" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {freeSlots.map((slot) => (
+                            <SelectItem key={slot.startTime} value={slot.startTime}>
+                              {slot.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                        No available slots for this date. Try a different day or use a manual time below.
+                      </div>
+                    )
+                  ) : null}
+
+                  {/* Manual time input — always available as fallback */}
                   <Input
                     type="time"
                     value={scheduledTime}
