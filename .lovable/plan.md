@@ -1,29 +1,51 @@
 
 
-## Plan: Generate email drafts for ALL follow-up outcomes
+## Plan: Map all call outcomes to GHL Outbound Prospecting pipeline stages
 
-### What changed
-The email draft feature only triggers when the follow-up method is set to `"email"` (line 1054 in `DialerPage.tsx`). On April 1st, the rep happened to select "email" as the method — since then, all follow-ups have been "call" method, so no drafts were generated. The feature is working, it's just gated behind a method check.
+### Problem
+Currently, `pushFollowUp` always **creates a new opportunity** in GHL. It never searches for or updates an existing one. This results in duplicate opportunities and contacts not moving through pipeline stages.
 
-Additionally, the `generate-email-draft` edge function currently uses `OPENAI_API_KEY` which is **not configured** — meaning it always falls back to a static template. We should migrate this to use the Lovable AI Gateway so it works without needing an external API key.
+### Outbound Prospecting Pipeline — Stage Mapping
+
+| Call Outcome | GHL Stage | Stage ID |
+|---|---|---|
+| No Answer | Attempted - No Answer | `b1003ce2-48c6-4ed7-b894-56b2cf6c2313` |
+| Voicemail | Attempted - No Answer | `b1003ce2-48c6-4ed7-b894-56b2cf6c2313` |
+| Follow Up | Connected - Follow Up Required | `5102204c-7b00-48f9-94fb-70ca529841b9` |
+| Booked | Meeting Booked | `d7283fa5-7352-4446-80c6-1e567a7c8295` |
+| Not Interested | Not Interested | `01ce436d-4f12-47c8-b178-0333c75be361` |
+| DNC | Disqualified / Bad Fit | `cfc8cc1a-66a3-48cc-88cd-975ffcf4e851` |
+| Wrong Number | Bad Number / Dead | `79836d51-2ae7-4705-b2d9-4a9e2e461ab6` |
 
 ### Changes
 
-**1. Remove the email-method gate in DialerPage.tsx**
-- Remove the `if (method === "email")` condition around `pushFollowUpEmailDraft` (around line 1054)
-- Email drafts will now be generated and pushed to GHL for every follow-up outcome regardless of method
+**1. Add `update_opportunity` and `search_opportunities` actions to the GHL edge function** (`supabase/functions/ghl/index.ts`)
+- `update_opportunity`: PUT to `/opportunities/{id}` — updates stage, status, etc.
+- `search_opportunities`: Search opportunities by contact ID in a pipeline to find existing ones
 
-**2. Remove the email-method gate in QuickBookDialog.tsx**
-- Same change — remove the `if (followUpMethod === "email")` condition (around line 535)
+**2. Add client-side wrappers** (`src/lib/ghl.ts`)
+- `ghlUpdateOpportunity(opportunityId, payload)` 
+- `ghlSearchOpportunities(pipelineId, contactId)`
 
-**3. Migrate `generate-email-draft` edge function to Lovable AI Gateway**
-- Replace the direct OpenAI API call with the Lovable AI Gateway (`https://ai-gateway.lovable.dev/v1/chat/completions`)
-- Use `LOVABLE_API_KEY` (auto-available) instead of `OPENAI_API_KEY`
-- Use model `openai/gpt-5-mini` for good quality at reasonable cost
-- This eliminates the dependency on a missing API key and ensures AI-generated drafts work immediately
+**3. Update the pipeline contract** (`src/shared/ghlPipelineContract.ts`)
+- Add all Outbound Prospecting stage IDs as a `OUTBOUND_STAGES` map
+- Add a `CALL_OUTCOME_TO_STAGE` mapping from `CallOutcome` → stage ID
 
-**4. Redeploy the edge function**
+**4. Add `updateOpportunityStage` to `useGHLSync`** (`src/hooks/useGHLSync.ts`)
+- New function: search for existing opportunity in Outbound Prospecting pipeline for the contact → if found, update its stage; if not found, create one
+- This is called after every call outcome (not just follow-up/booked)
+
+**5. Wire up in DialerPage.tsx**
+- After `pushCallNote`, call the new `updateOpportunityStage` for every outcome
+- Pass the call outcome so the correct stage is resolved
+- Fire-and-forget (same pattern as existing GHL sync)
+
+**6. Wire up in QuickBookDialog.tsx**
+- Same stage update for quick-booked follow-ups
+
+**7. Update the pipeline contract in the edge function**
+- Inline the stage IDs in the edge function (can't import from `src/`)
 
 ### Result
-Every follow-up outcome (call, email, or prospecting) will generate a personalised AI email draft and push it as a note to the GHL contact record, using the Lovable AI Gateway for generation.
+Every call outcome will find or create an opportunity in the Outbound Prospecting pipeline and move it to the correct stage. No more duplicates — existing opportunities get updated.
 
