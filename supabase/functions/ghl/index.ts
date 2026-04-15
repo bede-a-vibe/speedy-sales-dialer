@@ -192,6 +192,18 @@ async function createCalendarEvent(
   });
 }
 
+async function getCalendarFreeSlots(
+  apiKey: string,
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+  timezone: string,
+) {
+  return ghlFetch(`/calendars/${calendarId}/free-slots`, apiKey, {
+    params: { startDate, endDate, timezone },
+  });
+}
+
 async function getOpportunity(apiKey: string, opportunityId: string) {
   return ghlFetch(`/opportunities/${opportunityId}`, apiKey);
 }
@@ -886,6 +898,19 @@ Deno.serve(async (req) => {
       case "get_calendars":
         result = await getCalendars(GHL_API_KEY, GHL_LOCATION_ID);
         break;
+
+      case "get_free_slots": {
+        if (!body.calendarId) return json({ error: "Missing calendarId" }, 400);
+        if (!body.startDate || !body.endDate) return json({ error: "Missing startDate or endDate" }, 400);
+        result = await getCalendarFreeSlots(
+          GHL_API_KEY,
+          body.calendarId,
+          body.startDate,
+          body.endDate,
+          body.timezone ?? "Australia/Sydney",
+        );
+        break;
+      }
 
       case "get_pipelines":
         result = await getPipelines(GHL_API_KEY, GHL_LOCATION_ID);
