@@ -528,12 +528,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             contactId: selectedContact.id,
             calendarId: ghlCalendarId,
             scheduledFor: scheduledFor.toISOString(),
+            title: appointmentTitle || undefined,
             contactName: selectedContact.business_name,
             repName,
             notes: notes.trim() || undefined,
             pipelineItemId: createdPipelineItem.id,
             pipelineId: ghlPipelineId || undefined,
             pipelineStageId: ghlStageId || undefined,
+            ghlUserId: myGhlUserId ?? undefined,
           });
         }
         if (pipelineType === "follow_up") {
