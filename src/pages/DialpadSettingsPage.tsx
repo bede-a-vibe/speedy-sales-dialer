@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Phone, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 
 export default function DialpadSettingsPage() {
   const { data: settings = [], isLoading } = useAllDialpadSettings();
@@ -25,17 +25,36 @@ export default function DialpadSettingsPage() {
   const [dialpadPhone, setDialpadPhone] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  // Fetch all profiles for the user dropdown
+  // Fetch all profiles for the user dropdown (including ghl_user_id)
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name, email, ghl_user_id")
         .order("display_name");
       if (error) throw error;
       return data;
     },
+  });
+
+  const queryClient = useQueryClient();
+  const [ghlEdits, setGhlEdits] = useState<Record<string, string>>({});
+
+  const saveGhlUserId = useMutation({
+    mutationFn: async ({ userId, ghlUserId }: { userId: string; ghlUserId: string }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ ghl_user_id: ghlUserId.trim() || null })
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["my-ghl-user-id"] });
+      toast.success("GHL User ID saved.");
+    },
+    onError: () => toast.error("Failed to save GHL User ID."),
   });
 
   const assignedUserIds = new Set(settings.map((s) => s.user_id));
