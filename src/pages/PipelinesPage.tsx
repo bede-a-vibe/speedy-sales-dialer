@@ -19,6 +19,7 @@ import {
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
