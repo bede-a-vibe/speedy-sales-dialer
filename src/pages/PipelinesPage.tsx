@@ -223,6 +223,7 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const { user } = useAuth();
   const { pushCallNote, pushFollowUp, refreshOpportunityMirror } = useGHLSync();
+  const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
@@ -380,6 +381,7 @@ export default function PipelinesPage() {
             title: `Follow-up after ${outcomeLabel}`,
             description: notes || undefined,
             method: followUpMethod || "call",
+            ghlUserId: myGhlUserId ?? undefined,
           }).catch(() => {});
         }
       }
