@@ -42,21 +42,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Missing systemPrompt or userPrompt" }, 400);
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const OPENAI_BASE_URL = Deno.env.get("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
-
-    if (!OPENAI_API_KEY) {
-      return jsonResponse({ error: "OPENAI_API_KEY not configured" }, 500);
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return jsonResponse({ error: "LOVABLE_API_KEY not configured" }, 500);
     }
 
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -69,7 +67,13 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => "");
-      console.error(`[Email Draft] OpenAI API error: ${response.status} ${errBody}`);
+      console.error(`[Email Draft] AI Gateway error: ${response.status} ${errBody}`);
+      if (response.status === 429) {
+        return jsonResponse({ error: "Rate limited, please try again later" }, 429);
+      }
+      if (response.status === 402) {
+        return jsonResponse({ error: "AI credits exhausted" }, 402);
+      }
       return jsonResponse({ error: "AI generation failed" }, 500);
     }
 

@@ -1050,8 +1050,8 @@ export default function DialerPage() {
             pipelineStageId: followUpStageId,
           }).catch(() => {});
 
-          // If follow-up method is email, generate and push a draft email to GHL
-          if (method === "email") {
+          // Generate and push a draft email to GHL for all follow-ups
+          {
             // Fetch latest AI summary note for context
             const latestSummary = await (async () => {
               try {
