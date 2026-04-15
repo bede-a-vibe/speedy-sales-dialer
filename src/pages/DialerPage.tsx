@@ -1022,6 +1022,13 @@ export default function DialerPage() {
           repName,
         }).catch(() => {});
 
+        // Update opportunity stage in Outbound Prospecting pipeline for every outcome
+        ghlSync.updateOpportunityStage({
+          ghlContactId: contactGhlId,
+          outcome: outcomeToLog,
+          contactName,
+        }).catch(() => {});
+
         if (outcomeToLog === "booked" && scheduledFor && calendarId) {
           ghlSync.pushBooking({
             ghlContactId: contactGhlId,

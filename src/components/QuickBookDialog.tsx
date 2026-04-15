@@ -504,6 +504,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
       if (contactGhlId) {
         const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
+
+        // Update opportunity stage in Outbound Prospecting pipeline
+        ghlSync.updateOpportunityStage({
+          ghlContactId: contactGhlId,
+          outcome: pipelineType === "booked" ? "booked" : "follow_up",
+          contactName: selectedContact.business_name,
+        }).catch(() => {});
+
         if (pipelineType === "booked" && ghlCalendarId) {
           ghlSyncConfirmed = await ghlSync.pushBooking({
             ghlContactId: contactGhlId,
