@@ -531,8 +531,8 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             pipelineStageId: defaultFollowUpStage?.id,
           });
 
-          // If follow-up method is email, generate and push a draft email
-          if (followUpMethod === "email" && selectedContact) {
+          // Generate and push a draft email to GHL for all follow-ups
+          if (selectedContact) {
             ghlSync.pushFollowUpEmailDraft({
               ghlContactId: contactGhlId,
               contactName: selectedContact.business_name ?? "there",
