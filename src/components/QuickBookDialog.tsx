@@ -226,6 +226,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setScheduledDate(undefined);
       setScheduledTime("09:00");
       setNotes("");
+      setAppointmentTitle("");
       setAssignedRepId(user?.id || "");
       setGhlCalendarId("");
       setGhlPipelineId("");
