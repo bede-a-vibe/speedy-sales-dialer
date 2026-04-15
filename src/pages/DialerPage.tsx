@@ -30,6 +30,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLCalendars, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { supabase } from "@/integrations/supabase/client";
@@ -361,6 +362,7 @@ export default function DialerPage() {
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
   const ghlSync = useGHLSync();
+  const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
@@ -1055,6 +1057,7 @@ export default function DialerPage() {
             pipelineItemId: createdPipelineItem?.id,
             pipelineId: followUpPipelineId,
             pipelineStageId: followUpStageId,
+            ghlUserId: myGhlUserId ?? undefined,
           }).catch(() => {});
 
           // Generate and push a draft email to GHL for all follow-ups

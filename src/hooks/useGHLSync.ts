@@ -60,6 +60,7 @@ interface PushFollowUpParams {
   pipelineItemId?: string;
   pipelineId?: string;
   pipelineStageId?: string;
+  ghlUserId?: string;
 }
 
 interface PushFollowUpEmailDraftParams {
@@ -291,6 +292,8 @@ export function useGHLSync() {
       pipelineStageId,
     } = params;
 
+    const { ghlUserId } = params;
+
     try {
       // Create a task as a reminder for the rep
       await ghlCreateTask(ghlContactId, {
@@ -298,6 +301,7 @@ export function useGHLSync() {
         body: description ?? "",
         dueDate: scheduledFor,
         completed: false,
+        ...(ghlUserId ? { assignedTo: ghlUserId } : {}),
       });
 
       const opportunityTarget = resolveGhlOpportunityTarget({

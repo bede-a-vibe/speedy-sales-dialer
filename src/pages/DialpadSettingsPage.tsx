@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Phone, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 
 export default function DialpadSettingsPage() {
   const { data: settings = [], isLoading } = useAllDialpadSettings();
@@ -25,17 +25,36 @@ export default function DialpadSettingsPage() {
   const [dialpadPhone, setDialpadPhone] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  // Fetch all profiles for the user dropdown
+  // Fetch all profiles for the user dropdown (including ghl_user_id)
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name, email, ghl_user_id")
         .order("display_name");
       if (error) throw error;
       return data;
     },
+  });
+
+  const queryClient = useQueryClient();
+  const [ghlEdits, setGhlEdits] = useState<Record<string, string>>({});
+
+  const saveGhlUserId = useMutation({
+    mutationFn: async ({ userId, ghlUserId }: { userId: string; ghlUserId: string }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ ghl_user_id: ghlUserId.trim() || null })
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["my-ghl-user-id"] });
+      toast.success("GHL User ID saved.");
+    },
+    onError: () => toast.error("Failed to save GHL User ID."),
   });
 
   const assignedUserIds = new Set(settings.map((s) => s.user_id));
@@ -203,6 +222,63 @@ export default function DialpadSettingsPage() {
               </TableBody>
             </Table>
           )}
+        </div>
+
+        {/* GHL User ID Mapping */}
+        <div className="pt-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              GHL User Mapping
+            </h2>
+            <p className="text-sm text-muted-foreground">Map team members to their GHL user IDs so tasks are assigned to the correct rep.</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>GHL User ID</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profiles.map((p) => {
+                  const editValue = ghlEdits[p.user_id];
+                  const currentValue = editValue ?? p.ghl_user_id ?? "";
+                  const isDirty = editValue !== undefined && editValue !== (p.ghl_user_id ?? "");
+                  return (
+                    <TableRow key={p.user_id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-foreground">{p.display_name || "Unknown"}</p>
+                          <p className="text-xs text-muted-foreground">{p.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={currentValue}
+                          onChange={(e) => setGhlEdits((prev) => ({ ...prev, [p.user_id]: e.target.value }))}
+                          placeholder="e.g. NFi3vzrTHSOW3wpzu2yU"
+                          className="font-mono text-sm max-w-xs"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={!isDirty || saveGhlUserId.isPending}
+                          onClick={() => saveGhlUserId.mutate({ userId: p.user_id, ghlUserId: currentValue })}
+                        >
+                          {saveGhlUserId.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </AppLayout>

@@ -14,6 +14,7 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import {
   findDefaultBookedPipeline,
@@ -108,6 +109,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
   const ghlSync = useGHLSync();
+  const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
   const { data: ghlPipelines = [] } = useGHLPipelines();
@@ -537,6 +539,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
             pipelineItemId: createdPipelineItem.id,
             pipelineId: defaultFollowUpPipeline?.id,
             pipelineStageId: defaultFollowUpStage?.id,
+            ghlUserId: myGhlUserId ?? undefined,
           });
 
           // Generate and push a draft email to GHL for all follow-ups

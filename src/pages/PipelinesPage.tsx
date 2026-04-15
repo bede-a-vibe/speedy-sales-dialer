@@ -19,6 +19,7 @@ import {
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLSync } from "@/hooks/useGHLSync";
+import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
@@ -222,6 +223,7 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const { user } = useAuth();
   const { pushCallNote, pushFollowUp, refreshOpportunityMirror } = useGHLSync();
+  const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlPipelines = [] } = useGHLPipelines();
 
@@ -379,6 +381,7 @@ export default function PipelinesPage() {
             title: `Follow-up after ${outcomeLabel}`,
             description: notes || undefined,
             method: followUpMethod || "call",
+            ghlUserId: myGhlUserId ?? undefined,
           }).catch(() => {});
         }
       }
