@@ -920,6 +920,7 @@ export default function DialerPage() {
     const calendarId = ghlCalendarId;
     const pipelineId = ghlPipelineId;
     const stageId = ghlStageId;
+    const bookingTitle = appointmentTitle;
     const followUpPipelineId = defaultFollowUpPipeline?.id;
     const followUpStageId = defaultFollowUpStage?.id;
     const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
