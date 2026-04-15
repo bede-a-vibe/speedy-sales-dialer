@@ -9,10 +9,13 @@ import {
   ghlCreateAppointment,
   ghlGetOpportunity,
   ghlUpdateContact,
+  ghlUpdateOpportunity,
+  ghlSearchOpportunities,
 } from "@/lib/ghl";
 import { extractGhlOpportunityId, extractGhlOpportunityTarget } from "@/lib/ghlOpportunityIdentity";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 import { CALL_OUTCOME_LABELS, getFollowUpTaskTitle, resolveGhlOpportunityTarget } from "@/lib/pipelineMappings";
+import { OUTBOUND_PIPELINE_ID, CALL_OUTCOME_TO_STAGE, type CallOutcomeForStage } from "@/shared/ghlPipelineContract";
 
 type CallOutcome =
   | "no_answer"
@@ -431,5 +434,47 @@ export function useGHLSync() {
     }
   }, []);
 
-  return { pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC, refreshOpportunityMirror };
+  /**
+   * Find or create an opportunity in the Outbound Prospecting pipeline,
+   * then move it to the stage matching the call outcome.
+   */
+  const updateOpportunityStage = useCallback(async (params: {
+    ghlContactId: string;
+    outcome: CallOutcomeForStage;
+    contactName?: string;
+  }) => {
+    const { ghlContactId, outcome, contactName } = params;
+    const targetStageId = CALL_OUTCOME_TO_STAGE[outcome];
+    if (!targetStageId) return;
+
+    try {
+      // Search for an existing opportunity in the Outbound Prospecting pipeline
+      const searchResult = await ghlSearchOpportunities(OUTBOUND_PIPELINE_ID, ghlContactId);
+      const existing = searchResult.opportunities?.find(
+        (opp) => opp.status === "open" || opp.status === "won",
+      ) ?? searchResult.opportunities?.[0];
+
+      if (existing) {
+        // Update existing opportunity's stage
+        await ghlUpdateOpportunity(existing.id, {
+          stageId: targetStageId,
+        });
+        console.log(`[GHL Sync] Moved opportunity ${existing.id} to stage ${outcome}`);
+      } else {
+        // Create a new opportunity in the correct stage
+        await ghlCreateOpportunity({
+          pipelineId: OUTBOUND_PIPELINE_ID,
+          pipelineStageId: targetStageId,
+          contactId: ghlContactId,
+          name: `${contactName ?? "Contact"} – ${CALL_OUTCOME_LABELS[outcome] ?? outcome}`,
+          status: "open",
+        });
+        console.log(`[GHL Sync] Created new opportunity for ${ghlContactId} at stage ${outcome}`);
+      }
+    } catch (err) {
+      reportSyncFailure("update opportunity stage", ghlContactId, err);
+    }
+  }, []);
+
+  return { pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC, refreshOpportunityMirror, updateOpportunityStage };
 }
