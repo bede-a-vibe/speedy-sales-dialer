@@ -463,7 +463,8 @@ export function useGHLSync() {
       if (existing) {
         // Update existing opportunity's stage
         await ghlUpdateOpportunity(existing.id, {
-          stageId: targetStageId,
+          pipelineId: OUTBOUND_PIPELINE_ID,
+          pipelineStageId: targetStageId,
         });
         console.log(`[GHL Sync] Moved opportunity ${existing.id} to stage ${outcome}`);
       } else {
