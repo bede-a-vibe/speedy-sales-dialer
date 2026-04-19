@@ -240,14 +240,37 @@ export function useGHLSync() {
       });
 
       if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
-        const opportunity = await ghlCreateOpportunity({
-          pipelineType: "booked",
-          pipelineId: opportunityTarget.pipelineId,
-          pipelineStageId: opportunityTarget.pipelineStageId,
-          contactId: ghlContactId,
-          name: `${contactName ?? "Contact"} – Booked ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
-          status: "open",
-        });
+        let existingOpportunityId: string | undefined;
+        try {
+          const searchResult = await ghlSearchOpportunities(opportunityTarget.pipelineId, ghlContactId);
+          const existing = searchResult.opportunities?.find(
+            (opp) => opp.status === "open",
+          ) ?? searchResult.opportunities?.[0];
+          existingOpportunityId = existing?.id;
+        } catch (searchErr) {
+          console.warn("[GHL Sync] Failed to search opportunities, will attempt create:", searchErr);
+        }
+
+        const opportunityName = `${contactName ?? "Contact"} – Booked ${new Date(scheduledFor).toLocaleDateString("en-AU")}`;
+        let opportunity: unknown;
+
+        if (existingOpportunityId) {
+          opportunity = await ghlUpdateOpportunity(existingOpportunityId, {
+            pipelineId: opportunityTarget.pipelineId,
+            pipelineStageId: opportunityTarget.pipelineStageId,
+            name: opportunityName,
+            status: "open",
+          });
+        } else {
+          opportunity = await ghlCreateOpportunity({
+            pipelineType: "booked",
+            pipelineId: opportunityTarget.pipelineId,
+            pipelineStageId: opportunityTarget.pipelineStageId,
+            contactId: ghlContactId,
+            name: opportunityName,
+            status: "open",
+          });
+        }
 
         await persistOpportunityIdentity({
           pipelineItemId,
@@ -312,21 +335,49 @@ export function useGHLSync() {
         pipelineStageId,
       });
 
-      const opportunity = await ghlCreateOpportunity({
-        pipelineType: "follow_up",
-        pipelineId: opportunityTarget.pipelineId,
-        pipelineStageId: opportunityTarget.pipelineStageId,
-        contactId: ghlContactId,
-        name: `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`,
-        status: "open",
-      });
+      let opportunity: unknown = null;
 
-      await persistOpportunityIdentity({
-        pipelineItemId,
-        ghlPipelineId: opportunityTarget.pipelineId,
-        ghlStageId: opportunityTarget.pipelineStageId,
-        opportunityPayload: opportunity,
-      });
+      if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
+        // Check for existing opportunity to avoid duplicate errors
+        let existingOpportunityId: string | undefined;
+        try {
+          const searchResult = await ghlSearchOpportunities(opportunityTarget.pipelineId, ghlContactId);
+          const existing = searchResult.opportunities?.find(
+            (opp) => opp.status === "open",
+          ) ?? searchResult.opportunities?.[0];
+          existingOpportunityId = existing?.id;
+        } catch (searchErr) {
+          console.warn("[GHL Sync] Failed to search opportunities, will attempt create:", searchErr);
+        }
+
+        const opportunityName = `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`;
+
+        if (existingOpportunityId) {
+          // Update existing opportunity to the follow-up stage
+          opportunity = await ghlUpdateOpportunity(existingOpportunityId, {
+            pipelineId: opportunityTarget.pipelineId,
+            pipelineStageId: opportunityTarget.pipelineStageId,
+            name: opportunityName,
+            status: "open",
+          });
+        } else {
+          opportunity = await ghlCreateOpportunity({
+            pipelineType: "follow_up",
+            pipelineId: opportunityTarget.pipelineId,
+            pipelineStageId: opportunityTarget.pipelineStageId,
+            contactId: ghlContactId,
+            name: opportunityName,
+            status: "open",
+          });
+        }
+
+        await persistOpportunityIdentity({
+          pipelineItemId,
+          ghlPipelineId: opportunityTarget.pipelineId,
+          ghlStageId: opportunityTarget.pipelineStageId,
+          opportunityPayload: opportunity,
+        });
+      }
 
       // Add a follow-up note
       const methodLabel = method === "email" ? "Email" : method === "prospecting" ? "Prospecting" : "Call";
