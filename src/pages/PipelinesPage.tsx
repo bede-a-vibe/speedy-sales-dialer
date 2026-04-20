@@ -18,7 +18,9 @@ import {
   type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
-import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
+import { useGHLFollowUpSync } from "@/hooks/ghl/useGHLFollowUpSync";
+import { useGHLOpportunityMirror } from "@/hooks/ghl/useGHLOpportunityMirror";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
@@ -222,7 +224,9 @@ export default function PipelinesPage() {
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
   const { user } = useAuth();
-  const { pushCallNote, pushFollowUp, refreshOpportunityMirror } = useGHLSync();
+  const { pushCallNote } = useGHLContactSync();
+  const { pushFollowUp } = useGHLFollowUpSync();
+  const { refreshOpportunityMirror } = useGHLOpportunityMirror();
   const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlPipelines = [] } = useGHLPipelines();

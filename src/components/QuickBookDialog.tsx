@@ -13,7 +13,9 @@ import { useCreateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
-import { useGHLSync } from "@/hooks/useGHLSync";
+import { useGHLBookingSync } from "@/hooks/ghl/useGHLBookingSync";
+import { useGHLFollowUpSync } from "@/hooks/ghl/useGHLFollowUpSync";
+import { useGHLOpportunityMirror } from "@/hooks/ghl/useGHLOpportunityMirror";
 import { useMyGhlUserId } from "@/hooks/useMyGhlUserId";
 import { useGHLFreeSlots } from "@/hooks/useGHLFreeSlots";
 import { useGHLContactLink } from "@/hooks/useGHLContactLink";
@@ -110,7 +112,9 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
-  const ghlSync = useGHLSync();
+  const { pushBooking } = useGHLBookingSync();
+  const { pushFollowUp, pushFollowUpEmailDraft } = useGHLFollowUpSync();
+  const { updateOpportunityStage } = useGHLOpportunityMirror();
   const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlCalendars = [] } = useGHLCalendars();
@@ -517,14 +521,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
 
         // Update opportunity stage in Outbound Prospecting pipeline
-        ghlSync.updateOpportunityStage({
+        updateOpportunityStage({
           ghlContactId: contactGhlId,
           outcome: pipelineType === "booked" ? "booked" : "follow_up",
           contactName: selectedContact.business_name,
         }).catch(() => {});
 
         if (pipelineType === "booked" && ghlCalendarId) {
-          ghlSyncConfirmed = await ghlSync.pushBooking({
+          ghlSyncConfirmed = await pushBooking({
             ghlContactId: contactGhlId,
             contactId: selectedContact.id,
             calendarId: ghlCalendarId,
@@ -540,7 +544,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
           });
         }
         if (pipelineType === "follow_up") {
-          ghlSyncConfirmed = await ghlSync.pushFollowUp({
+          ghlSyncConfirmed = await pushFollowUp({
             ghlContactId: contactGhlId,
             contactId: selectedContact.id,
             scheduledFor: scheduledFor.toISOString(),
@@ -555,7 +559,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
           // Generate and push a draft email to GHL for all follow-ups
           if (selectedContact) {
-            ghlSync.pushFollowUpEmailDraft({
+            pushFollowUpEmailDraft({
               ghlContactId: contactGhlId,
               contactName: selectedContact.business_name ?? "there",
               businessName: selectedContact.business_name ?? "",
@@ -581,7 +585,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, ghlSync, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, pushBooking, pushFollowUp, pushFollowUpEmailDraft, updateOpportunityStage, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
 
   useEffect(() => {
     if (!open) return;
