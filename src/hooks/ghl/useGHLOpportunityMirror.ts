@@ -60,14 +60,33 @@ export function useGHLOpportunityMirror() {
         });
         console.log(`[GHL Sync] Moved opportunity ${existing.id} to stage ${outcome}`);
       } else {
-        await ghlCreateOpportunity({
-          pipelineId: OUTBOUND_PIPELINE_ID,
-          pipelineStageId: targetStageId,
-          contactId: ghlContactId,
-          name: `${contactName ?? "Contact"} – ${CALL_OUTCOME_LABELS[outcome] ?? outcome}`,
-          status: "open",
-        });
-        console.log(`[GHL Sync] Created new opportunity for ${ghlContactId} at stage ${outcome}`);
+        try {
+          await ghlCreateOpportunity({
+            pipelineId: OUTBOUND_PIPELINE_ID,
+            pipelineStageId: targetStageId,
+            contactId: ghlContactId,
+            name: `${contactName ?? "Contact"} – ${CALL_OUTCOME_LABELS[outcome] ?? outcome}`,
+            status: "open",
+          });
+          console.log(`[GHL Sync] Created new opportunity for ${ghlContactId} at stage ${outcome}`);
+        } catch (createErr) {
+          const message = createErr instanceof Error ? createErr.message : String(createErr);
+          if (message.includes("duplicate opportunity")) {
+            const retry = await ghlSearchOpportunities(OUTBOUND_PIPELINE_ID, ghlContactId);
+            const anyExisting = retry.opportunities?.[0];
+            if (anyExisting) {
+              await ghlUpdateOpportunity(anyExisting.id, {
+                pipelineId: OUTBOUND_PIPELINE_ID,
+                pipelineStageId: targetStageId,
+              });
+              console.log(`[GHL Sync] Recovered duplicate by updating opportunity ${anyExisting.id}`);
+            } else {
+              throw createErr;
+            }
+          } else {
+            throw createErr;
+          }
+        }
       }
     } catch (err) {
       reportSyncFailure("update opportunity stage", ghlContactId, err);
