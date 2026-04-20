@@ -184,11 +184,12 @@ async function createOpportunity(
 
 async function createCalendarEvent(
   apiKey: string,
+  locationId: string,
   body: Record<string, unknown>,
 ) {
   return ghlFetch("/calendars/events/appointments", apiKey, {
     method: "POST",
-    body,
+    body: { locationId, ...body },
   });
 }
 
@@ -892,7 +893,7 @@ Deno.serve(async (req) => {
         break;
 
       case "create_appointment":
-        result = await createCalendarEvent(GHL_API_KEY, body.payload ?? {});
+        result = await createCalendarEvent(GHL_API_KEY, GHL_LOCATION_ID, body.payload ?? {});
         break;
 
       case "get_calendars":
