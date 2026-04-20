@@ -33,7 +33,9 @@ export function useGHLFollowUpSync() {
     } = params;
 
     const { ghlUserId } = params;
+    const methodLabel = method === "email" ? "Email" : method === "prospecting" ? "Prospecting" : "Call";
 
+    // 1) Task — best-effort, fire and continue
     try {
       await ghlCreateTask(ghlContactId, {
         title: title ?? getFollowUpTaskTitle(method),
@@ -42,30 +44,36 @@ export function useGHLFollowUpSync() {
         completed: false,
         ...(ghlUserId ? { assignedTo: ghlUserId } : {}),
       });
+    } catch (taskErr) {
+      reportSyncFailure("create follow-up task", ghlContactId, taskErr);
+    }
 
-      const opportunityTarget = resolveGhlOpportunityTarget({
-        pipelineType: "follow_up",
-        pipelineId,
-        pipelineStageId,
-      });
+    // 2) Opportunity — best-effort, isolated so it never blocks the note
+    let opportunity: unknown = null;
+    const opportunityTarget = resolveGhlOpportunityTarget({
+      pipelineType: "follow_up",
+      pipelineId,
+      pipelineStageId,
+    });
 
-      let opportunity: unknown = null;
-
-      if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
-        const findExistingOpportunityId = async (): Promise<string | undefined> => {
+    if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
+      try {
+        const findExistingOpportunityId = async (scopeToPipeline: boolean): Promise<string | undefined> => {
           try {
-            const searchResult = await ghlSearchOpportunities(opportunityTarget.pipelineId!, ghlContactId);
-            // Prefer open, but fall back to ANY existing opp to avoid duplicate-create errors
+            const searchResult = await ghlSearchOpportunities(
+              scopeToPipeline ? opportunityTarget.pipelineId! : undefined,
+              ghlContactId,
+            );
             const existing = searchResult.opportunities?.find((opp) => opp.status === "open")
               ?? searchResult.opportunities?.[0];
             return existing?.id;
           } catch (searchErr) {
-            console.warn("[GHL Sync] Failed to search opportunities, will attempt create:", searchErr);
+            console.warn("[GHL Sync] Failed to search opportunities:", searchErr);
             return undefined;
           }
         };
 
-        let existingOpportunityId = await findExistingOpportunityId();
+        let existingOpportunityId = await findExistingOpportunityId(true);
         const opportunityName = `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`;
 
         const updatePayload = {
@@ -88,11 +96,11 @@ export function useGHLFollowUpSync() {
               status: "open",
             });
           } catch (createErr) {
-            // GHL rejects duplicate opps per contact — re-search and update instead
             const message = createErr instanceof Error ? createErr.message : String(createErr);
             if (message.includes("duplicate opportunity")) {
-              console.warn("[GHL Sync] Duplicate opportunity detected, retrying as update:", message);
-              existingOpportunityId = await findExistingOpportunityId();
+              console.warn("[GHL Sync] Duplicate opportunity detected, searching across all pipelines:", message);
+              // GHL blocks duplicate opps per CONTACT (across pipelines), so widen the search
+              existingOpportunityId = await findExistingOpportunityId(false);
               if (existingOpportunityId) {
                 opportunity = await ghlUpdateOpportunity(existingOpportunityId, updatePayload);
               } else {
@@ -110,16 +118,25 @@ export function useGHLFollowUpSync() {
           ghlStageId: opportunityTarget.pipelineStageId,
           opportunityPayload: opportunity,
         });
+      } catch (oppErr) {
+        reportSyncFailure("sync follow-up opportunity", ghlContactId, oppErr);
       }
+    }
 
-      const methodLabel = method === "email" ? "Email" : method === "prospecting" ? "Prospecting" : "Call";
+    // 3) Note — always attempt, even if task/opportunity failed
+    try {
       const noteParts = [`📋 Follow-Up Scheduled: ${new Date(scheduledFor).toLocaleString("en-AU")}`];
       noteParts.push(`Method: ${methodLabel}`);
       if (repName) noteParts.push(`Assigned to: ${repName}`);
       if (description) noteParts.push(`Notes: ${description}`);
       noteParts.push(`Logged via Speedy Sales Dialer`);
       await ghlAddNote(ghlContactId, noteParts.join("\n"));
+    } catch (noteErr) {
+      reportSyncFailure("push follow-up note", ghlContactId, noteErr);
+    }
 
+    // 4) Mirror — independent of GHL pushes
+    try {
       await persistContactMirror({
         contactId,
         ghlContactId,
@@ -127,11 +144,11 @@ export function useGHLFollowUpSync() {
         scheduledFor,
         notes: description ?? null,
       });
-      return true;
-    } catch (err) {
-      reportSyncFailure("push follow-up", ghlContactId, err);
-      return false;
+    } catch (mirrorErr) {
+      console.warn("[GHL Sync] Failed to persist contact mirror:", mirrorErr);
     }
+
+    return true;
   }, []);
 
   const pushFollowUpEmailDraft = useCallback(async (params: PushFollowUpEmailDraftParams) => {

@@ -68,10 +68,10 @@ export async function ghlUpdateOpportunity(opportunityId: string, payload: Recor
   return invokeGHL({ action: "update_opportunity", opportunityId, payload });
 }
 
-export async function ghlSearchOpportunities(pipelineId: string, contactId: string) {
+export async function ghlSearchOpportunities(pipelineId: string | undefined, contactId: string) {
   return invokeGHL<{ opportunities?: Array<{ id: string; stageId?: string; status?: string; [key: string]: unknown }> }>({
     action: "search_opportunities",
-    pipelineId,
+    ...(pipelineId ? { pipelineId } : {}),
     contactId,
   });
 }

@@ -223,12 +223,14 @@ async function updateOpportunity(
 async function searchOpportunities(
   apiKey: string,
   locationId: string,
-  pipelineId: string,
+  pipelineId: string | undefined,
   contactId: string,
 ) {
+  const params: Record<string, string> = { location_id: locationId, contact_id: contactId };
+  if (pipelineId) params.pipeline_id = pipelineId;
   return ghlFetch("/opportunities/search", apiKey, {
     method: "GET",
-    params: { location_id: locationId, pipeline_id: pipelineId, contact_id: contactId },
+    params,
   });
 }
 
@@ -1002,7 +1004,6 @@ Deno.serve(async (req) => {
         break;
 
       case "search_opportunities":
-        if (!body.pipelineId) return json({ error: "Missing pipelineId" }, 400);
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);
         result = await searchOpportunities(GHL_API_KEY, GHL_LOCATION_ID, body.pipelineId, body.contactId);
         break;
