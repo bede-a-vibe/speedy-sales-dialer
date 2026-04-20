@@ -1,38 +1,39 @@
 
-## Plan: Split `useGHLSync.ts` into focused hooks
+## Plan: Migrate consumers to focused GHL hooks; delete the barrel
 
-### Current state
-`src/hooks/useGHLSync.ts` is ~540 lines exposing 7 actions: `pushCallNote`, `pushBooking`, `pushFollowUp`, `pushFollowUpEmailDraft`, `pushDNC`, `refreshOpportunityMirror`, `updateOpportunityStage`. Consumed by `DialerPage.tsx`, `QuickBookDialog.tsx`, and `PipelinesPage.tsx`.
+### Changes per file
 
-### Target structure
+**`src/pages/DialerPage.tsx`**
+- Replace `import { useGHLSync } from "@/hooks/useGHLSync"` with imports of the 4 focused hooks from `@/hooks/ghl/*`.
+- Replace `const ghlSync = useGHLSync();` with:
+  ```ts
+  const { pushCallNote, pushDNC } = useGHLContactSync();
+  const { pushBooking } = useGHLBookingSync();
+  const { pushFollowUp, pushFollowUpEmailDraft } = useGHLFollowUpSync();
+  const { updateOpportunityStage } = useGHLOpportunityMirror();
+  ```
+- Update all `ghlSync.xxx(...)` call sites (lines ~1033–1108) to bare function names.
 
-```text
-src/hooks/ghl/
-├── ghlSyncShared.ts          (private helpers: persistOpportunityIdentity, persistContactMirror, reportSyncFailure)
-├── useGHLBookingSync.ts      (pushBooking)
-├── useGHLFollowUpSync.ts     (pushFollowUp, pushFollowUpEmailDraft)
-├── useGHLOpportunityMirror.ts (refreshOpportunityMirror, updateOpportunityStage)
-└── useGHLContactSync.ts      (pushCallNote, pushDNC)
-```
+**`src/components/QuickBookDialog.tsx`**
+- Same swap. Only uses `pushBooking`, `pushFollowUp`, `pushFollowUpEmailDraft`, `updateOpportunityStage` → import 3 focused hooks (booking, followUp, opportunityMirror).
+- Update all `ghlSync.xxx(...)` call sites (lines ~520–558).
 
-Then keep `src/hooks/useGHLSync.ts` as a thin **compatibility barrel** that composes all four hooks and returns the same combined shape — so existing callers keep working with zero changes.
+**`src/pages/PipelinesPage.tsx`**
+- Currently destructures `{ pushCallNote, pushFollowUp, refreshOpportunityMirror }`.
+- Replace with:
+  ```ts
+  const { pushCallNote } = useGHLContactSync();
+  const { pushFollowUp } = useGHLFollowUpSync();
+  const { refreshOpportunityMirror } = useGHLOpportunityMirror();
+  ```
+- No call-site renames needed (already destructured).
 
-### Files
+**`src/hooks/useGHLSync.ts`** — delete the barrel file.
 
-**New**
-- `src/hooks/ghl/ghlSyncShared.ts` — extract `describeError`, `reportSyncFailure`, `persistOpportunityIdentity`, `persistContactMirror`, plus shared param types (`PushBookingParams`, etc.)
-- `src/hooks/ghl/useGHLBookingSync.ts` — `pushBooking`
-- `src/hooks/ghl/useGHLFollowUpSync.ts` — `pushFollowUp` + `pushFollowUpEmailDraft`
-- `src/hooks/ghl/useGHLOpportunityMirror.ts` — `refreshOpportunityMirror` + `updateOpportunityStage`
-- `src/hooks/ghl/useGHLContactSync.ts` — `pushCallNote` + `pushDNC`
-
-**Modified**
-- `src/hooks/useGHLSync.ts` — reduced to a small barrel that calls the 4 hooks and returns `{ pushCallNote, pushBooking, pushFollowUp, pushFollowUpEmailDraft, pushDNC, refreshOpportunityMirror, updateOpportunityStage }`
-
-### Why a compatibility barrel?
-Three pages already destructure from `useGHLSync()`. Keeping the barrel means zero touch to `DialerPage.tsx`, `QuickBookDialog.tsx`, and `PipelinesPage.tsx` — the refactor stays pure (no behaviour change, no risk of breaking the dialer flow we just stabilised). Future code can import the focused hooks directly.
+### Verification
+- Search for any remaining references to `useGHLSync` or `@/hooks/useGHLSync` after the swap; should be zero.
+- No behaviour changes; same hook outputs, same params.
 
 ### Out of scope
-- No behaviour changes
-- No GHL API changes
-- No edits to consuming pages
+- No changes to the focused hooks themselves or `ghlSyncShared.ts`.
+- No GHL API or sync logic changes.
