@@ -184,11 +184,12 @@ async function createOpportunity(
 
 async function createCalendarEvent(
   apiKey: string,
+  locationId: string,
   body: Record<string, unknown>,
 ) {
   return ghlFetch("/calendars/events/appointments", apiKey, {
     method: "POST",
-    body,
+    body: { locationId, ...body },
   });
 }
 
