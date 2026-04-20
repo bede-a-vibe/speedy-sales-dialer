@@ -521,14 +521,14 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
         const repName = salesReps.find((r) => r.user_id === assignedRepId)?.display_name ?? undefined;
 
         // Update opportunity stage in Outbound Prospecting pipeline
-        ghlSync.updateOpportunityStage({
+        updateOpportunityStage({
           ghlContactId: contactGhlId,
           outcome: pipelineType === "booked" ? "booked" : "follow_up",
           contactName: selectedContact.business_name,
         }).catch(() => {});
 
         if (pipelineType === "booked" && ghlCalendarId) {
-          ghlSyncConfirmed = await ghlSync.pushBooking({
+          ghlSyncConfirmed = await pushBooking({
             ghlContactId: contactGhlId,
             contactId: selectedContact.id,
             calendarId: ghlCalendarId,
@@ -544,7 +544,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
           });
         }
         if (pipelineType === "follow_up") {
-          ghlSyncConfirmed = await ghlSync.pushFollowUp({
+          ghlSyncConfirmed = await pushFollowUp({
             ghlContactId: contactGhlId,
             contactId: selectedContact.id,
             scheduledFor: scheduledFor.toISOString(),
@@ -559,7 +559,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
 
           // Generate and push a draft email to GHL for all follow-ups
           if (selectedContact) {
-            ghlSync.pushFollowUpEmailDraft({
+            pushFollowUpEmailDraft({
               ghlContactId: contactGhlId,
               contactName: selectedContact.business_name ?? "there",
               businessName: selectedContact.business_name ?? "",

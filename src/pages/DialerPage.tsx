@@ -1036,7 +1036,7 @@ export default function DialerPage() {
 
       // ── GHL Sync (fire-and-forget) ──
       if (contactGhlId) {
-        ghlSync.pushCallNote({
+        pushCallNote({
           ghlContactId: contactGhlId,
           outcome: outcomeToLog,
           notes: pipelineNotes || undefined,
@@ -1044,14 +1044,14 @@ export default function DialerPage() {
         }).catch(() => {});
 
         // Update opportunity stage in Outbound Prospecting pipeline for every outcome
-        ghlSync.updateOpportunityStage({
+        updateOpportunityStage({
           ghlContactId: contactGhlId,
           outcome: outcomeToLog,
           contactName,
         }).catch(() => {});
 
         if (outcomeToLog === "booked" && scheduledFor && calendarId) {
-          ghlSync.pushBooking({
+          pushBooking({
             ghlContactId: contactGhlId,
             contactId,
             calendarId,
@@ -1068,7 +1068,7 @@ export default function DialerPage() {
         }
 
         if (outcomeToLog === "follow_up" && scheduledFor) {
-          ghlSync.pushFollowUp({
+          pushFollowUp({
             ghlContactId: contactGhlId,
             contactId,
             scheduledFor,
@@ -1097,7 +1097,7 @@ export default function DialerPage() {
               } catch { return null; }
             })();
 
-            ghlSync.pushFollowUpEmailDraft({
+            pushFollowUpEmailDraft({
               ghlContactId: contactGhlId,
               contactName: contactName ?? "there",
               businessName: contactName ?? "",
@@ -1111,7 +1111,7 @@ export default function DialerPage() {
         }
 
         if (outcomeToLog === "dnc") {
-          ghlSync.pushDNC({ ghlContactId: contactGhlId, contactId }).catch(() => {});
+          pushDNC({ ghlContactId: contactGhlId, contactId }).catch(() => {});
         }
       }
     })();
