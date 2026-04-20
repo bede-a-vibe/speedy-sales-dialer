@@ -52,35 +52,56 @@ export function useGHLFollowUpSync() {
       let opportunity: unknown = null;
 
       if (opportunityTarget.pipelineId && opportunityTarget.pipelineStageId) {
-        let existingOpportunityId: string | undefined;
-        try {
-          const searchResult = await ghlSearchOpportunities(opportunityTarget.pipelineId, ghlContactId);
-          const existing = searchResult.opportunities?.find(
-            (opp) => opp.status === "open",
-          ) ?? searchResult.opportunities?.[0];
-          existingOpportunityId = existing?.id;
-        } catch (searchErr) {
-          console.warn("[GHL Sync] Failed to search opportunities, will attempt create:", searchErr);
-        }
+        const findExistingOpportunityId = async (): Promise<string | undefined> => {
+          try {
+            const searchResult = await ghlSearchOpportunities(opportunityTarget.pipelineId!, ghlContactId);
+            // Prefer open, but fall back to ANY existing opp to avoid duplicate-create errors
+            const existing = searchResult.opportunities?.find((opp) => opp.status === "open")
+              ?? searchResult.opportunities?.[0];
+            return existing?.id;
+          } catch (searchErr) {
+            console.warn("[GHL Sync] Failed to search opportunities, will attempt create:", searchErr);
+            return undefined;
+          }
+        };
 
+        let existingOpportunityId = await findExistingOpportunityId();
         const opportunityName = `${contactName ?? "Contact"} – Follow Up (${method ?? "call"}) ${new Date(scheduledFor).toLocaleDateString("en-AU")}`;
 
+        const updatePayload = {
+          pipelineId: opportunityTarget.pipelineId,
+          pipelineStageId: opportunityTarget.pipelineStageId,
+          name: opportunityName,
+          status: "open",
+        };
+
         if (existingOpportunityId) {
-          opportunity = await ghlUpdateOpportunity(existingOpportunityId, {
-            pipelineId: opportunityTarget.pipelineId,
-            pipelineStageId: opportunityTarget.pipelineStageId,
-            name: opportunityName,
-            status: "open",
-          });
+          opportunity = await ghlUpdateOpportunity(existingOpportunityId, updatePayload);
         } else {
-          opportunity = await ghlCreateOpportunity({
-            pipelineType: "follow_up",
-            pipelineId: opportunityTarget.pipelineId,
-            pipelineStageId: opportunityTarget.pipelineStageId,
-            contactId: ghlContactId,
-            name: opportunityName,
-            status: "open",
-          });
+          try {
+            opportunity = await ghlCreateOpportunity({
+              pipelineType: "follow_up",
+              pipelineId: opportunityTarget.pipelineId,
+              pipelineStageId: opportunityTarget.pipelineStageId,
+              contactId: ghlContactId,
+              name: opportunityName,
+              status: "open",
+            });
+          } catch (createErr) {
+            // GHL rejects duplicate opps per contact — re-search and update instead
+            const message = createErr instanceof Error ? createErr.message : String(createErr);
+            if (message.includes("duplicate opportunity")) {
+              console.warn("[GHL Sync] Duplicate opportunity detected, retrying as update:", message);
+              existingOpportunityId = await findExistingOpportunityId();
+              if (existingOpportunityId) {
+                opportunity = await ghlUpdateOpportunity(existingOpportunityId, updatePayload);
+              } else {
+                throw createErr;
+              }
+            } else {
+              throw createErr;
+            }
+          }
         }
 
         await persistOpportunityIdentity({
