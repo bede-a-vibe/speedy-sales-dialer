@@ -224,7 +224,9 @@ export default function PipelinesPage() {
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
   const { user } = useAuth();
-  const { pushCallNote, pushFollowUp, refreshOpportunityMirror } = useGHLSync();
+  const { pushCallNote } = useGHLContactSync();
+  const { pushFollowUp } = useGHLFollowUpSync();
+  const { refreshOpportunityMirror } = useGHLOpportunityMirror();
   const { data: myGhlUserId } = useMyGhlUserId();
   const ghlLink = useGHLContactLink();
   const { data: ghlPipelines = [] } = useGHLPipelines();
