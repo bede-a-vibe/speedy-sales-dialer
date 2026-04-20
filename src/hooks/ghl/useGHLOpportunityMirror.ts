@@ -72,14 +72,15 @@ export function useGHLOpportunityMirror() {
         } catch (createErr) {
           const message = createErr instanceof Error ? createErr.message : String(createErr);
           if (message.includes("duplicate opportunity")) {
-            const retry = await ghlSearchOpportunities(OUTBOUND_PIPELINE_ID, ghlContactId);
+            // Widen search across all pipelines — GHL blocks duplicate opps per CONTACT, not per pipeline
+            const retry = await ghlSearchOpportunities(undefined, ghlContactId);
             const anyExisting = retry.opportunities?.[0];
             if (anyExisting) {
               await ghlUpdateOpportunity(anyExisting.id, {
                 pipelineId: OUTBOUND_PIPELINE_ID,
                 pipelineStageId: targetStageId,
               });
-              console.log(`[GHL Sync] Recovered duplicate by updating opportunity ${anyExisting.id}`);
+              console.log(`[GHL Sync] Recovered duplicate by moving opportunity ${anyExisting.id} into Outbound pipeline`);
             } else {
               throw createErr;
             }
