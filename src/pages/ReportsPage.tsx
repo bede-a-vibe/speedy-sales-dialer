@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock, DollarSign, TrendingDown } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -20,6 +22,7 @@ import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentO
 import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
+import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
 
 const ALL_REPS_VALUE = "all";
 
@@ -50,6 +53,19 @@ export default function ReportsPage() {
   const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
 
+  const { data: contactAttempts = [] } = useQuery({
+    queryKey: ["contacts-attempt-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, call_attempt_count")
+        .gt("call_attempt_count", 0);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
+
   const activeRepId = selectedRepId === ALL_REPS_VALUE ? undefined : selectedRepId;
   const selectedRepLabel =
     reps.find((rep) => rep.user_id === activeRepId)?.display_name ||
@@ -65,8 +81,8 @@ export default function ReportsPage() {
   );
 
   const metrics = useMemo(
-    () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo, repUserId: activeRepId }),
-    [activeRepId, bookedAppointments, callLogs, dateFrom, dateTo],
+    () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),
+    [activeRepId, bookedAppointments, callLogs, contactAttempts, dateFrom, dateTo],
   );
 
   const teamMetrics = useMemo(
@@ -164,8 +180,9 @@ export default function ReportsPage() {
           </div>
         </ReportSection>
 
-        <Tabs defaultValue="bookings-made" className="space-y-6">
+        <Tabs defaultValue="sop-diagnostic" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
+            <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="pipeline-funnel" className="rounded-md">Pipeline Funnel</TabsTrigger>
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
@@ -173,6 +190,19 @@ export default function ReportsPage() {
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="sop-diagnostic" className="space-y-6">
+            <ReportSection
+              title="Outbound Data Review (SOP)"
+              description="System health metrics aligned to the Outbound Data Review SOP. Read top-to-bottom: pickup -> contact -> dial efficiency -> lead penetration -> duration -> rep flags."
+            >
+              <OutboundDiagnosticPanel
+                diagnostic={metrics.outboundDiagnostic}
+                pickUpRate={metrics.dialer.pickUpRate}
+                repNameMap={repNameMap}
+              />
+            </ReportSection>
+          </TabsContent>
 
           <TabsContent value="bookings-made" className="space-y-6">
             <ReportSection

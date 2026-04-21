@@ -5,6 +5,7 @@ export interface HourlyRow {
   hour: number;
   dials: number;
   pickUps: number;
+  connections: number;
   bookings: number;
   talkTimeSeconds: number;
 }
@@ -19,6 +20,7 @@ export function getHourlyMetrics(
     hour: i,
     dials: 0,
     pickUps: 0,
+    connections: 0,
     bookings: 0,
     talkTimeSeconds: 0,
   }));
@@ -31,6 +33,7 @@ export function getHourlyMetrics(
     rows[hour].talkTimeSeconds += getTalkTimeSeconds(log);
     if (ANSWERED_OUTCOMES.has(log.outcome)) {
       rows[hour].pickUps += 1;
+      rows[hour].connections += 1;
     }
   }
 
