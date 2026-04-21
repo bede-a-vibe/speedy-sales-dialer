@@ -39,6 +39,7 @@ export function HourlyBreakdownTable({ rows }: Props) {
           <TableHead className="w-[80px]">Hour</TableHead>
           <TableHead className="text-right">Dials</TableHead>
           <TableHead className="text-right">Pick Ups</TableHead>
+          <TableHead className="text-right">Connections</TableHead>
           <TableHead className="text-right">Bookings</TableHead>
           <TableHead className="text-right">Talk Time</TableHead>
         </TableRow>
@@ -55,6 +56,7 @@ export function HourlyBreakdownTable({ rows }: Props) {
               </TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.dials}</TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.pickUps}</TableCell>
+              <TableCell className="text-right font-mono text-foreground">{r.connections}</TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.bookings}</TableCell>
               <TableCell className="text-right font-mono text-muted-foreground">{formatDurationSeconds(r.talkTimeSeconds)}</TableCell>
             </TableRow>
