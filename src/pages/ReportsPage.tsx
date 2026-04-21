@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock, DollarSign, TrendingDown } from "lucide-react";
+import { CalendarIcon, BarChart3, PhoneCall, Users, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -16,29 +15,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
-import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
-import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
+import { getReportMetrics } from "@/lib/reportMetrics";
 import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
 
 const ALL_REPS_VALUE = "all";
-
-function buildAppointmentOutcomeItems(
-  outcomeCounts: AppointmentOutcomeCounts,
-  metrics: AppointmentPerformanceMetrics,
-) {
-  return Object.entries(APPOINTMENT_OUTCOME_LABELS).map(([key, label]) => ({
-    label,
-    count: outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0,
-    pct:
-      metrics.resolvedAppointments > 0
-        ? Math.round(((outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0) / metrics.resolvedAppointments) * 100)
-        : 0,
-  }));
-}
 
 export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -101,11 +85,6 @@ export default function ReportsPage() {
     [metrics],
   );
 
-  const setterOutcomeItems = useMemo(
-    () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.setter, metrics.appointmentPerformance.setter),
-    [metrics],
-  );
-
   const hourlyRows = useMemo(
     () => getHourlyMetrics(callLogs, bookedAppointments, hourlyDate, activeRepId),
     [callLogs, bookedAppointments, hourlyDate, activeRepId],
@@ -114,11 +93,6 @@ export default function ReportsPage() {
   const heatMapCells = useMemo(
     () => getBookingHeatMapData(bookedAppointments),
     [bookedAppointments],
-  );
-
-  const closerOutcomeItems = useMemo(
-    () => buildAppointmentOutcomeItems(metrics.appointmentOutcomeCounts.closer, metrics.appointmentPerformance.closer),
-    [metrics],
   );
 
   return (
@@ -184,9 +158,6 @@ export default function ReportsPage() {
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
-            <TabsTrigger value="pipeline-funnel" className="rounded-md">Pipeline Funnel</TabsTrigger>
-            <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
-            <TabsTrigger value="closer-performance" className="rounded-md">Closer Performance</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
           </TabsList>
@@ -202,12 +173,25 @@ export default function ReportsPage() {
                 repNameMap={repNameMap}
               />
             </ReportSection>
+
+            <ReportSection
+              title="Daily Call Volume"
+              description="Total dials per day across the selected range."
+            >
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="mb-4 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Dials per Day</h3>
+                </div>
+                <DailyVolumeChart data={metrics.dailyVolume} />
+              </div>
+            </ReportSection>
           </TabsContent>
 
           <TabsContent value="bookings-made" className="space-y-6">
             <ReportSection
               title="Bookings Made"
-              description={`Activity view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} in the selected date range.`}
+              description={`Bookings created from outbound activity${activeRepId ? ` (${selectedRepLabel})` : ""} in the selected date range. Show-up / close metrics live in the CRM.`}
             >
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
                 <StatCard label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} />
@@ -233,206 +217,40 @@ export default function ReportsPage() {
             </ReportSection>
           </TabsContent>
 
-          <TabsContent value="pipeline-funnel" className="space-y-6">
-            <ReportSection
-              title="Pipeline Funnel"
-              description={`End-to-end view from bookings to cash collected${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}
-            >
-              {(() => {
-                const s = metrics.appointmentPerformance.setter;
-                const funnelItems = [
-                  { label: "Appointments Booked", value: s.appointmentsScheduled, pct: 100, indent: 0 },
-                  { label: "Pending (no outcome yet)", value: s.pendingOutcome, pct: s.appointmentsScheduled > 0 ? Math.round((s.pendingOutcome / s.appointmentsScheduled) * 100) : 0, indent: 1 },
-                  { label: "Rescheduled", value: s.rescheduled, pct: s.rescheduleRate, indent: 1 },
-                  { label: "No Show", value: s.noShows, pct: s.appointmentsScheduled > 0 ? Math.round((s.noShows / s.appointmentsScheduled) * 100) : 0, indent: 1 },
-                  { label: "Showed", value: s.showed, pct: s.showUpRate, indent: 1 },
-                  { label: "Verbal Commitment", value: s.showedVerbalCommitment, pct: s.showed > 0 ? Math.round((s.showedVerbalCommitment / s.showed) * 100) : 0, indent: 2 },
-                  { label: "Closed", value: s.showedClosed, pct: s.closeRate, indent: 2 },
-                  { label: "No Close", value: s.showedNoClose, pct: s.showed > 0 ? Math.round((s.showedNoClose / s.showed) * 100) : 0, indent: 2 },
-                ];
-
-                return (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-border bg-background p-4 space-y-2">
-                      {funnelItems.map((row) => (
-                        <div
-                          key={row.label}
-                          className="flex items-center justify-between gap-4 py-1.5"
-                          style={{ paddingLeft: `${row.indent * 24}px` }}
-                        >
-                          <span className={cn("text-sm", row.indent === 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                            {row.indent > 0 && "├─ "}
-                            {row.label}
-                          </span>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-sm font-medium text-foreground">{row.value}</span>
-                            {row.indent > 0 && (
-                              <span className="font-mono text-xs text-muted-foreground w-10 text-right">{row.pct}%</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <div className="rounded-lg border border-border bg-background p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="h-4 w-4 text-emerald-500" />
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Cash Collected</p>
-                        </div>
-                        <p className="font-mono text-2xl font-bold text-foreground">
-                          ${s.cashCollected.toLocaleString("en-AU")}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-border bg-background p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Avg Deal Value</p>
-                        </div>
-                        <p className="font-mono text-2xl font-bold text-foreground">
-                          ${s.averageDealValue.toLocaleString("en-AU")}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-border bg-background p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Reschedule Rate</p>
-                        </div>
-                        <p className="font-mono text-2xl font-bold text-foreground">
-                          {s.rescheduleRate}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </ReportSection>
-          </TabsContent>
-
-          <TabsContent value="setter-performance" className="space-y-6">
-            <ReportSection
-              title="Setter Performance"
-              description={`Performance view based on who created the booking${activeRepId ? ` (${selectedRepLabel})` : ""} and whether those meetings showed.`}
-            >
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-                <StatCard label="Appointments Set" value={metrics.appointmentPerformance.setter.appointmentsScheduled} />
-                <StatCard label="No Shows" value={metrics.appointmentPerformance.setter.noShows} />
-                <StatCard label="Showed" value={metrics.appointmentPerformance.setter.showed} />
-                <StatCard label="Show-Up Rate" value={`${metrics.appointmentPerformance.setter.showUpRate}%`} subtext="showed / appointments set" />
-                <StatCard label="Showed Closed" value={metrics.appointmentPerformance.setter.showedClosed} />
-                <StatCard label="Verbal Commitments" value={metrics.appointmentPerformance.setter.showedVerbalCommitment} />
-                <StatCard label="Close Rate" value={`${metrics.appointmentPerformance.setter.closeRate}%`} subtext="closed / showed" />
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <div className="mb-4 flex items-center gap-2">
-                    <CalendarCheck2 className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Setter Appointment Outcomes</h3>
-                  </div>
-                  <MetricBarList items={setterOutcomeItems} emptyLabel="No resolved setter appointments in this date range." />
-                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentPerformance.setter.resolvedAppointments} · Rescheduled: {metrics.appointmentPerformance.setter.rescheduled}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <div className="mb-4 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Daily Call Volume</h3>
-                  </div>
-                  <DailyVolumeChart data={metrics.dailyVolume} />
-                </div>
-              </div>
-            </ReportSection>
-          </TabsContent>
-
-          <TabsContent value="closer-performance" className="space-y-6">
-            <ReportSection
-              title="Closer Performance"
-              description={`Performance view based on who was assigned to close the meeting${activeRepId ? ` (${selectedRepLabel})` : ""} for appointments in the selected date range.`}
-            >
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-                <StatCard label="Appointments Closed" value={metrics.appointmentPerformance.closer.appointmentsScheduled} />
-                <StatCard label="No Shows" value={metrics.appointmentPerformance.closer.noShows} />
-                <StatCard label="Showed" value={metrics.appointmentPerformance.closer.showed} />
-                <StatCard label="Show-Up Rate" value={`${metrics.appointmentPerformance.closer.showUpRate}%`} subtext="showed / assigned appointments" />
-                <StatCard label="Verbal Commitments" value={metrics.appointmentPerformance.closer.showedVerbalCommitment} />
-                <StatCard label="Verbal Commitment %" value={`${metrics.appointmentPerformance.closer.verbalCommitmentRate}%`} subtext="verbal / showed" />
-                <StatCard label="Showed Closed" value={metrics.appointmentPerformance.closer.showedClosed} />
-                <StatCard label="Close Rate" value={`${metrics.appointmentPerformance.closer.closeRate}%`} subtext="closed / showed" />
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <div className="mb-4 flex items-center gap-2">
-                    <CalendarCheck2 className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Closer Appointment Outcomes</h3>
-                  </div>
-                  <MetricBarList items={closerOutcomeItems} emptyLabel="No resolved closer appointments in this date range." />
-                  <p className="mt-4 text-xs text-muted-foreground">Resolved appointments: {metrics.appointmentPerformance.closer.resolvedAppointments} · Rescheduled: {metrics.appointmentPerformance.closer.rescheduled}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Compare Roles</p>
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <StatCard label="Setter Show-Up Rate" value={`${metrics.appointmentPerformance.setter.showUpRate}%`} subtext="creator attribution" className="bg-card" />
-                    <StatCard label="Closer Close Rate" value={`${metrics.appointmentPerformance.closer.closeRate}%`} subtext="assigned closer attribution" className="bg-card" />
-                  </div>
-                </div>
-              </div>
-            </ReportSection>
-          </TabsContent>
-
           <TabsContent value="rep-comparison" className="space-y-6">
             <ReportSection
               title="Rep Comparison"
-              description="One table comparing setter and closer outcomes side by side for every rep in the selected date range."
+              description="Outbound dialer activity per rep in the selected date range."
             >
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead rowSpan={2} className="min-w-[180px] align-bottom">Rep</TableHead>
-                     <TableHead colSpan={4} className="text-center">Dialer</TableHead>
-                     <TableHead colSpan={5} className="text-center">Setter</TableHead>
-                     <TableHead colSpan={5} className="text-center">Closer</TableHead>
-                   </TableRow>
-                   <TableRow>
-                     <TableHead>Dials</TableHead>
-                     <TableHead>Pick-ups</TableHead>
-                     <TableHead>Talk Time</TableHead>
-                     <TableHead>Avg Talk</TableHead>
-                    <TableHead>Set</TableHead>
-                    <TableHead>Showed</TableHead>
-                    <TableHead>Show %</TableHead>
-                    <TableHead>Close %</TableHead>
-                    <TableHead>Cash</TableHead>
-                    <TableHead>Assigned</TableHead>
-                    <TableHead>Showed</TableHead>
-                    <TableHead>Show %</TableHead>
-                    <TableHead>Close %</TableHead>
-                    <TableHead>Cash</TableHead>
+                    <TableHead className="min-w-[180px]">Rep</TableHead>
+                    <TableHead className="text-right">Dials</TableHead>
+                    <TableHead className="text-right">Pick-ups</TableHead>
+                    <TableHead className="text-right">Pick-up %</TableHead>
+                    <TableHead className="text-right">Talk Time</TableHead>
+                    <TableHead className="text-right">Avg Talk / Pickup</TableHead>
+                    <TableHead className="text-right">Bookings</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={15} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
                   ) : (
                     metrics.repComparison.map((row) => (
                       <TableRow key={row.repUserId}>
-                         <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
-                         <TableCell className="font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
-                         <TableCell className="font-mono text-foreground">{row.dialer.pickUps}</TableCell>
-                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
-                         <TableCell className="font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
-                        <TableCell className="font-mono text-muted-foreground">{row.setter.appointmentsScheduled}</TableCell>
-                        <TableCell className="font-mono text-muted-foreground">{row.setter.showed}</TableCell>
-                        <TableCell className="font-mono text-foreground">{row.setter.showUpRate}%</TableCell>
-                        <TableCell className="font-mono text-foreground">{row.setter.closeRate}%</TableCell>
-                        <TableCell className="font-mono text-emerald-600">${row.setter.cashCollected.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono text-muted-foreground">{row.closer.appointmentsScheduled}</TableCell>
-                        <TableCell className="font-mono text-muted-foreground">{row.closer.showed}</TableCell>
-                        <TableCell className="font-mono text-foreground">{row.closer.showUpRate}%</TableCell>
-                        <TableCell className="font-mono text-foreground">{row.closer.closeRate}%</TableCell>
-                        <TableCell className="font-mono text-emerald-600">${row.closer.cashCollected.toLocaleString()}</TableCell>
+                        <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                        <TableCell className="text-right font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
+                        <TableCell className="text-right font-mono text-foreground">{row.dialer.pickUps}</TableCell>
+                        <TableCell className="text-right font-mono text-foreground">{row.dialer.dials > 0 ? Math.round((row.dialer.pickUps / row.dialer.dials) * 100) : 0}%</TableCell>
+                        <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
+                        <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
+                        <TableCell className="text-right font-mono text-foreground">{row.setter.appointmentsScheduled}</TableCell>
                       </TableRow>
                     ))
                   )}
