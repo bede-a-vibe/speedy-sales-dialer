@@ -180,8 +180,9 @@ export default function ReportsPage() {
           </div>
         </ReportSection>
 
-        <Tabs defaultValue="bookings-made" className="space-y-6">
+        <Tabs defaultValue="sop-diagnostic" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
+            <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="pipeline-funnel" className="rounded-md">Pipeline Funnel</TabsTrigger>
             <TabsTrigger value="setter-performance" className="rounded-md">Setter Performance</TabsTrigger>
@@ -189,6 +190,19 @@ export default function ReportsPage() {
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="sop-diagnostic" className="space-y-6">
+            <ReportSection
+              title="Outbound Data Review (SOP)"
+              description="System health metrics aligned to the Outbound Data Review SOP. Read top-to-bottom: pickup -> contact -> dial efficiency -> lead penetration -> duration -> rep flags."
+            >
+              <OutboundDiagnosticPanel
+                diagnostic={metrics.outboundDiagnostic}
+                pickUpRate={metrics.dialer.pickUpRate}
+                repNameMap={repNameMap}
+              />
+            </ReportSection>
+          </TabsContent>
 
           <TabsContent value="bookings-made" className="space-y-6">
             <ReportSection
