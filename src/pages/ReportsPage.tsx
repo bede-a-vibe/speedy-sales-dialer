@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
-import { CalendarIcon, BarChart3, PhoneCall, CalendarCheck2, Users, Clock, DollarSign, TrendingDown } from "lucide-react";
+import { CalendarIcon, BarChart3, PhoneCall, Users, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -16,29 +15,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
-import { APPOINTMENT_OUTCOME_LABELS } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
-import { getReportMetrics, type AppointmentPerformanceMetrics, type AppointmentOutcomeCounts } from "@/lib/reportMetrics";
+import { getReportMetrics } from "@/lib/reportMetrics";
 import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
 
 const ALL_REPS_VALUE = "all";
-
-function buildAppointmentOutcomeItems(
-  outcomeCounts: AppointmentOutcomeCounts,
-  metrics: AppointmentPerformanceMetrics,
-) {
-  return Object.entries(APPOINTMENT_OUTCOME_LABELS).map(([key, label]) => ({
-    label,
-    count: outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0,
-    pct:
-      metrics.resolvedAppointments > 0
-        ? Math.round(((outcomeCounts[key as keyof typeof APPOINTMENT_OUTCOME_LABELS] ?? 0) / metrics.resolvedAppointments) * 100)
-        : 0,
-  }));
-}
 
 export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
