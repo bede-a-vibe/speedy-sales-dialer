@@ -324,6 +324,97 @@ export function getReportMetrics({
   const setterPerformance = buildAppointmentPerformance(setterAppointmentsInRange);
   const closerPerformance = buildAppointmentPerformance(closerAppointmentsInRange);
 
+  // ---- Outbound Diagnostic (SOP-aligned) ----
+  const dialedContactIds = new Set(filteredCallLogs.map((log) => log.contact_id));
+  const spokenContactIds = new Set(
+    filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).map((log) => log.contact_id),
+  );
+  const uniqueDialed = dialedContactIds.size;
+  const totalDials = filteredCallLogs.length;
+  const uniqueSpoken = spokenContactIds.size;
+
+  const contactRate = toPercent(uniqueSpoken, uniqueDialed);
+  const uniqueDialRate = toPercent(uniqueDialed, totalDials);
+  const averageAttemptsPerLead = uniqueDialed > 0 ? Math.round((totalDials / uniqueDialed) * 10) / 10 : 0;
+
+  // Lead age penetration from contacts.call_attempt_count
+  const buckets: Record<"P1" | "P2" | "P3" | "P4" | "P5+", number> = { P1: 0, P2: 0, P3: 0, P4: 0, "P5+": 0 };
+  const contactPool = contacts ?? [];
+  for (const c of contactPool) {
+    const n = c.call_attempt_count ?? 0;
+    if (n === 1) buckets.P1 += 1;
+    else if (n === 2) buckets.P2 += 1;
+    else if (n === 3) buckets.P3 += 1;
+    else if (n === 4) buckets.P4 += 1;
+    else if (n >= 5) buckets["P5+"] += 1;
+  }
+  const totalAttempted = buckets.P1 + buckets.P2 + buckets.P3 + buckets.P4 + buckets["P5+"];
+  const leadAgePenetration = (Object.keys(buckets) as Array<keyof typeof buckets>).map((bucket) => ({
+    bucket,
+    count: buckets[bucket],
+    pct: toPercent(buckets[bucket], totalAttempted),
+  }));
+
+  // Call duration diagnostics
+  let shortHangupsUnder15s = 0;
+  let shortHangupsUnder2m = 0;
+  let longDqOver30m = 0;
+  for (const log of filteredCallLogs) {
+    if (!ANSWERED_OUTCOMES.has(log.outcome)) continue;
+    const sec = getTalkTimeSeconds(log);
+    if (sec > 0 && sec < 15) shortHangupsUnder15s += 1;
+    if (sec > 0 && sec < 120) shortHangupsUnder2m += 1;
+    if (sec > 1800 && (log.outcome === "not_interested" || log.outcome === "dnc")) longDqOver30m += 1;
+  }
+
+  // Per-rep red flags vs team baseline
+  const allReps = Array.from(new Set(callLogs.map((l) => l.user_id).filter(Boolean)));
+  const teamDials = callLogs.length;
+  const teamNotInt = callLogs.filter((l) => l.outcome === "not_interested").length;
+  const teamDnc = callLogs.filter((l) => l.outcome === "dnc").length;
+  const teamShort = callLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome) && getTalkTimeSeconds(l) > 0 && getTalkTimeSeconds(l) < 15).length;
+  const teamNotIntRate = teamDials > 0 ? teamNotInt / teamDials : 0;
+  const teamDncRate = teamDials > 0 ? teamDnc / teamDials : 0;
+  const teamShortRate = teamDials > 0 ? teamShort / teamDials : 0;
+
+  const repRedFlags: RepRedFlagRow[] = allReps
+    .map((repId) => {
+      const repLogs = callLogs.filter((l) => l.user_id === repId);
+      const dials = repLogs.length;
+      const ni = repLogs.filter((l) => l.outcome === "not_interested").length;
+      const dn = repLogs.filter((l) => l.outcome === "dnc").length;
+      const sh = repLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome) && getTalkTimeSeconds(l) > 0 && getTalkTimeSeconds(l) < 15).length;
+      const niRate = dials > 0 ? ni / dials : 0;
+      const dnRate = dials > 0 ? dn / dials : 0;
+      const shRate = dials > 0 ? sh / dials : 0;
+      const flags: string[] = [];
+      if (dials >= 10 && niRate > teamNotIntRate * 1.5 && teamNotIntRate > 0) flags.push("High not-interested");
+      if (dials >= 10 && dnRate > teamDncRate * 1.5 && teamDncRate > 0) flags.push("High DNC");
+      if (dials >= 10 && shRate > teamShortRate * 1.5 && teamShortRate > 0) flags.push("Opener review");
+      return {
+        repUserId: repId,
+        dials,
+        notInterestedRate: Math.round(niRate * 100),
+        dncRate: Math.round(dnRate * 100),
+        shortHangupRate: Math.round(shRate * 100),
+        flags,
+      };
+    })
+    .sort((a, b) => b.flags.length - a.flags.length || b.dials - a.dials);
+
+  const outboundDiagnostic: OutboundDiagnosticMetrics = {
+    contactRate,
+    uniqueDialRate,
+    averageAttemptsPerLead,
+    uniqueLeadsSpokenTo: uniqueSpoken,
+    leadAgePenetration,
+    totalLeadsInPenetration: totalAttempted,
+    shortHangupsUnder15s,
+    shortHangupsUnder2m,
+    longDqOver30m,
+    repRedFlags,
+  };
+
   return {
     dialer: {
       dials: filteredCallLogs.length,
@@ -357,5 +448,6 @@ export function getReportMetrics({
       setter: setterPerformance.outcomeCounts,
       closer: closerPerformance.outcomeCounts,
     },
+    outboundDiagnostic,
   };
 }
