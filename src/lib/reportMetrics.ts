@@ -9,6 +9,11 @@ export type ReportBookingItem = Pick<
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
 >;
 
+export type ReportContact = Pick<
+  Tables<"contacts">,
+  "id" | "call_attempt_count"
+>;
+
 export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "not_interested",
   "dnc",
@@ -53,6 +58,28 @@ export interface RepComparisonRow {
   closer: AppointmentPerformanceMetrics;
 }
 
+export interface RepRedFlagRow {
+  repUserId: string;
+  dials: number;
+  notInterestedRate: number;
+  dncRate: number;
+  shortHangupRate: number;
+  flags: string[];
+}
+
+export interface OutboundDiagnosticMetrics {
+  contactRate: number; // unique leads spoken to / unique leads attempted (%)
+  uniqueDialRate: number; // unique leads dialed / total dials (%)
+  averageAttemptsPerLead: number;
+  uniqueLeadsSpokenTo: number;
+  leadAgePenetration: { bucket: "P1" | "P2" | "P3" | "P4" | "P5+"; count: number; pct: number }[];
+  totalLeadsInPenetration: number;
+  shortHangupsUnder15s: number;
+  shortHangupsUnder2m: number;
+  longDqOver30m: number;
+  repRedFlags: RepRedFlagRow[];
+}
+
 export interface ReportMetrics {
   dialer: {
     dials: number;
@@ -84,6 +111,7 @@ export interface ReportMetrics {
     setter: AppointmentOutcomeCounts;
     closer: AppointmentOutcomeCounts;
   };
+  outboundDiagnostic: OutboundDiagnosticMetrics;
 }
 
 function toDateKey(value: string) {
