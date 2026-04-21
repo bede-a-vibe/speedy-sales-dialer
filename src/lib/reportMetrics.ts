@@ -229,12 +229,14 @@ export function getReportMetrics({
   from,
   to,
   repUserId,
+  contacts,
 }: {
   callLogs: ReportCallLog[];
   bookedItems: ReportBookingItem[];
   from?: string;
   to?: string;
   repUserId?: string;
+  contacts?: ReportContact[];
 }): ReportMetrics {
   const filteredCallLogs = repUserId ? callLogs.filter((log) => log.user_id === repUserId) : callLogs;
   const bookingsForCreatedView = repUserId
