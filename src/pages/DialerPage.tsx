@@ -12,6 +12,7 @@ import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
+import { ConversationProgressPanel, EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -238,6 +239,9 @@ export default function DialerPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
+
+  // Conversation funnel tracking (manual capture per call)
+  const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
 
   // Dialpad CTI Client ID from environment variable
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
@@ -946,6 +950,8 @@ export default function DialerPage() {
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
+    const cp = conversationProgress;
+    setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
@@ -967,6 +973,12 @@ export default function DialerPage() {
             notes: pipelineNotes || undefined,
             follow_up_date: scheduledFor,
             dialpad_call_id: dialpadCallId,
+            reached_connection: cp.reachedConnection,
+            reached_problem_awareness: cp.reachedProblem,
+            reached_solution_awareness: cp.reachedSolution,
+            reached_commitment: cp.reachedCommitment,
+            opener_used_id: cp.openerId,
+            drop_off_reason: cp.dropOffReason,
           }),
           updateContact.mutateAsync({
             id: contactId,
@@ -2305,6 +2317,12 @@ export default function DialerPage() {
                 notes={session.notes}
                 onNotesChange={session.setNotes}
                 enabled={session.isSessionActive}
+              />
+
+              {/* Conversation funnel tracking */}
+              <ConversationProgressPanel
+                value={conversationProgress}
+                onChange={setConversationProgress}
               />
 
               {/* Dialpad Sync — lower priority, moved below actions */}

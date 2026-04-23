@@ -21,6 +21,7 @@ import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
+import { ConversationFunnelPanel } from "@/components/reports/ConversationFunnelPanel";
 
 const ALL_REPS_VALUE = "all";
 
@@ -157,6 +158,7 @@ export default function ReportsPage() {
         <Tabs defaultValue="sop-diagnostic" className="space-y-6">
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
+            <TabsTrigger value="conversation-funnel" className="rounded-md">Conversation Funnel</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
@@ -185,6 +187,20 @@ export default function ReportsPage() {
                 </div>
                 <DailyVolumeChart data={metrics.dailyVolume} />
               </div>
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="conversation-funnel" className="space-y-6">
+            <ReportSection
+              title="Conversation Funnel"
+              description={`Manual cold-call funnel tagged by reps. Shows where conversations break down${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}.`}
+            >
+              <ConversationFunnelPanel
+                callLogs={callLogs as never}
+                from={dateFrom}
+                to={dateTo}
+                repUserId={activeRepId}
+              />
             </ReportSection>
           </TabsContent>
 

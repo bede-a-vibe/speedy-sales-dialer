@@ -319,6 +319,12 @@ export function useCreateCallLog() {
       notes?: string;
       follow_up_date?: string | null;
       dialpad_call_id?: string | null;
+      reached_connection?: boolean;
+      reached_problem_awareness?: boolean;
+      reached_solution_awareness?: boolean;
+      reached_commitment?: boolean;
+      opener_used_id?: string | null;
+      drop_off_reason?: string | null;
     }) => {
       const key = deduplicationKey(log.contact_id, log.user_id);
       const lastInsert = recentInserts.get(key);

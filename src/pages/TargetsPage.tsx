@@ -16,6 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeletePerformanceTarget, usePerformanceTargets, useUpsertPerformanceTarget } from "@/hooks/usePerformanceTargets";
 import { useSalesReps } from "@/hooks/usePipelineItems";
+import { useIsAdmin } from "@/hooks/useUserRole";
+import { CallOpenersManager } from "@/components/admin/CallOpenersManager";
 import {
   deriveAllTargets,
   deriveSetterValues,
@@ -54,6 +56,7 @@ export default function TargetsPage() {
   const { data: reps = [] } = useSalesReps();
   const upsertTarget = useUpsertPerformanceTarget();
   const deleteTarget = useDeletePerformanceTarget();
+  const isAdmin = useIsAdmin();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedRepId, setSelectedRepId] = useState("");
@@ -658,6 +661,7 @@ export default function TargetsPage() {
             </Tabs>
           </div>
         )}
+        {isAdmin && <CallOpenersManager />}
       </div>
     </AppLayout>
   );
