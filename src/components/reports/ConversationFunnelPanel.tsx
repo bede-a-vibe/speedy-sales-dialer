@@ -4,9 +4,11 @@ import { useCallOpeners } from "@/hooks/useCallOpeners";
 import {
   computeFunnel,
   computeOpenerMetrics,
-  computeDropOffBreakdown,
+  computeStageExitBreakdowns,
+  computeTopCoachingCue,
   filterFunnelLogs,
 } from "@/lib/funnelMetrics";
+import { Lightbulb } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type CallLogRow = Pick<
@@ -20,7 +22,11 @@ type CallLogRow = Pick<
   | "reached_solution_awareness"
   | "reached_commitment"
   | "opener_used_id"
-  | "drop_off_reason"
+  | "exit_reason_connection"
+  | "exit_reason_problem"
+  | "exit_reason_solution"
+  | "exit_reason_commitment"
+  | "exit_reason_booking"
 >;
 
 interface Props {
@@ -28,9 +34,10 @@ interface Props {
   from?: string;
   to?: string;
   repUserId?: string;
+  repLabel?: string;
 }
 
-export function ConversationFunnelPanel({ callLogs, from, to, repUserId }: Props) {
+export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabel }: Props) {
   const { data: openers = [] } = useCallOpeners(true);
 
   const filtered = useMemo(() => filterFunnelLogs(callLogs, { from, to, repUserId }), [callLogs, from, to, repUserId]);
@@ -44,10 +51,31 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId }: Props
   }, [openers]);
 
   const openerMetrics = useMemo(() => computeOpenerMetrics(filtered, openerNames), [filtered, openerNames]);
-  const dropOffs = useMemo(() => computeDropOffBreakdown(filtered), [filtered]);
+  const stageBreakdowns = useMemo(() => computeStageExitBreakdowns(filtered), [filtered]);
+  const coachingCue = useMemo(() => computeTopCoachingCue(filtered), [filtered]);
+
+  const subjectLabel = repLabel ?? "Team";
 
   return (
     <div className="space-y-6">
+      {coachingCue && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-start gap-3">
+            <Lightbulb className="h-5 w-5 text-primary mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-[10px] uppercase tracking-widest text-primary">Top Coaching Cue</h3>
+              <p className="text-sm text-foreground">
+                <span className="font-semibold">{subjectLabel}'s biggest leak:</span> {coachingCue.stageLabel} —{" "}
+                <span className="font-semibold">"{coachingCue.topReasonLabel}"</span>{" "}
+                <span className="text-muted-foreground">
+                  ({coachingCue.topReasonCount} drops, {coachingCue.pctOfStageDrops}% of this stage)
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-border bg-background p-4">
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Conversation Funnel</h3>
         <p className="mt-1 text-xs text-muted-foreground">Where calls fall off in the cold-call flow. Stages are manually tagged by reps in the dialer.</p>
@@ -111,28 +139,46 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId }: Props
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-background p-4">
-        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Drop-off Reasons</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Why calls were lost — coaching cue per reason.</p>
-        <div className="mt-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Reason</TableHead>
-                <TableHead className="text-right">Count</TableHead>
-                <TableHead className="text-right">% of tagged drop-offs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dropOffs.map((r) => (
-                <TableRow key={r.reason}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right font-mono">{r.count}</TableCell>
-                  <TableCell className="text-right font-mono">{r.pct}%</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">NEPQ Exit Reasons by Stage</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Why calls were lost at each stage of the cold-call flow. Each table shows reasons for drops at that specific stage.</p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {stageBreakdowns.map((b) => (
+            <div key={b.stage} className="rounded-lg border border-border bg-background p-4">
+              <div className="flex items-baseline justify-between">
+                <h4 className="text-sm font-semibold text-foreground">{b.stageLabel}</h4>
+                <span className="font-mono text-xs text-muted-foreground">{b.totalLost} tagged</span>
+              </div>
+              <div className="mt-3">
+                {b.totalLost === 0 ? (
+                  <p className="text-xs text-muted-foreground">No exit reasons tagged at this stage yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Reason</TableHead>
+                        <TableHead className="text-right">Count</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {b.reasons
+                        .filter((r) => r.count > 0)
+                        .map((r) => (
+                          <TableRow key={r.value}>
+                            <TableCell className="text-sm">{r.label}</TableCell>
+                            <TableCell className="text-right font-mono">{r.count}</TableCell>
+                            <TableCell className="text-right font-mono">{r.pct}%</TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -324,7 +324,12 @@ export function useCreateCallLog() {
       reached_solution_awareness?: boolean;
       reached_commitment?: boolean;
       opener_used_id?: string | null;
-      drop_off_reason?: string | null;
+      exit_reason_connection?: string | null;
+      exit_reason_problem?: string | null;
+      exit_reason_solution?: string | null;
+      exit_reason_commitment?: string | null;
+      exit_reason_booking?: string | null;
+      exit_reason_notes?: string | null;
     }) => {
       const key = deduplicationKey(log.contact_id, log.user_id);
       const lastInsert = recentInserts.get(key);
