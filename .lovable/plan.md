@@ -1,64 +1,61 @@
 
 
-## Plan: Per-Rep Coaching & Timing Intelligence (in Reports)
+## Plan: Tidy Up Reports Page Layout
 
-Add per-rep funnel-leak tracking and best pick-up / booking time intelligence directly inside the existing **Reports** page (`/reports`). Pure reporting — no training UI, no AI, no DB changes.
+The Reports page has all the right data but is overwhelming — it dumps every section vertically in a single long scroll. Goal: keep every metric, just organize it so reps and admins can find what they need fast.
 
-### New tab in Reports: "Rep Coaching"
+### Current problems
+- Toolbar (date + rep filter) gets lost when scrolling.
+- "Dialer KPI Snapshot" (9 stat cards) sits between toolbar and tabs, pushing tabs below the fold.
+- Tab list has 6 tabs in a single wrapping row — visually noisy.
+- "Target Comparison" panel renders above the KPI snapshot with no visual grouping.
+- Each tab stacks 2–3 large `ReportSection` cards with similar styling, making it hard to scan.
 
-Per-rep scorecards (one card per rep, sorted by dials desc; expanded view when a specific rep is selected in the existing Reports filter).
+### Layout changes
 
-Each card shows:
+**1. Sticky filter toolbar**
+Wrap the date/rep filter row in a sticky header (`sticky top-0 z-10`) with a subtle background blur so filters stay accessible while scrolling long tabs.
 
-1. **Funnel Leak Strip** — mini horizontal funnel (Connected → Problem → Solution → Commitment → Booked) with the biggest drop-off stage highlighted in red and `% drop` labeled.
-2. **Top NEPQ Exit Reason** — e.g. "Biggest leak: *Pain not big enough* — 42% of Solution Awareness drops · 18 calls" via per-rep `computeTopCoachingCue`.
-3. **Best Pick-Up Window** — top 3 hours by pickup rate (min 5 dials/hour to qualify).
-4. **Best Booking Window** — top 3 hours by booking count (min 1 booking).
-5. **Auto Insight Lines** — deterministic data-only one-liners:
-   - "Loses 60% at Solution Awareness"
-   - "Pickup rate drops 40% after 3pm"
-   - "0 bookings on Mondays"
-   - "Avg talk on pickups: 45s"
+**2. Compact KPI strip (always visible)**
+Reduce "Dialer KPI Snapshot" from 9 large `StatCard`s to a single horizontal compact strip showing the 5 headline metrics (Dials, Pick-Up Rate, Pick Ups, Talk Time, Avg Talk/Pickup). Move the other 4 (Unique Leads, Call Backs, Pick→FU %, Avg Talk/Dial) into the SOP Diagnostic tab where they belong contextually.
 
-### Enhancements to existing Reports tabs
+**3. Group tabs into 3 sections via a segmented two-level nav**
+Replace the flat 6-tab row with grouped tabs:
+- **Performance** → SOP Diagnostic, Bookings Made
+- **Coaching** → Conversation Funnel, Rep Coaching
+- **Team & Timing** → Rep Comparison, Hourly / Heat Map
 
-**Hourly / Heat Map**
-- `getBookingHeatMapData` accepts optional `repUserId` so the heatmap respects the active rep filter (currently ignores it).
-- New **Pick-Up Rate Heatmap** (day × hour, % intensity) alongside the booking heatmap.
-- Hourly Breakdown table: add **Pick-Up %** column and a **Best Booking Hour** badge alongside the existing peak-dials badge.
+Render as a primary segmented control (3 buttons) + secondary tab row underneath that swaps based on the selected group. Reduces visual load from 6 tabs to 3 + 2.
 
-**Conversation Funnel**
-- Append a **Per-Rep Leak Leaderboard** table: ranks reps by their worst-stage drop %, with their top exit reason on that stage.
+**4. Move Target Comparison into Performance group**
+Currently floats above tabs. Move it as the first card inside the Performance → SOP Diagnostic view so target vs. actual sits next to the diagnostic that explains the gap.
 
-**Rep Comparison**
-- Add columns: **Best Pick-Up Hour**, **Worst Stage**, **Top Exit Reason**.
+**5. Tighten ReportSection styling**
+- Reduce padding from `p-5` to `p-4`.
+- Make the `title` more prominent (upgrade from `text-[10px] uppercase` muted to `text-sm font-semibold text-foreground`) and demote `description` to smaller helper text.
+- Add an optional collapsible chevron on each section so users can hide sections they don't need.
+
+**6. Two-column layout on wide screens**
+Inside Hourly / Heat Map tab, render Booking Heat Map and Pickup Heat Map side-by-side on `xl:` breakpoint instead of stacked, since they share the same axes and reading them together is the point.
+
+**7. Rep Comparison table polish**
+The table has 10 columns and overflows. Add `overflow-x-auto`, sticky first column (Rep name), and right-align all numeric headers consistently.
 
 ### Files
 
-**New**
-- `src/lib/repCoachingMetrics.ts` — `computeRepCoachingScorecard`, `computeAllRepScorecards`, `computePickupHeatmapData`, `computeRepLeakLeaderboard`, deterministic insight-line generator
-- `src/components/reports/RepCoachingPanel.tsx` — per-rep scorecard cards
-- `src/components/reports/PickupHeatMap.tsx` — pickup-rate heatmap (mirrors `BookingHeatMap`)
-- `src/components/reports/RepLeakLeaderboardTable.tsx`
-
 **Edited**
-- `src/lib/hourlyMetrics.ts` — `getBookingHeatMapData(items, repUserId?)`; add `getPickupHeatmapData`
-- `src/lib/reportMetrics.ts` — extend `RepComparisonRow` with `bestPickupHour`, `worstStage`, `topExitReason`
-- `src/components/reports/HourlyBreakdownTable.tsx` — Pick-Up % column + best-booking-hour badge
-- `src/components/reports/BookingHeatMap.tsx` — accept optional `repLabel` for header context
-- `src/components/reports/ConversationFunnelPanel.tsx` — append per-rep leak leaderboard
-- `src/pages/ReportsPage.tsx` — add "Rep Coaching" tab; pass `activeRepId` into heatmap; render new Rep Comparison columns; mount Pickup Heatmap
+- `src/pages/ReportsPage.tsx` — sticky toolbar, compact KPI strip, two-level tab nav, regroup tab contents, move Target Comparison panel
+- `src/components/reports/ReportSection.tsx` — tighter padding, stronger title, optional collapsible chevron prop
+- `src/components/StatCard.tsx` — add optional `compact` variant for the new headline strip (smaller padding, inline layout)
 
-### Technical notes
-
-- All metrics computed client-side from already-fetched `callLogs` (with NEPQ exit-reason fields) + `bookedAppointments`. No new DB queries, no migration.
-- Thresholds: ≥5 dials/hour for pickup ranking; ≥1 booking for booking ranking.
-- Insight lines are deterministic rules — no AI calls.
-- Respects existing date range and rep filter on `ReportsPage`.
+**New**
+- `src/components/reports/ReportsToolbar.tsx` — extracted sticky filter bar (date from/to + rep select + loading indicator)
+- `src/components/reports/HeadlineKpiStrip.tsx` — the always-visible 5-metric compact strip
+- `src/components/reports/ReportTabGroup.tsx` — two-level segmented nav (group → tab)
 
 ### Out of scope
-- Any training/coaching workflow UI (Reports only)
-- AI-generated narratives
-- Editable/dismissable insights
-- Rep-vs-own historical baseline trends
+- Removing or merging any existing metric
+- Changing data fetching, filters, or computations
+- Adding export/PDF functionality
+- Mobile-specific redesign beyond existing responsive grid behavior
 
