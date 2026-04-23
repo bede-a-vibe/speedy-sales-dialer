@@ -1823,14 +1823,18 @@ export default function DialerPage() {
           </div>
         )}
 
-        <TwoPipelineGuide
-          currentView="dialer"
-          calendarName={selectedGhlCalendar?.name ?? null}
-          bookedPipelineName={selectedGhlPipeline?.name ?? null}
-          bookedStageName={selectedGhlStage?.name ?? null}
-          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
-        />
+        {!session.isSessionActive && (
+          <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
+            <TwoPipelineGuide
+              currentView="dialer"
+              calendarName={selectedGhlCalendar?.name ?? null}
+              bookedPipelineName={selectedGhlPipeline?.name ?? null}
+              bookedStageName={selectedGhlStage?.name ?? null}
+              followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+              followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+            />
+          </CollapsiblePanel>
+        )}
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
