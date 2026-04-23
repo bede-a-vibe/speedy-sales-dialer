@@ -950,6 +950,8 @@ export default function DialerPage() {
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
+    const cp = conversationProgress;
+    setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
@@ -971,6 +973,12 @@ export default function DialerPage() {
             notes: pipelineNotes || undefined,
             follow_up_date: scheduledFor,
             dialpad_call_id: dialpadCallId,
+            reached_connection: cp.reachedConnection,
+            reached_problem_awareness: cp.reachedProblem,
+            reached_solution_awareness: cp.reachedSolution,
+            reached_commitment: cp.reachedCommitment,
+            opener_used_id: cp.openerId,
+            drop_off_reason: cp.dropOffReason,
           }),
           updateContact.mutateAsync({
             id: contactId,
@@ -2309,6 +2317,12 @@ export default function DialerPage() {
                 notes={session.notes}
                 onNotesChange={session.setNotes}
                 enabled={session.isSessionActive}
+              />
+
+              {/* Conversation funnel tracking */}
+              <ConversationProgressPanel
+                value={conversationProgress}
+                onChange={setConversationProgress}
               />
 
               {/* Dialpad Sync — lower priority, moved below actions */}
