@@ -1989,6 +1989,16 @@ export default function DialerPage() {
                     );
                   })}
                 </div>
+
+                {/* Conversation funnel tracking — inline so reps tag stage/exit reason
+                    in the same card as the outcome for faster, complete capture. */}
+                <div className="mt-4 border-t border-border pt-4">
+                  <ConversationProgressPanel
+                    value={conversationProgress}
+                    onChange={setConversationProgress}
+                    outcomeIsBooked={session.selectedOutcome === "booked"}
+                  />
+                </div>
               </div>
 
               {requiresPipelineAssignment && (
@@ -2325,19 +2335,6 @@ export default function DialerPage() {
                 onNotesChange={session.setNotes}
                 enabled={session.isSessionActive}
               />
-
-              {/* Conversation funnel tracking */}
-              <CollapsiblePanel
-                title="Conversation Progress"
-                subtitle="Tag stage reached + NEPQ exit reason"
-                icon={<TimerReset className="h-4 w-4" />}
-              >
-                <ConversationProgressPanel
-                  value={conversationProgress}
-                  onChange={setConversationProgress}
-                  outcomeIsBooked={session.selectedOutcome === "booked"}
-                />
-              </CollapsiblePanel>
 
               {/* Dialpad Sync — auto-opens only when there's an issue */}
               <CollapsiblePanel
