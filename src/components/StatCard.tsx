@@ -8,9 +8,10 @@ interface StatCardProps {
   subtext?: string;
   className?: string;
   milestone?: { threshold: number; color: string };
+  compact?: boolean;
 }
 
-export function StatCard({ label, value, subtext, className, milestone }: StatCardProps) {
+export function StatCard({ label, value, subtext, className, milestone, compact }: StatCardProps) {
   const numericValue = typeof value === "number" ? value : parseInt(value, 10);
   const isNumeric = !isNaN(numericValue);
   const animatedValue = useAnimatedCounter(isNumeric ? numericValue : 0, 800, isNumeric);
@@ -22,6 +23,24 @@ export function StatCard({ label, value, subtext, className, milestone }: StatCa
     : value;
 
   const hit = milestone && isNumeric && numericValue >= milestone.threshold;
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col justify-center rounded-md border bg-card px-3 py-2 transition-all",
+          hit
+            ? `border-[hsl(var(--${milestone.color}))]`
+            : "border-border",
+          className,
+        )}
+      >
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
+        <p className="font-mono text-lg font-bold text-foreground leading-tight">{displayValue}</p>
+        {subtext && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{subtext}</p>}
+      </div>
+    );
+  }
 
   return (
     <div
