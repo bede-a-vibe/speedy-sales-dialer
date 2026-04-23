@@ -10,6 +10,10 @@ interface PowerHourTimerProps {
   sessionCallCount: number;
   /** Whether the dialer session is actively running */
   isSessionActive: boolean;
+  /** When true, auto-start the Power Hour as soon as the session becomes active. */
+  autoStart?: boolean;
+  /** Compact horizontal layout for top-of-page banner. */
+  compact?: boolean;
 }
 
 /**
@@ -22,7 +26,7 @@ interface PowerHourTimerProps {
  * Jeb Blount's "Golden Hours" concept: treat your prime calling time
  * like it's worth gold — because it is.
  */
-export function PowerHourTimer({ sessionCallCount, isSessionActive }: PowerHourTimerProps) {
+export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = false, compact = false }: PowerHourTimerProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
