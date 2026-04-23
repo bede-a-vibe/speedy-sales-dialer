@@ -1833,6 +1833,12 @@ export default function DialerPage() {
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
           <>
+            <PowerHourTimer
+              sessionCallCount={session.callCount}
+              isSessionActive={session.isSessionActive}
+              autoStart
+              compact
+            />
             {dialpad.dialpadHealth && (
               <div
                 className={cn(
