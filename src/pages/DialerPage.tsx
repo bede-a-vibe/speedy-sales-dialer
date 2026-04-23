@@ -1814,12 +1814,6 @@ export default function DialerPage() {
               )}
             </CollapsiblePanel>
 
-            <CollapsiblePanel title="Power Hour" subtitle="60-minute focused dialling sprint">
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-              />
-            </CollapsiblePanel>
           </div>
         )}
 
