@@ -1886,11 +1886,6 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
-            {/* Power Hour Timer — visible during active session */}
-            <PowerHourTimer
-              sessionCallCount={session.callCount}
-              isSessionActive={session.isSessionActive}
-            />
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <ContactCard
