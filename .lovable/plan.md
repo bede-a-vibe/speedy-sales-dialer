@@ -1,83 +1,99 @@
 
 
-## Plan: Outbound Data Review Dashboard (SOP-aligned)
+## Plan: Cold Call Conversation Funnel Tracking (revised)
 
-Add a new **"SOP Diagnostic"** tab to `ReportsPage` that surfaces the outbound metrics from the SOP we don't already track, plus extend a few existing metrics. All read-only, computed from `call_logs` + `pipeline_items` + `contacts` already loaded.
+Manually track where each call falls off in the cold-call flow, plus opener attribution for A/B testing scripts. All captured from the dialer during/after the call.
 
-### What's already covered (no work needed)
-- Pickup Rate, Total Talk Time, Avg Talk/Dial, Avg Talk/Pickup
-- Funnel: Connect → Book → Show → Close (Pipeline Funnel tab)
-- Hourly heatmap of bookings (Hourly / Heat Map tab)
-- Rep comparison (Rep Comparison tab)
-- Disposition breakdown per rep (Bookings Made tab)
-
-### What's new (SOP gaps to close)
-
-**1. Add to `src/lib/reportMetrics.ts`** — new `outboundDiagnostic` block on `ReportMetrics`:
-- **Contact Rate (per lead)** = unique leads spoken to ÷ unique leads attempted
-- **Unique Dial Rate** = unique leads dialed ÷ total dials (sweet spot 30–50%)
-- **Avg Attempts per Lead** = dials ÷ unique leads
-- **Lead Age Penetration (P1–P5)** = % of leads in queue that have received 1, 2, 3, 4, 5+ attempts (uses `contacts.call_attempt_count`)
-- **Calls/Hour vs Connections/Hour** — extend `getHourlyMetrics` to also return connections per hour (already returns dials/bookings; add answered count)
-- **Call duration diagnostics** — count of:
-  - `<15s` hangups (opener problem)
-  - `<2 min` hangups (no pain established)
-  - `>30 min` calls dispositioned not_interested / dnc (slow DQ — bad sign)
-- **Per-rep disposition red flags** — flag reps whose `not_interested` rate, `dnc` rate, or short-hangup rate is >1.5× team average
-
-**2. New component `src/components/reports/OutboundDiagnosticPanel.tsx`**
-
-Layout:
+### The funnel
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ SYSTEM HEALTH (read top-to-bottom — SOP order)               │
-├──────────────┬──────────────┬─────────────┬─────────────────┤
-│ Pickup Rate  │ Contact Rate │ Unique Dial │ Avg Attempts    │
-│ 18%          │ 47%          │ 38%         │ 2.6 / lead      │
-│ ✓ healthy    │ ✓ strong     │ ✓ sweet spot│                 │
-└──────────────┴──────────────┴─────────────┴─────────────────┘
-
-LEAD AGE PENETRATION (P1–P5)
-P1 (1 attempt)  ████████░░░░ 42%
-P2 (2 attempts) ██████░░░░░░ 28%
-P3 (3 attempts) ████░░░░░░░░ 18%
-P4 (4 attempts) ██░░░░░░░░░░  8%
-P5+ (5+)        █░░░░░░░░░░░  4%
-
-CALL DURATION DIAGNOSTICS
-< 15s hangups: 23 (opener issue)
-< 2 min hangups: 47 (qualification issue)
-> 30 min DQs: 4 reps flagged (review transcripts)
-
-PER-REP RED FLAGS
-Rep            Not-Int %   DNC %   <15s hangup %   Flag
-Jane Doe       42%         12%     31%             ⚠ Opener review
-John Smith     22%          4%      8%             ✓
+Stage 1: Pickup / Connection (>15s)   ← MANUAL checkbox (Dialpad timing unreliable)
+Stage 2: Problem Awareness            ← manual checkbox
+Stage 3: Solution Awareness           ← manual checkbox
+Stage 4: Verbal Commitment / Interest ← manual checkbox
+Stage 5: Meeting Booked               ← already tracked via outcome
 ```
 
-Each metric carries an SOP-aligned interpretation badge (✓ healthy / ⚠ review / ✗ broken) using the SOP's targets (Contact Rate ≥50% strong, Unique Dial Rate 30–50% sweet spot, etc.).
+Each call gets a `furthest_stage_reached` value (0–5) derived from which boxes the rep ticked. Drop-off = where they stopped.
 
-**3. Extend `src/lib/hourlyMetrics.ts`** — add `connections` field (count of `ANSWERED_OUTCOMES`) to the hourly row, and update `HourlyBreakdownTable` to show "Calls/Hr vs Connections/Hr" as adjacent columns. This directly answers the SOP "where are dials clustered vs connections clustered" question.
+### Database changes (one migration)
 
-**4. Wire it into `ReportsPage`** — add a new tab `<TabsTrigger value="sop-diagnostic">SOP Diagnostic</TabsTrigger>` placed first (it's the SOP-mandated reading order).
+Add columns to `call_logs`:
+- `reached_connection` (boolean, default false) — manually ticked when rep had a real >15s conversation
+- `reached_problem_awareness` (boolean, default false)
+- `reached_solution_awareness` (boolean, default false)
+- `reached_commitment` (boolean, default false)
+- `opener_used_id` (uuid, nullable) — references `call_openers.id`
+- `drop_off_reason` (text, nullable) — `gatekeeper`, `not_interested`, `wrong_time`, `price_objection`, `competitor`, `no_pain`, `other`
 
-### Interpretation thresholds (from SOP)
-- Pickup Rate: <8% red, 8–15% amber, >15% green (cold)
-- Contact Rate: <40% red, 40–50% amber, >50% green, >60% elite
-- Unique Dial Rate: <20% red (over-dialing), 30–50% green, >70% red (under-following-up)
-- Short-hangup rate per rep: >1.5× team avg = ⚠
+New table `call_openers`:
+- `id`, `name`, `script` (text), `is_active` (boolean), `created_by`, `created_at`
+- RLS: all authenticated can SELECT active ones; admins manage
 
-### Out of scope
-- Compliance overlays (TCPA/state restrictions/STIR-SHAKEN) — user said outbound, not cold
-- Number health / spam flagging — Dialpad-side concern
-- Cadence editor — read-only diagnostic only
-- Agent productivity ratios (Preview/ACW/Idle) — Dialpad doesn't expose these to us
+### Dialer UI (capture during/after the call)
+
+Add a compact **"Conversation Progress"** card to the right-hand outcome column in `DialerPage`:
+
+```text
+Opener used:  [ Pain-Led ▾ ]   ← dropdown of active openers
+
+Stages reached (tap as you progress):
+  ☐ Connected (>15s real conversation)
+  ☐ Problem Awareness
+  ☐ Solution Awareness
+  ☐ Verbal Commitment
+
+If lost → Drop-off reason: [ Gatekeeper ▾ ]
+```
+
+All checkboxes are manual. Cascading: ticking a later stage auto-ticks earlier ones (rep can untick). Saves alongside the call log on outcome submit — zero extra clicks if the rep skips it.
+
+### New Reports tab: "Conversation Funnel"
+
+Added to `ReportsPage` after SOP Diagnostic.
+
+**Funnel visualization** (team + per-rep filter):
+```text
+Connected (>15s)            312  ████████████████████  100%
+  ↓ Problem Awareness       198  ████████████          63%   (-37%)
+  ↓ Solution Awareness      124  ████████              40%   (-37%)
+  ↓ Verbal Commitment        67  ████                  21%   (-46%)
+  ↓ Meeting Booked           41  ██                    13%   (-39%)
+```
+
+**Opener leaderboard**:
+| Opener | Used | Connect→Problem | Problem→Booking | Overall |
+|---|---|---|---|---|
+| Pain-Led | 142 | 71% | 28% | 14% |
+| Curiosity | 98 | 58% | 19% | 7% |
+
+**Drop-off reasons** breakdown table.
+
+Per-rep view highlights each rep's worst drop-off stage → coaching cue.
+
+### Admin: Opener management
+
+New section on the **Targets** page (admin-only): "Call Openers" — add / edit / disable opener variants.
 
 ### Files touched
-- `src/lib/reportMetrics.ts` (extend)
-- `src/lib/hourlyMetrics.ts` (extend)
-- `src/components/reports/HourlyBreakdownTable.tsx` (add connections col)
-- `src/components/reports/OutboundDiagnosticPanel.tsx` (new)
+
+**New:**
+- `supabase/migrations/<ts>_call_funnel_tracking.sql`
+- `src/components/dialer/ConversationProgressPanel.tsx`
+- `src/components/reports/ConversationFunnelPanel.tsx`
+- `src/components/admin/CallOpenersManager.tsx`
+- `src/hooks/useCallOpeners.ts`
+- `src/lib/funnelMetrics.ts`
+
+**Edited:**
+- `src/integrations/supabase/types.ts` (auto-regen)
+- `src/hooks/useCallLogs.ts` (extend `useCreateCallLog` payload)
+- `src/pages/DialerPage.tsx` (mount panel, pass values into call log insert)
 - `src/pages/ReportsPage.tsx` (new tab)
+- `src/pages/TargetsPage.tsx` (mount opener manager for admins)
+
+### Out of scope
+- Auto-detecting funnel stage from transcripts (future, via Lovable AI)
+- Backfilling funnel data on historical call logs
+- Per-objection sub-tagging beyond the 7 drop-off reasons
 
