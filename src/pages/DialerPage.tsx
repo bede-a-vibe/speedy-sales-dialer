@@ -240,6 +240,9 @@ export default function DialerPage() {
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
+  // Conversation funnel tracking (manual capture per call)
+  const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
+
   // Dialpad CTI Client ID from environment variable
   const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
 
