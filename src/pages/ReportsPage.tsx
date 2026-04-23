@@ -200,6 +200,7 @@ export default function ReportsPage() {
                 from={dateFrom}
                 to={dateTo}
                 repUserId={activeRepId}
+                repLabel={activeRepId ? selectedRepLabel : undefined}
               />
             </ReportSection>
           </TabsContent>
