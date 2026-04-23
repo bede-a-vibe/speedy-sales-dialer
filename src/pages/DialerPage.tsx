@@ -978,7 +978,12 @@ export default function DialerPage() {
             reached_solution_awareness: cp.reachedSolution,
             reached_commitment: cp.reachedCommitment,
             opener_used_id: cp.openerId,
-            drop_off_reason: cp.dropOffReason,
+            exit_reason_connection: cp.exitReasonConnection,
+            exit_reason_problem: cp.exitReasonProblem,
+            exit_reason_solution: cp.exitReasonSolution,
+            exit_reason_commitment: cp.exitReasonCommitment,
+            exit_reason_booking: cp.exitReasonBooking,
+            exit_reason_notes: cp.exitReasonNotes,
           }),
           updateContact.mutateAsync({
             id: contactId,
