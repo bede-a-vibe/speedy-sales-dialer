@@ -99,9 +99,35 @@ export default function ReportsPage() {
   );
 
   const heatMapCells = useMemo(
-    () => getBookingHeatMapData(bookedAppointments),
-    [bookedAppointments],
+    () => getBookingHeatMapData(bookedAppointments, activeRepId),
+    [bookedAppointments, activeRepId],
   );
+
+  const pickupHeatMapCells = useMemo(
+    () => getPickupHeatMapData(callLogs, activeRepId),
+    [callLogs, activeRepId],
+  );
+
+  const repScorecards = useMemo(() => {
+    if (activeRepId) {
+      return [computeRepCoachingScorecard(activeRepId, callLogs as never, bookedAppointments)];
+    }
+    const repIds = Array.from(
+      new Set([
+        ...callLogs.map((l) => l.user_id).filter(Boolean),
+        ...bookedAppointments.map((b) => b.created_by).filter(Boolean),
+      ]),
+    );
+    return computeAllRepScorecards(repIds, callLogs as never, bookedAppointments);
+  }, [activeRepId, callLogs, bookedAppointments]);
+
+  const repComparisonExtras = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeRepComparisonExtras>>();
+    for (const row of metrics.repComparison) {
+      map.set(row.repUserId, computeRepComparisonExtras(row.repUserId, callLogs as never));
+    }
+    return map;
+  }, [metrics.repComparison, callLogs]);
 
   return (
     <AppLayout title="Reports">
@@ -166,6 +192,7 @@ export default function ReportsPage() {
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
             <TabsTrigger value="conversation-funnel" className="rounded-md">Conversation Funnel</TabsTrigger>
+            <TabsTrigger value="rep-coaching" className="rounded-md">Rep Coaching</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
