@@ -161,77 +161,57 @@ export default function ReportsPage() {
 
   return (
     <AppLayout title="Reports">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">From</span>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[160px] border-border bg-card text-sm" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">To</span>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px] border-border bg-card text-sm" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Rep</span>
-            <Select value={selectedRepId} onValueChange={setSelectedRepId}>
-              <SelectTrigger className="w-[220px] border-border bg-card">
-                <SelectValue placeholder="All reps" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_REPS_VALUE}>All reps</SelectItem>
-                {reps.map((rep) => (
-                  <SelectItem key={rep.user_id} value={rep.user_id}>
-                    {rep.display_name || rep.email || "Unnamed rep"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {(callsLoading || bookingsLoading || repsLoading) && <span className="ml-2 animate-pulse text-xs text-muted-foreground">Loading...</span>}
-        </div>
+      <ReportsToolbar
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        selectedRepId={selectedRepId}
+        onSelectedRepIdChange={setSelectedRepId}
+        reps={reps}
+        allRepsValue={ALL_REPS_VALUE}
+        isLoading={callsLoading || bookingsLoading || repsLoading}
+      />
 
-        <TargetComparisonPanel
-          activeRepId={activeRepId}
-          selectedRepLabel={selectedRepLabel}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          metrics={metrics}
-          teamMetrics={teamMetrics}
+      <div className="mx-auto max-w-6xl space-y-5 pt-5">
+        <HeadlineKpiStrip metrics={metrics} />
+
+        <ReportTabGroup
+          groups={TAB_GROUPS}
+          activeGroup={activeGroup}
+          onActiveGroupChange={setActiveGroup}
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
         />
 
-        <ReportSection
-          title="Dialer KPI Snapshot"
-          description={`Core outbound metrics based on calls created in the selected date range${activeRepId ? ` for ${selectedRepLabel}` : " across all reps"}.`}
-        >
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-3">
-            <StatCard label="Dials" value={metrics.dialer.dials} />
-            <StatCard label="Unique Leads Dialed" value={metrics.dialer.uniqueLeadsDialed} />
-            <StatCard label="Pick Ups" value={metrics.dialer.pickUps} />
-            <StatCard label="Pick Up Rate" value={`${metrics.dialer.pickUpRate}%`} subtext="pick ups / dials" />
-            <StatCard label="# of Call Backs" value={metrics.dialer.callBacks} />
-            <StatCard label="Pick Up to FU %" value={`${metrics.dialer.pickUpToFollowUpRate}%`} subtext="follow ups / pick ups" />
-            <StatCard label="Total Talk Time" value={formatDurationSeconds(metrics.dialer.totalTalkTimeSeconds)} />
-            <StatCard label="Avg Talk / Dial" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerDialSeconds)} />
-            <StatCard label="Avg Talk / Pick Up" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerPickupSeconds)} />
-          </div>
-        </ReportSection>
+        {activeTab === "sop-diagnostic" && (
+          <div className="space-y-5">
+            <TargetComparisonPanel
+              activeRepId={activeRepId}
+              selectedRepLabel={selectedRepLabel}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              metrics={metrics}
+              teamMetrics={teamMetrics}
+            />
 
-        <Tabs defaultValue="sop-diagnostic" className="space-y-6">
-          <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
-            <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
-            <TabsTrigger value="conversation-funnel" className="rounded-md">Conversation Funnel</TabsTrigger>
-            <TabsTrigger value="rep-coaching" className="rounded-md">Rep Coaching</TabsTrigger>
-            <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
-            <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
-            <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
-          </TabsList>
+            <ReportSection
+              title="Supporting Dialer Metrics"
+              description="Secondary outbound counters that complement the headline KPI strip above."
+              collapsible
+              defaultOpen={false}
+            >
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <StatCard compact label="Unique Leads Dialed" value={metrics.dialer.uniqueLeadsDialed} />
+                <StatCard compact label="# of Call Backs" value={metrics.dialer.callBacks} />
+                <StatCard compact label="Pick Up to FU %" value={`${metrics.dialer.pickUpToFollowUpRate}%`} subtext="follow ups / pick ups" />
+                <StatCard compact label="Avg Talk / Dial" value={formatDurationSeconds(metrics.dialer.averageTalkTimePerDialSeconds)} />
+              </div>
+            </ReportSection>
 
-          <TabsContent value="sop-diagnostic" className="space-y-6">
             <ReportSection
               title="Outbound Data Review (SOP)"
-              description="System health metrics aligned to the Outbound Data Review SOP. Read top-to-bottom: pickup -> contact -> dial efficiency -> lead penetration -> duration -> rep flags."
+              description="Pickup → contact → dial efficiency → lead penetration → duration → rep flags."
             >
               <OutboundDiagnosticPanel
                 diagnostic={metrics.outboundDiagnostic}
@@ -243,6 +223,7 @@ export default function ReportsPage() {
             <ReportSection
               title="Daily Call Volume"
               description="Total dials per day across the selected range."
+              collapsible
             >
               <div className="rounded-lg border border-border bg-background p-4">
                 <div className="mb-4 flex items-center gap-2">
@@ -252,79 +233,81 @@ export default function ReportsPage() {
                 <DailyVolumeChart data={metrics.dailyVolume} />
               </div>
             </ReportSection>
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="conversation-funnel" className="space-y-6">
-            <ReportSection
-              title="Conversation Funnel"
-              description={`Manual cold-call funnel tagged by reps. Shows where conversations break down${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}.`}
-            >
-              <ConversationFunnelPanel
-                callLogs={callLogs as never}
-                from={dateFrom}
-                to={dateTo}
-                repUserId={activeRepId}
-                repLabel={activeRepId ? selectedRepLabel : undefined}
-                repNameMap={repNameMap}
-              />
-            </ReportSection>
-          </TabsContent>
-
-          <TabsContent value="rep-coaching" className="space-y-6">
-            <ReportSection
-              title="Per-Rep Coaching Scorecards"
-              description={
-                activeRepId
-                  ? `Where ${selectedRepLabel}'s calls fall apart, plus best pick-up and booking windows.`
-                  : "One scorecard per rep showing biggest funnel leak, top exit reason, and timing intelligence. Sorted by dial volume."
-              }
-            >
-              <RepCoachingPanel
-                scorecards={repScorecards}
-                repNameMap={repNameMap}
-                expanded={!!activeRepId}
-              />
-            </ReportSection>
-          </TabsContent>
-
-          <TabsContent value="bookings-made" className="space-y-6">
-            <ReportSection
-              title="Bookings Made"
-              description={`Bookings created from outbound activity${activeRepId ? ` (${selectedRepLabel})` : ""} in the selected date range. Show-up / close metrics live in the CRM.`}
-            >
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-                <StatCard label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} />
-                <StatCard label="Rebooked" value={metrics.bookingsMade.rebooked} />
-                <StatCard label="New Bookings" value={metrics.bookingsMade.newBookings} />
-                <StatCard label="Pick Ups to Booking %" value={`${metrics.bookingsMade.pickUpsToBookingRate}%`} subtext="bookings made / pick ups" />
-                <StatCard label="Same Day / Next Day %" value={`${metrics.bookingsMade.sameDayNextDayRate}%`} subtext="same/next day / bookings made" />
+        {activeTab === "bookings-made" && (
+          <ReportSection
+            title="Bookings Made"
+            description={`Bookings created from outbound activity${activeRepId ? ` (${selectedRepLabel})` : ""} in the selected date range. Show-up / close metrics live in the CRM.`}
+          >
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+              <StatCard compact label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} />
+              <StatCard compact label="Rebooked" value={metrics.bookingsMade.rebooked} />
+              <StatCard compact label="New Bookings" value={metrics.bookingsMade.newBookings} />
+              <StatCard compact label="Pick Ups to Booking %" value={`${metrics.bookingsMade.pickUpsToBookingRate}%`} subtext="bookings / pick ups" />
+              <StatCard compact label="Same Day / Next Day %" value={`${metrics.bookingsMade.sameDayNextDayRate}%`} subtext="same/next day / bookings" />
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Same Day / Next Day Bookings</p>
+                <p className="mt-2 font-mono text-3xl font-bold text-foreground">{metrics.bookingsMade.sameDayNextDayBookings}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Bookings scheduled for the same day or next day after they were created.</p>
               </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Same Day / Next Day Bookings</p>
-                  <p className="mt-2 font-mono text-3xl font-bold text-foreground">{metrics.bookingsMade.sameDayNextDayBookings}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Bookings scheduled for the same day or next day after they were created.</p>
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="mb-4 flex items-center gap-2">
+                  <PhoneCall className="h-4 w-4 text-primary" />
+                  <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Call Outcome Breakdown</h3>
                 </div>
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <div className="mb-4 flex items-center gap-2">
-                    <PhoneCall className="h-4 w-4 text-primary" />
-                    <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Call Outcome Breakdown</h3>
-                  </div>
-                  <MetricBarList items={callOutcomeItems} emptyLabel="No call outcomes in this date range." />
-                </div>
+                <MetricBarList items={callOutcomeItems} emptyLabel="No call outcomes in this date range." />
               </div>
-            </ReportSection>
-          </TabsContent>
+            </div>
+          </ReportSection>
+        )}
 
-          <TabsContent value="rep-comparison" className="space-y-6">
-            <ReportSection
-              title="Rep Comparison"
-              description="Outbound dialer activity per rep in the selected date range."
-            >
+        {activeTab === "conversation-funnel" && (
+          <ReportSection
+            title="Conversation Funnel"
+            description={`Manual cold-call funnel tagged by reps. Shows where conversations break down${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}.`}
+          >
+            <ConversationFunnelPanel
+              callLogs={callLogs as never}
+              from={dateFrom}
+              to={dateTo}
+              repUserId={activeRepId}
+              repLabel={activeRepId ? selectedRepLabel : undefined}
+              repNameMap={repNameMap}
+            />
+          </ReportSection>
+        )}
+
+        {activeTab === "rep-coaching" && (
+          <ReportSection
+            title="Per-Rep Coaching Scorecards"
+            description={
+              activeRepId
+                ? `Where ${selectedRepLabel}'s calls fall apart, plus best pick-up and booking windows.`
+                : "One scorecard per rep showing biggest funnel leak, top exit reason, and timing intelligence. Sorted by dial volume."
+            }
+          >
+            <RepCoachingPanel
+              scorecards={repScorecards}
+              repNameMap={repNameMap}
+              expanded={!!activeRepId}
+            />
+          </ReportSection>
+        )}
+
+        {activeTab === "rep-comparison" && (
+          <ReportSection
+            title="Rep Comparison"
+            description="Outbound dialer activity per rep in the selected date range."
+          >
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[180px]">Rep</TableHead>
+                    <TableHead className="sticky left-0 z-10 min-w-[180px] bg-card">Rep</TableHead>
                     <TableHead className="text-right">Dials</TableHead>
                     <TableHead className="text-right">Pick-ups</TableHead>
                     <TableHead className="text-right">Pick-up %</TableHead>
@@ -332,8 +315,8 @@ export default function ReportsPage() {
                     <TableHead className="text-right">Avg Talk / Pickup</TableHead>
                     <TableHead className="text-right">Bookings</TableHead>
                     <TableHead className="text-right">Best Pick-Up Hour</TableHead>
-                    <TableHead>Worst Stage</TableHead>
-                    <TableHead>Top Exit Reason</TableHead>
+                    <TableHead className="text-right">Worst Stage</TableHead>
+                    <TableHead className="text-right">Top Exit Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -348,7 +331,7 @@ export default function ReportsPage() {
                       const extras = repComparisonExtras.get(row.repUserId);
                       return (
                         <TableRow key={row.repUserId}>
-                          <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                          <TableCell className="sticky left-0 z-10 bg-card font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
                           <TableCell className="text-right font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
                           <TableCell className="text-right font-mono text-foreground">{row.dialer.pickUps}</TableCell>
                           <TableCell className="text-right font-mono text-foreground">{row.dialer.dials > 0 ? Math.round((row.dialer.pickUps / row.dialer.dials) * 100) : 0}%</TableCell>
@@ -365,7 +348,7 @@ export default function ReportsPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-right text-sm">
                             {extras?.worstStageLabel ? (
                               <span className={extras.worstStageDropPct >= 50 ? "text-destructive font-medium" : "text-foreground"}>
                                 {extras.worstStageLabel} <span className="text-xs">−{extras.worstStageDropPct}%</span>
@@ -374,7 +357,7 @@ export default function ReportsPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                          <TableCell className="text-right text-sm text-muted-foreground">
                             {extras?.topExitReasonLabel ?? "—"}
                           </TableCell>
                         </TableRow>
@@ -383,10 +366,12 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
-            </ReportSection>
-          </TabsContent>
+            </div>
+          </ReportSection>
+        )}
 
-          <TabsContent value="hourly-activity" className="space-y-6">
+        {activeTab === "hourly-activity" && (
+          <div className="space-y-5">
             <ReportSection
               title="Hourly Breakdown"
               description={`Hour-by-hour activity for ${hourlyDate}${activeRepId ? ` (${selectedRepLabel})` : " across all reps"}.`}
@@ -404,21 +389,23 @@ export default function ReportsPage() {
               <HourlyBreakdownTable rows={hourlyRows} />
             </ReportSection>
 
-            <ReportSection
-              title="Booking Heat Map"
-              description="Booking density by day of week and hour across the selected date range."
-            >
-              <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
-            </ReportSection>
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+              <ReportSection
+                title="Booking Heat Map"
+                description="Booking density by day of week and hour."
+              >
+                <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
+              </ReportSection>
 
-            <ReportSection
-              title="Pick-Up Rate Heat Map"
-              description={`Pickup % intensity by day of week and hour${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}. Identifies the windows when prospects actually answer.`}
-            >
-              <PickupHeatMap cells={pickupHeatMapCells} />
-            </ReportSection>
-          </TabsContent>
-        </Tabs>
+              <ReportSection
+                title="Pick-Up Rate Heat Map"
+                description={`Pickup % intensity by day of week and hour${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}
+              >
+                <PickupHeatMap cells={pickupHeatMapCells} />
+              </ReportSection>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
