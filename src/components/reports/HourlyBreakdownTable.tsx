@@ -26,6 +26,18 @@ export function HourlyBreakdownTable({ rows }: Props) {
     return peak;
   }, [rows]);
 
+  const peakBookingHour = useMemo(() => {
+    let max = 0;
+    let peak = -1;
+    for (const r of rows) {
+      if (r.bookings > max) {
+        max = r.bookings;
+        peak = r.hour;
+      }
+    }
+    return peak;
+  }, [rows]);
+
   const activeRows = rows.filter((r) => r.dials > 0 || r.bookings > 0);
 
   if (activeRows.length === 0) {
@@ -39,6 +51,7 @@ export function HourlyBreakdownTable({ rows }: Props) {
           <TableHead className="w-[80px]">Hour</TableHead>
           <TableHead className="text-right">Dials</TableHead>
           <TableHead className="text-right">Pick Ups</TableHead>
+          <TableHead className="text-right">Pick Up %</TableHead>
           <TableHead className="text-right">Connections</TableHead>
           <TableHead className="text-right">Bookings</TableHead>
           <TableHead className="text-right">Talk Time</TableHead>
@@ -48,14 +61,19 @@ export function HourlyBreakdownTable({ rows }: Props) {
         {rows.map((r) => {
           if (r.dials === 0 && r.bookings === 0) return null;
           const isPeak = r.hour === peakHour;
+          const isBookingPeak = r.hour === peakBookingHour && r.bookings > 0;
+          const pickupPct = r.dials > 0 ? Math.round((r.pickUps / r.dials) * 100) : 0;
           return (
-            <TableRow key={r.hour} className={isPeak ? "bg-primary/5" : undefined}>
+            <TableRow key={r.hour} className={isPeak || isBookingPeak ? "bg-primary/5" : undefined}>
               <TableCell className="font-medium text-foreground">
                 {formatHour(r.hour)}
                 {isPeak && <span className="ml-1.5 text-[10px] font-semibold uppercase text-primary">peak</span>}
+                {isBookingPeak && !isPeak && <span className="ml-1.5 text-[10px] font-semibold uppercase text-primary">top book</span>}
+                {isBookingPeak && isPeak && <span className="ml-1.5 text-[10px] font-semibold uppercase text-primary">+ book</span>}
               </TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.dials}</TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.pickUps}</TableCell>
+              <TableCell className="text-right font-mono text-foreground">{pickupPct}%</TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.connections}</TableCell>
               <TableCell className="text-right font-mono text-foreground">{r.bookings}</TableCell>
               <TableCell className="text-right font-mono text-muted-foreground">{formatDurationSeconds(r.talkTimeSeconds)}</TableCell>

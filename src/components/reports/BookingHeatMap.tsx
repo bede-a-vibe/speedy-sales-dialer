@@ -14,9 +14,10 @@ function formatHour(hour: number) {
 
 interface Props {
   cells: HeatMapCell[];
+  repLabel?: string;
 }
 
-export function BookingHeatMap({ cells }: Props) {
+export function BookingHeatMap({ cells, repLabel }: Props) {
   const { maxCount, grid } = useMemo(() => {
     const grid = new Map<string, number>();
     let maxCount = 0;
@@ -31,12 +32,15 @@ export function BookingHeatMap({ cells }: Props) {
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
 
   if (maxCount === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No bookings in this date range to generate a heat map.</p>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">No bookings{repLabel ? ` for ${repLabel}` : ""} in this date range to generate a heat map.</p>;
   }
 
   return (
     <TooltipProvider delayDuration={100}>
       <div className="overflow-x-auto">
+        {repLabel && (
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Showing bookings for {repLabel}</p>
+        )}
         <div className="inline-grid gap-[2px]" style={{ gridTemplateColumns: `56px repeat(${hours.length}, 1fr)` }}>
           {/* Header row */}
           <div />
