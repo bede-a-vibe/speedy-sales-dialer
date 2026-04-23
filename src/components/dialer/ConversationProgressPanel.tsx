@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useCallOpeners } from "@/hooks/useCallOpeners";
-import { DROP_OFF_REASONS, DROP_OFF_LABELS, type DropOffReason } from "@/lib/funnelMetrics";
+import { STAGE_EXIT_REASONS, EXIT_STAGE_LABELS, type ExitStageKey } from "@/lib/funnelMetrics";
 import { TrendingUp } from "lucide-react";
 
 const NONE = "__none__";
@@ -13,7 +15,12 @@ export interface ConversationProgressState {
   reachedProblem: boolean;
   reachedSolution: boolean;
   reachedCommitment: boolean;
-  dropOffReason: DropOffReason | null;
+  exitReasonConnection: string | null;
+  exitReasonProblem: string | null;
+  exitReasonSolution: string | null;
+  exitReasonCommitment: string | null;
+  exitReasonBooking: string | null;
+  exitReasonNotes: string | null;
 }
 
 export const EMPTY_CONVERSATION_PROGRESS: ConversationProgressState = {
@@ -22,16 +29,64 @@ export const EMPTY_CONVERSATION_PROGRESS: ConversationProgressState = {
   reachedProblem: false,
   reachedSolution: false,
   reachedCommitment: false,
-  dropOffReason: null,
+  exitReasonConnection: null,
+  exitReasonProblem: null,
+  exitReasonSolution: null,
+  exitReasonCommitment: null,
+  exitReasonBooking: null,
+  exitReasonNotes: null,
 };
 
 interface Props {
   value: ConversationProgressState;
   onChange: (next: ConversationProgressState) => void;
+  /** When the rep has selected "booked" outcome we hide the exit picker entirely. */
+  outcomeIsBooked?: boolean;
 }
 
-export function ConversationProgressPanel({ value, onChange }: Props) {
+/**
+ * Compute which stage the call exited at based on the furthest stage reached.
+ * Returns null if reps haven't started tagging or the call was booked.
+ */
+function getExitStage(state: ConversationProgressState, outcomeIsBooked?: boolean): ExitStageKey | null {
+  if (outcomeIsBooked) return null;
+  if (state.reachedCommitment) return "booking";
+  if (state.reachedSolution) return "commitment";
+  if (state.reachedProblem) return "solution";
+  if (state.reachedConnection) return "problem";
+  // Nothing reached — assume connection failed
+  return "connection";
+}
+
+const STAGE_TO_FIELD: Record<ExitStageKey, keyof ConversationProgressState> = {
+  connection: "exitReasonConnection",
+  problem: "exitReasonProblem",
+  solution: "exitReasonSolution",
+  commitment: "exitReasonCommitment",
+  booking: "exitReasonBooking",
+};
+
+/** Clear any exit reasons that no longer apply to the current furthest stage. */
+function clearStaleExitReasons(state: ConversationProgressState, activeStage: ExitStageKey | null): ConversationProgressState {
+  const cleared: ConversationProgressState = {
+    ...state,
+    exitReasonConnection: null,
+    exitReasonProblem: null,
+    exitReasonSolution: null,
+    exitReasonCommitment: null,
+    exitReasonBooking: null,
+  };
+  if (activeStage) {
+    const field = STAGE_TO_FIELD[activeStage];
+    (cleared as any)[field] = (state as any)[field];
+  }
+  return cleared;
+}
+
+export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: Props) {
   const { data: openers = [] } = useCallOpeners();
+
+  const exitStage = useMemo(() => getExitStage(value, outcomeIsBooked), [value, outcomeIsBooked]);
 
   // Cascading: ticking a later stage auto-ticks earlier ones.
   const setStage = (
@@ -40,7 +95,6 @@ export function ConversationProgressPanel({ value, onChange }: Props) {
   ) => {
     const next = { ...value };
     if (checked) {
-      // Cascade earlier on
       if (stage === "reachedCommitment") {
         next.reachedConnection = true;
         next.reachedProblem = true;
@@ -57,7 +111,6 @@ export function ConversationProgressPanel({ value, onChange }: Props) {
         next.reachedConnection = true;
       }
     } else {
-      // Untick this and any later stages
       if (stage === "reachedConnection") {
         next.reachedConnection = false;
         next.reachedProblem = false;
@@ -74,7 +127,16 @@ export function ConversationProgressPanel({ value, onChange }: Props) {
         next.reachedCommitment = false;
       }
     }
-    onChange(next);
+    const newExitStage = getExitStage(next, outcomeIsBooked);
+    onChange(clearStaleExitReasons(next, newExitStage));
+  };
+
+  const currentExitValue = exitStage ? (value[STAGE_TO_FIELD[exitStage]] as string | null) : null;
+
+  const setExitReason = (v: string) => {
+    if (!exitStage) return;
+    const field = STAGE_TO_FIELD[exitStage];
+    onChange({ ...value, [field]: v === NONE ? null : v });
   };
 
   return (
@@ -112,23 +174,35 @@ export function ConversationProgressPanel({ value, onChange }: Props) {
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Drop-off reason (if lost)</Label>
-        <Select
-          value={value.dropOffReason ?? NONE}
-          onValueChange={(v) => onChange({ ...value, dropOffReason: v === NONE ? null : (v as DropOffReason) })}
-        >
-          <SelectTrigger className="h-9 border-border bg-background text-sm">
-            <SelectValue placeholder="Select reason (optional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>None / N/A</SelectItem>
-            {DROP_OFF_REASONS.map((r) => (
-              <SelectItem key={r} value={r}>{DROP_OFF_LABELS[r]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {exitStage && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            Why did the call end here? <span className="text-foreground/60">({EXIT_STAGE_LABELS[exitStage]})</span>
+          </Label>
+          <Select value={currentExitValue ?? NONE} onValueChange={setExitReason}>
+            <SelectTrigger className="h-9 border-border bg-background text-sm">
+              <SelectValue placeholder="Select NEPQ reason (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Not tracked</SelectItem>
+              {STAGE_EXIT_REASONS[exitStage].map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex flex-col">
+                    <span>{opt.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{opt.description}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            value={value.exitReasonNotes ?? ""}
+            onChange={(e) => onChange({ ...value, exitReasonNotes: e.target.value || null })}
+            placeholder="Optional context (objection wording, colour, etc.)"
+            className="min-h-[60px] text-sm"
+          />
+        </div>
+      )}
     </div>
   );
 }
