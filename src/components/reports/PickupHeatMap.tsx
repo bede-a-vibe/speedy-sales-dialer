@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { HeatMapCell } from "@/lib/hourlyMetrics";
+import type { PickupHeatMapCell } from "@/lib/hourlyMetrics";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOUR_START = 6;
-const HOUR_END = 21; // 6am–9pm display range
+const HOUR_END = 21;
 
 function formatHour(hour: number) {
   const suffix = hour >= 12 ? "pm" : "am";
@@ -13,36 +13,32 @@ function formatHour(hour: number) {
 }
 
 interface Props {
-  cells: HeatMapCell[];
-  repLabel?: string;
+  cells: PickupHeatMapCell[];
+  minDials?: number;
 }
 
-export function BookingHeatMap({ cells, repLabel }: Props) {
-  const { maxCount, grid } = useMemo(() => {
-    const grid = new Map<string, number>();
-    let maxCount = 0;
+export function PickupHeatMap({ cells, minDials = 3 }: Props) {
+  const { grid, hasData } = useMemo(() => {
+    const grid = new Map<string, PickupHeatMapCell>();
+    let hasData = false;
     for (const c of cells) {
       if (c.hour < HOUR_START || c.hour > HOUR_END) continue;
-      grid.set(`${c.dayOfWeek}-${c.hour}`, c.count);
-      if (c.count > maxCount) maxCount = c.count;
+      grid.set(`${c.dayOfWeek}-${c.hour}`, c);
+      if (c.dials > 0) hasData = true;
     }
-    return { maxCount, grid };
+    return { grid, hasData };
   }, [cells]);
 
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
 
-  if (maxCount === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No bookings{repLabel ? ` for ${repLabel}` : ""} in this date range to generate a heat map.</p>;
+  if (!hasData) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">No call activity in this date range to compute pickup rates.</p>;
   }
 
   return (
     <TooltipProvider delayDuration={100}>
       <div className="overflow-x-auto">
-        {repLabel && (
-          <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Showing bookings for {repLabel}</p>
-        )}
         <div className="inline-grid gap-[2px]" style={{ gridTemplateColumns: `56px repeat(${hours.length}, 1fr)` }}>
-          {/* Header row */}
           <div />
           {hours.map((h) => (
             <div key={h} className="px-1 text-center text-[10px] text-muted-foreground">
@@ -50,15 +46,18 @@ export function BookingHeatMap({ cells, repLabel }: Props) {
             </div>
           ))}
 
-          {/* Data rows */}
           {DAY_LABELS.map((day, dow) => (
             <>
               <div key={`label-${dow}`} className="flex items-center text-xs font-medium text-muted-foreground">
                 {day}
               </div>
               {hours.map((h) => {
-                const count = grid.get(`${dow}-${h}`) ?? 0;
-                const intensity = maxCount > 0 ? count / maxCount : 0;
+                const cell = grid.get(`${dow}-${h}`);
+                const dials = cell?.dials ?? 0;
+                const pickUps = cell?.pickUps ?? 0;
+                const rate = cell?.pickUpRate ?? 0;
+                const qualifies = dials >= minDials;
+                const intensity = qualifies ? rate : 0;
                 return (
                   <Tooltip key={`${dow}-${h}`}>
                     <TooltipTrigger asChild>
@@ -67,12 +66,22 @@ export function BookingHeatMap({ cells, repLabel }: Props) {
                         style={{
                           backgroundColor: intensity > 0
                             ? `hsl(var(--primary) / ${Math.max(0.08, intensity * 0.9)})`
-                            : "hsl(var(--muted) / 0.3)",
+                            : dials > 0
+                              ? "hsl(var(--muted) / 0.5)"
+                              : "hsl(var(--muted) / 0.3)",
                         }}
                       />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
-                      <span className="font-semibold">{count}</span> booking{count !== 1 ? "s" : ""} · {day} {formatHour(h)}
+                      {dials === 0 ? (
+                        <span className="text-muted-foreground">No dials · {day} {formatHour(h)}</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{Math.round(rate * 100)}%</span> pickup ·{" "}
+                          {pickUps}/{dials} dials · {day} {formatHour(h)}
+                          {!qualifies && <span className="ml-1 text-muted-foreground">(low volume)</span>}
+                        </>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -81,9 +90,8 @@ export function BookingHeatMap({ cells, repLabel }: Props) {
           ))}
         </div>
 
-        {/* Legend */}
         <div className="mt-3 flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span>Less</span>
+          <span>Lower</span>
           {[0, 0.25, 0.5, 0.75, 1].map((v) => (
             <div
               key={v}
@@ -95,7 +103,8 @@ export function BookingHeatMap({ cells, repLabel }: Props) {
               }}
             />
           ))}
-          <span>More</span>
+          <span>Higher pickup %</span>
+          <span className="ml-3">· Cells need {minDials}+ dials to qualify</span>
         </div>
       </div>
     </TooltipProvider>

@@ -17,11 +17,18 @@ import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipel
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics } from "@/lib/reportMetrics";
-import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
+import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
+import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
 import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
 import { ConversationFunnelPanel } from "@/components/reports/ConversationFunnelPanel";
+import { RepCoachingPanel } from "@/components/reports/RepCoachingPanel";
+import {
+  computeAllRepScorecards,
+  computeRepCoachingScorecard,
+  computeRepComparisonExtras,
+} from "@/lib/repCoachingMetrics";
 
 const ALL_REPS_VALUE = "all";
 
@@ -92,9 +99,35 @@ export default function ReportsPage() {
   );
 
   const heatMapCells = useMemo(
-    () => getBookingHeatMapData(bookedAppointments),
-    [bookedAppointments],
+    () => getBookingHeatMapData(bookedAppointments, activeRepId),
+    [bookedAppointments, activeRepId],
   );
+
+  const pickupHeatMapCells = useMemo(
+    () => getPickupHeatMapData(callLogs, activeRepId),
+    [callLogs, activeRepId],
+  );
+
+  const repScorecards = useMemo(() => {
+    if (activeRepId) {
+      return [computeRepCoachingScorecard(activeRepId, callLogs as never, bookedAppointments)];
+    }
+    const repIds = Array.from(
+      new Set([
+        ...callLogs.map((l) => l.user_id).filter(Boolean),
+        ...bookedAppointments.map((b) => b.created_by).filter(Boolean),
+      ]),
+    );
+    return computeAllRepScorecards(repIds, callLogs as never, bookedAppointments);
+  }, [activeRepId, callLogs, bookedAppointments]);
+
+  const repComparisonExtras = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeRepComparisonExtras>>();
+    for (const row of metrics.repComparison) {
+      map.set(row.repUserId, computeRepComparisonExtras(row.repUserId, callLogs as never));
+    }
+    return map;
+  }, [metrics.repComparison, callLogs]);
 
   return (
     <AppLayout title="Reports">
@@ -159,6 +192,7 @@ export default function ReportsPage() {
           <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-lg border border-border bg-card p-2">
             <TabsTrigger value="sop-diagnostic" className="rounded-md">SOP Diagnostic</TabsTrigger>
             <TabsTrigger value="conversation-funnel" className="rounded-md">Conversation Funnel</TabsTrigger>
+            <TabsTrigger value="rep-coaching" className="rounded-md">Rep Coaching</TabsTrigger>
             <TabsTrigger value="bookings-made" className="rounded-md">Bookings Made</TabsTrigger>
             <TabsTrigger value="rep-comparison" className="rounded-md">Rep Comparison</TabsTrigger>
             <TabsTrigger value="hourly-activity" className="rounded-md">Hourly / Heat Map</TabsTrigger>
@@ -201,6 +235,24 @@ export default function ReportsPage() {
                 to={dateTo}
                 repUserId={activeRepId}
                 repLabel={activeRepId ? selectedRepLabel : undefined}
+                repNameMap={repNameMap}
+              />
+            </ReportSection>
+          </TabsContent>
+
+          <TabsContent value="rep-coaching" className="space-y-6">
+            <ReportSection
+              title="Per-Rep Coaching Scorecards"
+              description={
+                activeRepId
+                  ? `Where ${selectedRepLabel}'s calls fall apart, plus best pick-up and booking windows.`
+                  : "One scorecard per rep showing biggest funnel leak, top exit reason, and timing intelligence. Sorted by dial volume."
+              }
+            >
+              <RepCoachingPanel
+                scorecards={repScorecards}
+                repNameMap={repNameMap}
+                expanded={!!activeRepId}
               />
             </ReportSection>
           </TabsContent>
@@ -249,27 +301,55 @@ export default function ReportsPage() {
                     <TableHead className="text-right">Talk Time</TableHead>
                     <TableHead className="text-right">Avg Talk / Pickup</TableHead>
                     <TableHead className="text-right">Bookings</TableHead>
+                    <TableHead className="text-right">Best Pick-Up Hour</TableHead>
+                    <TableHead>Worst Stage</TableHead>
+                    <TableHead>Top Exit Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {metrics.repComparison.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center text-sm text-muted-foreground">
                         No rep comparison data in this date range.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.repComparison.map((row) => (
-                      <TableRow key={row.repUserId}>
-                        <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
-                        <TableCell className="text-right font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
-                        <TableCell className="text-right font-mono text-foreground">{row.dialer.pickUps}</TableCell>
-                        <TableCell className="text-right font-mono text-foreground">{row.dialer.dials > 0 ? Math.round((row.dialer.pickUps / row.dialer.dials) * 100) : 0}%</TableCell>
-                        <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
-                        <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
-                        <TableCell className="text-right font-mono text-foreground">{row.setter.appointmentsScheduled}</TableCell>
-                      </TableRow>
-                    ))
+                    metrics.repComparison.map((row) => {
+                      const extras = repComparisonExtras.get(row.repUserId);
+                      return (
+                        <TableRow key={row.repUserId}>
+                          <TableCell className="font-medium text-foreground">{repNameMap.get(row.repUserId) || "Unnamed rep"}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground font-semibold">{row.dialer.dials}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">{row.dialer.pickUps}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">{row.dialer.dials > 0 ? Math.round((row.dialer.pickUps / row.dialer.dials) * 100) : 0}%</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.totalTalkTimeSeconds)}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">{formatDurationSeconds(row.dialer.averageTalkTimePerPickupSeconds)}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">{row.setter.appointmentsScheduled}</TableCell>
+                          <TableCell className="text-right font-mono text-foreground">
+                            {extras?.bestPickupHourLabel ? (
+                              <>
+                                {extras.bestPickupHourLabel}{" "}
+                                <span className="text-xs text-muted-foreground">({extras.bestPickupHourRate}%)</span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {extras?.worstStageLabel ? (
+                              <span className={extras.worstStageDropPct >= 50 ? "text-destructive font-medium" : "text-foreground"}>
+                                {extras.worstStageLabel} <span className="text-xs">−{extras.worstStageDropPct}%</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {extras?.topExitReasonLabel ?? "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -298,7 +378,14 @@ export default function ReportsPage() {
               title="Booking Heat Map"
               description="Booking density by day of week and hour across the selected date range."
             >
-              <BookingHeatMap cells={heatMapCells} />
+              <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
+            </ReportSection>
+
+            <ReportSection
+              title="Pick-Up Rate Heat Map"
+              description={`Pickup % intensity by day of week and hour${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}. Identifies the windows when prospects actually answer.`}
+            >
+              <PickupHeatMap cells={pickupHeatMapCells} />
             </ReportSection>
           </TabsContent>
         </Tabs>

@@ -55,11 +55,13 @@ export interface HeatMapCell {
 
 export function getBookingHeatMapData(
   bookedItems: ReportBookingItem[],
+  repUserId?: string,
 ): HeatMapCell[] {
   const grid = new Map<string, number>();
 
   for (const item of bookedItems) {
     if (!item.created_at) continue;
+    if (repUserId && item.created_by !== repUserId) continue;
     const d = new Date(item.created_at);
     const dow = (d.getDay() + 6) % 7; // Mon=0
     const hour = d.getHours();
@@ -71,6 +73,46 @@ export function getBookingHeatMapData(
   for (let dow = 0; dow < 7; dow++) {
     for (let h = 0; h < 24; h++) {
       cells.push({ dayOfWeek: dow, hour: h, count: grid.get(`${dow}-${h}`) ?? 0 });
+    }
+  }
+  return cells;
+}
+
+export interface PickupHeatMapCell {
+  dayOfWeek: number;
+  hour: number;
+  dials: number;
+  pickUps: number;
+  pickUpRate: number; // 0..1
+}
+
+export function getPickupHeatMapData(
+  callLogs: ReportCallLog[],
+  repUserId?: string,
+): PickupHeatMapCell[] {
+  const dials = new Map<string, number>();
+  const picks = new Map<string, number>();
+
+  for (const log of callLogs) {
+    if (repUserId && log.user_id !== repUserId) continue;
+    if (!log.created_at) continue;
+    const d = new Date(log.created_at);
+    const dow = (d.getDay() + 6) % 7;
+    const hour = d.getHours();
+    const key = `${dow}-${hour}`;
+    dials.set(key, (dials.get(key) ?? 0) + 1);
+    if (ANSWERED_OUTCOMES.has(log.outcome)) {
+      picks.set(key, (picks.get(key) ?? 0) + 1);
+    }
+  }
+
+  const cells: PickupHeatMapCell[] = [];
+  for (let dow = 0; dow < 7; dow++) {
+    for (let h = 0; h < 24; h++) {
+      const key = `${dow}-${h}`;
+      const d = dials.get(key) ?? 0;
+      const p = picks.get(key) ?? 0;
+      cells.push({ dayOfWeek: dow, hour: h, dials: d, pickUps: p, pickUpRate: d > 0 ? p / d : 0 });
     }
   }
   return cells;
