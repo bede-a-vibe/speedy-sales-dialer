@@ -2336,19 +2336,6 @@ export default function DialerPage() {
                 enabled={session.isSessionActive}
               />
 
-              {/* Conversation funnel tracking */}
-              <CollapsiblePanel
-                title="Conversation Progress"
-                subtitle="Tag stage reached + NEPQ exit reason"
-                icon={<TimerReset className="h-4 w-4" />}
-              >
-                <ConversationProgressPanel
-                  value={conversationProgress}
-                  onChange={setConversationProgress}
-                  outcomeIsBooked={session.selectedOutcome === "booked"}
-                />
-              </CollapsiblePanel>
-
               {/* Dialpad Sync — auto-opens only when there's an issue */}
               <CollapsiblePanel
                 title="Dialpad Sync"
