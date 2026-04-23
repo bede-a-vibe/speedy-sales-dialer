@@ -252,6 +252,70 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
   }
 
   // Active / paused state
+  if (compact) {
+    return (
+      <div className={cn(
+        "rounded-lg border px-4 py-2.5 transition-all",
+        isPaused
+          ? "border-yellow-500/30 bg-yellow-500/5"
+          : "border-orange-500/30 bg-orange-500/5",
+      )}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <Flame className={cn("h-4 w-4 shrink-0", isPaused ? "text-yellow-500" : "text-orange-500 animate-pulse")} />
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold whitespace-nowrap">
+              {isPaused ? "Paused" : "Power Hour"}
+            </span>
+          </div>
+
+          <div className="font-mono text-2xl font-black text-foreground tabular-nums">
+            {formattedRemaining}
+          </div>
+
+          <div className="flex-1 min-w-[80px] h-1.5 rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500 transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-3.5 w-3.5 text-orange-500" />
+              <span className="font-mono font-black text-foreground">{powerHourCalls}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">calls</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Target className={cn("h-3.5 w-3.5", intensityColor)} />
+              <span className={cn("font-mono font-black", intensityColor)}>{callsPerHour}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">/hr</span>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+              <span className="font-mono font-black text-yellow-500">{bestCallsPerHour}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">PB</span>
+            </div>
+          </div>
+
+          <div className="flex gap-1">
+            {isPaused ? (
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={resumePowerHour}>
+                <Play className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={pausePowerHour}>
+                <Pause className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={resetPowerHour}>
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn(
       "rounded-lg border p-4 transition-all",
