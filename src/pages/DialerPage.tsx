@@ -1989,6 +1989,16 @@ export default function DialerPage() {
                     );
                   })}
                 </div>
+
+                {/* Conversation funnel tracking — inline so reps tag stage/exit reason
+                    in the same card as the outcome for faster, complete capture. */}
+                <div className="mt-4 border-t border-border pt-4">
+                  <ConversationProgressPanel
+                    value={conversationProgress}
+                    onChange={setConversationProgress}
+                    outcomeIsBooked={session.selectedOutcome === "booked"}
+                  />
+                </div>
               </div>
 
               {requiresPipelineAssignment && (
