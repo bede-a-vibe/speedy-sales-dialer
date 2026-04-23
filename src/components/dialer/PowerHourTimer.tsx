@@ -102,6 +102,31 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     setIsPaused(false);
   }, [sessionCallCount]);
 
+  // Auto-start when session begins (if autoStart prop enabled)
+  useEffect(() => {
+    if (!autoStart) return;
+    if (!isSessionActive) return;
+    if (isRunning || isPaused) return;
+    if (elapsedMs > 0) return; // already completed this session
+    startPowerHour();
+  }, [autoStart, isSessionActive, isRunning, isPaused, elapsedMs, startPowerHour]);
+
+  // Auto-reset when session ends so next session can auto-start cleanly
+  const wasSessionActiveRef = useRef(isSessionActive);
+  useEffect(() => {
+    if (wasSessionActiveRef.current && !isSessionActive) {
+      // Session ended — clear power hour state
+      setIsRunning(false);
+      setIsPaused(false);
+      setElapsedMs(0);
+      setCallsAtStart(0);
+      startTimeRef.current = null;
+      pausedAtRef.current = 0;
+      if (tickRef.current) clearInterval(tickRef.current);
+    }
+    wasSessionActiveRef.current = isSessionActive;
+  }, [isSessionActive]);
+
   const pausePowerHour = useCallback(() => {
     setIsPaused(true);
     pausedAtRef.current = Date.now();
