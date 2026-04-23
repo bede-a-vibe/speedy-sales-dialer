@@ -1,102 +1,64 @@
 
 
-## Plan: NEPQ-Aligned Stage Exit Reasons
+## Plan: Per-Rep Coaching & Timing Intelligence (in Reports)
 
-Extend conversation funnel tracking so reps tag *why* the call ended at each stage, using NEPQ-aligned reasons. This replaces the single `drop_off_reason` field with stage-specific exit reasons for sharper coaching.
+Add per-rep funnel-leak tracking and best pick-up / booking time intelligence directly inside the existing **Reports** page (`/reports`). Pure reporting — no training UI, no AI, no DB changes.
 
-### NEPQ-aligned exit reasons per stage
+### New tab in Reports: "Rep Coaching"
 
-**Stage 1 — Connection (>15s) failed:**
-- `hung_up_immediately` — Hung up before opener finished
-- `gatekeeper_block` — Gatekeeper refused transfer
-- `not_right_person` — Wrong contact / DM unavailable
-- `wrong_number` — Number invalid / wrong business
-- `aggressive_rejection` — Hostile / "take me off your list"
+Per-rep scorecards (one card per rep, sorted by dials desc; expanded view when a specific rep is selected in the existing Reports filter).
 
-**Stage 2 — Problem Awareness failed (NEPQ Connecting/Situation):**
-- `no_pain_acknowledged` — Prospect denies any problem exists
-- `status_quo_bias` — "Everything's fine as it is"
-- `deflected_questions` — Wouldn't engage with situation questions
-- `time_objection_early` — "Not a good time" before pain surfaced
-- `defensive_posture` — Got guarded when probed
+Each card shows:
 
-**Stage 3 — Solution Awareness failed (NEPQ Problem Awareness):**
-- `pain_not_big_enough` — Acknowledged issue but low urgency
-- `already_solving_it` — Has internal/other solution in motion
-- `cant_see_consequence` — Doesn't connect pain to business impact
-- `budget_concern_surfaced` — Raised cost too early
-- `lost_emotional_engagement` — Went cold mid-conversation
+1. **Funnel Leak Strip** — mini horizontal funnel (Connected → Problem → Solution → Commitment → Booked) with the biggest drop-off stage highlighted in red and `% drop` labeled.
+2. **Top NEPQ Exit Reason** — e.g. "Biggest leak: *Pain not big enough* — 42% of Solution Awareness drops · 18 calls" via per-rep `computeTopCoachingCue`.
+3. **Best Pick-Up Window** — top 3 hours by pickup rate (min 5 dials/hour to qualify).
+4. **Best Booking Window** — top 3 hours by booking count (min 1 booking).
+5. **Auto Insight Lines** — deterministic data-only one-liners:
+   - "Loses 60% at Solution Awareness"
+   - "Pickup rate drops 40% after 3pm"
+   - "0 bookings on Mondays"
+   - "Avg talk on pickups: 45s"
 
-**Stage 4 — Verbal Commitment failed (NEPQ Solution Awareness):**
-- `skepticism_of_solution` — Doesn't believe we can help
-- `competitor_loyalty` — Locked in with competitor
-- `needs_to_think` — "Let me think about it"
-- `consult_partner` — Needs to talk to spouse/partner/team
-- `price_objection` — Cost is the blocker
+### Enhancements to existing Reports tabs
 
-**Stage 5 — Booking failed (NEPQ Commitment):**
-- `calendar_conflict` — Couldn't find suitable time
-- `wants_info_first` — "Send me something to review"
-- `cold_feet` — Pulled back at the ask
-- `reschedule_loop` — Asked to call back later (vague)
-- `decision_maker_absent` — Needs DM present for booking
+**Hourly / Heat Map**
+- `getBookingHeatMapData` accepts optional `repUserId` so the heatmap respects the active rep filter (currently ignores it).
+- New **Pick-Up Rate Heatmap** (day × hour, % intensity) alongside the booking heatmap.
+- Hourly Breakdown table: add **Pick-Up %** column and a **Best Booking Hour** badge alongside the existing peak-dials badge.
 
-Plus a universal `other` with optional free-text note.
+**Conversation Funnel**
+- Append a **Per-Rep Leak Leaderboard** table: ranks reps by their worst-stage drop %, with their top exit reason on that stage.
 
-### Database changes
+**Rep Comparison**
+- Add columns: **Best Pick-Up Hour**, **Worst Stage**, **Top Exit Reason**.
 
-Replace single `drop_off_reason` column on `call_logs` with stage-specific columns:
-- `exit_reason_connection` (text, nullable)
-- `exit_reason_problem` (text, nullable)
-- `exit_reason_solution` (text, nullable)
-- `exit_reason_commitment` (text, nullable)
-- `exit_reason_booking` (text, nullable)
-- `exit_reason_notes` (text, nullable) — optional free-text for "other" or color
+### Files
 
-Keep `drop_off_reason` as a generated column (or migrate existing values into the right stage column based on reach flags) for backwards compatibility with the current Reports panel during transition. Then drop it once Reports is updated.
+**New**
+- `src/lib/repCoachingMetrics.ts` — `computeRepCoachingScorecard`, `computeAllRepScorecards`, `computePickupHeatmapData`, `computeRepLeakLeaderboard`, deterministic insight-line generator
+- `src/components/reports/RepCoachingPanel.tsx` — per-rep scorecard cards
+- `src/components/reports/PickupHeatMap.tsx` — pickup-rate heatmap (mirrors `BookingHeatMap`)
+- `src/components/reports/RepLeakLeaderboardTable.tsx`
 
-### Dialer UI changes (`ConversationProgressPanel.tsx`)
+**Edited**
+- `src/lib/hourlyMetrics.ts` — `getBookingHeatMapData(items, repUserId?)`; add `getPickupHeatmapData`
+- `src/lib/reportMetrics.ts` — extend `RepComparisonRow` with `bestPickupHour`, `worstStage`, `topExitReason`
+- `src/components/reports/HourlyBreakdownTable.tsx` — Pick-Up % column + best-booking-hour badge
+- `src/components/reports/BookingHeatMap.tsx` — accept optional `repLabel` for header context
+- `src/components/reports/ConversationFunnelPanel.tsx` — append per-rep leak leaderboard
+- `src/pages/ReportsPage.tsx` — add "Rep Coaching" tab; pass `activeRepId` into heatmap; render new Rep Comparison columns; mount Pickup Heatmap
 
-Replace single drop-off dropdown with a **single contextual exit-reason picker** that switches its options based on the *furthest* stage the rep ticked. This keeps the panel compact:
+### Technical notes
 
-```text
-Stages reached:
-  ☑ Connected
-  ☑ Problem Awareness
-  ☐ Solution Awareness
-  ☐ Verbal Commitment
-
-Why did the call end here?
-  [ Pain not big enough ▾ ]      ← options for Stage 3 exit
-  [ Optional notes... ]
-```
-
-Logic:
-- Furthest stage reached = N → exit happened at stage N+1 → show Stage N+1's reason set
-- If stage 4 reached but no booking → show Stage 5 reasons
-- If stage 5 reached (booked outcome) → hide picker entirely
-- Switching the stage checkboxes auto-clears the reason if it no longer applies
-
-### Reports changes (`ConversationFunnelPanel.tsx` + `funnelMetrics.ts`)
-
-Replace the single "Drop-off Reasons" table with **per-stage exit-reason breakdowns** — five small tables, one per stage, each showing the top NEPQ exit reasons at that drop point with counts and %.
-
-Add a new **"Top Coaching Cues"** summary card at the top of the funnel tab:
-- Auto-surfaces the rep's #1 exit reason at their worst stage
-- Per-rep view: "Sarah's biggest leak: Stage 3 — 'Pain not big enough' (42% of her drops here)"
-
-### Files touched
-
-**Edited:**
-- `supabase/migrations/<ts>_nepq_stage_exit_reasons.sql` (new migration: add 5 stage columns, optional backfill from `drop_off_reason`, drop old column once Reports is wired)
-- `src/lib/funnelMetrics.ts` — replace `DROP_OFF_REASONS` with `STAGE_EXIT_REASONS` map keyed by stage; add `computeStageExitBreakdowns` and `computeTopCoachingCue`
-- `src/components/dialer/ConversationProgressPanel.tsx` — contextual stage-aware reason picker + optional notes field
-- `src/components/reports/ConversationFunnelPanel.tsx` — five per-stage tables + Top Coaching Cues card
-- `src/hooks/useCallLogs.ts` — accept new exit-reason fields in `useCreateCallLog` payload
-- `src/pages/DialerPage.tsx` — pass new fields through to call log insert; reset on new call
+- All metrics computed client-side from already-fetched `callLogs` (with NEPQ exit-reason fields) + `bookedAppointments`. No new DB queries, no migration.
+- Thresholds: ≥5 dials/hour for pickup ranking; ≥1 booking for booking ranking.
+- Insight lines are deterministic rules — no AI calls.
+- Respects existing date range and rep filter on `ReportsPage`.
 
 ### Out of scope
-- AI auto-classification of exit reasons from transcripts (future)
-- Editing reasons on past call logs
-- NEPQ scoring/grading of the call itself (separate feature)
+- Any training/coaching workflow UI (Reports only)
+- AI-generated narratives
+- Editable/dismissable insights
+- Rep-vs-own historical baseline trends
 
