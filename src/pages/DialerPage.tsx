@@ -2327,34 +2327,55 @@ export default function DialerPage() {
               />
 
               {/* Conversation funnel tracking */}
-              <ConversationProgressPanel
-                value={conversationProgress}
-                onChange={setConversationProgress}
-              />
-
-              {/* Dialpad Sync — lower priority, moved below actions */}
-              <Suspense fallback={<PanelSkeleton height="h-36" />}>
-                <DialpadSyncPanel
-                  contactId={session.currentContact.id}
-                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
-                  activeDialpadCallState={dialpad.activeDialpadCallState}
-                  onCancelCall={dialpad.cancelActiveCall}
-                  onRetryLink={dialpad.retryDialpadCallLink}
-                  isCancelling={dialpad.cancelDialpadCall.isPending}
-                  isStatusPending={dialpad.isDialpadCallStatusPending}
-                  isEndingCall={dialpad.isEndingCall}
-                  isResolving={dialpad.isCallResolving}
-                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
-                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
-                  callStartedAt={dialpad.callStartedAt}
-                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
-                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
-                  enabled
+              <CollapsiblePanel
+                title="Conversation Progress"
+                subtitle="Tag stage reached + NEPQ exit reason"
+                icon={<TimerReset className="h-4 w-4" />}
+              >
+                <ConversationProgressPanel
+                  value={conversationProgress}
+                  onChange={setConversationProgress}
+                  outcomeIsBooked={session.selectedOutcome === "booked"}
                 />
-              </Suspense>
+              </CollapsiblePanel>
+
+              {/* Dialpad Sync — auto-opens only when there's an issue */}
+              <CollapsiblePanel
+                title="Dialpad Sync"
+                subtitle={dialpad.hasTrackingRecoveryFailed ? "Tracking issue — needs attention" : "Live call tracking & transcript"}
+                badge={dialpad.hasTrackingRecoveryFailed ? "Issue" : undefined}
+                badgeVariant={dialpad.hasTrackingRecoveryFailed ? "destructive" : "secondary"}
+                icon={<Headphones className="h-4 w-4" />}
+                defaultOpen={dialpad.hasTrackingRecoveryFailed}
+              >
+                <Suspense fallback={<PanelSkeleton height="h-36" />}>
+                  <DialpadSyncPanel
+                    contactId={session.currentContact.id}
+                    activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
+                    activeDialpadCallState={dialpad.activeDialpadCallState}
+                    onCancelCall={dialpad.cancelActiveCall}
+                    onRetryLink={dialpad.retryDialpadCallLink}
+                    isCancelling={dialpad.cancelDialpadCall.isPending}
+                    isStatusPending={dialpad.isDialpadCallStatusPending}
+                    isEndingCall={dialpad.isEndingCall}
+                    isResolving={dialpad.isCallResolving}
+                    isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
+                    hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
+                    callStartedAt={dialpad.callStartedAt}
+                    lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
+                    nextAutoRetryAt={dialpad.nextAutoRetryAt}
+                    enabled
+                  />
+                </Suspense>
+              </CollapsiblePanel>
 
               {/* Queue intel panels */}
-              <div className="rounded-lg border border-border bg-card p-4">
+              <CollapsiblePanel
+                title="Queue intel"
+                subtitle={`${remainingQueueContacts.length} ahead · ${session.nextContact?.business_name ?? "no next lead"}`}
+                badge={`${remainingQueueContacts.length}`}
+              >
+                <div className="rounded-lg p-0">
                 <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -2426,7 +2447,8 @@ export default function DialerPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>
+              </CollapsiblePanel>
             </div>
           </div>
           </>
