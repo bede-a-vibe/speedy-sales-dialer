@@ -12,6 +12,7 @@ import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
+import { ConversationProgressPanel, EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
