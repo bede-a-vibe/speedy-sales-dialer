@@ -8,6 +8,8 @@ import {
   computeTopCoachingCue,
   filterFunnelLogs,
 } from "@/lib/funnelMetrics";
+import { computeRepLeakLeaderboard } from "@/lib/repCoachingMetrics";
+import { RepLeakLeaderboardTable } from "./RepLeakLeaderboardTable";
 import { Lightbulb } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -35,9 +37,10 @@ interface Props {
   to?: string;
   repUserId?: string;
   repLabel?: string;
+  repNameMap?: Map<string, string>;
 }
 
-export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabel }: Props) {
+export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabel, repNameMap }: Props) {
   const { data: openers = [] } = useCallOpeners(true);
 
   const filtered = useMemo(() => filterFunnelLogs(callLogs, { from, to, repUserId }), [callLogs, from, to, repUserId]);
@@ -55,6 +58,13 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
   const coachingCue = useMemo(() => computeTopCoachingCue(filtered), [filtered]);
 
   const subjectLabel = repLabel ?? "Team";
+
+  const leakLeaderboard = useMemo(() => {
+    if (repUserId) return [];
+    const dateFiltered = filterFunnelLogs(callLogs, { from, to });
+    const repIds = Array.from(new Set(dateFiltered.map((l) => l.user_id).filter(Boolean)));
+    return computeRepLeakLeaderboard(repIds, dateFiltered as never);
+  }, [callLogs, from, to, repUserId]);
 
   return (
     <div className="space-y-6">
