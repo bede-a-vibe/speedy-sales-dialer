@@ -1904,33 +1904,46 @@ export default function DialerPage() {
                 </div>
               )}
 
-              <DecisionMakerCapture
-                contactId={session.currentContact.id}
-                businessName={session.currentContact.business_name || ""}
-                ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
-                existingDmName={(session.currentContact as any).dm_name}
-                existingDmTitle={(session.currentContact as any).dm_title}
-                existingDmPhone={(session.currentContact as any).dm_phone}
-                existingDmEmail={(session.currentContact as any).dm_email}
-                existingDmLinkedin={(session.currentContact as any).dm_linkedin}
-                existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
-                existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                existingBestRouteToDecisionMaker={
-                  (session.currentContact as any).best_route_to_decision_maker
-                  ?? (session.currentContact as any).best_route_to_dm
-                }
-                existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
-              />
-
+              <CollapsiblePanel
+                title="Decision Maker"
+                subtitle="Capture DM name, route, and gatekeeper notes"
+                badge={(session.currentContact as any).dm_name ? "Captured" : "Capture"}
+                badgeVariant={(session.currentContact as any).dm_name ? "secondary" : "outline"}
+                icon={<UserCheck className="h-4 w-4" />}
+              >
+                <DecisionMakerCapture
+                  contactId={session.currentContact.id}
+                  businessName={session.currentContact.business_name || ""}
+                  ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
+                  existingDmName={(session.currentContact as any).dm_name}
+                  existingDmTitle={(session.currentContact as any).dm_title}
+                  existingDmPhone={(session.currentContact as any).dm_phone}
+                  existingDmEmail={(session.currentContact as any).dm_email}
+                  existingDmLinkedin={(session.currentContact as any).dm_linkedin}
+                  existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
+                  existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
+                  existingBestRouteToDecisionMaker={
+                    (session.currentContact as any).best_route_to_decision_maker
+                    ?? (session.currentContact as any).best_route_to_dm
+                  }
+                  existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                />
+              </CollapsiblePanel>
 
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
-              <SalesToolkit
-                contactIndustry={session.currentContact?.industry ?? null}
-                businessName={session.currentContact?.business_name ?? null}
-                city={session.currentContact?.city ?? null}
-                state={session.currentContact?.state ?? null}
-                attemptCount={session.currentContact?.call_attempt_count ?? 0}
-              />
+              <CollapsiblePanel
+                title="Sales Toolkit"
+                subtitle="Scripts · Objections · Voicemails"
+                icon={<NotebookPen className="h-4 w-4" />}
+              >
+                <SalesToolkit
+                  contactIndustry={session.currentContact?.industry ?? null}
+                  businessName={session.currentContact?.business_name ?? null}
+                  city={session.currentContact?.city ?? null}
+                  state={session.currentContact?.state ?? null}
+                  attemptCount={session.currentContact?.call_attempt_count ?? 0}
+                />
+              </CollapsiblePanel>
 
               {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
               <DialpadCTI
