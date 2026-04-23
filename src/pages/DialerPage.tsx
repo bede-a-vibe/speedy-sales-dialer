@@ -13,6 +13,7 @@ import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ConversationProgressPanel, EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
+import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -1741,54 +1742,63 @@ export default function DialerPage() {
         )}
 
         {!session.isSessionActive && (
-          <div className="grid gap-4 xl:grid-cols-[1.35fr,0.95fr]">
-            <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-3">
+            {/* Compact pre-session status strip — one line, expandable */}
+            <CollapsiblePanel
+              title="Pre-flight"
+              subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
+              badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
+              badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
+              icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+              defaultOpen={startReadinessOpenItems.length > 0}
+            >
+              <div className="grid gap-4 xl:grid-cols-2">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
-                  <p className="text-sm text-foreground">Quick operator preflight before the next dial session.</p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "font-mono text-[10px] uppercase tracking-widest",
-                    startReadinessOpenItems.length === 0
-                      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
-                      : "border-amber-500/30 text-amber-700 dark:text-amber-300",
-                  )}
-                >
-                  {startReadinessSummary}
-                </Badge>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {startReadinessItems.map((item) => (
-                  <div
-                    key={item.label}
-                    className={cn(
-                      "rounded-md border px-3 py-3 text-xs",
-                      item.ready
-                        ? "border-emerald-500/20 bg-emerald-500/10"
-                        : "border-amber-500/20 bg-amber-500/10",
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      {item.label === "Network" ? (
-                        item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                      ) : item.ready ? (
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                      ) : (
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                      )}
-                      <div>
-                        <p className="font-semibold text-foreground">{item.label}</p>
-                        <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {startReadinessItems.map((item) => (
+                      <div
+                        key={item.label}
+                        className={cn(
+                          "rounded-md border px-3 py-2 text-xs",
+                          item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
+                        )}
+                      >
+                        <div className="flex items-start gap-2">
+                          {item.label === "Network" ? (
+                            item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                          ) : item.ready ? (
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                          ) : (
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                          )}
+                          <div>
+                            <p className="font-semibold text-foreground">{item.label}</p>
+                            <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
+                    <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
+                      {queueSupervisorSummary.label}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {queueSupervisorSummary.checkpoints.map((item) => (
+                      <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                        <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-
               {startReadinessOpenItems.length > 0 && (
                 <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
                   <p className="font-medium">Recommended before you start</p>
@@ -1802,45 +1812,29 @@ export default function DialerPage() {
                   </ul>
                 </div>
               )}
-            </div>
+            </CollapsiblePanel>
 
-            <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
-                  <p className="text-sm text-foreground">Operator visibility into claimable scope before you hit start.</p>
-                </div>
-                <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
-                  {queueSupervisorSummary.label}
-                </Badge>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {queueSupervisorSummary.checkpoints.map((item) => (
-                  <div key={item.label} className="rounded-md border border-border bg-background px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                    <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Power Hour Timer — Fanatical Prospecting */}
-            <PowerHourTimer
-              sessionCallCount={session.callCount}
-              isSessionActive={session.isSessionActive}
-            />
+            <CollapsiblePanel title="Power Hour" subtitle="60-minute focused dialling sprint">
+              <PowerHourTimer
+                sessionCallCount={session.callCount}
+                isSessionActive={session.isSessionActive}
+              />
+            </CollapsiblePanel>
           </div>
         )}
 
-        <TwoPipelineGuide
-          currentView="dialer"
-          calendarName={selectedGhlCalendar?.name ?? null}
-          bookedPipelineName={selectedGhlPipeline?.name ?? null}
-          bookedStageName={selectedGhlStage?.name ?? null}
-          followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-          followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
-        />
+        {!session.isSessionActive && (
+          <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
+            <TwoPipelineGuide
+              currentView="dialer"
+              calendarName={selectedGhlCalendar?.name ?? null}
+              bookedPipelineName={selectedGhlPipeline?.name ?? null}
+              bookedStageName={selectedGhlStage?.name ?? null}
+              followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+              followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+            />
+          </CollapsiblePanel>
+        )}
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
@@ -1892,11 +1886,6 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
-            {/* Power Hour Timer — visible during active session */}
-            <PowerHourTimer
-              sessionCallCount={session.callCount}
-              isSessionActive={session.isSessionActive}
-            />
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <ContactCard
@@ -1915,33 +1904,46 @@ export default function DialerPage() {
                 </div>
               )}
 
-              <DecisionMakerCapture
-                contactId={session.currentContact.id}
-                businessName={session.currentContact.business_name || ""}
-                ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
-                existingDmName={(session.currentContact as any).dm_name}
-                existingDmTitle={(session.currentContact as any).dm_title}
-                existingDmPhone={(session.currentContact as any).dm_phone}
-                existingDmEmail={(session.currentContact as any).dm_email}
-                existingDmLinkedin={(session.currentContact as any).dm_linkedin}
-                existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
-                existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                existingBestRouteToDecisionMaker={
-                  (session.currentContact as any).best_route_to_decision_maker
-                  ?? (session.currentContact as any).best_route_to_dm
-                }
-                existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
-              />
-
+              <CollapsiblePanel
+                title="Decision Maker"
+                subtitle="Capture DM name, route, and gatekeeper notes"
+                badge={(session.currentContact as any).dm_name ? "Captured" : "Capture"}
+                badgeVariant={(session.currentContact as any).dm_name ? "secondary" : "outline"}
+                icon={<UserCheck className="h-4 w-4" />}
+              >
+                <DecisionMakerCapture
+                  contactId={session.currentContact.id}
+                  businessName={session.currentContact.business_name || ""}
+                  ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
+                  existingDmName={(session.currentContact as any).dm_name}
+                  existingDmTitle={(session.currentContact as any).dm_title}
+                  existingDmPhone={(session.currentContact as any).dm_phone}
+                  existingDmEmail={(session.currentContact as any).dm_email}
+                  existingDmLinkedin={(session.currentContact as any).dm_linkedin}
+                  existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
+                  existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
+                  existingBestRouteToDecisionMaker={
+                    (session.currentContact as any).best_route_to_decision_maker
+                    ?? (session.currentContact as any).best_route_to_dm
+                  }
+                  existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                />
+              </CollapsiblePanel>
 
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
-              <SalesToolkit
-                contactIndustry={session.currentContact?.industry ?? null}
-                businessName={session.currentContact?.business_name ?? null}
-                city={session.currentContact?.city ?? null}
-                state={session.currentContact?.state ?? null}
-                attemptCount={session.currentContact?.call_attempt_count ?? 0}
-              />
+              <CollapsiblePanel
+                title="Sales Toolkit"
+                subtitle="Scripts · Objections · Voicemails"
+                icon={<NotebookPen className="h-4 w-4" />}
+              >
+                <SalesToolkit
+                  contactIndustry={session.currentContact?.industry ?? null}
+                  businessName={session.currentContact?.business_name ?? null}
+                  city={session.currentContact?.city ?? null}
+                  state={session.currentContact?.state ?? null}
+                  attemptCount={session.currentContact?.call_attempt_count ?? 0}
+                />
+              </CollapsiblePanel>
 
               {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
               <DialpadCTI
@@ -2325,34 +2327,55 @@ export default function DialerPage() {
               />
 
               {/* Conversation funnel tracking */}
-              <ConversationProgressPanel
-                value={conversationProgress}
-                onChange={setConversationProgress}
-              />
-
-              {/* Dialpad Sync — lower priority, moved below actions */}
-              <Suspense fallback={<PanelSkeleton height="h-36" />}>
-                <DialpadSyncPanel
-                  contactId={session.currentContact.id}
-                  activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
-                  activeDialpadCallState={dialpad.activeDialpadCallState}
-                  onCancelCall={dialpad.cancelActiveCall}
-                  onRetryLink={dialpad.retryDialpadCallLink}
-                  isCancelling={dialpad.cancelDialpadCall.isPending}
-                  isStatusPending={dialpad.isDialpadCallStatusPending}
-                  isEndingCall={dialpad.isEndingCall}
-                  isResolving={dialpad.isCallResolving}
-                  isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
-                  hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
-                  callStartedAt={dialpad.callStartedAt}
-                  lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
-                  nextAutoRetryAt={dialpad.nextAutoRetryAt}
-                  enabled
+              <CollapsiblePanel
+                title="Conversation Progress"
+                subtitle="Tag stage reached + NEPQ exit reason"
+                icon={<TimerReset className="h-4 w-4" />}
+              >
+                <ConversationProgressPanel
+                  value={conversationProgress}
+                  onChange={setConversationProgress}
+                  outcomeIsBooked={session.selectedOutcome === "booked"}
                 />
-              </Suspense>
+              </CollapsiblePanel>
+
+              {/* Dialpad Sync — auto-opens only when there's an issue */}
+              <CollapsiblePanel
+                title="Dialpad Sync"
+                subtitle={dialpad.hasTrackingRecoveryFailed ? "Tracking issue — needs attention" : "Live call tracking & transcript"}
+                badge={dialpad.hasTrackingRecoveryFailed ? "Issue" : undefined}
+                badgeVariant={dialpad.hasTrackingRecoveryFailed ? "destructive" : "secondary"}
+                icon={<Headphones className="h-4 w-4" />}
+                defaultOpen={dialpad.hasTrackingRecoveryFailed}
+              >
+                <Suspense fallback={<PanelSkeleton height="h-36" />}>
+                  <DialpadSyncPanel
+                    contactId={session.currentContact.id}
+                    activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
+                    activeDialpadCallState={dialpad.activeDialpadCallState}
+                    onCancelCall={dialpad.cancelActiveCall}
+                    onRetryLink={dialpad.retryDialpadCallLink}
+                    isCancelling={dialpad.cancelDialpadCall.isPending}
+                    isStatusPending={dialpad.isDialpadCallStatusPending}
+                    isEndingCall={dialpad.isEndingCall}
+                    isResolving={dialpad.isCallResolving}
+                    isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
+                    hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
+                    callStartedAt={dialpad.callStartedAt}
+                    lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
+                    nextAutoRetryAt={dialpad.nextAutoRetryAt}
+                    enabled
+                  />
+                </Suspense>
+              </CollapsiblePanel>
 
               {/* Queue intel panels */}
-              <div className="rounded-lg border border-border bg-card p-4">
+              <CollapsiblePanel
+                title="Queue intel"
+                subtitle={`${remainingQueueContacts.length} ahead · ${session.nextContact?.business_name ?? "no next lead"}`}
+                badge={`${remainingQueueContacts.length}`}
+              >
+                <div className="rounded-lg p-0">
                 <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
                   <div className="rounded-md border border-border bg-background px-3 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -2424,7 +2447,8 @@ export default function DialerPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>
+              </CollapsiblePanel>
             </div>
           </div>
           </>
