@@ -1814,12 +1814,6 @@ export default function DialerPage() {
               )}
             </CollapsiblePanel>
 
-            <CollapsiblePanel title="Power Hour" subtitle="60-minute focused dialling sprint">
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-              />
-            </CollapsiblePanel>
           </div>
         )}
 
@@ -1839,6 +1833,12 @@ export default function DialerPage() {
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
           <>
+            <PowerHourTimer
+              sessionCallCount={session.callCount}
+              isSessionActive={session.isSessionActive}
+              autoStart
+              compact
+            />
             {dialpad.dialpadHealth && (
               <div
                 className={cn(
