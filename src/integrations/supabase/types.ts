@@ -23,10 +23,16 @@ export type Database = {
           dialpad_talk_time_seconds: number | null
           dialpad_total_duration_seconds: number | null
           dialpad_transcript: string | null
+          drop_off_reason: string | null
           follow_up_date: string | null
           id: string
           notes: string | null
+          opener_used_id: string | null
           outcome: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment: boolean
+          reached_connection: boolean
+          reached_problem_awareness: boolean
+          reached_solution_awareness: boolean
           transcript_synced_at: string | null
           user_id: string
         }
@@ -38,10 +44,16 @@ export type Database = {
           dialpad_talk_time_seconds?: number | null
           dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
+          drop_off_reason?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
+          opener_used_id?: string | null
           outcome: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment?: boolean
+          reached_connection?: boolean
+          reached_problem_awareness?: boolean
+          reached_solution_awareness?: boolean
           transcript_synced_at?: string | null
           user_id: string
         }
@@ -53,10 +65,16 @@ export type Database = {
           dialpad_talk_time_seconds?: number | null
           dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
+          drop_off_reason?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
+          opener_used_id?: string | null
           outcome?: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment?: boolean
+          reached_connection?: boolean
+          reached_problem_awareness?: boolean
+          reached_solution_awareness?: boolean
           transcript_synced_at?: string | null
           user_id?: string
         }
@@ -68,7 +86,44 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "call_logs_opener_used_id_fkey"
+            columns: ["opener_used_id"]
+            isOneToOne: false
+            referencedRelation: "call_openers"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      call_openers: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          name: string
+          script: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          name: string
+          script?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          script?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       contact_notes: {
         Row: {
