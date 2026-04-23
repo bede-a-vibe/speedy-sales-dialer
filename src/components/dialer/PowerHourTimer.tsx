@@ -169,6 +169,8 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
 
   // Not active — show start button
   if (!isRunning && !isPaused && elapsedMs === 0) {
+    // In compact (top-banner) mode, hide entirely until running
+    if (compact) return null;
     return (
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -208,6 +210,7 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
 
   // Completed state
   if (!isRunning && !isPaused && elapsedMs > 0) {
+    if (compact) return null;
     return (
       <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-4">
         <div className="flex items-center gap-2 mb-3">
