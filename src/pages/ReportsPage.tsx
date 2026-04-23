@@ -1,16 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarIcon, BarChart3, PhoneCall, Users, Clock } from "lucide-react";
+import { BarChart3, PhoneCall, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { DailyVolumeChart } from "@/components/reports/DailyVolumeChart";
 import { MetricBarList } from "@/components/reports/MetricBarList";
 import { TargetComparisonPanel } from "@/components/reports/TargetComparisonPanel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
@@ -29,8 +27,38 @@ import {
   computeRepCoachingScorecard,
   computeRepComparisonExtras,
 } from "@/lib/repCoachingMetrics";
+import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
+import { HeadlineKpiStrip } from "@/components/reports/HeadlineKpiStrip";
+import { ReportTabGroup, type TabGroupDef } from "@/components/reports/ReportTabGroup";
 
 const ALL_REPS_VALUE = "all";
+
+const TAB_GROUPS: TabGroupDef[] = [
+  {
+    id: "performance",
+    label: "Performance",
+    tabs: [
+      { value: "sop-diagnostic", label: "SOP Diagnostic" },
+      { value: "bookings-made", label: "Bookings Made" },
+    ],
+  },
+  {
+    id: "coaching",
+    label: "Coaching",
+    tabs: [
+      { value: "conversation-funnel", label: "Conversation Funnel" },
+      { value: "rep-coaching", label: "Rep Coaching" },
+    ],
+  },
+  {
+    id: "team-timing",
+    label: "Team & Timing",
+    tabs: [
+      { value: "rep-comparison", label: "Rep Comparison" },
+      { value: "hourly-activity", label: "Hourly / Heat Map" },
+    ],
+  },
+];
 
 export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -40,6 +68,8 @@ export default function ReportsPage() {
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
   const [hourlyDate, setHourlyDate] = useState(today);
+  const [activeGroup, setActiveGroup] = useState("performance");
+  const [activeTab, setActiveTab] = useState("sop-diagnostic");
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
