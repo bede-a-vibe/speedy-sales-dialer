@@ -191,6 +191,16 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
           ))}
         </div>
       </div>
+
+      {!repUserId && repNameMap && leakLeaderboard.length > 0 && (
+        <div className="rounded-lg border border-border bg-background p-4">
+          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Per-Rep Leak Leaderboard</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Ranks reps by their worst-stage drop %, with their dominant exit reason at that stage. Use to spot who needs targeted coaching.</p>
+          <div className="mt-3">
+            <RepLeakLeaderboardTable rows={leakLeaderboard} repNameMap={repNameMap} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
