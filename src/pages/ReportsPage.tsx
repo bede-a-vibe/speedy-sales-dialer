@@ -190,6 +190,20 @@ export default function ReportsPage() {
             </ReportSection>
           </TabsContent>
 
+          <TabsContent value="conversation-funnel" className="space-y-6">
+            <ReportSection
+              title="Conversation Funnel"
+              description={`Manual cold-call funnel tagged by reps. Shows where conversations break down${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}.`}
+            >
+              <ConversationFunnelPanel
+                callLogs={callLogs as never}
+                from={dateFrom}
+                to={dateTo}
+                repUserId={activeRepId}
+              />
+            </ReportSection>
+          </TabsContent>
+
           <TabsContent value="bookings-made" className="space-y-6">
             <ReportSection
               title="Bookings Made"
