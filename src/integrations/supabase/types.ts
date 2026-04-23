@@ -24,6 +24,12 @@ export type Database = {
           dialpad_total_duration_seconds: number | null
           dialpad_transcript: string | null
           drop_off_reason: string | null
+          exit_reason_booking: string | null
+          exit_reason_commitment: string | null
+          exit_reason_connection: string | null
+          exit_reason_notes: string | null
+          exit_reason_problem: string | null
+          exit_reason_solution: string | null
           follow_up_date: string | null
           id: string
           notes: string | null
@@ -45,6 +51,12 @@ export type Database = {
           dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
           drop_off_reason?: string | null
+          exit_reason_booking?: string | null
+          exit_reason_commitment?: string | null
+          exit_reason_connection?: string | null
+          exit_reason_notes?: string | null
+          exit_reason_problem?: string | null
+          exit_reason_solution?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
@@ -66,6 +78,12 @@ export type Database = {
           dialpad_total_duration_seconds?: number | null
           dialpad_transcript?: string | null
           drop_off_reason?: string | null
+          exit_reason_booking?: string | null
+          exit_reason_commitment?: string | null
+          exit_reason_connection?: string | null
+          exit_reason_notes?: string | null
+          exit_reason_problem?: string | null
+          exit_reason_solution?: string | null
           follow_up_date?: string | null
           id?: string
           notes?: string | null
