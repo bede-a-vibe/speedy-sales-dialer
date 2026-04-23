@@ -17,11 +17,18 @@ import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipel
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics } from "@/lib/reportMetrics";
-import { getHourlyMetrics, getBookingHeatMapData } from "@/lib/hourlyMetrics";
+import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
+import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
 import { OutboundDiagnosticPanel } from "@/components/reports/OutboundDiagnosticPanel";
 import { ConversationFunnelPanel } from "@/components/reports/ConversationFunnelPanel";
+import { RepCoachingPanel } from "@/components/reports/RepCoachingPanel";
+import {
+  computeAllRepScorecards,
+  computeRepCoachingScorecard,
+  computeRepComparisonExtras,
+} from "@/lib/repCoachingMetrics";
 
 const ALL_REPS_VALUE = "all";
 
