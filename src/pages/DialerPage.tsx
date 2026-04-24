@@ -2103,6 +2103,24 @@ export default function DialerPage() {
                 />
               </CollapsiblePanel>
 
+              {/* GHL Custom Fields — full intelligence capture during the call */}
+              <CollapsiblePanel
+                title="Contact Intelligence"
+                subtitle="GHL custom fields · auto-saves as you type"
+                icon={<Brain className="h-4 w-4" />}
+                badge={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL synced" : "Local only"}
+                badgeVariant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
+              >
+                <ContactIntelligencePanel
+                  contactId={session.currentContact.id}
+                  ghlContactId={
+                    ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
+                    ?? ghlLink.getCachedGHLId(session.currentContact.id)
+                  }
+                  contact={session.currentContact as unknown as Record<string, unknown>}
+                />
+              </CollapsiblePanel>
+
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
               <CollapsiblePanel
                 title="Sales Toolkit"
