@@ -11,6 +11,7 @@ import {
   User,
   Pencil,
   Plus,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -73,7 +74,7 @@ interface Props {
   canEditSegment: (segment: Segment) => boolean;
 }
 
-type ViewMode = "table" | "cards";
+type ViewMode = "table" | "cards" | "bars";
 
 const VIEW_STORAGE_KEY = "funnel:monitor-view:v1";
 const MAX_BENCHMARK_VALUES = 6;
@@ -81,7 +82,9 @@ const MAX_BENCHMARK_VALUES = 6;
 function getInitialView(): ViewMode {
   if (typeof window === "undefined") return "table";
   const v = window.localStorage.getItem(VIEW_STORAGE_KEY);
-  return v === "cards" ? "cards" : "table";
+  if (v === "cards") return "cards";
+  if (v === "bars") return "bars";
+  return "table";
 }
 
 export function CustomStatGrid({
