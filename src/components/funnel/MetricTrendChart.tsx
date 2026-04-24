@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { groupStatsByCategory, STAT_CATALOG_BY_ID, STAT_CATEGORY_LABEL, type StatCategory } from "@/lib/funnelStatsCatalog";
 import { getReportMetrics, type ReportCallLog, type ReportBookingItem, type ReportContact } from "@/lib/reportMetrics";
+import type { BreakdownGroup } from "@/lib/funnelBreakdown";
 
 interface Props {
   callLogs: ReportCallLog[];
@@ -14,6 +15,7 @@ interface Props {
   previousFrom?: string;
   previousTo?: string;
   compareMode?: boolean;
+  breakdownGroups?: BreakdownGroup[];
 }
 
 function eachDay(from: string, to: string): string[] {
@@ -32,7 +34,26 @@ function eachDay(from: string, to: string): string[] {
   return out;
 }
 
-export function MetricTrendChart({ callLogs, bookedItems, contacts, from, to, repUserId, previousFrom, previousTo, compareMode }: Props) {
+const SERIES_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--outcome-booked))",
+  "hsl(var(--destructive))",
+  "hsl(var(--accent-foreground))",
+  "hsl(var(--muted-foreground))",
+];
+
+export function MetricTrendChart({
+  callLogs,
+  bookedItems,
+  contacts,
+  from,
+  to,
+  repUserId,
+  previousFrom,
+  previousTo,
+  compareMode,
+  breakdownGroups,
+}: Props) {
   const [metricId, setMetricId] = useState<string>("bookings_made");
   const stat = STAT_CATALOG_BY_ID.get(metricId);
 
@@ -42,22 +63,42 @@ export function MetricTrendChart({ callLogs, bookedItems, contacts, from, to, re
     [compareMode, previousFrom, previousTo],
   );
 
+  const useBreakdown = !!breakdownGroups && breakdownGroups.length > 0;
+  const topBreakdown = useMemo(
+    () => (useBreakdown ? breakdownGroups!.filter((g) => !g.isOther).slice(0, 5) : []),
+    [useBreakdown, breakdownGroups],
+  );
+
   const data = useMemo(() => {
     if (!stat) return [];
     return days.map((day, idx) => {
-      const dayMetrics = getReportMetrics({
-        callLogs,
-        bookedItems,
-        contacts,
-        from: day,
-        to: day,
-        repUserId,
-      });
       const point: Record<string, number | string> = {
         date: day.slice(5), // MM-DD
-        current: stat.raw(dayMetrics),
       };
-      if (compareMode && prevDays[idx]) {
+      if (useBreakdown) {
+        for (const g of topBreakdown) {
+          const m = getReportMetrics({
+            callLogs: g.callLogs,
+            bookedItems: g.bookings,
+            contacts,
+            from: day,
+            to: day,
+            repUserId,
+          });
+          point[g.label] = stat.raw(m);
+        }
+      } else {
+        const dayMetrics = getReportMetrics({
+          callLogs,
+          bookedItems,
+          contacts,
+          from: day,
+          to: day,
+          repUserId,
+        });
+        point.current = stat.raw(dayMetrics);
+      }
+      if (!useBreakdown && compareMode && prevDays[idx]) {
         const prevDay = prevDays[idx];
         const prevMetrics = getReportMetrics({
           callLogs,
@@ -71,7 +112,7 @@ export function MetricTrendChart({ callLogs, bookedItems, contacts, from, to, re
       }
       return point;
     });
-  }, [days, prevDays, stat, callLogs, bookedItems, contacts, repUserId, compareMode]);
+  }, [days, prevDays, stat, callLogs, bookedItems, contacts, repUserId, compareMode, useBreakdown, topBreakdown]);
 
   const grouped = groupStatsByCategory();
   const order: StatCategory[] = ["activity", "conversations", "outcomes", "bookings"];
@@ -121,15 +162,29 @@ export function MetricTrendChart({ callLogs, bookedItems, contacts, from, to, re
               }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line
-              type="monotone"
-              dataKey="current"
-              name={stat?.label ?? "Current"}
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={{ r: 2 }}
-            />
-            {compareMode && (
+            {useBreakdown ? (
+              topBreakdown.map((g, i) => (
+                <Line
+                  key={g.key}
+                  type="monotone"
+                  dataKey={g.label}
+                  name={g.label}
+                  stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                />
+              ))
+            ) : (
+              <Line
+                type="monotone"
+                dataKey="current"
+                name={stat?.label ?? "Current"}
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 2 }}
+              />
+            )}
+            {!useBreakdown && compareMode && (
               <Line
                 type="monotone"
                 dataKey="previous"
