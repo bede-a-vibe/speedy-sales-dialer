@@ -68,6 +68,13 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
     );
   }, [activeCategory, grouped, search]);
 
+  // Render either a flat list (search active or "All metrics") or grouped by subgroup (single category, no search).
+  const showSubgroups = activeCategory !== "all" && !search.trim();
+  const subgroups = useMemo(
+    () => (showSubgroups ? groupStatsBySubgroup(visibleStats) : []),
+    [showSubgroups, visibleStats],
+  );
+
   const toggle = (id: string) => {
     setDraftIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
