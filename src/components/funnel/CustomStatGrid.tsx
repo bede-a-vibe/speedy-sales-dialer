@@ -522,6 +522,191 @@ function TableView({
   );
 }
 
+// ============ Segment Table View (one row per saved segment) ============
+
+function SegmentTableView({
+  stats,
+  rows,
+  onRemoveStat,
+  onEditSegment,
+  canEditSegment,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  stats: NonNullable<ReturnType<typeof STAT_CATALOG_BY_ID.get>>[];
+  rows: SegmentRow[];
+  onRemoveStat: (id: string) => void;
+  onEditSegment: (segment: Segment) => void;
+  canEditSegment: (segment: Segment) => boolean;
+  sortBy: string | null;
+  sortDir: "asc" | "desc";
+  onSort: (id: string) => void;
+}) {
+  const sortedRows = (() => {
+    if (!sortBy) return rows;
+    const stat = STAT_CATALOG_BY_ID.get(sortBy);
+    if (!stat) return rows;
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      const av = stat.raw(a.metrics);
+      const bv = stat.raw(b.metrics);
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+    return copy;
+  })();
+
+  // Best/worst per column — only when ≥3 segments have non-zero data.
+  const bestWorst = new Map<string, { best: number; worst: number }>();
+  for (const stat of stats) {
+    const values = rows.map((r) => stat.raw(r.metrics)).filter((v) => v > 0);
+    if (values.length < 3) continue;
+    bestWorst.set(stat.id, { best: Math.max(...values), worst: Math.min(...values) });
+  }
+
+  // Totals row (sum non-percent stats; leave percents blank).
+  const totalsMetrics = (() => {
+    if (rows.length === 0) return null;
+    // Sum aggregable stats by re-summing the raw values per stat. For percent
+    // stats we display "—" (averaging % across segments is misleading).
+    return rows;
+  })();
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[220px] text-xs uppercase tracking-wider">
+                Segment
+              </TableHead>
+              {stats.map((stat) => {
+                const isSorted = sortBy === stat.id;
+                return (
+                  <TableHead key={stat.id} className="text-right whitespace-nowrap group min-w-[120px]">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onSort(stat.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10px] uppercase tracking-wider hover:text-foreground",
+                          isSorted ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {stat.label}
+                        <ArrowUpDown className={cn("h-3 w-3", isSorted ? "opacity-100" : "opacity-30")} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveStat(stat.id)}
+                        className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-opacity"
+                        aria-label={`Remove ${stat.label}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="text-[9px] font-normal text-muted-foreground/70 mt-0.5">
+                      {STAT_CATEGORY_LABEL[stat.category]}
+                    </div>
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedRows.map((row) => {
+              const summary = summarizeSegmentFilters(row.segment);
+              const editable = canEditSegment(row.segment);
+              const dialsRaw = row.metrics.dialer.dials;
+              return (
+                <TableRow key={row.segment.id} className="group">
+                  <TableCell className="sticky left-0 bg-card z-10">
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5">
+                        {row.segment.shared ? (
+                          <Users className="h-3.5 w-3.5 text-primary" />
+                        ) : (
+                          <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {row.segment.name}
+                          </span>
+                          {editable ? (
+                            <button
+                              type="button"
+                              onClick={() => onEditSegment(row.segment)}
+                              className="rounded-sm p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                              aria-label={`Edit ${row.segment.name}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">{summary}</div>
+                        {typeof row.matchingContacts === "number" ? (
+                          <div className="text-[10px] text-muted-foreground/70 font-mono">
+                            {row.matchingContacts.toLocaleString()} contacts in pool
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </TableCell>
+                  {stats.map((stat) => {
+                    const value = stat.raw(row.metrics);
+                    const isEmpty = dialsRaw === 0 && value === 0;
+                    const bw = bestWorst.get(stat.id);
+                    const isBest = bw && value > 0 && value === bw.best && bw.best !== bw.worst;
+                    const isWorst = bw && value > 0 && value === bw.worst && bw.best !== bw.worst;
+                    return (
+                      <TableCell
+                        key={stat.id}
+                        className={cn(
+                          "text-right font-mono text-sm",
+                          isEmpty && "text-muted-foreground/40",
+                          isBest && "bg-[hsl(var(--outcome-booked))]/10 text-[hsl(var(--outcome-booked))]",
+                          isWorst && "bg-destructive/10 text-destructive",
+                        )}
+                      >
+                        {isEmpty ? "—" : stat.format(row.metrics)}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
+
+            {/* Totals row — sums numeric stats, blanks percents */}
+            {totalsMetrics && totalsMetrics.length > 0 ? (
+              <TableRow className="bg-muted/30 font-medium">
+                <TableCell className="sticky left-0 bg-muted/30 z-10 text-sm">Total</TableCell>
+                {stats.map((stat) => {
+                  if (stat.isPercent) {
+                    return (
+                      <TableCell key={stat.id} className="text-right font-mono text-sm text-muted-foreground">
+                        —
+                      </TableCell>
+                    );
+                  }
+                  const sum = totalsMetrics.reduce((acc, r) => acc + stat.raw(r.metrics), 0);
+                  return (
+                    <TableCell key={stat.id} className="text-right font-mono text-sm">
+                      {Number.isInteger(sum) ? sum.toLocaleString() : sum.toFixed(1)}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 // ============ Card View (compact grid) ============
 
 function CardView({ stats, metrics, previousMetrics, compareMode, onRemove }: ViewProps) {
