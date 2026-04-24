@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, Brain, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -12,6 +12,7 @@ import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
+import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
@@ -2099,6 +2100,24 @@ export default function DialerPage() {
                     ?? (session.currentContact as any).best_route_to_dm
                   }
                   existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                />
+              </CollapsiblePanel>
+
+              {/* GHL Custom Fields — full intelligence capture during the call */}
+              <CollapsiblePanel
+                title="Contact Intelligence"
+                subtitle="GHL custom fields · auto-saves as you type"
+                icon={<Brain className="h-4 w-4" />}
+                badge={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL synced" : "Local only"}
+                badgeVariant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
+              >
+                <ContactIntelligencePanel
+                  contactId={session.currentContact.id}
+                  ghlContactId={
+                    ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
+                    ?? ghlLink.getCachedGHLId(session.currentContact.id)
+                  }
+                  contact={session.currentContact as unknown as Record<string, unknown>}
                 />
               </CollapsiblePanel>
 
