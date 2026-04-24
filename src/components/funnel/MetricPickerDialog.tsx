@@ -181,36 +181,35 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
               <div className="p-2">
                 {visibleStats.length === 0 ? (
                   <p className="text-sm text-muted-foreground p-3 text-center">No metrics match "{search}".</p>
-                ) : (
-                  visibleStats.map((stat) => {
-                    const checked = draftIds.includes(stat.id);
-                    return (
-                      <label
-                        key={stat.id}
-                        className={cn(
-                          "flex items-start gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors",
-                          checked ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted",
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggle(stat.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-foreground truncate">{stat.label}</span>
-                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                              {STAT_CATEGORY_LABEL[stat.category]}
-                            </span>
-                          </div>
-                          {stat.subtext && (
-                            <div className="text-[11px] text-muted-foreground truncate">{stat.subtext}</div>
-                          )}
+                ) : showSubgroups ? (
+                  subgroups.map((group) => (
+                    <div key={group.name || "default"} className="mb-3 last:mb-0">
+                      {group.name && (
+                        <div className="px-2.5 pt-2 pb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                          {group.name}
                         </div>
-                      </label>
-                    );
-                  })
+                      )}
+                      {group.items.map((stat) => (
+                        <MetricRow
+                          key={stat.id}
+                          stat={stat}
+                          checked={draftIds.includes(stat.id)}
+                          onToggle={() => toggle(stat.id)}
+                          showCategoryTag={false}
+                        />
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  visibleStats.map((stat) => (
+                    <MetricRow
+                      key={stat.id}
+                      stat={stat}
+                      checked={draftIds.includes(stat.id)}
+                      onToggle={() => toggle(stat.id)}
+                      showCategoryTag
+                    />
+                  ))
                 )}
               </div>
             </ScrollArea>
