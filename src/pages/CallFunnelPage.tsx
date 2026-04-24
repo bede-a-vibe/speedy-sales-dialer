@@ -16,6 +16,12 @@ import { CustomStatGrid } from "@/components/funnel/CustomStatGrid";
 import { MetricTrendChart } from "@/components/funnel/MetricTrendChart";
 import { useFunnelMetricSelection } from "@/hooks/useFunnelMetricSelection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  BREAKDOWN_DIMENSIONS,
+  buildBreakdownGroups,
+  type BreakdownDimensionId,
+} from "@/lib/funnelBreakdown";
+import { BreakdownTable } from "@/components/funnel/BreakdownTable";
 
 const ALL_REPS_VALUE = "all";
 
@@ -39,6 +45,8 @@ export default function CallFunnelPage() {
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
   const [compareMode, setCompareMode] = useState(false);
+  const [breakdown, setBreakdown] = useState<BreakdownDimensionId>("none");
+  const [activeGroupLabel, setActiveGroupLabel] = useState<string | null>(null);
 
   const activeRepId = selectedRepId === ALL_REPS_VALUE ? undefined : selectedRepId;
 
@@ -56,6 +64,12 @@ export default function CallFunnelPage() {
     dateTo,
   );
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
+
+  const repNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reps) m.set(r.user_id, r.display_name || r.email || "Unnamed rep");
+    return m;
+  }, [reps]);
 
   const { data: contactAttempts = [] } = useQuery({
     queryKey: ["contacts-attempt-counts"],
@@ -100,6 +114,29 @@ export default function CallFunnelPage() {
 
   const { selectedIds, toggle, remove, setAll, reset } = useFunnelMetricSelection();
 
+  const breakdownGroups = useMemo(() => {
+    if (breakdown === "none") return [];
+    return buildBreakdownGroups({
+      dimension: breakdown,
+      callLogs: callLogs as never,
+      bookings: bookedAppointments as never,
+      contacts: contactAttempts,
+      from: dateFrom,
+      to: dateTo,
+      repUserId: activeRepId,
+      repNameMap,
+      topN: 10,
+    });
+  }, [breakdown, callLogs, bookedAppointments, contactAttempts, dateFrom, dateTo, activeRepId, repNameMap]);
+
+  const filteredBreakdownGroups = useMemo(() => {
+    if (!activeGroupLabel) return breakdownGroups;
+    return breakdownGroups.filter((g) => g.label === activeGroupLabel);
+  }, [breakdownGroups, activeGroupLabel]);
+
+  const breakdownLabel =
+    BREAKDOWN_DIMENSIONS.find((d) => d.id === breakdown)?.label ?? "Breakdown";
+
   return (
     <AppLayout title="Call Funnel">
       <ReportsToolbar
@@ -112,6 +149,12 @@ export default function CallFunnelPage() {
         reps={reps}
         allRepsValue={ALL_REPS_VALUE}
         isLoading={callsLoading || bookingsLoading || repsLoading}
+        breakdown={breakdown}
+        onBreakdownChange={(v) => {
+          setBreakdown(v as BreakdownDimensionId);
+          setActiveGroupLabel(null);
+        }}
+        breakdownOptions={BREAKDOWN_DIMENSIONS}
       />
 
       <div className="mx-auto max-w-6xl space-y-5 pt-5">
