@@ -161,20 +161,31 @@ export async function ghlUpsertContact(
 }
 
 export interface GHLBulkLinkResult {
+  processed: number;
   total: number;
   linked: number;
   failed: number;
   skipped: number;
+  hasMore: boolean;
+  nextOffset: number;
+  delayMs?: number;
   errors?: Array<{ contactId: string; error: string }>;
 }
 
 export async function ghlBulkLinkContacts(
-  batchSize?: number,
-  delayMs?: number,
+  options: {
+    batchSize?: number;
+    delayMs?: number;
+    offset?: number;
+    statusFilter?: "all" | "active";
+  } = {},
 ): Promise<GHLBulkLinkResult> {
+  const { batchSize, delayMs, offset, statusFilter } = options;
   return invokeGHL<GHLBulkLinkResult>({
     action: "bulk_link_contacts",
     ...(batchSize ? { batchSize } : {}),
     ...(delayMs ? { delayMs } : {}),
+    ...(typeof offset === "number" ? { offset } : {}),
+    ...(statusFilter ? { statusFilter } : {}),
   });
 }
