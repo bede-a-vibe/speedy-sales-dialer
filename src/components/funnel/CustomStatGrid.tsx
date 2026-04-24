@@ -907,3 +907,97 @@ function BenchmarkTableView({
     </div>
   );
 }
+
+// ============ Bar Comparison View ============
+// One panel per metric, one bar per row (period / category / segment).
+// Bars are scaled to the max raw value within that metric so they're
+// directly comparable across rows.
+
+interface BarRow {
+  label: string;
+  metrics: ReportMetrics;
+}
+
+function BarComparisonView({
+  stats,
+  rows,
+  groupLabel,
+}: {
+  stats: NonNullable<ReturnType<typeof STAT_CATALOG_BY_ID.get>>[];
+  rows: BarRow[];
+  groupLabel: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          Pick at least one {groupLabel.toLowerCase()} above to render bars.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {stats.map((stat) => {
+        const values = rows.map((r) => stat.raw(r.metrics));
+        const max = Math.max(...values, 0);
+        const bestIdx = values.indexOf(Math.max(...values));
+        const worstIdx = values.indexOf(Math.min(...values));
+        const allEqual = max === Math.min(...values);
+
+        return (
+          <div
+            key={stat.id}
+            className="rounded-lg border border-border bg-card p-3"
+          >
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {stat.label}
+                </p>
+                <p className="text-[9px] text-muted-foreground/70">
+                  {STAT_CATEGORY_LABEL[stat.category]}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {rows.map((row, i) => {
+                const raw = values[i];
+                const pct = max > 0 ? Math.max((raw / max) * 100, raw > 0 ? 2 : 0) : 0;
+                const isBest = !allEqual && rows.length >= 2 && i === bestIdx && raw > 0;
+                const isWorst = !allEqual && rows.length >= 2 && i === worstIdx && i !== bestIdx;
+                return (
+                  <div key={`${row.label}-${i}`} className="flex items-center gap-2">
+                    <div
+                      className="w-24 shrink-0 truncate text-xs text-muted-foreground"
+                      title={row.label}
+                    >
+                      {row.label}
+                    </div>
+                    <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted">
+                      <div
+                        className={cn(
+                          "absolute inset-y-0 left-0 transition-all",
+                          isBest
+                            ? "bg-[hsl(var(--outcome-booked))]/70"
+                            : isWorst
+                              ? "bg-destructive/60"
+                              : "bg-primary/70",
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="w-20 text-right font-mono text-xs font-semibold text-foreground">
+                      {stat.format(row.metrics)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
