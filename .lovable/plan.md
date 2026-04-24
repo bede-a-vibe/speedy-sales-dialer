@@ -1,89 +1,46 @@
 
 
-## Plan: Reorganize Log This Call panel + move Notes beneath it
+## Plan: Add "View in GHL" link on the active contact card
 
-Restructure the merged "Log This Call" panel so the most-used outcomes sit at the top, conversation tagging in the middle, and the heavier outcomes at the bottom. Then move the Notes panel directly beneath it so reps don't have to scan around.
+Add a small link/button in the `ContactCard` header that opens the contact's profile in GoHighLevel in a new tab, using the GHL contact ID and location ID.
 
 ### What you see
 
-**1. New "Log This Call" panel order**
+In the header row of the active contact card (next to the "I booked this in GHL" button and the industry badge), a new compact icon link:
 
 ```
-┌─ LOG THIS CALL ──────────────────── REQUIRED ─┐
-│                                                 │
-│  QUICK OUTCOMES                                 │
-│  [ 📵  No Answer                        1 ]    │
-│  [ 📧  Voicemail                        2 ]    │
-│                                                 │
-│  ──────────── Conversation ────────────         │
-│                                                 │
-│  [⚠ Hung up before I could speak]              │
-│                                                 │
-│  Opener:  [None / not tracked            ▾]    │
-│                                                 │
-│  Stages:  ☐ Connected        ☐ Problem         │
-│           ☐ Solution         ☐ Commitment      │
-│                                                 │
-│  Why ended? (Lost at Connection)                │
-│  [Not tracked                            ▾]    │
-│  [Optional context...                      ]    │
-│                                                 │
-│  ──────────── Other Outcomes ───────────        │
-│  [ 👎  Not Interested                   3 ]    │
-│  [ ✋  DNC                              4 ]    │
-│  [ 📅  Follow Up                        5 ]    │
-│  [ ✅  Book                             6 ]    │
-│                                                 │
-└─────────────────────────────────────────────────┘
+[ iteck electrical solutions ]   [📅 I booked this in GHL] [↗ GHL] [ELECTRICIANS]
 ```
 
-Why this order:
-- **No Answer / Voicemail** are by far the most common — top of panel, one-click logging without scrolling
-- **Conversation tagging** sits in the middle because it only matters when you actually had a conversation (i.e., you're about to pick one of the bottom outcomes)
-- **Not Interested / DNC / Follow Up / Book** are the post-conversation outcomes — they live below the conversation block so the flow reads top-to-bottom: "Did they pick up? → If yes, tag what happened → Then pick the conversation outcome"
+- Label: `GHL` with an external-link icon
+- Styled as a subtle outline button matching the existing header chips
+- Tooltip on hover: "Open contact in GoHighLevel"
+- Opens `https://app.gohighlevel.com/v2/location/{LOCATION_ID}/contacts/detail/{ghl_contact_id}` in a new tab (`target="_blank"`, `rel="noopener noreferrer"`)
+- **Hidden when there's no `ghl_contact_id`** on the contact (e.g. brand-new contact still mid-link). The auto-link effect on the dialer already populates this within ~1s of presenting a lead, so it appears almost immediately.
 
-**2. Notes panel moves directly below Log This Call**
+### Where it appears
 
-Currently `ContactNotesPanel` sits further down the right column (after Dialpad Sync / Queue Intel area). After this change it sits **immediately under** the Log This Call panel — so the right column becomes:
+- `ContactCard` header — visible on the dialer's active contact card (the screenshot you shared) and anywhere else `ContactCard` is rendered (contact detail expanded views, etc.)
 
-```
-┌─ Log This Call ──────────┐
-│  (outcomes + conversation)│
-└──────────────────────────┘
-┌─ Call Notes ─────────────┐
-│  (textarea + history)    │
-└──────────────────────────┘
-┌─ Pipeline / Booking ─────┐  ← only when an outcome needs it
-└──────────────────────────┘
-┌─ Log & Skip actions ─────┐
-└──────────────────────────┘
-┌─ Dialpad Sync ───────────┐
-└──────────────────────────┘
-┌─ Queue Intel ────────────┐
-└──────────────────────────┘
-```
+### Technical changes
 
-**3. Conditional behavior preserved**
+**1. Expose the GHL location ID to the frontend**
 
-- The "Conversation" middle section + the four bottom outcomes are still hidden when needed by existing logic (e.g., the "Hung up before I could speak" path)
-- Keyboard shortcuts (1–6) unchanged
-- All callbacks, state, validation untouched
+The location ID currently only lives in the edge function as `Deno.env.get("GHL_LOCATION_ID")` — it's not in the Vite env. We'll add a public Vite env var `VITE_GHL_LOCATION_ID` (the location ID is not a secret — it appears in every GHL URL) so the frontend can build the link without a round trip. This requires the user to add the secret in Lovable Cloud after the plan is approved (we'll prompt for it via the secrets flow).
 
-### Files
+**2. New helper `src/lib/ghlUrls.ts`**
+- `getGhlContactUrl(ghlContactId: string): string | null` — returns the full `app.gohighlevel.com/v2/location/{loc}/contacts/detail/{id}` URL, or `null` if the location ID env var isn't set (so the UI can hide the link gracefully instead of producing a broken URL).
 
-**New**
-- `src/components/dialer/LogCallPanel.tsx` — single card rendering: top quick outcomes (No Answer, Voicemail), divider + embedded conversation tagging, divider + remaining outcomes (Not Interested, DNC, Follow Up, Book). Receives the same props the two old sections did (selected outcome, onOutcomeSelect, conversation state + onChange, outcomeIsBooked).
+**3. Edited `src/components/ContactCard.tsx`**
+- Add optional `ghl_contact_id?: string | null` to the `contact` prop type
+- In the header row (the same flex container as `headerActions` and the industry badge), render a small outline anchor button when `getGhlContactUrl(contact.ghl_contact_id)` returns a URL. Uses the existing `ExternalLink` icon (already imported) plus a brief "GHL" label.
 
-**Edited**
-- `src/components/dialer/ConversationProgressPanel.tsx` — add optional `embedded?: boolean` prop. When true, drop the outer `rounded-lg border bg-card p-4` chrome and the redundant `<TrendingUp /> Conversation Progress` heading; render only the inner controls. Switch the four stage checkboxes from vertical stack to a `grid grid-cols-2 gap-2` layout. Default behavior unchanged for any other consumer.
-- `src/pages/DialerPage.tsx`:
-  - Replace the existing Call Outcome card section + the standalone `<ConversationProgressPanel ... />` with a single `<LogCallPanel ... />` passing the same props through.
-  - Move the `<ContactNotesPanel ... />` JSX block so it renders directly after `<LogCallPanel />` in the right column (before Pipeline/Booking, Log & Skip, Dialpad Sync, Queue Intel).
+**4. Edited `src/pages/DialerPage.tsx`**
+- Pass `ghl_contact_id` through to `<ContactCard contact={...} />` (currently the Contact prop spread doesn't include it). Falls back to `ghlLink.getCachedGHLId(contact.id)` so it appears as soon as the auto-link completes, even before the database row refreshes.
 
 ### Out of scope
-- Compacting outcome buttons into an icon grid
-- Changing keyboard shortcuts or outcome labels
-- Auto-collapsing sections
-- Touching Pipeline Assignment / Booking Schedule logic
-- Changing how the Notes panel itself renders internally (just relocating it)
+- Changing the existing "I booked this in GHL" recovery button
+- Adding GHL links anywhere other than the contact card header (e.g. pipeline tables, contacts list) — can be a follow-up if you want it
+- Creating a server-side redirect endpoint (the public location ID makes this unnecessary)
+- Showing the link before `ghl_contact_id` exists (would require pre-resolving via phone, which is wasteful since auto-link already happens within ~1s)
 
