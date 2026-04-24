@@ -191,8 +191,8 @@ export function BreakdownTable({
                           key={stat.id}
                           className={cn(
                             "text-right font-mono text-sm",
-                            isBest && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-                            isWorst && "bg-rose-500/10 text-rose-700 dark:text-rose-400",
+                            isBest && "bg-[hsl(var(--outcome-booked)/0.1)] text-[hsl(var(--outcome-booked))]",
+                            isWorst && "bg-destructive/10 text-destructive",
                           )}
                         >
                           {display}
