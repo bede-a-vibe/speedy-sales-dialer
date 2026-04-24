@@ -1,4 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
+import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
 
 type CallLogRow = Pick<
   Tables<"call_logs">,
@@ -133,6 +134,10 @@ export interface FunnelMetrics {
   totalTracked: number;
   bookedWithoutFunnelTags: number;
   totalBooked: number;
+  /** True when the input includes any logs from before the tagging launch date. */
+  scoped: boolean;
+  /** Launch date (YYYY-MM-DD) of the conversation-tagging system. */
+  launchDate: string;
 }
 
 function dateInRange(iso: string, from?: string, to?: string) {
@@ -155,16 +160,22 @@ export function filterFunnelLogs(
 }
 
 export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
-  const connection = logs.filter((l) => l.reached_connection).length;
-  const problem = logs.filter((l) => l.reached_problem_awareness).length;
-  const solution = logs.filter((l) => l.reached_solution_awareness).length;
-  const commitment = logs.filter((l) => l.reached_commitment).length;
+  // reached_* columns only have meaningful values from the launch date onward;
+  // any earlier row defaults to false. Clamp stage counts so the funnel doesn't
+  // collapse when the date range includes pre-launch dates.
+  const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
+  const eligible = logs.filter((l) => l.created_at.slice(0, 10) >= launchDate);
+  const scoped = eligible.length !== logs.length;
+  const connection = eligible.filter((l) => l.reached_connection).length;
+  const problem = eligible.filter((l) => l.reached_problem_awareness).length;
+  const solution = eligible.filter((l) => l.reached_solution_awareness).length;
+  const commitment = eligible.filter((l) => l.reached_commitment).length;
   // Clamp booked count to logs that ALSO reached connection so the funnel
   // percentage stays mathematically valid (booked <= connection). Bookings
   // made on calls where the rep never tagged Connection are surfaced
   // separately as `bookedWithoutFunnelTags`.
   const totalBooked = logs.filter((l) => l.outcome === "booked").length;
-  const booked = logs.filter((l) => l.outcome === "booked" && l.reached_connection).length;
+  const booked = eligible.filter((l) => l.outcome === "booked" && l.reached_connection).length;
   const bookedWithoutFunnelTags = totalBooked - booked;
 
   const top = connection || 1;
@@ -176,7 +187,7 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
     { key: "booked", label: FUNNEL_STAGE_LABELS.booked, count: booked, pctOfTop: Math.round((booked / top) * 100), dropFromPrev: commitment ? Math.round(((commitment - booked) / commitment) * 100) : 0 },
   ];
 
-  return { stages, totalTracked: connection, bookedWithoutFunnelTags, totalBooked };
+  return { stages, totalTracked: connection, bookedWithoutFunnelTags, totalBooked, scoped, launchDate };
 }
 
 export interface OpenerMetric {
