@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      benchmark_segments: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string
+          filters: Json
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by: string
+          filters?: Json
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string
+          filters?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       call_logs: {
         Row: {
           contact_id: string
