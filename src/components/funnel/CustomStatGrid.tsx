@@ -428,3 +428,107 @@ function CardView({ stats, metrics, previousMetrics, compareMode, onRemove }: Vi
     </div>
   );
 }
+
+// ============ Benchmark Table View (one row per category) ============
+
+function BenchmarkTableView({
+  stats,
+  rows,
+  dimensionLabel,
+  onRemove,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  stats: NonNullable<ReturnType<typeof STAT_CATALOG_BY_ID.get>>[];
+  rows: BenchmarkRow[];
+  dimensionLabel: string;
+  onRemove: (id: string) => void;
+  sortBy: string | null;
+  sortDir: "asc" | "desc";
+  onSort: (id: string) => void;
+}) {
+  const sortedRows = (() => {
+    if (!sortBy) return rows;
+    const stat = STAT_CATALOG_BY_ID.get(sortBy);
+    if (!stat) return rows;
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      const av = stat.raw(a.metrics);
+      const bv = stat.raw(b.metrics);
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+    return copy;
+  })();
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          Pick at least one {dimensionLabel.toLowerCase()} value above to start comparing.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[180px] text-xs uppercase tracking-wider">
+                {dimensionLabel}
+              </TableHead>
+              {stats.map((stat) => {
+                const isSorted = sortBy === stat.id;
+                return (
+                  <TableHead key={stat.id} className="text-right whitespace-nowrap group min-w-[120px]">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onSort(stat.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10px] uppercase tracking-wider hover:text-foreground",
+                          isSorted ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {stat.label}
+                        <ArrowUpDown className={cn("h-3 w-3", isSorted ? "opacity-100" : "opacity-30")} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(stat.id)}
+                        className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-opacity"
+                        aria-label={`Remove ${stat.label}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="text-[9px] font-normal text-muted-foreground/70 mt-0.5">
+                      {STAT_CATEGORY_LABEL[stat.category]}
+                    </div>
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedRows.map((row) => (
+              <TableRow key={row.label}>
+                <TableCell className="sticky left-0 bg-card z-10 font-medium text-sm">
+                  {row.label}
+                </TableCell>
+                {stats.map((stat) => (
+                  <TableCell key={stat.id} className="text-right font-mono text-sm">
+                    {stat.format(row.metrics)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
