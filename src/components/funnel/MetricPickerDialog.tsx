@@ -15,7 +15,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   groupStatsByCategory,
+  groupStatsBySubgroup,
   STAT_CATEGORY_LABEL,
+  STAT_CATEGORY_DESCRIPTION,
   STAT_CATALOG,
   STAT_CATALOG_BY_ID,
   type StatCategory,
@@ -31,12 +33,9 @@ interface Props {
 
 const CATEGORY_ORDER: StatCategory[] = [
   "activity",
+  "conversations",
   "outcomes",
-  "funnel",
-  "conversion",
-  "quality",
-  "post_booking",
-  "revenue",
+  "bookings",
 ];
 
 export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, onReset }: Props) {
