@@ -118,7 +118,7 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_280px] h-[60vh]">
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr_280px] h-[60vh]">
           {/* Left: Categories */}
           <div className="border-r border-border bg-muted/30 py-3 overflow-y-auto">
             <button
