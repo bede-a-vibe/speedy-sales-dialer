@@ -1,4 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
+import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
 
 export type ReportCallLog = Pick<
   Tables<"call_logs">,
@@ -93,7 +94,17 @@ export interface ReportMetrics {
     callBacks: number;
     pickUpToFollowUpRate: number;
     conversations: number;
-    conversationToBookingRate: number;
+    /**
+     * Bookings made / Conversations.
+     * `null` when the selected date range ends before the conversation-tagging
+     * launch date (no eligible data) — UI should render "—".
+     */
+    conversationToBookingRate: number | null;
+    /** True when the selected range starts before the tagging launch date,
+     *  so the UI can show a "Since {date}" footnote on conversation-derived tiles. */
+    conversationMetricsScoped: boolean;
+    /** ISO date (YYYY-MM-DD) of when conversation-progress tagging went live. */
+    conversationTaggingLaunchDate: string;
     totalTalkTimeSeconds: number;
     averageTalkTimePerDialSeconds: number;
     averageTalkTimePerPickupSeconds: number;
