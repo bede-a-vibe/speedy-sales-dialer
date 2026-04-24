@@ -1,86 +1,55 @@
 
 
-## Plan: New "Call Funnel" page — full end-to-end stats with selectable metrics
+## Plan: Clean up Target Comparison
 
-A dedicated page where you watch every step of the cold-call funnel from first dial to booked appointment, in one visual flow, with the ability to pick which metrics to monitor. Lives at `/reports/funnel` (its own sidebar entry, separate from the existing Reports tabs).
+The Target Comparison currently uses huge full-width cards (3xl numbers, big descriptions, milestone ticks, confetti) and stacks 4 sections when a rep is selected (Rep Setter, Rep Closer, Team Setter, Team Closer). With ~10 metrics each, the panel takes a full screen of scroll just to show what's mostly redundant.
 
-### What you see, top to bottom
+### What changes
 
-**1. Filter bar** (sticky)
-Date range, Rep selector, Industry/State multi-selects, "Compare to previous period" toggle. Same controls reps already know from `ReportsToolbar`.
+**1. Compact row layout — replace big cards with a tight progress-row list**
 
-**2. End-to-end funnel visualization** (the centerpiece)
-A vertical funnel showing every stage with count, % of top of funnel, and drop-off from previous stage. The full chain in one view:
-
+Each target becomes a single horizontal row instead of a 200px card:
 ```
-Unique Leads Dialed         3,180   100%
-  └─ Total Dials            8,940   ─── (avg 2.8 attempts/lead)
-Pick Ups                    1,820    57%   ↓ 43%
-Conversations (>15s)          420    13%   ↓ 77%
-Problem Awareness             190     6%   ↓ 55%
-Solution Awareness             95     3%   ↓ 50%
-Verbal Commitment              42     1%   ↓ 56%
-Bookings Made                  37    1.2%  ↓ 12%
-Showed                         24    0.8%  ↓ 35%
-Closed                         11    0.3%  ↓ 54%
+Bookings Made          37 / 55     ████████████░░░░  67%   18 to go
+Pickup → Booking %     4% / 8%     ██████░░░░░░░░░░  50%   4% to go
+Dials                 2,863 / 3,000 ███████████████░  95%   137 to go
 ```
+- One line per metric, label left, actual/target middle, slim bar + % right
+- ~32px tall (vs current ~180px) — fits 8 metrics in the space 1 currently takes
+- Keep color coding (red/orange/blue/green based on % to goal)
+- Keep the ✓ icon + green tint when complete (no confetti — too noisy in a multi-row list)
 
-Two view modes via toggle:
-- **% of top of funnel** (default — overall conversion view)
-- **% of previous stage** (stage-by-stage skill view)
+**2. Tabs instead of stacked sections**
 
-**3. Conversion-rate strip**
-Auto-computed key ratios as cards: Dial → Pickup, Pickup → Conversation, Conversation → Booking, Pickup → Booking, Booking → Showed, Showed → Closed, Lead → Booked, Cost-per-conversation (talk time ÷ conversations).
+When a rep is selected, current panel renders 4 large sections vertically. Replace with a tab strip:
+```
+[ My Setter ] [ My Closer ] [ Team Setter ] [ Team Closer ]
+```
+Default to "My Setter". Team tabs only show when relevant (rep selected).
 
-**4. Pick your stats — customizable monitor panel**
-A "+ Add metric" button opens a checklist of every available stat (grouped: Activity / Outcomes / Funnel / Conversion / Timing / Revenue). Selected stats render as a grid of cards. The selection persists per user via `localStorage`. Users can:
-- Add/remove any stat
-- Reorder by drag (later — not in v1)
-- Toggle "compare to previous period" — each card shows delta % and a tiny sparkline
+When no rep is selected, show only `[ Team Setter ] [ Team Closer ]`.
 
-Available stats to choose from (~30 metrics):
-- **Activity**: Dials, Unique leads dialed, Avg attempts/lead, Pick ups, Pick up rate, Talk time, Avg talk/dial, Avg talk/pickup
-- **Outcomes**: No answer, Voicemail, Not interested, DNC, Follow-ups, Bookings made
-- **Funnel**: Conversations (>15s), Problem awareness, Solution awareness, Verbal commitment, Booked
-- **Conversion %**: Dial→Pickup, Pickup→Conversation, Conversation→Booking, Pickup→Booking, Lead→Booked
-- **Quality**: Immediate hang-ups, Short hangups <15s, Wrong numbers
-- **Outcomes (post-booking)**: Showed, No-shows, Closed, Show-up rate, Close rate
-- **Revenue**: Cash collected, Avg deal value
-- **Timing**: Same-day/next-day booking rate, Best pick-up hour
+**3. Hide derived metrics behind "Show derived" toggle**
 
-**5. Trend chart**
-Line chart of any single metric over the date range, with a metric picker dropdown (defaults to Bookings Made). Optional second line for "previous period" comparison.
+Currently the panel shows both input metrics (Bookings Made, Pickup→Booking %) AND derived ones (Pickups, Dials, Showed, Closed Deals — auto-calculated from inputs). Default to **inputs only** (the goals reps actually act on). A small "Show derived" link expands to include the auto-calculated ones below a divider.
 
-**6. Stage drop-off table**
-For each funnel stage that had drops, the top 3 exit reasons (NEPQ tagged) with counts and %. Reuses existing `computeStageExitBreakdowns`.
+**4. Trim header chrome**
 
-### Bug fixes rolled in
-
-The screenshot shows **Meeting Booked: 36, 257%** in the Conversation Funnel — that's because `booked` count uses `outcome === "booked"` over ALL filtered logs, while the funnel "top" is `reached_connection`. Many bookings happen on calls where the rep never ticked the Connection checkbox. Fix: clamp the booked count in the funnel to logs that also reached connection AND show a separate **"Booked without funnel tags"** counter underneath so you don't lose the data, just stop the broken percentage. Apply same fix to the new end-to-end funnel.
+- Drop the per-section description ("Setter goal progress for the selected rep.") — redundant with tab label
+- Single panel header: `Target Comparison · Weekly` (period as a chip)
+- Remove duplicate `actual / target` text in row corner since the bar already shows it
 
 ### Files
 
 **New**
-- `src/pages/CallFunnelPage.tsx` — the new page
-- `src/components/funnel/EndToEndFunnel.tsx` — vertical funnel viz with two view modes
-- `src/components/funnel/ConversionRateStrip.tsx` — auto-computed key ratio cards
-- `src/components/funnel/CustomStatGrid.tsx` — user-picked metric grid + "+ Add metric" picker
-- `src/components/funnel/MetricPickerDialog.tsx` — checklist grouped by category
-- `src/components/funnel/MetricTrendChart.tsx` — single-metric line chart with metric picker
-- `src/lib/funnelStatsCatalog.ts` — registry of all available metrics: `{ id, label, category, group, compute(metrics, prevMetrics?) }`. Single source for picker + cards + trend chart.
-- `src/hooks/useFunnelMetricSelection.ts` — localStorage-backed selected-metric IDs (per user)
+- `src/components/targets/TargetProgressRow.tsx` — compact single-row progress component (replaces `TargetMetricCard` for this panel; cards still used on the dashboard `DashboardTargetsOverview` and Targets settings page so the original component stays untouched)
 
 **Edited**
-- `src/lib/reportMetrics.ts` — add `showed`, `noShows`, `closed`, `showUpRate`, `closeRate`, `cashCollected`, `avgDealValue` to the top-level metrics object (already exist under `appointmentPerformance.setter`, just expose flat for catalog lookup); add `previousPeriod` helper to compute deltas
-- `src/lib/funnelMetrics.ts` — fix booked-stage math: only count `outcome === "booked" && reached_connection === true` for the funnel %, expose `bookedWithoutFunnelTags` separately
-- `src/components/reports/ConversationFunnelPanel.tsx` — show "X bookings without funnel tags" footnote when applicable
-- `src/components/AppSidebar.tsx` — add "Call Funnel" nav item under Reports
-- `src/App.tsx` — register `/reports/funnel` route
+- `src/components/reports/TargetComparisonPanel.tsx` — replace 4 stacked `TargetSection`s with a tabbed layout; render `TargetProgressRow`s; add inputs-only filter + "Show derived" toggle; period shown as chip in header
 
 ### Out of scope
-- Drag-to-reorder for the custom grid (v2)
-- Saving named stat presets ("My Morning Dashboard")
-- Exporting the funnel view as a PDF/image
-- Cohort funnel (lead-source-by-source breakdown)
-- Real-time updates (page reads same React Query data as Reports, refreshes on focus)
+- Changing the underlying targets math or `buildTargetProgressItems`
+- Touching `TargetMetricCard` / `TargetSection` (still used on Dashboard + Targets page where the bigger format makes sense)
+- Adding sparklines or trend deltas (separate request)
+- Editable targets inline (already exists on Targets page)
 
