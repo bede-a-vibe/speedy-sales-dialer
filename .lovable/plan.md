@@ -1,79 +1,82 @@
-## Plan: Background-running GHL sync (continues without the page open)
 
-Right now the sync loop lives in your browser tab — close the tab or navigate away and it stops mid-run. We'll move the loop to the server so once you press **Sync All Unlinked**, it runs to completion in the background. You can close the page, come back tomorrow, and the linked count will have climbed without you needing to babysit it.
 
-### What you'll see
+## Plan: Manual transcript upload on the contact page
 
-The GHL Sync page gets a small but important upgrade:
+Add a way to paste (or upload a `.txt` file) of a Dialpad transcript directly onto a contact, then have the system run the same downstream pipeline as the webhook would: store the transcript, generate the AI summary, save the training/coaching note, and push the summary + AI fields back to GHL.
 
-```
-┌─ Run a sync ─────────────────────────────────────┐
-│ A background job will keep running even if you  │
-│ close this page.                                 │
+This is a stopgap so reps and you can keep the data flowing while the Dialpad webhook is still misbehaving. It does not change the webhook path — when that comes back, both routes will produce identical records.
+
+### Where it lives
+
+On the **Contact Detail page** (`/contacts/:id`), a new card titled **"Manual Transcript Upload"** placed just below the existing call history card.
+
+```text
+┌─ Manual Transcript Upload ───────────────────────┐
+│ Use this when the Dialpad webhook didn't sync.   │
 │                                                  │
-│ [ Sync Active Only (109) ]                       │
-│ [ Sync All Unlinked (26,738) ]                   │
-│ [ Stop background job ]   ← only when running    │
+│ Link to call (optional): [Most recent call ▾]    │
+│   • 24 Apr, 2:14pm — Voicemail (2m 14s)          │
+│   • 24 Apr, 11:02am — No answer                  │
+│   • Don't link, just save transcript             │
 │                                                  │
-│ ─── Background job: ghl_sync_2026-04-24_1842 ───│
-│ Status: ⚙ Running  ·  Started 3 min ago          │
-│ Mode: All unlinked                               │
-│ Progress: ▓▓░░░░░░░░░░  1,840 / 26,738          │
-│ ✓ Linked 1,802 · + Created 14 · ⤵ Skipped 24   │
-│ ⚠ Failed: 0   · Last batch: 4.8s · ETA ~62 min  │
-│ Auto-refreshing every 5s                         │
+│ Call duration (sec): [____]   Call date: [____]  │
+│                                                  │
+│ Transcript:                                      │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ Paste transcript here, or drop a .txt file…  │ │
+│ │                                              │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+│ [ ] Generate AI summary    [ ] Push to GHL       │
+│                                                  │
+│           [ Cancel ]   [ Save & Process ]        │
 └──────────────────────────────────────────────────┘
 ```
 
-Behavior changes:
-- Pressing **Sync All Unlinked** kicks off a server-side job and immediately returns. The page just polls its progress every 5s.
-- Closing the page, refreshing, or navigating to another route does **not** stop the job.
-- Re-opening `/admin/ghl-sync` automatically picks up and shows the in-progress job.
-- A new **Stop background job** button gracefully halts the loop after the current batch.
-- If a previous run finished while the page was closed, you'll see a "Last completed run" summary at the top with the totals.
+### What happens when the rep clicks "Save & Process"
 
-### How it works under the hood
+1. Save the raw transcript as a `contact_notes` row with `source = 'dialpad_transcript'` (same as the webhook does).
+2. If a call log was selected from the dropdown, also write the transcript onto `call_logs.dialpad_transcript` and set `transcript_synced_at` so it shows up in the rest of the app's reporting.
+3. If "Generate AI summary" is checked: call the existing summary path used by the Dialpad function (Lovable AI Gateway, same prompt) and save the result as a second `contact_notes` row with `source = 'dialpad_summary'`. The training/coaching extraction (`dialpad_training_objection`) runs in the same step.
+4. If "Push to GHL" is checked and the contact has a `ghl_contact_id`: enqueue a `pending_ghl_pushes` row using the same shape the webhook uses. The existing retry processor picks it up within seconds and pushes the AI summary note + AI custom fields to GHL.
+5. Toast on success with what was saved + a link to view the new note in the existing notes panel below.
 
-Three pieces:
+### Behaviour rules
 
-**1. New `ghl_sync_jobs` table** — single source of truth for job state
-```
-id (uuid)              status (queued|running|paused|done|failed|cancelled)
-mode (active|all)      batch_size, delay_ms
-offset, total          processed, linked, failed, skipped
-created_by (user)      started_at, finished_at
-last_batch_ms          last_error
-```
-Only one row per user can be `running` at a time. RLS limits visibility to admins.
-
-**2. Edge function loop** — `ghl-sync-runner` (new)
-- Triggered by the page when the user clicks Sync. Runs detached (`EdgeRuntime.waitUntil`) so the HTTP response returns instantly and the loop keeps executing on Supabase's side.
-- Each iteration: claim next batch from `contacts`, call the existing GHL `upsert_contact` per row, update the `ghl_sync_jobs` row with new offsets/counters, sleep `delay_ms`, check if `status` was changed to `cancelled` by the user, repeat until `hasMore=false`.
-- On any uncaught failure, marks job `failed` with the error message so the UI can show it.
-- Edge functions on Supabase have a generous wall-clock budget for background tasks (using `EdgeRuntime.waitUntil`) — we'll size batches (50) and delays (6s) so a 26k run finishes inside a single invocation. If the runtime ever evicts the worker mid-loop, the next page load detects a `running` job whose `updated_at` is stale (>2 min) and restarts it from `offset`, so resumption is automatic.
-
-**3. Reworked `GhlSyncPage.tsx`**
-- On mount: query `ghl_sync_jobs` for the latest job for this admin (`order by created_at desc limit 1`).
-- If status is `running`/`queued`: render the progress card and start polling every 5s via React Query (`refetchInterval: 5000`).
-- If status is `done`/`failed`/`cancelled`: render a "Last completed run" summary with a "Start new sync" CTA.
-- Buttons call the new `ghl-sync-runner` action with `{ start: true, mode, batchSize, delayMs }` or `{ cancel: true, jobId }`.
-- Removes the old in-browser `while` loop and `stopRef` — the client no longer drives the loop, just observes it.
+- **Auth**: any authenticated user can upload a transcript for a contact. (DNC contacts are still allowed — we're only adding records, not reactivating.)
+- **Duplicate guard**: if a transcript with identical content already exists on the contact within the last 5 minutes, ask "It looks like you already saved this transcript. Save anyway?" before inserting.
+- **File upload**: `.txt` only, max 200KB. Bigger transcripts get pasted into the textarea (no upload limit there).
+- **No call log selected**: still works — the transcript and summary attach to the contact, just not a specific call. Useful when the call log itself never made it from Dialpad.
+- **Validation**: transcript must be at least 50 characters. Duration and date are optional and only used to give the AI summary better context.
+- **Failure modes**:
+  - Transcript saves first; summary generation failure shows a non-blocking warning ("Transcript saved, but AI summary failed — try again from the new card") with a "Retry summary" button on the just-saved transcript note.
+  - GHL push failure is silent to the user (already handled by the retry queue).
 
 ### Technical changes
 
-- **Migration**: create `ghl_sync_jobs` table + indexes + RLS (admins read/write own rows) + a `ghl_sync_jobs_active_per_user_unique` partial unique index where `status in ('queued','running')` to prevent double-starts.
-- **New edge function** `supabase/functions/ghl-sync-runner/index.ts`:
-  - `action: "start"` → insert job row, return `jobId`, kick the loop with `EdgeRuntime.waitUntil(runLoop(jobId))`.
-  - `action: "cancel"` → set `status='cancelled'` on the job; the running loop checks this between batches and exits cleanly.
-  - `action: "status"` → return latest job row (also fine to read directly from the table via PostgREST; we'll use direct read for simplicity).
-  - The loop reuses the existing `upsertContact` helper from `supabase/functions/ghl/index.ts` by importing the shared logic into a small `_shared.ts` file (allowed inside the `supabase/functions` tree).
-- **Edited** `src/lib/ghl.ts`: add `startBackgroundGhlSync({ mode, batchSize, delayMs })`, `cancelBackgroundGhlSync(jobId)`, `getLatestGhlSyncJob()`.
-- **Rewritten** `src/pages/GhlSyncPage.tsx`: drops the `useRef`/`while` loop, uses two React Query hooks (counts + latest job with 5s `refetchInterval`), and shows the new progress UI plus a "Last run" summary card.
-- **Self-healing** stale-job detector: when the page loads and sees a `running` job whose `updated_at` is older than 2 minutes, it shows a "Job stalled — resume" button that calls `start` with the same `jobId` to continue from `offset`.
+**1. New edge function `supabase/functions/manual-transcript-ingest/index.ts`**
+- Validates JWT, accepts `{ contactId, callLogId?, transcript, callDate?, durationSeconds?, generateSummary, pushToGhl }`
+- Reuses the same helpers that already exist inside `supabase/functions/dialpad/index.ts` (`generateAiSummary`, `upsertContactNote`, the GHL field/note push). Since edge functions can't import across function folders, we'll **extract those three helpers into a shared file** `supabase/functions/_shared/dialpad-pipeline.ts` and have both `dialpad/index.ts` and the new `manual-transcript-ingest/index.ts` import from there. (`_shared` is allowed inside `supabase/functions/`.)
+- Returns `{ noteIds: { transcriptNoteId, summaryNoteId? }, callLogUpdated, ghlEnqueued }`
+
+**2. New component `src/components/contacts/ManualTranscriptUpload.tsx`**
+- Card UI as drawn above
+- Uses `useContactCallLogs(contactId)` to populate the call log dropdown (already exists)
+- File drop via `<input type="file" accept=".txt">` + paste textarea
+- Calls the new edge function via `supabase.functions.invoke("manual-transcript-ingest", { body: ... })`
+- On success: invalidates `["contact-notes", contactId]` and `["contact-call-logs", contactId]` so the existing panels refresh
+
+**3. Edited `src/pages/ContactDetailPage.tsx`**
+- Renders `<ManualTranscriptUpload contact={contact} />` between the call history card and the notes card
+
+**4. (Optional, behind the same card) "Re-process this transcript"**
+- For any existing `contact_notes` row with `source = 'dialpad_transcript'` that has no matching `dialpad_summary` sibling, show a small "Generate AI summary" button next to it in the existing notes list. Clicking calls the same edge function with `{ transcript: existingNote.content, generateSummary: true, pushToGhl: true }` and skips the transcript-save step. Lets you backfill summaries for transcripts the webhook delivered but the AI step failed on.
 
 ### Out of scope
 
-- Multiple concurrent syncs by the same admin (intentionally blocked by the unique index — keeps GHL API rate limits sane).
-- Email/Slack notification when the job finishes (easy follow-up if you want it; the data is already there in `ghl_sync_jobs.finished_at`).
-- A jobs history page showing past runs — we'll keep the rows in the table, but the UI only surfaces the most recent one for now.
-- Pulling new GHL-only contacts back into Supabase (still out of scope from the original plan).
+- Bulk-uploading a folder of transcripts (one-at-a-time only for now)
+- Parsing transcript files in formats other than plain text (no PDF, DOCX, JSON)
+- Auto-matching a pasted transcript to a specific call log by content/timestamp (rep picks from the dropdown)
+- Replaying past failed Dialpad webhook deliveries (separate problem; this gives a manual escape hatch in the meantime)
+- Fixing the underlying Dialpad webhook — that's tracked separately in `mem://integrations/dialpad-webhook-setup`
+
