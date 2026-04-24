@@ -54,38 +54,55 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "avg_talk_dial", label: "Avg Talk / Dial", category: "activity", raw: (m) => m.dialer.averageTalkTimePerDialSeconds, format: (m) => formatDurationSeconds(m.dialer.averageTalkTimePerDialSeconds) },
   { id: "avg_talk_pickup", label: "Avg Talk / Pickup", category: "activity", raw: (m) => m.dialer.averageTalkTimePerPickupSeconds, format: (m) => formatDurationSeconds(m.dialer.averageTalkTimePerPickupSeconds) },
 
-  // ===== Outcomes =====
+  // ===== Conversations (pickup → connection → quality) =====
+  { id: "conversations", label: "Conversations", category: "conversations", subgroup: "Volume", subtext: "reached connection", raw: (m) => m.dialer.conversations, format: (m) => String(m.dialer.conversations) },
+  { id: "dial_pickup", label: "Dial → Pickup", category: "conversations", subgroup: "Conversion %", isPercent: true, raw: (m) => m.dialer.pickUpRate, format: (m) => `${m.dialer.pickUpRate}%` },
+  {
+    id: "pickup_conversation",
+    label: "Pickup → Conversation",
+    category: "conversations",
+    subgroup: "Conversion %",
+    isPercent: true,
+    raw: (m) => pct(m.dialer.conversations, m.dialer.pickUps),
+    format: (m) => `${pct(m.dialer.conversations, m.dialer.pickUps)}%`,
+  },
+  { id: "immediate_hang_ups", label: "Immediate Hang-Ups", category: "conversations", subgroup: "Quality", raw: (m) => m.dialer.immediateHangUps, format: (m) => String(m.dialer.immediateHangUps) },
+  { id: "short_hangups_15s", label: "Short Hangups <15s", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder15s, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder15s) },
+  { id: "short_hangups_2m", label: "Short Hangups <2m", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder2m, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder2m) },
+  { id: "long_dq", label: "Long DQ >30m", category: "conversations", subgroup: "Quality", subtext: "long calls ending bad", raw: (m) => m.outboundDiagnostic.longDqOver30m, format: (m) => String(m.outboundDiagnostic.longDqOver30m) },
+
+  // ===== Outcomes (call dispositions) =====
   { id: "no_answer", label: "No Answer", category: "outcomes", raw: (m) => m.outcomeCounts.no_answer, format: (m) => String(m.outcomeCounts.no_answer) },
   { id: "voicemail", label: "Voicemail", category: "outcomes", raw: (m) => m.outcomeCounts.voicemail, format: (m) => String(m.outcomeCounts.voicemail) },
   { id: "not_interested", label: "Not Interested", category: "outcomes", raw: (m) => m.outcomeCounts.not_interested, format: (m) => String(m.outcomeCounts.not_interested) },
   { id: "dnc", label: "DNC", category: "outcomes", raw: (m) => m.outcomeCounts.dnc, format: (m) => String(m.outcomeCounts.dnc) },
   { id: "follow_ups", label: "Follow-ups", category: "outcomes", raw: (m) => m.outcomeCounts.follow_up, format: (m) => String(m.outcomeCounts.follow_up) },
+
+  // ===== Bookings (made → showed → closed → revenue) =====
   {
     id: "bookings_made",
     label: "Bookings Made",
-    category: "outcomes",
+    category: "bookings",
+    subgroup: "Volume",
     subtext: "by date booked",
     raw: (m) => m.bookingsMade.totalBookingsMade,
     format: (m) => String(m.bookingsMade.totalBookingsMade),
   },
-
-  // ===== Funnel =====
-  { id: "conversations", label: "Conversations", category: "funnel", subtext: "reached connection", raw: (m) => m.dialer.conversations, format: (m) => String(m.dialer.conversations) },
-
-  // ===== Conversion % =====
-  { id: "dial_pickup", label: "Dial → Pickup", category: "conversion", isPercent: true, raw: (m) => m.dialer.pickUpRate, format: (m) => `${m.dialer.pickUpRate}%` },
   {
-    id: "pickup_conversation",
-    label: "Pickup → Conversation",
-    category: "conversion",
+    id: "same_next_day_rate",
+    label: "Same/Next Day Rate",
+    category: "bookings",
+    subgroup: "Volume",
     isPercent: true,
-    raw: (m) => pct(m.dialer.conversations, m.dialer.pickUps),
-    format: (m) => `${pct(m.dialer.conversations, m.dialer.pickUps)}%`,
+    subtext: "fast bookings",
+    raw: (m) => m.bookingsMade.sameDayNextDayRate,
+    format: (m) => `${m.bookingsMade.sameDayNextDayRate}%`,
   },
   {
     id: "conversation_booking",
     label: "Conversation → Booking",
-    category: "conversion",
+    category: "bookings",
+    subgroup: "Conversion %",
     isPercent: true,
     raw: (m) => m.dialer.conversationToBookingRate,
     format: (m) => `${m.dialer.conversationToBookingRate}%`,
@@ -93,7 +110,8 @@ export const STAT_CATALOG: StatDefinition[] = [
   {
     id: "pickup_booking",
     label: "Pickup → Booking",
-    category: "conversion",
+    category: "bookings",
+    subgroup: "Conversion %",
     isPercent: true,
     raw: (m) => m.bookingsMade.pickUpsToBookingRate,
     format: (m) => `${m.bookingsMade.pickUpsToBookingRate}%`,
@@ -101,39 +119,19 @@ export const STAT_CATALOG: StatDefinition[] = [
   {
     id: "lead_booked",
     label: "Lead → Booked",
-    category: "conversion",
+    category: "bookings",
+    subgroup: "Conversion %",
     isPercent: true,
     raw: (m) => pct(m.bookingsMade.totalBookingsMade, m.dialer.uniqueLeadsDialed),
     format: (m) => `${pct(m.bookingsMade.totalBookingsMade, m.dialer.uniqueLeadsDialed)}%`,
   },
-
-  // ===== Quality =====
-  { id: "immediate_hang_ups", label: "Immediate Hang-Ups", category: "quality", raw: (m) => m.dialer.immediateHangUps, format: (m) => String(m.dialer.immediateHangUps) },
-  { id: "short_hangups_15s", label: "Short Hangups <15s", category: "quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder15s, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder15s) },
-  { id: "short_hangups_2m", label: "Short Hangups <2m", category: "quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder2m, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder2m) },
-  { id: "long_dq", label: "Long DQ >30m", category: "quality", subtext: "long calls ending bad", raw: (m) => m.outboundDiagnostic.longDqOver30m, format: (m) => String(m.outboundDiagnostic.longDqOver30m) },
-
-  // ===== Post-Booking (setter view) =====
-  { id: "showed", label: "Showed", category: "post_booking", raw: (m) => m.appointmentPerformance.setter.showed, format: (m) => String(m.appointmentPerformance.setter.showed) },
-  { id: "no_shows", label: "No-Shows", category: "post_booking", raw: (m) => m.appointmentPerformance.setter.noShows, format: (m) => String(m.appointmentPerformance.setter.noShows) },
-  { id: "closed", label: "Closed", category: "post_booking", raw: (m) => m.appointmentPerformance.setter.showedClosed, format: (m) => String(m.appointmentPerformance.setter.showedClosed) },
-  { id: "show_up_rate", label: "Show-Up Rate", category: "post_booking", isPercent: true, raw: (m) => m.appointmentPerformance.setter.showUpRate, format: (m) => `${m.appointmentPerformance.setter.showUpRate}%` },
-  { id: "close_rate", label: "Close Rate", category: "post_booking", isPercent: true, subtext: "closed / showed", raw: (m) => m.appointmentPerformance.setter.closeRate, format: (m) => `${m.appointmentPerformance.setter.closeRate}%` },
-
-  // ===== Revenue =====
-  { id: "cash_collected", label: "Cash Collected", category: "revenue", raw: (m) => m.appointmentPerformance.setter.cashCollected, format: (m) => `$${m.appointmentPerformance.setter.cashCollected.toLocaleString()}` },
-  { id: "avg_deal_value", label: "Avg Deal Value", category: "revenue", raw: (m) => m.appointmentPerformance.setter.averageDealValue, format: (m) => `$${m.appointmentPerformance.setter.averageDealValue.toLocaleString()}` },
-
-  // ===== Timing =====
-  {
-    id: "same_next_day_rate",
-    label: "Same/Next Day Rate",
-    category: "outcomes",
-    isPercent: true,
-    subtext: "fast bookings",
-    raw: (m) => m.bookingsMade.sameDayNextDayRate,
-    format: (m) => `${m.bookingsMade.sameDayNextDayRate}%`,
-  },
+  { id: "showed", label: "Showed", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.showed, format: (m) => String(m.appointmentPerformance.setter.showed) },
+  { id: "no_shows", label: "No-Shows", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.noShows, format: (m) => String(m.appointmentPerformance.setter.noShows) },
+  { id: "closed", label: "Closed", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.showedClosed, format: (m) => String(m.appointmentPerformance.setter.showedClosed) },
+  { id: "show_up_rate", label: "Show-Up Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, raw: (m) => m.appointmentPerformance.setter.showUpRate, format: (m) => `${m.appointmentPerformance.setter.showUpRate}%` },
+  { id: "close_rate", label: "Close Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "closed / showed", raw: (m) => m.appointmentPerformance.setter.closeRate, format: (m) => `${m.appointmentPerformance.setter.closeRate}%` },
+  { id: "cash_collected", label: "Cash Collected", category: "bookings", subgroup: "Revenue", raw: (m) => m.appointmentPerformance.setter.cashCollected, format: (m) => `$${m.appointmentPerformance.setter.cashCollected.toLocaleString()}` },
+  { id: "avg_deal_value", label: "Avg Deal Value", category: "bookings", subgroup: "Revenue", raw: (m) => m.appointmentPerformance.setter.averageDealValue, format: (m) => `$${m.appointmentPerformance.setter.averageDealValue.toLocaleString()}` },
 ];
 
 export const STAT_CATALOG_BY_ID = new Map<string, StatDefinition>(
@@ -143,17 +141,29 @@ export const STAT_CATALOG_BY_ID = new Map<string, StatDefinition>(
 export function groupStatsByCategory(): Record<StatCategory, StatDefinition[]> {
   const out: Record<StatCategory, StatDefinition[]> = {
     activity: [],
+    conversations: [],
     outcomes: [],
-    funnel: [],
-    conversion: [],
-    quality: [],
-    post_booking: [],
-    revenue: [],
+    bookings: [],
   };
   for (const stat of STAT_CATALOG) {
     out[stat.category].push(stat);
   }
   return out;
+}
+
+/** Group a list of stats by their optional `subgroup` field, preserving order. */
+export function groupStatsBySubgroup(stats: StatDefinition[]): { name: string; items: StatDefinition[] }[] {
+  const order: string[] = [];
+  const map = new Map<string, StatDefinition[]>();
+  for (const stat of stats) {
+    const key = stat.subgroup ?? "";
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(stat);
+  }
+  return order.map((name) => ({ name, items: map.get(name)! }));
 }
 
 export function computeDelta(stat: StatDefinition, current: ReportMetrics, previous?: ReportMetrics) {
