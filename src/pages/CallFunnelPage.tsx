@@ -98,7 +98,7 @@ export default function CallFunnelPage() {
   const funnel = useMemo(() => computeFunnel(filteredLogs), [filteredLogs]);
   const stageBreakdowns = useMemo(() => computeStageExitBreakdowns(filteredLogs), [filteredLogs]);
 
-  const { selectedIds, toggle, remove } = useFunnelMetricSelection();
+  const { selectedIds, toggle, remove, setAll, reset } = useFunnelMetricSelection();
 
   return (
     <AppLayout title="Call Funnel">
@@ -140,6 +140,8 @@ export default function CallFunnelPage() {
             selectedIds={selectedIds}
             onToggle={toggle}
             onRemove={remove}
+            onSetAll={setAll}
+            onReset={reset}
             compareMode={compareMode}
           />
         </ReportSection>
