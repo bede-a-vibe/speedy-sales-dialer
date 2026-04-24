@@ -309,6 +309,9 @@ export function getReportMetrics({
   const conversations = filteredCallLogs.filter(
     (log) => log.reached_connection === true && toDateKey(log.created_at) >= launchDate,
   ).length;
+  const pickUpsSinceLaunch = filteredCallLogs.filter(
+    (log) => ANSWERED_OUTCOMES.has(log.outcome) && toDateKey(log.created_at) >= launchDate,
+  ).length;
   // For the conversation→booking rate, scope BOTH sides to on/after launch
   // so we don't divide weeks of bookings by days of conversations.
   const bookingsForConversationRate = bookingsMadeInRange.filter(
@@ -480,6 +483,7 @@ export function getReportMetrics({
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
       conversations,
+      pickUpsSinceLaunch,
       conversationToBookingRate,
       conversationMetricsScoped: rangeStartsBeforeLaunch,
       conversationTaggingLaunchDate: launchDate,
