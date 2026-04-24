@@ -302,3 +302,39 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
     </Dialog>
   );
 }
+
+function MetricRow({
+  stat,
+  checked,
+  onToggle,
+  showCategoryTag,
+}: {
+  stat: (typeof STAT_CATALOG)[number];
+  checked: boolean;
+  onToggle: () => void;
+  showCategoryTag: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex items-start gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors",
+        checked ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted",
+      )}
+    >
+      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-foreground truncate">{stat.label}</span>
+          {showCategoryTag && (
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+              {STAT_CATEGORY_LABEL[stat.category]}
+            </span>
+          )}
+        </div>
+        {stat.subtext && (
+          <div className="text-[11px] text-muted-foreground truncate">{stat.subtext}</div>
+        )}
+      </div>
+    </label>
+  );
+}
