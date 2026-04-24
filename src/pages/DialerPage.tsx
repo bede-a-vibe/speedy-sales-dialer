@@ -2123,45 +2123,29 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
-              {/* Call Outcome — top of right column for speed */}
-              <div className="rounded-lg border border-border bg-card p-4">
-                <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Call Outcome <span className="text-primary">(required)</span>
-                </label>
-                <div className="space-y-2">
-                  {outcomes.map((outcome) => {
-                    const isSelected = session.selectedOutcome === outcome;
-                    const canFastLogThisOutcome = canSubmit && isFastLogOutcome(outcome);
+              {/* Log This Call — outcomes + conversation tagging in one card */}
+              <LogCallPanel
+                selectedOutcome={session.selectedOutcome}
+                canSubmit={canSubmit}
+                isFastLogOutcome={isFastLogOutcome}
+                onOutcomeClick={(nextOutcome) => {
+                  if (session.selectedOutcome === nextOutcome && canSubmit && isFastLogOutcome(nextOutcome)) {
+                    void logAndNext(nextOutcome);
+                    return;
+                  }
+                  session.setSelectedOutcome(nextOutcome);
+                }}
+                conversationProgress={conversationProgress}
+                onConversationProgressChange={setConversationProgress}
+              />
 
-                    return (
-                      <OutcomeButton
-                        key={outcome}
-                        outcome={outcome}
-                        label={outcome === "booked" ? "Book" : undefined}
-                        selected={isSelected}
-                        hint={isSelected && canFastLogThisOutcome ? "Click again to save" : undefined}
-                        onClick={(nextOutcome) => {
-                          if (session.selectedOutcome === nextOutcome && canFastLogThisOutcome) {
-                            void logAndNext(nextOutcome);
-                            return;
-                          }
-                          session.setSelectedOutcome(nextOutcome);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-
-                {/* Conversation funnel tracking — inline so reps tag stage/exit reason
-                    in the same card as the outcome for faster, complete capture. */}
-                <div className="mt-4 border-t border-border pt-4">
-                  <ConversationProgressPanel
-                    value={conversationProgress}
-                    onChange={setConversationProgress}
-                    outcomeIsBooked={session.selectedOutcome === "booked"}
-                  />
-                </div>
-              </div>
+              {/* Notes — directly under Log This Call so reps don't have to scan */}
+              <ContactNotesPanel
+                contactId={session.currentContact.id}
+                notes={session.notes}
+                onNotesChange={session.setNotes}
+                enabled={session.isSessionActive}
+              />
 
               {requiresPipelineAssignment && (
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
