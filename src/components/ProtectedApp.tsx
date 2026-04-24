@@ -9,6 +9,7 @@ const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
 const ContactDetailPage = lazy(() => import("@/pages/ContactDetailPage"));
 const PipelinesPage = lazy(() => import("@/pages/PipelinesPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const CallFunnelPage = lazy(() => import("@/pages/CallFunnelPage"));
 const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const TargetsPage = lazy(() => import("@/pages/TargetsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
@@ -58,6 +59,7 @@ function ProtectedRoutes() {
         <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/reports/funnel" element={<CallFunnelPage />} />
         <Route
           path="/targets"
           element={(

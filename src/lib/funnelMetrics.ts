@@ -131,6 +131,8 @@ export interface FunnelStageMetric {
 export interface FunnelMetrics {
   stages: FunnelStageMetric[];
   totalTracked: number;
+  bookedWithoutFunnelTags: number;
+  totalBooked: number;
 }
 
 function dateInRange(iso: string, from?: string, to?: string) {
@@ -157,7 +159,13 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
   const problem = logs.filter((l) => l.reached_problem_awareness).length;
   const solution = logs.filter((l) => l.reached_solution_awareness).length;
   const commitment = logs.filter((l) => l.reached_commitment).length;
-  const booked = logs.filter((l) => l.outcome === "booked").length;
+  // Clamp booked count to logs that ALSO reached connection so the funnel
+  // percentage stays mathematically valid (booked <= connection). Bookings
+  // made on calls where the rep never tagged Connection are surfaced
+  // separately as `bookedWithoutFunnelTags`.
+  const totalBooked = logs.filter((l) => l.outcome === "booked").length;
+  const booked = logs.filter((l) => l.outcome === "booked" && l.reached_connection).length;
+  const bookedWithoutFunnelTags = totalBooked - booked;
 
   const top = connection || 1;
   const stages: FunnelStageMetric[] = [
@@ -168,7 +176,7 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
     { key: "booked", label: FUNNEL_STAGE_LABELS.booked, count: booked, pctOfTop: Math.round((booked / top) * 100), dropFromPrev: commitment ? Math.round(((commitment - booked) / commitment) * 100) : 0 },
   ];
 
-  return { stages, totalTracked: connection };
+  return { stages, totalTracked: connection, bookedWithoutFunnelTags, totalBooked };
 }
 
 export interface OpenerMetric {

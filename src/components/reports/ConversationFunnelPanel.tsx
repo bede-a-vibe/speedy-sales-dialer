@@ -125,6 +125,11 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
             </div>
           ))}
         </div>
+        {funnel.bookedWithoutFunnelTags > 0 && (
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            +{funnel.bookedWithoutFunnelTags} bookings made on calls without funnel tags (rep didn't tick Connection). They count toward Bookings Made but are excluded from the funnel %.
+          </p>
+        )}
         {funnel.totalTracked === 0 && (
           <p className="mt-3 text-xs text-muted-foreground">No funnel data yet. Reps need to tick conversation stages on the dialer for calls to appear here.</p>
         )}
