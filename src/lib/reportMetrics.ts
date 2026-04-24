@@ -390,23 +390,31 @@ export function getReportMetrics({
       const ni = repLogs.filter((l) => l.outcome === "not_interested").length;
       const dn = repLogs.filter((l) => l.outcome === "dnc").length;
       const sh = repLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome) && getTalkTimeSeconds(l) > 0 && getTalkTimeSeconds(l) < 15).length;
+      const ih = repLogs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
       const niRate = dials > 0 ? ni / dials : 0;
       const dnRate = dials > 0 ? dn / dials : 0;
       const shRate = dials > 0 ? sh / dials : 0;
+      const ihRate = dials > 0 ? ih / dials : 0;
       const flags: string[] = [];
       if (dials >= 10 && niRate > teamNotIntRate * 1.5 && teamNotIntRate > 0) flags.push("High not-interested");
       if (dials >= 10 && dnRate > teamDncRate * 1.5 && teamDncRate > 0) flags.push("High DNC");
       if (dials >= 10 && shRate > teamShortRate * 1.5 && teamShortRate > 0) flags.push("Opener review");
+      if (dials >= 20 && ihRate >= 0.15) flags.push("High immediate hang-ups");
       return {
         repUserId: repId,
         dials,
         notInterestedRate: Math.round(niRate * 100),
         dncRate: Math.round(dnRate * 100),
         shortHangupRate: Math.round(shRate * 100),
+        immediateHangUpRate: Math.round(ihRate * 100),
+        immediateHangUps: ih,
         flags,
       };
     })
     .sort((a, b) => b.flags.length - a.flags.length || b.dials - a.dials);
+
+  const immediateHangUps = filteredCallLogs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
+  const immediateHangUpRate = toPercent(immediateHangUps, totalDials);
 
   const outboundDiagnostic: OutboundDiagnosticMetrics = {
     contactRate,
@@ -418,6 +426,8 @@ export function getReportMetrics({
     shortHangupsUnder15s,
     shortHangupsUnder2m,
     longDqOver30m,
+    immediateHangUps,
+    immediateHangUpRate,
     repRedFlags,
   };
 
@@ -432,6 +442,8 @@ export function getReportMetrics({
       totalTalkTimeSeconds,
       averageTalkTimePerDialSeconds: filteredCallLogs.length > 0 ? Math.round(totalTalkTimeSeconds / filteredCallLogs.length) : 0,
       averageTalkTimePerPickupSeconds: pickUps > 0 ? Math.round(totalTalkTimeSeconds / pickUps) : 0,
+      immediateHangUps,
+      immediateHangUpRate,
     },
     bookingsMade: {
       totalBookingsMade,
