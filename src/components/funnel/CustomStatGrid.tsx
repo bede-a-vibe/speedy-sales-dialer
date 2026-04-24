@@ -256,6 +256,18 @@ export function CustomStatGrid({
               <LayoutGrid className="h-3.5 w-3.5" />
               Cards
             </button>
+            <button
+              type="button"
+              onClick={() => handleViewChange("bars")}
+              className={cn(
+                "px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors",
+                view === "bars" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+              aria-label="Bar comparison view"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Bars
+            </button>
           </div>
           <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
             <Settings2 className="h-3.5 w-3.5" />
