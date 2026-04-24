@@ -2062,6 +2062,13 @@ export default function DialerPage() {
 
                   {requiresBookedSchedule && (
                     <div className="space-y-4">
+                      {/* Manual booking workflow callout */}
+                      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5 text-xs">
+                        <p className="font-semibold text-foreground">📅 Manual GHL booking workflow</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Book the appointment directly in GHL first, then fill in the date/time below to log it here. The GHL calendar/pipeline/stage fields are optional — leave them empty if you've already booked manually.
+                        </p>
+                      </div>
                       {/* Appointment Title */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
