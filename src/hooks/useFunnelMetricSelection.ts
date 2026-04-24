@@ -5,6 +5,7 @@ const DEFAULT_SELECTION = [
   "dials",
   "unique_leads",
   "pickups",
+  "pickup_rate",
   "conversations",
   "bookings_made",
   "pickup_booking",
@@ -72,5 +73,21 @@ export function useFunnelMetricSelection() {
     setSelectedIds(ids);
   }, []);
 
-  return { selectedIds, toggle, remove, setAll };
+  const move = useCallback((id: string, direction: "up" | "down") => {
+    setSelectedIds((prev) => {
+      const idx = prev.indexOf(id);
+      if (idx < 0) return prev;
+      const target = direction === "up" ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  }, []);
+
+  const reset = useCallback(() => {
+    setSelectedIds(DEFAULT_SELECTION);
+  }, []);
+
+  return { selectedIds, toggle, remove, setAll, move, reset };
 }
