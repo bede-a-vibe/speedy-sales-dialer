@@ -725,6 +725,26 @@ export default function DialerPage() {
   const requiresBookedSchedule = session.selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
 
+  // Conversation Progress is required for outcomes that need coaching context:
+  // not_interested, follow_up, booked. Rep must tag at least one stage reached,
+  // OR pick an exit reason, OR mark "hung up immediately".
+  const requiresConversationProgress =
+    session.selectedOutcome === "not_interested"
+    || session.selectedOutcome === "follow_up"
+    || session.selectedOutcome === "booked";
+
+  const conversationProgressFilled = (
+    conversationProgress.reachedConnection
+    || conversationProgress.reachedProblem
+    || conversationProgress.reachedSolution
+    || conversationProgress.reachedCommitment
+    || !!conversationProgress.exitReasonConnection
+    || !!conversationProgress.exitReasonProblem
+    || !!conversationProgress.exitReasonSolution
+    || !!conversationProgress.exitReasonCommitment
+    || !!conversationProgress.exitReasonBooking
+  );
+
   // Auto-select the explicit booked pipeline contract when available
   useEffect(() => {
     if (!ghlCalendarId && ghlCalendars.length > 0) {
@@ -760,6 +780,7 @@ export default function DialerPage() {
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
     && (!requiresBookedSchedule || !!session.followUpTime)
+    && (!requiresConversationProgress || conversationProgressFilled)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
@@ -785,6 +806,9 @@ export default function DialerPage() {
     if (requiresAnySchedule && !session.followUpDate) items.push(requiresBookedSchedule ? "Choose an appointment date" : "Choose a follow-up date");
     if (requiresFollowUpSchedule && !session.followUpTime) items.push("Choose a follow-up time");
     if (requiresBookedSchedule && !session.followUpTime) items.push("Choose an appointment time");
+    if (requiresConversationProgress && !conversationProgressFilled) {
+      items.push("Fill out Conversation Progress (stages reached or exit reason)");
+    }
     if (dialpad.isEndingCall) items.push("Wait for the active call to finish ending");
     if (createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending) items.push("Saving the previous action");
 
@@ -798,6 +822,8 @@ export default function DialerPage() {
     requiresAnySchedule,
     requiresFollowUpSchedule,
     requiresBookedSchedule,
+    requiresConversationProgress,
+    conversationProgressFilled,
     ghlCalendarId,
     dialpad.isEndingCall,
     createCallLog.isPending,
