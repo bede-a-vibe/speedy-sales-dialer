@@ -1029,6 +1029,11 @@ export default function DialerPage() {
     }).catch(() => {});
   }, [session.currentContact?.id, session.isSessionActive]);
 
+  // Prefetch the GHL location ID once so the "View in GHL" link can render
+  useEffect(() => {
+    void fetchGhlLocationId();
+  }, []);
+
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
     const outcomeToLog = outcomeOverride ?? session.selectedOutcome;
