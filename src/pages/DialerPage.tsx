@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
 import { cn } from "@/lib/utils";
+import { fetchGhlLocationId } from "@/lib/ghlUrls";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import {
   TRADE_TYPES,
