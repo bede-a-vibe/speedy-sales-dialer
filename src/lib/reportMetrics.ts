@@ -298,7 +298,23 @@ export function getReportMetrics({
 
   // Conversations = calls where the rep reached at least the Connection stage.
   // This is the truest "talked to a human" metric for cold-calling skill analysis.
-  const conversations = filteredCallLogs.filter((log) => log.reached_connection === true).length;
+  // Clipped to on/after CONVERSATION_TAGGING_LAUNCH_DATE because the
+  // reached_connection column defaults to false for older rows and would
+  // otherwise pollute the denominator.
+  const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
+  const conversations = filteredCallLogs.filter(
+    (log) => log.reached_connection === true && toDateKey(log.created_at) >= launchDate,
+  ).length;
+  // For the conversation→booking rate, scope BOTH sides to on/after launch
+  // so we don't divide weeks of bookings by days of conversations.
+  const bookingsForConversationRate = bookingsMadeInRange.filter(
+    (item) => toDateKey(item.created_at) >= launchDate,
+  );
+  const rangeStartsBeforeLaunch = !from || from < launchDate;
+  const rangeEndsBeforeLaunch = !!to && to < launchDate;
+  const conversationToBookingRate: number | null = rangeEndsBeforeLaunch
+    ? null
+    : toPercent(bookingsForConversationRate.length, conversations);
 
   const repIds = Array.from(
     new Set(
@@ -460,7 +476,9 @@ export function getReportMetrics({
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
       conversations,
-      conversationToBookingRate: toPercent(bookingsMadeInRange.length, conversations),
+      conversationToBookingRate,
+      conversationMetricsScoped: rangeStartsBeforeLaunch,
+      conversationTaggingLaunchDate: launchDate,
       totalTalkTimeSeconds,
       averageTalkTimePerDialSeconds: filteredCallLogs.length > 0 ? Math.round(totalTalkTimeSeconds / filteredCallLogs.length) : 0,
       averageTalkTimePerPickupSeconds: pickUps > 0 ? Math.round(totalTalkTimeSeconds / pickUps) : 0,
