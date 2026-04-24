@@ -1,87 +1,91 @@
 
 
-## Plan: Reconcile Supabase ↔ GHL contacts (phone-first match)
+## Plan: Live GHL Custom Fields panel in the dialer
 
-Since your Supabase contacts came from a GHL export, they almost certainly already exist in GHL — they just don't have the `ghl_contact_id` saved on the Supabase row. We'll build an admin "GHL Sync" page that walks the unlinked contacts, finds their existing GHL match by phone, and saves the ID. Only contacts with no GHL match get created (rare, since they all came from GHL).
+Render the GHL custom fields, organized into the same folder groups you have in GHL, directly on the active contact card during a call. Reps fill them out as they talk; values save to Supabase immediately and sync to GHL automatically.
 
-### Status today
+### What you'll see on the dialer
 
-| Lifecycle | Total | Linked | Unlinked |
-|---|---|---|---|
-| uncalled | 30,356 | 2,984 | **27,372** |
-| dnc | 423 | 322 | 101 |
-| follow_up | 143 | 132 | 11 |
-| called | 50 | 50 | 0 |
-| booked | 45 | 41 | 4 |
-| **Total** | **31,017** | **3,529** | **27,488** |
-
-The expected outcome: ~99% of the 27,488 unlinked rows will resolve to an existing GHL contact by phone match, with maybe a few hundred genuine creates (contacts whose phone format differs in GHL or were deleted from GHL).
-
-### What you'll see
-
-A new admin-only page at **`/admin/ghl-sync`** (link added to the sidebar Admin section).
+A new collapsible panel **"Contact Intelligence"** between the existing "Decision Maker" panel and the "Sales Toolkit", with one tab per GHL folder you showed:
 
 ```
-┌─ GHL Sync ─────────────────────────────────────┐
-│                                                 │
-│ Linked: 3,529 / 31,017  (11.4%)                │
-│ Unlinked: 27,488                                │
-│                                                 │
-│ [ Sync Active Only (116) ]  ← recommended first │
-│ [ Sync All Unlinked (27,488) ]                  │
-│                                                 │
-│ Batch size:  [50 ▾]   Pause between: [6s ▾]   │
-│                                                 │
-│ ─── Run progress ───                            │
-│ ▓▓▓▓▓░░░░░░░░░░░░░░  142 / 27,488             │
-│ ✓ Linked to existing GHL: 138                  │
-│ + Created new in GHL: 2                         │
-│ ⤵ Skipped (no phone): 2                        │
-│ ⚠ Errors: 0                                     │
-│ Last batch: 4.8s · ETA ~52 min                 │
-│                                                 │
-│ [ Pause ]  [ Download error report ]           │
-└─────────────────────────────────────────────────┘
+┌─ Contact Intelligence ─ [GHL synced ✓]──────────┐
+│ [Qualification] [Business] [Digital] [Call AI]  │
+│ [Gatekeeper]    [General]  [Additional]         │
+│                                                  │
+│ ── Qualification & Buying Signals ──────────────│
+│ Buying Signal Strength    [Hot ▾]               │
+│ Budget Indication         [$5k–$10k ▾]          │
+│ Authority Level           [Decision Maker ▾]    │
+│ Timeline                  [______________]      │
+│ Pain Points               [______________]      │
+│ Current Solution          [______________]      │
+│ Competitor                [______________]      │
+│ Ready to Buy?             [Yes ▾]               │
+│                                                  │
+│ Last saved 2s ago · Synced to GHL ✓             │
+└──────────────────────────────────────────────────┘
 ```
 
-**Run modes:**
-- **Sync Active Only** — links the 116 unlinked contacts in `dnc/follow_up/booked` first (highest value, fastest)
-- **Sync All Unlinked** — full reconciliation of all 27,488 rows
-- **Resumable** — closing the page or hitting Pause stops cleanly between batches; re-running picks up where you left off (idempotent — already-linked rows are skipped automatically)
+**Behavior**
+- Tabs match your GHL folders exactly: Qualification & Buying Signals, Business Profile, Digital Presence & Opportunity, AI Call Intelligence, Gatekeeper Intelligence, Call Activity, General Info, Additional Info, (OLD) Location, Contact
+- Fields render based on GHL field type: `TEXT` → input, `LARGE_TEXT` → textarea, `DROPDOWN`/`RADIO` → select with the picklist options pulled from GHL, `NUMERICAL` → number input, `DATE` → date picker, `CHECKBOX`/`SINGLE_OPTIONS` → multi-select chips
+- Auto-save with **1.5s debounce** per field — no save button. Status indicator shows "Saving…" → "Saved" → "Synced to GHL ✓"
+- Persisted in **two places** on every change: Supabase `contacts` row (for fast reads/queue logic) and GHL via `update_contact_fields` (for CRM truth)
+- If GHL push fails, falls back to the existing `pending_ghl_pushes` retry queue so values aren't lost
+- Folder tab badges show how many fields in that folder are filled (e.g. `Qualification 3/8`)
 
-**Per-contact behavior** (uses the existing `upsert_contact` action):
-1. Search GHL by E.164 phone
-2. If found → save `ghl_contact_id` to Supabase row, count as **Linked**
-3. If not found → create in GHL with company/name/email/website/city/state, count as **Created**
-4. If no phone → skip and log
+### Where it lives
+
+`src/pages/DialerPage.tsx` — slotted into the active call sidebar between `<DecisionMakerCapture />` and `<SalesToolkit />`. Already-captured DM/Gatekeeper fields (which are duplicated in your `contacts` table columns) display the same value in both places — editing in one updates the other on the next reload.
 
 ### Technical changes
 
-**1. New page `src/pages/GhlSyncPage.tsx`**
-- Reads counts via the existing `contacts` queries (filter `ghl_contact_id IS NULL`)
-- Drives a client-side loop that calls the existing `bulk_link_contacts` edge action with `{ batchSize, delayMs }`
-- The `bulk_link_contacts` action already iterates Supabase rows in batches and returns `{ total, linked, failed, skipped, errors }` — we'll call it repeatedly with a small batch (50) so the UI can show live progress and remain cancellable
-- Active-only mode passes a new optional `statusFilter: 'active'` param so the edge function only pulls non-uncalled rows
+**1. New `src/lib/ghlFieldFolders.ts`**
+- Static config mapping each GHL folder name to:
+  - tab order/label
+  - icon
+  - the list of field keys (`contact.buying_signal_strength`, `contact.budget_indication`, etc.) that belong to it
+  - per-field UI overrides (placeholder text, helper hint shown to rep)
+- Built from your existing `resolveFieldId` map in `supabase/functions/ghl/index.ts` so we know which 55 fields are addressable
 
-**2. Minor edit to `supabase/functions/ghl/index.ts`**
-- Extend `bulk_link_contacts` to accept an optional `statusFilter` param (`'active'` = `status IN ('dnc','follow_up','booked','called')`, otherwise all unlinked)
-- Return `nextOffset` / `hasMore` so the client loop knows when to stop, instead of running the entire 27k in one invocation (which would time out)
-- Keeps existing company-name fallback to avoid duplicate creates
+**2. New hook `src/hooks/useGHLFieldSchema.ts`**
+- Calls `ghlGetCustomFields()` once per session, caches with React Query (5 min stale time)
+- Returns a normalized schema: `{ key, id, dataType, picklistOptions[], folder }` per field
+- Used by the panel to render the correct input control + options for DROPDOWN/RADIO fields
 
-**3. Edited `src/lib/ghl.ts`**
-- Add `statusFilter` to the `ghlBulkLinkContacts` signature
-- Type the response to include `nextOffset`, `hasMore`
+**3. New hook `src/hooks/useGHLContactFields.ts`**
+- For a given Supabase `contact` + `ghlContactId`:
+  - Reads the matching column values from the `contacts` row (the ones already mirrored: `dm_name`, `budget_indication`, `buying_signal_strength`, etc.)
+  - For GHL-only fields (no Supabase column), fetches `ghlGetContact(ghlContactId)` once and reads `customFields[]`
+  - Exposes a `setField(key, value)` that:
+    1. Updates local React state (instant UI)
+    2. Debounced 1.5s: writes to Supabase column if mirrored, calls `ghlUpdateContactFields(ghlContactId, { [key]: value })` for the GHL push
+    3. On GHL failure, enqueues `pending_ghl_pushes` row via the existing retry path
 
-**4. Edited `src/components/AppSidebar.tsx`**
-- Add **GHL Sync** nav item under the Admin group (between Targets and Dialpad Settings)
+**4. New component `src/components/dialer/ContactIntelligencePanel.tsx`**
+- Collapsible card (matches existing `DecisionMakerCapture` styling)
+- Tab list driven by `ghlFieldFolders.ts`
+- Renders each folder as a 1- or 2-column grid of labeled inputs
+- Per-tab counter, per-field "Saving/Saved/Synced" pill, last-saved timestamp at bottom
 
-**5. Edited `src/components/ProtectedApp.tsx`**
-- Add the `/admin/ghl-sync` route, lazy-loaded and wrapped in the existing `AdminRoute` guard
+**5. Edited `src/pages/DialerPage.tsx`**
+- Import + render `<ContactIntelligencePanel contact={currentContact} ghlContactId={ghlContactId} />` between the existing DM panel and Sales Toolkit
+- Pass through the same `ghlContactId` already resolved for the "View in GHL" link
+
+**6. Edited `src/lib/ghl.ts`**
+- No new actions needed (already have `ghlGetCustomFields`, `ghlGetContact`, `ghlUpdateContactFields`)
+- Light typing tweak: export a `GhlCustomFieldSchema` type for the schema hook
+
+**7. Migration: add any missing Supabase columns for fields we want fast queue access to** (e.g., `timeline`, `current_solution`, `competitor`, `ready_to_buy`)
+- Most qualification fields already exist on `contacts` (per the schema you showed). For any GHL field we want filterable in the dialer queue but missing from the table, add nullable `text` columns
+- Will list the exact additions after reading the resolveFieldId map; estimate ~6–10 new columns
 
 ### Out of scope
 
-- Background cron-based daily reconciliation (let's see how the manual run goes first)
-- Pulling new GHL-only contacts back into Supabase (your data went GHL → Supabase already; this plan is about restoring the link, not a fresh import)
-- Field-level merging of differences between Supabase and GHL data (the live `ghl-webhook` already keeps changes flowing GHL → Supabase)
-- Handling phone format mismatches beyond E.164 normalization (already done by `normalize_phone_e164` trigger and the upsert function's AU phone variants)
+- Bulk-editing custom fields from a list view (this is dialer-only for now)
+- Surfacing custom fields in the contact list / contact detail pages — easy follow-up once the panel is proven
+- Two-way realtime sync from GHL → dialer panel mid-call (the existing `ghl-webhook` already updates the Supabase row, so a contact reload picks it up; live mid-call refresh isn't worth the complexity yet)
+- Adding fields that don't already exist in your GHL location — this only renders what GHL gives us
+- Editing GHL field definitions/picklists from inside the app (do that in GHL)
 
