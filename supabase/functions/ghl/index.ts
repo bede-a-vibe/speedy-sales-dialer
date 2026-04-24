@@ -200,8 +200,33 @@ async function getCalendarFreeSlots(
   endDate: string,
   timezone: string,
 ) {
+  // GHL requires startDate/endDate as Unix millisecond timestamps (numbers as strings),
+  // not date strings like "2026-04-28". Convert here so callers can keep passing dates.
+  const toMs = (input: string, endOfDay: boolean): string => {
+    // Already a numeric ms timestamp? Pass through.
+    if (/^\d{10,}$/.test(input.trim())) return input.trim();
+    // Pure YYYY-MM-DD → start or end of that day in UTC (close enough for slot search;
+    // GHL filters by the timezone param when returning slots).
+    const datePartMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.trim());
+    if (datePartMatch) {
+      const [, y, m, d] = datePartMatch;
+      const date = endOfDay
+        ? new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999))
+        : new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0));
+      return String(date.getTime());
+    }
+    // Fall back to Date parsing (ISO strings, etc.)
+    const ms = new Date(input).getTime();
+    if (Number.isFinite(ms)) return String(ms);
+    throw new Error(`Invalid date for free-slots: ${input}`);
+  };
+
   return ghlFetch(`/calendars/${calendarId}/free-slots`, apiKey, {
-    params: { startDate, endDate, timezone },
+    params: {
+      startDate: toMs(startDate, false),
+      endDate: toMs(endDate, true),
+      timezone,
+    },
   });
 }
 

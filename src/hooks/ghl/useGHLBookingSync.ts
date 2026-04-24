@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { toast } from "sonner";
 import {
   ghlAddNote,
   ghlCreateAppointment,
@@ -31,14 +32,33 @@ export function useGHLBookingSync() {
     } = params;
 
     try {
-      await ghlCreateAppointment({
-        calendarId,
-        contactId: ghlContactId,
-        startTime: scheduledFor,
-        title: title ?? "Appointment booked via Dialer",
-        notes: notes ?? "",
-        ...(params.ghlUserId ? { assignedUserId: params.ghlUserId } : {}),
-      });
+      // GHL requires both startTime AND endTime. Default to a 30-min appointment
+      // unless overridden later by calendar slotDuration metadata.
+      const APPOINTMENT_DURATION_MS = 30 * 60 * 1000;
+      const startMs = new Date(scheduledFor).getTime();
+      const endIso = Number.isFinite(startMs)
+        ? new Date(startMs + APPOINTMENT_DURATION_MS).toISOString()
+        : scheduledFor;
+
+      try {
+        await ghlCreateAppointment({
+          calendarId,
+          contactId: ghlContactId,
+          startTime: scheduledFor,
+          endTime: endIso,
+          title: title ?? "Appointment booked via Dialer",
+          notes: notes ?? "",
+          ...(params.ghlUserId ? { assignedUserId: params.ghlUserId } : {}),
+        });
+      } catch (apptErr) {
+        // Don't abort the rest of the flow — opportunity + note + local mirror
+        // are still useful even if GHL refuses the calendar event.
+        const msg = apptErr instanceof Error ? apptErr.message : String(apptErr);
+        console.warn("[GHL Sync] create_appointment failed, continuing:", apptErr);
+        toast.warning("Saved locally — GHL appointment failed", {
+          description: `Please verify in GHL. Reason: ${msg}`,
+        });
+      }
 
       const opportunityTarget = resolveGhlOpportunityTarget({
         pipelineType: "booked",

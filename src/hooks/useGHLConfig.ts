@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ghlGetCalendars, ghlGetPipelines } from "@/lib/ghl";
-import { GHL_PIPELINE_CONTRACT } from "@/shared/ghlPipelineContract";
+import { GHL_PIPELINE_CONTRACT, cacheBookedPipelineIds, getBookedPipelineFallback } from "@/shared/ghlPipelineContract";
 
 export interface GHLCalendar {
   id: string;
@@ -48,11 +48,29 @@ function findStageFromContract(
 }
 
 export function findDefaultBookedPipeline(pipelines: GHLPipeline[]) {
-  return findPipelineFromContract(pipelines, GHL_PIPELINE_CONTRACT.booked);
+  // The booked contract has empty IDs by design — resolve by name first,
+  // fall back to a previously cached ID if name lookup fails.
+  const byName = findGHLPipelineByName(pipelines, GHL_PIPELINE_CONTRACT.booked.pipelineName);
+  if (byName) return byName;
+  const cached = getBookedPipelineFallback();
+  if (cached?.pipelineId) {
+    return pipelines.find((p) => p.id === cached.pipelineId) ?? null;
+  }
+  return null;
 }
 
 export function findDefaultBookedStage(pipeline: GHLPipeline | null | undefined) {
-  return findStageFromContract(pipeline, GHL_PIPELINE_CONTRACT.booked);
+  if (!pipeline) return null;
+  const byName = findGHLPipelineStageByName(pipeline.stages, GHL_PIPELINE_CONTRACT.booked.stageName);
+  if (byName) {
+    cacheBookedPipelineIds(pipeline.id, byName.id);
+    return byName;
+  }
+  const cached = getBookedPipelineFallback();
+  if (cached?.stageId) {
+    return pipeline.stages.find((s) => s.id === cached.stageId) ?? null;
+  }
+  return null;
 }
 
 export function findDefaultFollowUpPipeline(pipelines: GHLPipeline[]) {

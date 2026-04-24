@@ -2141,7 +2141,7 @@ export default function DialerPage() {
                               </Select>
                             ) : (
                               <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-                                No available slots for this date. Try a different day or use a manual time below.
+                                No GHL slots returned for this date. You can still pick a manual time below — the appointment will be logged.
                               </div>
                             )
                           ) : null}

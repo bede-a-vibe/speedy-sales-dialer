@@ -18,11 +18,26 @@ export const GHL_PIPELINE_CONTRACT = {
   },
   booked: {
     pipelineName: "Sales & Growth Sessions",
+    // Empty by design: resolved at runtime from the live GHL pipelines API
+    // by name match (see findDefaultBookedPipeline / cacheBookedPipelineIds).
     pipelineId: "",
     stageId: "",
     stageName: "Booked Appointment",
   },
 } as const;
+
+// Runtime-discovered booked pipeline IDs cached after the first successful
+// name lookup so subsequent renders don't have to re-resolve.
+let _bookedPipelineCache: { pipelineId: string; stageId: string } | null = null;
+
+export function cacheBookedPipelineIds(pipelineId: string, stageId: string) {
+  if (!pipelineId || !stageId) return;
+  _bookedPipelineCache = { pipelineId, stageId };
+}
+
+export function getBookedPipelineFallback(): { pipelineId: string; stageId: string } | null {
+  return _bookedPipelineCache;
+}
 
 /** All stages in the Outbound Prospecting pipeline */
 export const OUTBOUND_PROSPECTING_STAGES = {
