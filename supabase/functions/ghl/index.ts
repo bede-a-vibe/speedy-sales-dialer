@@ -877,6 +877,10 @@ Deno.serve(async (req) => {
     let result: unknown;
 
     switch (action) {
+      case "get_location_id":
+        result = { locationId: GHL_LOCATION_ID };
+        break;
+
       case "search_contacts":
         result = await searchContacts(GHL_API_KEY, GHL_LOCATION_ID, body.payload ?? {});
         break;

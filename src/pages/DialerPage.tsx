@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { getContactStatusForOutcome, getPipelineTypeForOutcome, shouldCreatePipelineItemForOutcome } from "@/lib/pipelineMappings";
 import { cn } from "@/lib/utils";
+import { fetchGhlLocationId } from "@/lib/ghlUrls";
 import { CallOutcome, INDUSTRIES } from "@/data/mockData";
 import {
   TRADE_TYPES,
@@ -1027,6 +1028,11 @@ export default function DialerPage() {
       ghl_contact_id: (raw.ghl_contact_id as string) ?? null,
     }).catch(() => {});
   }, [session.currentContact?.id, session.isSessionActive]);
+
+  // Prefetch the GHL location ID once so the "View in GHL" link can render
+  useEffect(() => {
+    void fetchGhlLocationId();
+  }, []);
 
 
   const logAndNext = useCallback(async (outcomeOverride?: CallOutcome) => {
@@ -2041,7 +2047,12 @@ export default function DialerPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <ContactCard
-                contact={session.currentContact}
+                contact={{
+                  ...session.currentContact,
+                  ghl_contact_id:
+                    (session.currentContact as any).ghl_contact_id
+                    || ghlLink.getCachedGHLId(session.currentContact.id),
+                }}
                 onMarkPhoneQuality={(quality) => {
                   updateContact.mutateAsync({
                     id: session.currentContact!.id,

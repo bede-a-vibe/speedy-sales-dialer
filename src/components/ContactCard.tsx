@@ -1,4 +1,5 @@
 import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed } from "lucide-react";
+import { getGhlContactUrl } from "@/lib/ghlUrls";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
@@ -41,6 +42,7 @@ interface ContactCardProps {
     phone_number_quality?: string | null;
     call_attempt_count?: number | null;
     voicemail_count?: number | null;
+    ghl_contact_id?: string | null;
   };
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
@@ -142,6 +144,22 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         </div>
         <div className="flex items-center gap-2">
           {headerActions}
+          {(() => {
+            const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
+            if (!ghlUrl) return null;
+            return (
+              <a
+                href={ghlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open contact in GoHighLevel"
+                className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1 text-[10px] uppercase tracking-widest font-mono text-secondary-foreground hover:bg-accent transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                GHL
+              </a>
+            );
+          })()}
           <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
             {contact.industry}
           </span>
