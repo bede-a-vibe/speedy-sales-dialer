@@ -64,7 +64,7 @@ function StatusPill({ status }: { status: FieldSaveStatus | undefined }) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600">
+      <span className="inline-flex items-center gap-1 text-[10px] text-primary">
         <Check className="h-2.5 w-2.5" /> Synced
       </span>
     );
