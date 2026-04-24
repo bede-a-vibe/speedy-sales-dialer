@@ -120,19 +120,22 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
 
         <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_280px] h-[60vh]">
           {/* Left: Categories */}
-          <div className="border-r border-border bg-muted/30 py-3">
+          <div className="border-r border-border bg-muted/30 py-3 overflow-y-auto">
             <button
               type="button"
               onClick={() => setActiveCategory("all")}
               className={cn(
-                "w-full text-left px-4 py-2 text-sm transition-colors",
+                "w-full text-left px-4 py-2.5 text-sm transition-colors",
                 activeCategory === "all"
                   ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent",
               )}
             >
-              All metrics
-              <span className="ml-2 text-xs opacity-60">{STAT_CATALOG.length}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span>All metrics</span>
+                <span className="text-xs opacity-60">{STAT_CATALOG.length}</span>
+              </div>
+              <div className="text-[11px] opacity-60 mt-0.5">Browse everything</div>
             </button>
             {CATEGORY_ORDER.map((cat) => {
               const count = grouped[cat].length;
@@ -143,14 +146,19 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
                   type="button"
                   onClick={() => setActiveCategory(cat)}
                   className={cn(
-                    "w-full text-left px-4 py-2 text-sm transition-colors",
+                    "w-full text-left px-4 py-2.5 text-sm transition-colors",
                     activeCategory === cat
                       ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent",
                   )}
                 >
-                  {STAT_CATEGORY_LABEL[cat]}
-                  <span className="ml-2 text-xs opacity-60">{count}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{STAT_CATEGORY_LABEL[cat]}</span>
+                    <span className="text-xs opacity-60">{count}</span>
+                  </div>
+                  <div className="text-[11px] opacity-60 mt-0.5 truncate">
+                    {STAT_CATEGORY_DESCRIPTION[cat]}
+                  </div>
                 </button>
               );
             })}
