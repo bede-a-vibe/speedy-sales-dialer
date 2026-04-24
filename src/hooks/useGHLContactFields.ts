@@ -101,7 +101,8 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
         try {
           const update: Record<string, unknown> = {};
           update[def.supabaseColumn] = value === "" ? null : value;
-          await supabase.from("contacts").update(update).eq("id", contactId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await supabase.from("contacts").update(update as any).eq("id", contactId);
         } catch (err) {
           // non-fatal — keep going to GHL
           console.warn("[GHL fields] Supabase mirror failed", key, err);
@@ -122,13 +123,15 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
             const { data: userRes } = await supabase.auth.getUser();
             const userId = userRes?.user?.id;
             if (userId) {
-              await supabase.from("pending_ghl_pushes").insert({
-                contact_id: contactId,
-                user_id: userId,
-                dialpad_call_id: `manual-${key}-${Date.now()}`,
-                source: "contact_intelligence_panel",
-                ai_fields: { [key]: value },
-              });
+              await supabase.from("pending_ghl_pushes").insert([
+                {
+                  contact_id: contactId,
+                  user_id: userId,
+                  dialpad_call_id: `manual-${key}-${Date.now()}`,
+                  source: "contact_intelligence_panel",
+                  ai_fields: { [key]: value === undefined ? null : (value as never) },
+                },
+              ]);
             }
           } catch (queueErr) {
             console.error("[GHL fields] Failed to enqueue retry", queueErr);
