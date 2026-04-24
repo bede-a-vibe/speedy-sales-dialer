@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
+import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 
 import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
@@ -2047,6 +2048,15 @@ export default function DialerPage() {
                     phone_number_quality: quality as "confirmed" | "dead" | "suspect" | "unconfirmed",
                   }).catch(() => {});
                 }}
+                headerActions={
+                  <QuickBookRecoveryButton
+                    contactId={session.currentContact.id}
+                    contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
+                    onRecovered={() => {
+                      void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
+                    }}
+                  />
+                }
               />
 
               {session.isSessionPaused && (
