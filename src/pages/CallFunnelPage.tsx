@@ -205,8 +205,25 @@ export default function CallFunnelPage() {
             previousFrom={previousFrom}
             previousTo={previousTo}
             compareMode={compareMode}
+            breakdownGroups={breakdown !== "none" ? filteredBreakdownGroups : undefined}
           />
         </ReportSection>
+
+        {breakdown !== "none" ? (
+          <ReportSection
+            title={`Breakdown by ${breakdownLabel}`}
+            description="Compare your selected metrics across categories. Click a row to filter the trend chart to just that group."
+          >
+            <BreakdownTable
+              groups={breakdownGroups}
+              selectedIds={selectedIds}
+              dimensionLabel={breakdownLabel}
+              activeGroupKey={activeGroupLabel}
+              onClearActive={() => setActiveGroupLabel(null)}
+              onRowClick={(g) => setActiveGroupLabel((cur) => (cur === g.label ? null : g.label))}
+            />
+          </ReportSection>
+        ) : null}
 
         <ReportSection
           title="Stage Drop-Off Reasons"
