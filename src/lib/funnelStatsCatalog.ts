@@ -21,6 +21,8 @@ export interface StatDefinition {
   id: string;
   label: string;
   category: StatCategory;
+  /** Optional sub-grouping inside a category (e.g. "Conversion %", "Quality", "Revenue"). */
+  subgroup?: string;
   subtext?: string;
   /** Returns the numeric value for delta comparisons. */
   raw: (m: ReportMetrics) => number;
