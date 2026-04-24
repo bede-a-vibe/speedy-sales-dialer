@@ -92,6 +92,8 @@ export interface ReportMetrics {
     pickUpRate: number;
     callBacks: number;
     pickUpToFollowUpRate: number;
+    conversations: number;
+    conversationToBookingRate: number;
     totalTalkTimeSeconds: number;
     averageTalkTimePerDialSeconds: number;
     averageTalkTimePerPickupSeconds: number;
