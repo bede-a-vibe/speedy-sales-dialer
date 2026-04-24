@@ -74,7 +74,7 @@ export function MetricTrendChart({ callLogs, bookedItems, contacts, from, to, re
   }, [days, prevDays, stat, callLogs, bookedItems, contacts, repUserId, compareMode]);
 
   const grouped = groupStatsByCategory();
-  const order: StatCategory[] = ["activity", "outcomes", "funnel", "conversion", "quality", "post_booking", "revenue"];
+  const order: StatCategory[] = ["activity", "conversations", "outcomes", "bookings"];
 
   return (
     <div className="rounded-lg border border-border bg-background p-4">
