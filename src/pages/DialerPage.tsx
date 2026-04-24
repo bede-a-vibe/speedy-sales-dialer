@@ -2041,7 +2041,12 @@ export default function DialerPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <ContactCard
-                contact={session.currentContact}
+                contact={{
+                  ...session.currentContact,
+                  ghl_contact_id:
+                    (session.currentContact as any).ghl_contact_id
+                    || ghlLink.getCachedGHLId(session.currentContact.id),
+                }}
                 onMarkPhoneQuality={(quality) => {
                   updateContact.mutateAsync({
                     id: session.currentContact!.id,
