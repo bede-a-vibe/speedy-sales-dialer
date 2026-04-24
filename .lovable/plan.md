@@ -1,55 +1,78 @@
 
 
-## Plan: Clean up Target Comparison
+## Plan: Breakdown by category — compare funnel metrics across Industries, States, Reps
 
-The Target Comparison currently uses huge full-width cards (3xl numbers, big descriptions, milestone ticks, confetti) and stacks 4 sections when a rep is selected (Rep Setter, Rep Closer, Team Setter, Team Closer). With ~10 metrics each, the panel takes a full screen of scroll just to show what's mostly redundant.
+A "Breakdown" feature on the Call Funnel page that splits every metric by a category dimension you choose (Industry, State, Trade Type, Work Type, or Rep) — exactly like Meta Ads Manager's Breakdown dropdown. Pick "Industry" and you instantly see Electricians vs Plumbers vs HVAC side by side for any metric.
 
-### What changes
+### What you see
 
-**1. Compact row layout — replace big cards with a tight progress-row list**
+**1. New "Breakdown" control in the toolbar**
 
-Each target becomes a single horizontal row instead of a 200px card:
+Next to the Rep selector, add a "Breakdown" dropdown:
 ```
-Bookings Made          37 / 55     ████████████░░░░  67%   18 to go
-Pickup → Booking %     4% / 8%     ██████░░░░░░░░░░  50%   4% to go
-Dials                 2,863 / 3,000 ███████████████░  95%   137 to go
+Breakdown by: [ None ▾ ] [ Industry ] [ State ] [ Trade Type ] [ Work Type ] [ Rep ]
 ```
-- One line per metric, label left, actual/target middle, slim bar + % right
-- ~32px tall (vs current ~180px) — fits 8 metrics in the space 1 currently takes
-- Keep color coding (red/orange/blue/green based on % to goal)
-- Keep the ✓ icon + green tint when complete (no confetti — too noisy in a multi-row list)
+Default `None` keeps the page exactly as it is today. Pick anything else and a new breakdown table appears, plus the Custom Monitor and Trend chart get a per-group view.
 
-**2. Tabs instead of stacked sections**
+**2. Breakdown comparison table (the centerpiece for this feature)**
 
-When a rep is selected, current panel renders 4 large sections vertically. Replace with a tab strip:
+When breakdown is active, a new `ReportSection` titled "Breakdown by Industry" (or whichever dimension) renders a table:
+
 ```
-[ My Setter ] [ My Closer ] [ Team Setter ] [ Team Closer ]
+Industry         Dials  Pickups  Pickup%  Convs  Bookings  Pickup→Book%  Show%   Cash
+─────────────────────────────────────────────────────────────────────────────────────
+Electricians     1,240    386     31%      94      18         4.7%       62%   $4,200
+Plumbers           890    198     22%      52      11         5.6%       54%   $2,800
+HVAC               520    112     22%      28       4         3.6%       50%   $  900
+Renovators         340     71     21%      19       2         2.8%       50%   $  450
+Builders           280     54     19%      12       1         1.8%       —     $    0
+─────────────────────────────────────────────────────────────────────────────────────
+Total            3,270    821     25%     205      36         4.4%       58%   $8,350
 ```
-Default to "My Setter". Team tabs only show when relevant (rep selected).
 
-When no rep is selected, show only `[ Team Setter ] [ Team Closer ]`.
+- **Columns**: same metrics already selected in the Custom Monitor — your column choices apply here too
+- **Sortable**: click any column header to sort (default: Dials desc)
+- **Top N + "Other"**: groups beyond top 10 collapse into an "Other" row to keep readable
+- **Color-coded best/worst**: per column, best value gets a green tint, worst gets a red tint (only when ≥3 groups have data)
+- **Click a row** to filter the page to just that group (sets a hidden filter — clear with an "X" chip at top)
 
-**3. Hide derived metrics behind "Show derived" toggle**
+**3. Custom Monitor → table with breakdown columns**
 
-Currently the panel shows both input metrics (Bookings Made, Pickup→Booking %) AND derived ones (Pickups, Dials, Showed, Closed Deals — auto-calculated from inputs). Default to **inputs only** (the goals reps actually act on). A small "Show derived" link expands to include the auto-calculated ones below a divider.
+When breakdown is on, the existing Custom Monitor table flips: instead of "Selected period / Previous period / Δ" rows, it renders **one row per group** with metrics as columns. Same data as the breakdown table — kept in sync. (When breakdown is off, behaves as today.)
 
-**4. Trim header chrome**
+**4. Trend chart → multi-line by group**
 
-- Drop the per-section description ("Setter goal progress for the selected rep.") — redundant with tab label
-- Single panel header: `Target Comparison · Weekly` (period as a chip)
-- Remove duplicate `actual / target` text in row corner since the bar already shows it
+When breakdown is active, the metric trend chart draws **one colored line per group** (top 5 groups, others greyed). Pick "Bookings Made" with breakdown=Industry → one line each for Electricians, Plumbers, etc. across the date range.
+
+**5. End-to-end funnel & conversion strip**
+
+Stay as today (overall view) — these are the "summary" of the period. Adding 5 funnels side-by-side gets noisy. The breakdown table covers per-group funnel comparisons.
+
+### How it works
+
+**Dimension extractors** (`src/lib/funnelBreakdown.ts` — new):
+- `getDimensionValue(log, dim)` returns the group value: `industry` and `trade_type`/`work_type`/`state` come from the joined `contacts(...)` on call logs and a contact lookup map for booked items
+- For booked appointments: extend `useBookedAppointmentsByDateRange` to include `contacts(industry, state, trade_type, work_type)`
+- `groupBy(logs, bookings, dim)` returns `Map<groupValue, { logs, bookings }>` — then each group is fed through existing `getReportMetrics` + `computeFunnel`. Zero new metric math.
+
+**Group cap & "Other"**: top 10 by dial volume by default, rest into "Other". Configurable via a small "Show: Top 10 / Top 25 / All" control.
 
 ### Files
 
 **New**
-- `src/components/targets/TargetProgressRow.tsx` — compact single-row progress component (replaces `TargetMetricCard` for this panel; cards still used on the dashboard `DashboardTargetsOverview` and Targets settings page so the original component stays untouched)
+- `src/lib/funnelBreakdown.ts` — dimension definitions (`{ id, label, extract(log/booking) }`), `groupByDimension(logs, bookings, dim, opts)`, helpers for top-N + Other rollup
+- `src/components/funnel/BreakdownTable.tsx` — sortable comparison table, best/worst color hints, "Total" footer row, click-row-to-filter
 
 **Edited**
-- `src/components/reports/TargetComparisonPanel.tsx` — replace 4 stacked `TargetSection`s with a tabbed layout; render `TargetProgressRow`s; add inputs-only filter + "Show derived" toggle; period shown as chip in header
+- `src/hooks/usePipelineItems.ts` — `useBookedAppointmentsByDateRange` adds `contacts(industry, state, trade_type, work_type)` to the select
+- `src/components/reports/ReportsToolbar.tsx` — add `breakdown` + `onBreakdownChange` props with a dropdown (Industry / State / Trade Type / Work Type / Rep / None)
+- `src/pages/CallFunnelPage.tsx` — wire breakdown state, render `BreakdownTable` when active, switch Custom Monitor and Trend to per-group views, add "filtered to {group}" chip when row clicked
+- `src/components/funnel/CustomStatGrid.tsx` — accept optional `breakdownGroups` prop; when provided, render rows-per-group instead of period rows
+- `src/components/funnel/MetricTrendChart.tsx` — accept optional `breakdownGroups` prop; when provided, render multi-line series
 
 ### Out of scope
-- Changing the underlying targets math or `buildTargetProgressItems`
-- Touching `TargetMetricCard` / `TargetSection` (still used on Dashboard + Targets page where the bigger format makes sense)
-- Adding sparklines or trend deltas (separate request)
-- Editable targets inline (already exists on Targets page)
+- Two-level breakdown (e.g. Industry × State)
+- Saving named breakdown views
+- Exporting the breakdown table to CSV (likely a follow-up)
+- Per-group end-to-end funnel visualization (table covers comparison; full vertical funnels per group is too much screen real estate for v1)
 
