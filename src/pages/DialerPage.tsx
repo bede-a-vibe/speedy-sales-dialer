@@ -780,6 +780,7 @@ export default function DialerPage() {
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
     && (!requiresBookedSchedule || !!session.followUpTime)
+    && (!requiresConversationProgress || conversationProgressFilled)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
