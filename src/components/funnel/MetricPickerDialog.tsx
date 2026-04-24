@@ -15,7 +15,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   groupStatsByCategory,
+  groupStatsBySubgroup,
   STAT_CATEGORY_LABEL,
+  STAT_CATEGORY_DESCRIPTION,
   STAT_CATALOG,
   STAT_CATALOG_BY_ID,
   type StatCategory,
@@ -31,12 +33,9 @@ interface Props {
 
 const CATEGORY_ORDER: StatCategory[] = [
   "activity",
+  "conversations",
   "outcomes",
-  "funnel",
-  "conversion",
-  "quality",
-  "post_booking",
-  "revenue",
+  "bookings",
 ];
 
 export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, onReset }: Props) {
@@ -68,6 +67,13 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
         STAT_CATEGORY_LABEL[s.category].toLowerCase().includes(q),
     );
   }, [activeCategory, grouped, search]);
+
+  // Render either a flat list (search active or "All metrics") or grouped by subgroup (single category, no search).
+  const showSubgroups = activeCategory !== "all" && !search.trim();
+  const subgroups = useMemo(
+    () => (showSubgroups ? groupStatsBySubgroup(visibleStats) : []),
+    [showSubgroups, visibleStats],
+  );
 
   const toggle = (id: string) => {
     setDraftIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -112,21 +118,24 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_280px] h-[60vh]">
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr_280px] h-[60vh]">
           {/* Left: Categories */}
-          <div className="border-r border-border bg-muted/30 py-3">
+          <div className="border-r border-border bg-muted/30 py-3 overflow-y-auto">
             <button
               type="button"
               onClick={() => setActiveCategory("all")}
               className={cn(
-                "w-full text-left px-4 py-2 text-sm transition-colors",
+                "w-full text-left px-4 py-2.5 text-sm transition-colors",
                 activeCategory === "all"
                   ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent",
               )}
             >
-              All metrics
-              <span className="ml-2 text-xs opacity-60">{STAT_CATALOG.length}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span>All metrics</span>
+                <span className="text-xs opacity-60">{STAT_CATALOG.length}</span>
+              </div>
+              <div className="text-[11px] opacity-60 mt-0.5">Browse everything</div>
             </button>
             {CATEGORY_ORDER.map((cat) => {
               const count = grouped[cat].length;
@@ -137,14 +146,19 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
                   type="button"
                   onClick={() => setActiveCategory(cat)}
                   className={cn(
-                    "w-full text-left px-4 py-2 text-sm transition-colors",
+                    "w-full text-left px-4 py-2.5 text-sm transition-colors",
                     activeCategory === cat
                       ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent",
                   )}
                 >
-                  {STAT_CATEGORY_LABEL[cat]}
-                  <span className="ml-2 text-xs opacity-60">{count}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{STAT_CATEGORY_LABEL[cat]}</span>
+                    <span className="text-xs opacity-60">{count}</span>
+                  </div>
+                  <div className="text-[11px] opacity-60 mt-0.5 truncate">
+                    {STAT_CATEGORY_DESCRIPTION[cat]}
+                  </div>
                 </button>
               );
             })}
@@ -167,36 +181,35 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
               <div className="p-2">
                 {visibleStats.length === 0 ? (
                   <p className="text-sm text-muted-foreground p-3 text-center">No metrics match "{search}".</p>
-                ) : (
-                  visibleStats.map((stat) => {
-                    const checked = draftIds.includes(stat.id);
-                    return (
-                      <label
-                        key={stat.id}
-                        className={cn(
-                          "flex items-start gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors",
-                          checked ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted",
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggle(stat.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-foreground truncate">{stat.label}</span>
-                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                              {STAT_CATEGORY_LABEL[stat.category]}
-                            </span>
-                          </div>
-                          {stat.subtext && (
-                            <div className="text-[11px] text-muted-foreground truncate">{stat.subtext}</div>
-                          )}
+                ) : showSubgroups ? (
+                  subgroups.map((group) => (
+                    <div key={group.name || "default"} className="mb-3 last:mb-0">
+                      {group.name && (
+                        <div className="px-2.5 pt-2 pb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                          {group.name}
                         </div>
-                      </label>
-                    );
-                  })
+                      )}
+                      {group.items.map((stat) => (
+                        <MetricRow
+                          key={stat.id}
+                          stat={stat}
+                          checked={draftIds.includes(stat.id)}
+                          onToggle={() => toggle(stat.id)}
+                          showCategoryTag={false}
+                        />
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  visibleStats.map((stat) => (
+                    <MetricRow
+                      key={stat.id}
+                      stat={stat}
+                      checked={draftIds.includes(stat.id)}
+                      onToggle={() => toggle(stat.id)}
+                      showCategoryTag
+                    />
+                  ))
                 )}
               </div>
             </ScrollArea>
@@ -287,5 +300,41 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function MetricRow({
+  stat,
+  checked,
+  onToggle,
+  showCategoryTag,
+}: {
+  stat: (typeof STAT_CATALOG)[number];
+  checked: boolean;
+  onToggle: () => void;
+  showCategoryTag: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex items-start gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors",
+        checked ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted",
+      )}
+    >
+      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-foreground truncate">{stat.label}</span>
+          {showCategoryTag && (
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+              {STAT_CATEGORY_LABEL[stat.category]}
+            </span>
+          )}
+        </div>
+        {stat.subtext && (
+          <div className="text-[11px] text-muted-foreground truncate">{stat.subtext}</div>
+        )}
+      </div>
+    </label>
   );
 }
