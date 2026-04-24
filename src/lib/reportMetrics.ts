@@ -285,6 +285,10 @@ export function getReportMetrics({
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
   const callBacks = outcomeCounts.follow_up;
 
+  // Conversations = calls where the rep reached at least the Connection stage.
+  // This is the truest "talked to a human" metric for cold-calling skill analysis.
+  const conversations = filteredCallLogs.filter((log) => log.reached_connection === true).length;
+
   const repIds = Array.from(
     new Set(
       [...bookedItems.flatMap((item) => [item.created_by, item.assigned_user_id]), ...callLogs.map((log) => log.user_id)].filter(Boolean),
@@ -293,8 +297,11 @@ export function getReportMetrics({
 
   const repComparison = repIds
     .map((repId) => {
+      // "Bookings" column reflects bookings the rep MADE in the date range
+      // (created_at), not appointments scheduled to happen in the range.
+      // This matches the headline "Bookings Made" KPI and reflects setter activity.
       const setterItems = bookedItems.filter(
-        (item) => item.created_by === repId && isInDateRange(item.scheduled_for, from, to),
+        (item) => item.created_by === repId && isInDateRange(item.created_at, from, to),
       );
       const closerItems = bookedItems.filter(
         (item) => item.assigned_user_id === repId && isInDateRange(item.scheduled_for, from, to),
@@ -441,6 +448,8 @@ export function getReportMetrics({
       pickUpRate: toPercent(pickUps, filteredCallLogs.length),
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
+      conversations,
+      conversationToBookingRate: toPercent(bookingsMadeInRange.length, conversations),
       totalTalkTimeSeconds,
       averageTalkTimePerDialSeconds: filteredCallLogs.length > 0 ? Math.round(totalTalkTimeSeconds / filteredCallLogs.length) : 0,
       averageTalkTimePerPickupSeconds: pickUps > 0 ? Math.round(totalTalkTimeSeconds / pickUps) : 0,
