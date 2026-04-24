@@ -6,6 +6,15 @@ export type CallOutcome =
   | "follow_up"
   | "booked";
 
+// Conversation-progress tagging (reached_connection / reached_problem_awareness / etc.)
+// went live on this date. Any call log before this date has reached_connection=false
+// purely because the field didn't exist yet — not because the rep failed to converse.
+// Metrics that depend on these tags must clip to this date or they will be polluted.
+export const CONVERSATION_TAGGING_LAUNCH_DATE = "2026-04-23";
+
+/** Human-readable label for the launch date, used in tile subtexts. */
+export const CONVERSATION_TAGGING_LAUNCH_LABEL = "23 Apr 2026";
+
 export const INDUSTRIES = [
   "Plumbers",
   "HVAC",
