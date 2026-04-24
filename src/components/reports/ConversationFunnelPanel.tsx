@@ -10,7 +10,7 @@ import {
 } from "@/lib/funnelMetrics";
 import { computeRepLeakLeaderboard } from "@/lib/repCoachingMetrics";
 import { RepLeakLeaderboardTable } from "./RepLeakLeaderboardTable";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, PhoneOff } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type CallLogRow = Pick<
@@ -65,6 +65,22 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
     const repIds = Array.from(new Set(dateFiltered.map((l) => l.user_id).filter(Boolean)));
     return computeRepLeakLeaderboard(repIds, dateFiltered as never);
   }, [callLogs, from, to, repUserId]);
+
+  const hangUpTrend = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const log of filtered) {
+      if (log.exit_reason_connection !== "hung_up_immediately") continue;
+      const d = new Date(log.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const rows = Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    const max = rows.reduce((m, r) => Math.max(m, r.count), 0);
+    return { rows, total, max };
+  }, [filtered]);
 
   return (
     <div className="space-y-6">
@@ -154,6 +170,34 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">NEPQ Exit Reasons by Stage</h3>
           <p className="mt-1 text-xs text-muted-foreground">Why calls were lost at each stage of the cold-call flow. Each table shows reasons for drops at that specific stage.</p>
         </div>
+
+        {hangUpTrend.total > 0 && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <PhoneOff className="h-4 w-4 text-destructive" />
+                <h4 className="text-[10px] uppercase tracking-widest text-destructive">Immediate Hang-Up Trend</h4>
+              </div>
+              <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{hangUpTrend.total}</span> total · peak {hangUpTrend.max}/day
+              </span>
+            </div>
+            <div className="mt-3 flex h-12 items-end gap-1">
+              {hangUpTrend.rows.map((r) => (
+                <div
+                  key={r.date}
+                  title={`${r.date}: ${r.count}`}
+                  className="flex-1 min-w-[6px] rounded-t bg-destructive/70"
+                  style={{ height: `${hangUpTrend.max > 0 ? Math.max(8, (r.count / hangUpTrend.max) * 100) : 0}%` }}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Daily counts of calls tagged as "hung up before opener finished". Spikes often signal opener / list quality issues.
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
           {stageBreakdowns.map((b) => (
             <div key={b.stage} className="rounded-lg border border-border bg-background p-4">

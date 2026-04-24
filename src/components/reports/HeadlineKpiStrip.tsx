@@ -8,7 +8,7 @@ interface HeadlineKpiStripProps {
 
 export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       <StatCard compact label="Dials" value={metrics.dialer.dials} />
       <StatCard compact label="Pick Ups" value={metrics.dialer.pickUps} />
       <StatCard compact label="Pick Up Rate" value={`${metrics.dialer.pickUpRate}%`} />
@@ -17,6 +17,12 @@ export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
         compact
         label="Avg Talk / Pickup"
         value={formatDurationSeconds(metrics.dialer.averageTalkTimePerPickupSeconds)}
+      />
+      <StatCard
+        compact
+        label="Immediate Hang-Ups"
+        value={metrics.dialer.immediateHangUps}
+        subtext={`${metrics.dialer.immediateHangUpRate}% of dials`}
       />
     </div>
   );

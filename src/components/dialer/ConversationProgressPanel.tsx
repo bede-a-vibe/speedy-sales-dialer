@@ -1,11 +1,13 @@
 import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCallOpeners } from "@/hooks/useCallOpeners";
 import { STAGE_EXIT_REASONS, EXIT_STAGE_LABELS, type ExitStageKey } from "@/lib/funnelMetrics";
-import { TrendingUp } from "lucide-react";
+import { PhoneOff, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const NONE = "__none__";
 
@@ -139,12 +141,58 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: 
     onChange({ ...value, [field]: v === NONE ? null : v });
   };
 
+  const isImmediateHangUp =
+    !value.reachedConnection &&
+    !value.reachedProblem &&
+    !value.reachedSolution &&
+    !value.reachedCommitment &&
+    value.exitReasonConnection === "hung_up_immediately";
+
+  const tagImmediateHangUp = () => {
+    if (isImmediateHangUp) {
+      // Toggle off
+      onChange({
+        ...value,
+        exitReasonConnection: null,
+      });
+      return;
+    }
+    onChange({
+      ...value,
+      reachedConnection: false,
+      reachedProblem: false,
+      reachedSolution: false,
+      reachedCommitment: false,
+      exitReasonConnection: "hung_up_immediately",
+      exitReasonProblem: null,
+      exitReasonSolution: null,
+      exitReasonCommitment: null,
+      exitReasonBooking: null,
+    });
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center gap-2">
         <TrendingUp className="h-4 w-4 text-primary" />
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Conversation Progress</h3>
       </div>
+
+      {!outcomeIsBooked && (
+        <Button
+          type="button"
+          variant={isImmediateHangUp ? "destructive" : "outline"}
+          size="sm"
+          onClick={tagImmediateHangUp}
+          className={cn(
+            "h-8 w-full justify-start gap-2 text-xs",
+            !isImmediateHangUp && "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive",
+          )}
+        >
+          <PhoneOff className="h-3.5 w-3.5" />
+          {isImmediateHangUp ? "Tagged as immediate hang-up" : "Hung up before I could speak"}
+        </Button>
+      )}
 
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Opener used</Label>

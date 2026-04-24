@@ -1,4 +1,4 @@
-import { AlertTriangle, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Lightbulb, PhoneOff, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatHourLabel, type RepCoachingScorecard } from "@/lib/repCoachingMetrics";
 
@@ -47,12 +47,20 @@ function RepScorecard({
             {scorecard.totalDials} dials · {scorecard.totalPickUps} pick-ups · {scorecard.totalBookings} bookings
           </span>
         </div>
-        {worstFunnelStage && worstFunnelStage.dropPct >= 50 && (
-          <Badge variant="destructive" className="text-[10px] uppercase tracking-widest">
-            <AlertTriangle className="mr-1 h-3 w-3" />
-            {worstFunnelStage.dropPct}% drop at {worstFunnelStage.label}
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {scorecard.totalDials >= 10 && scorecard.immediateHangUpRate >= 10 && (
+            <Badge variant="destructive" className="text-[10px] uppercase tracking-widest">
+              <PhoneOff className="mr-1 h-3 w-3" />
+              {scorecard.immediateHangUps} hang-ups ({scorecard.immediateHangUpRate}%)
+            </Badge>
+          )}
+          {worstFunnelStage && worstFunnelStage.dropPct >= 50 && (
+            <Badge variant="destructive" className="text-[10px] uppercase tracking-widest">
+              <AlertTriangle className="mr-1 h-3 w-3" />
+              {worstFunnelStage.dropPct}% drop at {worstFunnelStage.label}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Funnel Leak Strip */}
