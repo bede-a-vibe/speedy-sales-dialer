@@ -340,6 +340,12 @@ export function CustomStatGrid({
               Create your first segment
             </Button>
           </div>
+        ) : view === "bars" ? (
+          <BarComparisonView
+            stats={visibleStats}
+            rows={segmentRows.map((r) => ({ label: r.segment.name, metrics: r.metrics }))}
+            groupLabel="Segment"
+          />
         ) : (
           <SegmentTableView
             stats={visibleStats}
@@ -350,6 +356,27 @@ export function CustomStatGrid({
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={handleSort}
+          />
+        )
+      ) : view === "bars" ? (
+        compareByActive ? (
+          <BarComparisonView
+            stats={visibleStats}
+            rows={benchmarkRows}
+            groupLabel={dimensionLabel}
+          />
+        ) : (
+          <BarComparisonView
+            stats={visibleStats}
+            rows={
+              compareMode && previousMetrics
+                ? [
+                    { label: "Selected period", metrics },
+                    { label: "Previous period", metrics: previousMetrics },
+                  ]
+                : [{ label: "Selected period", metrics }]
+            }
+            groupLabel="Period"
           />
         )
       ) : view === "table" ? (
