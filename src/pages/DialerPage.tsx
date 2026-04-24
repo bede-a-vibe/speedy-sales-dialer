@@ -420,6 +420,79 @@ export default function DialerPage() {
     selectedCallerId,
   });
 
+  // --- Active-call rehydration (run once when contact becomes available) ---
+  // If the rep tabbed away (e.g. to GHL to manually book), rehydrate any in-flight
+  // outcome / progress / follow-up state for the SAME contact when they return.
+  const hasRehydratedRef = useRef(false);
+  useEffect(() => {
+    if (hasRehydratedRef.current) return;
+    if (!session.currentContact) return;
+    const stored = readStoredActiveCall();
+    if (!stored || stored.contactId !== session.currentContact.id) return;
+
+    hasRehydratedRef.current = true;
+
+    if (stored.selectedOutcome) {
+      session.setSelectedOutcome(stored.selectedOutcome as CallOutcome);
+    }
+    if (typeof stored.notes === "string" && stored.notes.length > 0) {
+      session.setNotes(stored.notes);
+    }
+    if (stored.followUpDateIso) {
+      const d = new Date(stored.followUpDateIso);
+      if (!Number.isNaN(d.getTime())) session.setFollowUpDate(d);
+    }
+    if (stored.followUpTime) session.setFollowUpTime(stored.followUpTime);
+    if (stored.conversationProgress) setConversationProgress(stored.conversationProgress);
+    if (stored.appointmentTitle) setAppointmentTitle(stored.appointmentTitle);
+    if (stored.ghlCalendarId) setGhlCalendarId(stored.ghlCalendarId);
+    if (stored.ghlPipelineId) setGhlPipelineId(stored.ghlPipelineId);
+    if (stored.ghlStageId) setGhlStageId(stored.ghlStageId);
+    if (stored.followUpMethod) setFollowUpMethod(stored.followUpMethod);
+
+    toast.info("Restored your in-progress call", {
+      description: "Your outcome, conversation progress, and follow-up details were saved while you were away.",
+    });
+  }, [session.currentContact?.id]);
+
+  // Reset rehydration guard when the active contact changes so the next lead is fresh.
+  useEffect(() => {
+    hasRehydratedRef.current = false;
+  }, [session.currentContact?.id]);
+
+  // --- Active-call persistence — every change is saved immediately ---------
+  useEffect(() => {
+    if (!session.currentContact?.id) {
+      writeStoredActiveCall(null);
+      return;
+    }
+    writeStoredActiveCall({
+      contactId: session.currentContact.id,
+      selectedOutcome: session.selectedOutcome,
+      notes: session.notes,
+      followUpDateIso: session.followUpDate ? session.followUpDate.toISOString() : null,
+      followUpTime: session.followUpTime,
+      conversationProgress,
+      appointmentTitle,
+      ghlCalendarId,
+      ghlPipelineId,
+      ghlStageId,
+      followUpMethod,
+    });
+  }, [
+    session.currentContact?.id,
+    session.selectedOutcome,
+    session.notes,
+    session.followUpDate,
+    session.followUpTime,
+    conversationProgress,
+    appointmentTitle,
+    ghlCalendarId,
+    ghlPipelineId,
+    ghlStageId,
+    followUpMethod,
+  ]);
+
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
