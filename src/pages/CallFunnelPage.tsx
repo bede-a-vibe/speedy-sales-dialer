@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
@@ -12,7 +12,7 @@ import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
 import { ConversionRateStrip } from "@/components/funnel/ConversionRateStrip";
-import { CustomStatGrid } from "@/components/funnel/CustomStatGrid";
+import { CustomStatGrid, type BenchmarkRow } from "@/components/funnel/CustomStatGrid";
 import { MetricTrendChart } from "@/components/funnel/MetricTrendChart";
 import { useFunnelMetricSelection } from "@/hooks/useFunnelMetricSelection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,8 +22,27 @@ import {
   type BreakdownDimensionId,
 } from "@/lib/funnelBreakdown";
 import { BreakdownTable } from "@/components/funnel/BreakdownTable";
+import {
+  BENCHMARK_DIMENSIONS_BY_ID,
+  BENCHMARK_NONE,
+  listDimensionValues,
+} from "@/lib/benchmarkDimensions";
 
 const ALL_REPS_VALUE = "all";
+const MAX_BENCHMARK_VALUES = 6;
+const BENCHMARK_DIM_KEY = "funnel:benchmark-dim:v1";
+const BENCHMARK_VALUES_KEY = "funnel:benchmark-values:v1";
+
+function readJSON<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 function shiftDate(iso: string, days: number) {
   const d = new Date(`${iso}T00:00:00`);
@@ -114,6 +133,72 @@ export default function CallFunnelPage() {
 
   const { selectedIds, toggle, remove, setAll, reset } = useFunnelMetricSelection();
 
+  // ===== Benchmark / Compare-by state =====
+  const [benchmarkDim, setBenchmarkDim] = useState<string>(() =>
+    readJSON<string>(BENCHMARK_DIM_KEY, BENCHMARK_NONE),
+  );
+  const [benchmarkValuesByDim, setBenchmarkValuesByDim] = useState<Record<string, string[]>>(() =>
+    readJSON<Record<string, string[]>>(BENCHMARK_VALUES_KEY, {}),
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(BENCHMARK_DIM_KEY, JSON.stringify(benchmarkDim));
+  }, [benchmarkDim]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(BENCHMARK_VALUES_KEY, JSON.stringify(benchmarkValuesByDim));
+  }, [benchmarkValuesByDim]);
+
+  // Pre-filter call logs by rep so the benchmark uses the same scope as the headline metrics.
+  const repFilteredCallLogs = useMemo(
+    () => (activeRepId ? callLogs.filter((l: any) => l.user_id === activeRepId) : callLogs),
+    [callLogs, activeRepId],
+  );
+
+  // Available values (sorted by activity) for the chosen dimension.
+  const benchmarkAvailableValues = useMemo(() => {
+    if (benchmarkDim === BENCHMARK_NONE) return [];
+    return listDimensionValues(benchmarkDim, repFilteredCallLogs as any).map((v) => v.value);
+  }, [benchmarkDim, repFilteredCallLogs]);
+
+  const benchmarkSelectedValues = useMemo(() => {
+    if (benchmarkDim === BENCHMARK_NONE) return [];
+    const stored = benchmarkValuesByDim[benchmarkDim] ?? [];
+    // Only keep values that still exist in the data; if empty, default to top 3.
+    const present = stored.filter((v) => benchmarkAvailableValues.includes(v));
+    if (present.length > 0) return present.slice(0, MAX_BENCHMARK_VALUES);
+    return benchmarkAvailableValues.slice(0, 3);
+  }, [benchmarkDim, benchmarkValuesByDim, benchmarkAvailableValues]);
+
+  const handleBenchmarkDimChange = (id: string) => {
+    setBenchmarkDim(id);
+  };
+  const handleBenchmarkValuesChange = (values: string[]) => {
+    if (benchmarkDim === BENCHMARK_NONE) return;
+    setBenchmarkValuesByDim((prev) => ({ ...prev, [benchmarkDim]: values }));
+  };
+
+  // Compute one ReportMetrics per selected category value.
+  const benchmarkRows: BenchmarkRow[] = useMemo(() => {
+    if (benchmarkDim === BENCHMARK_NONE || benchmarkSelectedValues.length === 0) return [];
+    const dim = BENCHMARK_DIMENSIONS_BY_ID.get(benchmarkDim);
+    if (!dim) return [];
+    return benchmarkSelectedValues.map((value) => {
+      const filteredLogs = (callLogs as any[]).filter((l) => dim.getValue(l) === value);
+      const filteredBookings = (bookedAppointments as any[]).filter((b) => dim.getValue(b) === value);
+      const m = getReportMetrics({
+        callLogs: filteredLogs,
+        bookedItems: filteredBookings,
+        from: dateFrom,
+        to: dateTo,
+        repUserId: activeRepId,
+        contacts: contactAttempts,
+      });
+      return { label: value, metrics: m };
+    });
+  }, [benchmarkDim, benchmarkSelectedValues, callLogs, bookedAppointments, dateFrom, dateTo, activeRepId, contactAttempts]);
+
   const breakdownGroups = useMemo(() => {
     if (breakdown === "none") return [];
     return buildBreakdownGroups({
@@ -137,6 +222,8 @@ export default function CallFunnelPage() {
   const breakdownLabel =
     BREAKDOWN_DIMENSIONS.find((d) => d.id === breakdown)?.label ?? "Breakdown";
 
+  const compareByActive = benchmarkDim !== BENCHMARK_NONE;
+
   return (
     <AppLayout title="Call Funnel">
       <ReportsToolbar
@@ -159,13 +246,21 @@ export default function CallFunnelPage() {
 
       <div className="mx-auto max-w-6xl space-y-5 pt-5">
         <div className="flex items-center justify-end gap-2">
-          <Label htmlFor="compare-toggle" className="cursor-pointer text-xs text-muted-foreground">
+          <Label
+            htmlFor="compare-toggle"
+            className={cn(
+              "cursor-pointer text-xs",
+              compareByActive ? "text-muted-foreground/50" : "text-muted-foreground",
+            )}
+            title={compareByActive ? "Switch off Compare-by to enable previous-period comparison" : undefined}
+          >
             Compare to previous period
           </Label>
           <Switch
             id="compare-toggle"
-            checked={compareMode}
+            checked={compareMode && !compareByActive}
             onCheckedChange={setCompareMode}
+            disabled={compareByActive}
           />
         </div>
 
@@ -185,7 +280,13 @@ export default function CallFunnelPage() {
             onRemove={remove}
             onSetAll={setAll}
             onReset={reset}
-            compareMode={compareMode}
+            compareMode={compareMode && !compareByActive}
+            benchmarkDimensionId={benchmarkDim}
+            onBenchmarkDimensionChange={handleBenchmarkDimChange}
+            benchmarkAvailableValues={benchmarkAvailableValues}
+            benchmarkSelectedValues={benchmarkSelectedValues}
+            onBenchmarkSelectedValuesChange={handleBenchmarkValuesChange}
+            benchmarkRows={benchmarkRows}
           />
         </ReportSection>
 
