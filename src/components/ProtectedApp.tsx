@@ -14,6 +14,7 @@ const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const TargetsPage = lazy(() => import("@/pages/TargetsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
+const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -73,6 +74,14 @@ function ProtectedRoutes() {
           element={(
             <AdminRoute>
               <DialpadSettingsPage />
+            </AdminRoute>
+          )}
+        />
+        <Route
+          path="/admin/ghl-sync"
+          element={(
+            <AdminRoute>
+              <GhlSyncPage />
             </AdminRoute>
           )}
         />
