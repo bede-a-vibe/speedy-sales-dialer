@@ -10,7 +10,7 @@ import {
 } from "@/lib/funnelMetrics";
 import { computeRepLeakLeaderboard } from "@/lib/repCoachingMetrics";
 import { RepLeakLeaderboardTable } from "./RepLeakLeaderboardTable";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, PhoneOff } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type CallLogRow = Pick<
@@ -65,6 +65,22 @@ export function ConversationFunnelPanel({ callLogs, from, to, repUserId, repLabe
     const repIds = Array.from(new Set(dateFiltered.map((l) => l.user_id).filter(Boolean)));
     return computeRepLeakLeaderboard(repIds, dateFiltered as never);
   }, [callLogs, from, to, repUserId]);
+
+  const hangUpTrend = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const log of filtered) {
+      if (log.exit_reason_connection !== "hung_up_immediately") continue;
+      const d = new Date(log.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const rows = Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    const max = rows.reduce((m, r) => Math.max(m, r.count), 0);
+    return { rows, total, max };
+  }, [filtered]);
 
   return (
     <div className="space-y-6">
