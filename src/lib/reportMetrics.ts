@@ -2,7 +2,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type ReportCallLog = Pick<
   Tables<"call_logs">,
-  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds"
+  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds" | "exit_reason_connection"
 >;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
@@ -64,6 +64,8 @@ export interface RepRedFlagRow {
   notInterestedRate: number;
   dncRate: number;
   shortHangupRate: number;
+  immediateHangUpRate: number;
+  immediateHangUps: number;
   flags: string[];
 }
 
@@ -77,6 +79,8 @@ export interface OutboundDiagnosticMetrics {
   shortHangupsUnder15s: number;
   shortHangupsUnder2m: number;
   longDqOver30m: number;
+  immediateHangUps: number;
+  immediateHangUpRate: number;
   repRedFlags: RepRedFlagRow[];
 }
 
@@ -91,6 +95,8 @@ export interface ReportMetrics {
     totalTalkTimeSeconds: number;
     averageTalkTimePerDialSeconds: number;
     averageTalkTimePerPickupSeconds: number;
+    immediateHangUps: number;
+    immediateHangUpRate: number;
   };
   bookingsMade: {
     totalBookingsMade: number;
