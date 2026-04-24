@@ -59,6 +59,7 @@ import {
   AUSTRALIAN_STATES,
 } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
+import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
 
 const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
@@ -787,36 +788,40 @@ export default function DialerPage() {
     resetAdvancedFilters();
 
     if (preset === "hot_today") {
-      setProspectTier("Tier 1 - Hot");
-      setBuyingSignalStrength("Strong");
+      // Tier / buying-signal data isn't populated yet — those filters would
+      // zero the queue. Fall back to mobiles, which are the highest-yield
+      // contacts we can actually filter on today.
+      setPhoneType("mobile");
+      toast.info("Hot today: showing mobile contacts (lead scoring data not populated yet).");
       return;
     }
 
     if (preset === "dm_direct") {
-      setHasDmPhone("yes");
       setPhoneType("mobile");
+      toast.info("DM direct dials: showing mobile contacts (DM phone capture pending).");
       return;
     }
 
     if (preset === "dm_capture") {
-      setHasDmPhone("no");
+      // Landlines are where you typically need to navigate a gatekeeper.
+      setPhoneType("landline");
+      toast.info("DM capture: showing landline contacts to focus gatekeeper navigation.");
       return;
     }
 
     if (preset === "google_ads") {
-      setHasGoogleAds("Yes - Active");
+      // Ad-status enrichment isn't populated — hint without zeroing the queue.
+      toast.info("Google Ads enrichment data not available yet — showing all contacts.");
       return;
     }
 
     if (preset === "high_review") {
-      setMinReviewCount(100);
-      setMinGbpRating(4);
+      toast.info("Review data not populated yet — showing all contacts.");
       return;
     }
 
     if (preset === "landline_enrichment") {
       setPhoneType("landline");
-      setHasDmPhone("no");
     }
   }, [resetAdvancedFilters]);
 
