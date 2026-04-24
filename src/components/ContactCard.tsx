@@ -45,9 +45,11 @@ interface ContactCardProps {
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
   onCallDM?: (phone: string) => void;
+  /** Optional slot rendered in the header row (e.g. recovery actions). */
+  headerActions?: React.ReactNode;
 }
 
-export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: ContactCardProps) {
+export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, headerActions }: ContactCardProps) {
   const phoneType = PHONE_TYPE_CONFIG[contact.phone_type || "unknown"] || PHONE_TYPE_CONFIG.unknown;
   const PhoneIcon = phoneType.icon;
   const hasDM = contact.dm_name || contact.dm_phone;
@@ -138,9 +140,12 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality }: 
             </p>
           )}
         </div>
-        <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
-          {contact.industry}
-        </span>
+        <div className="flex items-center gap-2">
+          {headerActions}
+          <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
+            {contact.industry}
+          </span>
+        </div>
       </div>
 
       {/* Business Phone with Type Badge */}

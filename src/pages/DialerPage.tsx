@@ -1,10 +1,11 @@
-import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { OutcomeButton } from "@/components/OutcomeButton";
+import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 
 import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
@@ -213,6 +214,59 @@ function readStoredDialerFilters(): StoredDialerFilters | null {
   }
 }
 
+// --- Active-call sessionStorage persistence -------------------------------
+// Persists the in-flight call state (current contact id + outcome + progress
+// + follow-up date/time/notes) so reps don't lose work when they tab away to
+// GHL to manually book an appointment. Cleared once the lead is logged.
+const DIALER_ACTIVE_CALL_STORAGE_KEY = "dialer:active-call:v1";
+
+type StoredActiveCall = {
+  contactId?: string;
+  selectedOutcome?: string | null;
+  notes?: string;
+  followUpDateIso?: string | null;
+  followUpTime?: string;
+  conversationProgress?: ConversationProgressState;
+  appointmentTitle?: string;
+  ghlCalendarId?: string;
+  ghlPipelineId?: string;
+  ghlStageId?: string;
+  followUpMethod?: FollowUpMethod;
+  savedAt?: number;
+};
+
+function readStoredActiveCall(): StoredActiveCall | null {
+  try {
+    const raw = window.sessionStorage.getItem(DIALER_ACTIVE_CALL_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    // Discard if older than 4 hours (rep likely moved on)
+    if (typeof parsed.savedAt === "number" && Date.now() - parsed.savedAt > 4 * 60 * 60 * 1000) {
+      window.sessionStorage.removeItem(DIALER_ACTIVE_CALL_STORAGE_KEY);
+      return null;
+    }
+    return parsed as StoredActiveCall;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredActiveCall(data: StoredActiveCall | null) {
+  try {
+    if (!data || !data.contactId) {
+      window.sessionStorage.removeItem(DIALER_ACTIVE_CALL_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(
+      DIALER_ACTIVE_CALL_STORAGE_KEY,
+      JSON.stringify({ ...data, savedAt: Date.now() }),
+    );
+  } catch {
+    // ignore quota / privacy mode
+  }
+}
+
 const PanelSkeleton = forwardRef<HTMLDivElement, { height?: string }>(({ height = "h-40" }, ref) => (
   <div ref={ref} className="rounded-lg border border-border bg-card p-4">
     <div className="space-y-3">
@@ -366,6 +420,79 @@ export default function DialerPage() {
     currentContact: session.currentContact,
     selectedCallerId,
   });
+
+  // --- Active-call rehydration (run once when contact becomes available) ---
+  // If the rep tabbed away (e.g. to GHL to manually book), rehydrate any in-flight
+  // outcome / progress / follow-up state for the SAME contact when they return.
+  const hasRehydratedRef = useRef(false);
+  useEffect(() => {
+    if (hasRehydratedRef.current) return;
+    if (!session.currentContact) return;
+    const stored = readStoredActiveCall();
+    if (!stored || stored.contactId !== session.currentContact.id) return;
+
+    hasRehydratedRef.current = true;
+
+    if (stored.selectedOutcome) {
+      session.setSelectedOutcome(stored.selectedOutcome as CallOutcome);
+    }
+    if (typeof stored.notes === "string" && stored.notes.length > 0) {
+      session.setNotes(stored.notes);
+    }
+    if (stored.followUpDateIso) {
+      const d = new Date(stored.followUpDateIso);
+      if (!Number.isNaN(d.getTime())) session.setFollowUpDate(d);
+    }
+    if (stored.followUpTime) session.setFollowUpTime(stored.followUpTime);
+    if (stored.conversationProgress) setConversationProgress(stored.conversationProgress);
+    if (stored.appointmentTitle) setAppointmentTitle(stored.appointmentTitle);
+    if (stored.ghlCalendarId) setGhlCalendarId(stored.ghlCalendarId);
+    if (stored.ghlPipelineId) setGhlPipelineId(stored.ghlPipelineId);
+    if (stored.ghlStageId) setGhlStageId(stored.ghlStageId);
+    if (stored.followUpMethod) setFollowUpMethod(stored.followUpMethod);
+
+    toast.info("Restored your in-progress call", {
+      description: "Your outcome, conversation progress, and follow-up details were saved while you were away.",
+    });
+  }, [session.currentContact?.id]);
+
+  // Reset rehydration guard when the active contact changes so the next lead is fresh.
+  useEffect(() => {
+    hasRehydratedRef.current = false;
+  }, [session.currentContact?.id]);
+
+  // --- Active-call persistence — every change is saved immediately ---------
+  useEffect(() => {
+    if (!session.currentContact?.id) {
+      writeStoredActiveCall(null);
+      return;
+    }
+    writeStoredActiveCall({
+      contactId: session.currentContact.id,
+      selectedOutcome: session.selectedOutcome,
+      notes: session.notes,
+      followUpDateIso: session.followUpDate ? session.followUpDate.toISOString() : null,
+      followUpTime: session.followUpTime,
+      conversationProgress,
+      appointmentTitle,
+      ghlCalendarId,
+      ghlPipelineId,
+      ghlStageId,
+      followUpMethod,
+    });
+  }, [
+    session.currentContact?.id,
+    session.selectedOutcome,
+    session.notes,
+    session.followUpDate,
+    session.followUpTime,
+    conversationProgress,
+    appointmentTitle,
+    ghlCalendarId,
+    ghlPipelineId,
+    ghlStageId,
+    followUpMethod,
+  ]);
 
   const { data: salesReps = [] } = useSalesReps();
   const updateContact = useUpdateContact();
@@ -1921,6 +2048,15 @@ export default function DialerPage() {
                     phone_number_quality: quality as "confirmed" | "dead" | "suspect" | "unconfirmed",
                   }).catch(() => {});
                 }}
+                headerActions={
+                  <QuickBookRecoveryButton
+                    contactId={session.currentContact.id}
+                    contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
+                    onRecovered={() => {
+                      void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
+                    }}
+                  />
+                }
               />
 
               {session.isSessionPaused && (
