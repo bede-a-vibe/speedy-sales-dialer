@@ -759,7 +759,7 @@ export default function DialerPage() {
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
-    && (!requiresBookedSchedule || (!!session.followUpTime && !!ghlCalendarId && !!ghlPipelineId && !!ghlStageId))
+    && (!requiresBookedSchedule || !!session.followUpTime)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
