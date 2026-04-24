@@ -541,6 +541,8 @@ export default function ContactDetailPage() {
               </CardContent>
             </Card>
 
+            <ManualTranscriptUpload contact={contact} />
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
