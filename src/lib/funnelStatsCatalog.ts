@@ -1,16 +1,20 @@
 import type { ReportMetrics } from "@/lib/reportMetrics";
 import { formatDurationSeconds } from "@/lib/duration";
 
-export type StatCategory = "activity" | "outcomes" | "funnel" | "conversion" | "quality" | "post_booking" | "revenue";
+export type StatCategory = "activity" | "conversations" | "outcomes" | "bookings";
 
 export const STAT_CATEGORY_LABEL: Record<StatCategory, string> = {
   activity: "Activity",
+  conversations: "Conversations",
   outcomes: "Outcomes",
-  funnel: "Funnel",
-  conversion: "Conversion %",
-  quality: "Quality",
-  post_booking: "Post-Booking",
-  revenue: "Revenue",
+  bookings: "Bookings",
+};
+
+export const STAT_CATEGORY_DESCRIPTION: Record<StatCategory, string> = {
+  activity: "Dials, leads, talk time",
+  conversations: "Pickups, conversations & quality",
+  outcomes: "Disposition results",
+  bookings: "Booked, showed, closed & revenue",
 };
 
 export interface StatDefinition {
