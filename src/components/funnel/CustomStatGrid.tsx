@@ -937,67 +937,128 @@ function BarComparisonView({
     );
   }
 
-  return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {stats.map((stat) => {
-        const values = rows.map((r) => stat.raw(r.metrics));
-        const max = Math.max(...values, 0);
-        const bestIdx = values.indexOf(Math.max(...values));
-        const worstIdx = values.indexOf(Math.min(...values));
-        const allEqual = max === Math.min(...values);
+  // Single-row case: render exactly like the End-to-End Call Funnel —
+  // one bordered panel, one row per metric, label · bar · value · % of top.
+  if (rows.length === 1) {
+    const row = rows[0];
+    const items = stats.map((stat) => ({
+      stat,
+      raw: stat.raw(row.metrics),
+      formatted: stat.format(row.metrics),
+    }));
+    const top = items[0]?.raw || 1;
+    const maxBar = Math.max(...items.map((i) => i.raw), 1);
 
-        return (
-          <div
-            key={stat.id}
-            className="rounded-lg border border-border bg-card p-3"
-          >
-            <div className="mb-2 flex items-baseline justify-between gap-2">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {stat.label}
-                </p>
-                <p className="text-[9px] text-muted-foreground/70">
+    return (
+      <div className="rounded-lg border border-border bg-background p-4">
+        <div className="mb-3">
+          <h4 className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            {row.label}
+          </h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Each metric drawn to scale. % shown is the value relative to the top metric.
+          </p>
+        </div>
+        <div className="space-y-2">
+          {items.map(({ stat, raw, formatted }) => {
+            const barPct = maxBar > 0 ? Math.max((raw / maxBar) * 100, raw > 0 ? 2 : 0) : 0;
+            const pctOfTop = top > 0 ? Math.round((raw / top) * 100) : 0;
+            return (
+              <div key={stat.id} className="flex items-center gap-3">
+                <div className="w-44 shrink-0">
+                  <div className="text-sm text-foreground">{stat.label}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {STAT_CATEGORY_LABEL[stat.category]}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="relative h-6 rounded-md bg-muted overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-primary/80 transition-all"
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="w-20 text-right font-mono text-sm font-semibold text-foreground">
+                  {formatted}
+                </div>
+                <div className="w-14 text-right font-mono text-sm text-muted-foreground">
+                  {stat.isPercent ? "" : `${pctOfTop}%`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Multi-row case (By Dimension / Segments / period compare):
+  // single bordered panel, one section per metric, one bar per row.
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <div className="mb-3">
+        <h4 className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          {groupLabel} comparison
+        </h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          One bar per {groupLabel.toLowerCase()}, scaled within each metric. Best in green, worst in red.
+        </p>
+      </div>
+      <div className="space-y-5">
+        {stats.map((stat) => {
+          const values = rows.map((r) => stat.raw(r.metrics));
+          const max = Math.max(...values, 0);
+          const min = Math.min(...values);
+          const bestIdx = values.indexOf(max);
+          const worstIdx = values.indexOf(min);
+          const allEqual = max === min;
+
+          return (
+            <div key={stat.id}>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <div className="text-sm font-medium text-foreground">{stat.label}</div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                   {STAT_CATEGORY_LABEL[stat.category]}
-                </p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {rows.map((row, i) => {
+                  const raw = values[i];
+                  const barPct = max > 0 ? Math.max((raw / max) * 100, raw > 0 ? 2 : 0) : 0;
+                  const isBest = !allEqual && i === bestIdx && raw > 0;
+                  const isWorst = !allEqual && i === worstIdx && i !== bestIdx;
+                  return (
+                    <div key={`${row.label}-${i}`} className="flex items-center gap-3">
+                      <div className="w-44 shrink-0 truncate text-xs text-muted-foreground" title={row.label}>
+                        {row.label}
+                      </div>
+                      <div className="flex-1">
+                        <div className="relative h-5 rounded-md bg-muted overflow-hidden">
+                          <div
+                            className={cn(
+                              "absolute inset-y-0 left-0 transition-all",
+                              isBest
+                                ? "bg-[hsl(var(--outcome-booked))]/80"
+                                : isWorst
+                                  ? "bg-destructive/70"
+                                  : "bg-primary/80",
+                            )}
+                            style={{ width: `${barPct}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="w-20 text-right font-mono text-xs font-semibold text-foreground">
+                        {stat.format(row.metrics)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="space-y-1.5">
-              {rows.map((row, i) => {
-                const raw = values[i];
-                const pct = max > 0 ? Math.max((raw / max) * 100, raw > 0 ? 2 : 0) : 0;
-                const isBest = !allEqual && rows.length >= 2 && i === bestIdx && raw > 0;
-                const isWorst = !allEqual && rows.length >= 2 && i === worstIdx && i !== bestIdx;
-                return (
-                  <div key={`${row.label}-${i}`} className="flex items-center gap-2">
-                    <div
-                      className="w-24 shrink-0 truncate text-xs text-muted-foreground"
-                      title={row.label}
-                    >
-                      {row.label}
-                    </div>
-                    <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted">
-                      <div
-                        className={cn(
-                          "absolute inset-y-0 left-0 transition-all",
-                          isBest
-                            ? "bg-[hsl(var(--outcome-booked))]/70"
-                            : isWorst
-                              ? "bg-destructive/60"
-                              : "bg-primary/70",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="w-20 text-right font-mono text-xs font-semibold text-foreground">
-                      {stat.format(row.metrics)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
