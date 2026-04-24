@@ -45,6 +45,8 @@ export interface RepCoachingScorecard {
   totalDials: number;
   totalPickUps: number;
   totalBookings: number;
+  immediateHangUps: number;
+  immediateHangUpRate: number;
   funnel: FunnelMetrics;
   worstFunnelStage: { key: string; label: string; dropPct: number } | null;
   topExitReason: CoachingCue | null;
@@ -117,6 +119,15 @@ function generateInsights(
   funnel: FunnelMetrics,
 ): string[] {
   const lines: string[] = [];
+
+  // 0. Immediate hang-ups (highest priority — speaks directly to the opener)
+  const immediate = logs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
+  if (logs.length >= 10) {
+    const rate = logs.length > 0 ? (immediate / logs.length) * 100 : 0;
+    if (rate >= 10) {
+      lines.push(`Hung up before opener finished: ${immediate} calls (${Math.round(rate)}%) — review first 5 seconds`);
+    }
+  }
 
   // 1. Worst stage drop
   const worst = funnel.stages
@@ -202,6 +213,8 @@ export function computeRepCoachingScorecard(
 
   const totalPickUps = repLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome)).length;
   const totalBookings = bookedItems.filter((b) => b.created_by === repUserId).length;
+  const immediateHangUps = repLogs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
+  const immediateHangUpRate = repLogs.length > 0 ? Math.round((immediateHangUps / repLogs.length) * 100) : 0;
 
   const worstStage = funnel.stages
     .slice(1)
@@ -213,6 +226,8 @@ export function computeRepCoachingScorecard(
     totalDials: repLogs.length,
     totalPickUps,
     totalBookings,
+    immediateHangUps,
+    immediateHangUpRate,
     funnel,
     worstFunnelStage: worstStage
       ? { key: worstStage.key, label: worstStage.label, dropPct: worstStage.dropFromPrev }
