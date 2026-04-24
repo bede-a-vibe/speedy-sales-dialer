@@ -258,7 +258,9 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
 
         let query = supabase
           .from("call_logs")
-          .select("*, contacts(business_name, industry)")
+          .select(
+            "*, contacts(business_name, industry, trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          )
           .order("created_at", { ascending: false })
           .range(rangeFrom, rangeTo);
 
