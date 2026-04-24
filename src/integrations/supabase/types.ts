@@ -489,6 +489,72 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_sync_jobs: {
+        Row: {
+          batch_size: number
+          created_at: string
+          created_by: string
+          current_offset: number
+          delay_ms: number
+          failed: number
+          finished_at: string | null
+          heartbeat_at: string
+          id: string
+          last_batch_ms: number
+          last_error: string | null
+          linked: number
+          mode: string
+          processed: number
+          skipped: number
+          started_at: string | null
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          batch_size?: number
+          created_at?: string
+          created_by: string
+          current_offset?: number
+          delay_ms?: number
+          failed?: number
+          finished_at?: string | null
+          heartbeat_at?: string
+          id?: string
+          last_batch_ms?: number
+          last_error?: string | null
+          linked?: number
+          mode: string
+          processed?: number
+          skipped?: number
+          started_at?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_size?: number
+          created_at?: string
+          created_by?: string
+          current_offset?: number
+          delay_ms?: number
+          failed?: number
+          finished_at?: string | null
+          heartbeat_at?: string
+          id?: string
+          last_batch_ms?: number
+          last_error?: string | null
+          linked?: number
+          mode?: string
+          processed?: number
+          skipped?: number
+          started_at?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pending_ghl_pushes: {
         Row: {
           ai_fields: Json | null
