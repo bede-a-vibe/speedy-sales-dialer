@@ -44,6 +44,8 @@ interface Props {
   onChange: (next: ConversationProgressState) => void;
   /** When the rep has selected "booked" outcome we hide the exit picker entirely. */
   outcomeIsBooked?: boolean;
+  /** When true, render without the outer card chrome / heading (for embedding inside another card). */
+  embedded?: boolean;
 }
 
 /**
@@ -85,7 +87,7 @@ function clearStaleExitReasons(state: ConversationProgressState, activeStage: Ex
   return cleared;
 }
 
-export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: Props) {
+export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, embedded }: Props) {
   const { data: openers = [] } = useCallOpeners();
 
   const exitStage = useMemo(() => getExitStage(value, outcomeIsBooked), [value, outcomeIsBooked]);
@@ -171,13 +173,8 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: 
     });
   };
 
-  return (
-    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-primary" />
-        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Conversation Progress</h3>
-      </div>
-
+  const inner = (
+    <>
       {!outcomeIsBooked && (
         <Button
           type="button"
@@ -214,11 +211,11 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: 
 
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Stages reached</Label>
-        <div className="space-y-1.5">
-          <StageRow label="Connected (>15s real conversation)" checked={value.reachedConnection} onChange={(c) => setStage("reachedConnection", c)} />
-          <StageRow label="Problem Awareness" checked={value.reachedProblem} onChange={(c) => setStage("reachedProblem", c)} />
-          <StageRow label="Solution Awareness" checked={value.reachedSolution} onChange={(c) => setStage("reachedSolution", c)} />
-          <StageRow label="Verbal Commitment" checked={value.reachedCommitment} onChange={(c) => setStage("reachedCommitment", c)} />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <StageRow label="Connected" checked={value.reachedConnection} onChange={(c) => setStage("reachedConnection", c)} />
+          <StageRow label="Problem" checked={value.reachedProblem} onChange={(c) => setStage("reachedProblem", c)} />
+          <StageRow label="Solution" checked={value.reachedSolution} onChange={(c) => setStage("reachedSolution", c)} />
+          <StageRow label="Commitment" checked={value.reachedCommitment} onChange={(c) => setStage("reachedCommitment", c)} />
         </div>
       </div>
 
@@ -251,6 +248,20 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked }: 
           />
         </div>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-3">{inner}</div>;
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-primary" />
+        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Conversation Progress</h3>
+      </div>
+      {inner}
     </div>
   );
 }

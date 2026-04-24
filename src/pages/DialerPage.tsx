@@ -4,7 +4,6 @@ import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, 
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
-import { OutcomeButton } from "@/components/OutcomeButton";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 
 import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
@@ -13,7 +12,8 @@ import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
-import { ConversationProgressPanel, EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
+import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
+import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2122,45 +2122,29 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
-              {/* Call Outcome — top of right column for speed */}
-              <div className="rounded-lg border border-border bg-card p-4">
-                <label className="mb-3 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Call Outcome <span className="text-primary">(required)</span>
-                </label>
-                <div className="space-y-2">
-                  {outcomes.map((outcome) => {
-                    const isSelected = session.selectedOutcome === outcome;
-                    const canFastLogThisOutcome = canSubmit && isFastLogOutcome(outcome);
+              {/* Log This Call — outcomes + conversation tagging in one card */}
+              <LogCallPanel
+                selectedOutcome={session.selectedOutcome}
+                canSubmit={canSubmit}
+                isFastLogOutcome={isFastLogOutcome}
+                onOutcomeClick={(nextOutcome) => {
+                  if (session.selectedOutcome === nextOutcome && canSubmit && isFastLogOutcome(nextOutcome)) {
+                    void logAndNext(nextOutcome);
+                    return;
+                  }
+                  session.setSelectedOutcome(nextOutcome);
+                }}
+                conversationProgress={conversationProgress}
+                onConversationProgressChange={setConversationProgress}
+              />
 
-                    return (
-                      <OutcomeButton
-                        key={outcome}
-                        outcome={outcome}
-                        label={outcome === "booked" ? "Book" : undefined}
-                        selected={isSelected}
-                        hint={isSelected && canFastLogThisOutcome ? "Click again to save" : undefined}
-                        onClick={(nextOutcome) => {
-                          if (session.selectedOutcome === nextOutcome && canFastLogThisOutcome) {
-                            void logAndNext(nextOutcome);
-                            return;
-                          }
-                          session.setSelectedOutcome(nextOutcome);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-
-                {/* Conversation funnel tracking — inline so reps tag stage/exit reason
-                    in the same card as the outcome for faster, complete capture. */}
-                <div className="mt-4 border-t border-border pt-4">
-                  <ConversationProgressPanel
-                    value={conversationProgress}
-                    onChange={setConversationProgress}
-                    outcomeIsBooked={session.selectedOutcome === "booked"}
-                  />
-                </div>
-              </div>
+              {/* Notes — directly under Log This Call so reps don't have to scan */}
+              <ContactNotesPanel
+                contactId={session.currentContact.id}
+                notes={session.notes}
+                onNotesChange={session.setNotes}
+                enabled={session.isSessionActive}
+              />
 
               {requiresPipelineAssignment && (
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
@@ -2495,14 +2479,6 @@ export default function DialerPage() {
                   <kbd className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono opacity-70">S</kbd>
                 </Button>
               </div>
-
-              {/* Notes */}
-              <ContactNotesPanel
-                contactId={session.currentContact.id}
-                notes={session.notes}
-                onNotesChange={session.setNotes}
-                enabled={session.isSessionActive}
-              />
 
               {/* Dialpad Sync — auto-opens only when there's an issue */}
               <CollapsiblePanel
