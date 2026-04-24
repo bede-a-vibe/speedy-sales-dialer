@@ -1,4 +1,4 @@
-import { CalendarIcon, Users } from "lucide-react";
+import { CalendarIcon, Layers, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -18,6 +18,9 @@ interface ReportsToolbarProps {
   reps: RepOption[];
   allRepsValue: string;
   isLoading?: boolean;
+  breakdown?: string;
+  onBreakdownChange?: (v: string) => void;
+  breakdownOptions?: { id: string; label: string }[];
 }
 
 export function ReportsToolbar({
@@ -30,6 +33,9 @@ export function ReportsToolbar({
   reps,
   allRepsValue,
   isLoading,
+  breakdown,
+  onBreakdownChange,
+  breakdownOptions,
 }: ReportsToolbarProps) {
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -70,6 +76,24 @@ export function ReportsToolbar({
             </SelectContent>
           </Select>
         </div>
+        {breakdownOptions && onBreakdownChange ? (
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Breakdown</span>
+            <Select value={breakdown ?? "none"} onValueChange={onBreakdownChange}>
+              <SelectTrigger className="w-[170px] border-border bg-card">
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                {breakdownOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         {isLoading && <span className="ml-auto animate-pulse text-xs text-muted-foreground">Loading…</span>}
       </div>
     </div>
