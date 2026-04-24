@@ -91,6 +91,12 @@ export interface BookedAppointmentReportItem {
   status: PipelineStatus;
   deal_value: number | null;
   reschedule_count: number;
+  contacts?: {
+    industry: string | null;
+    state: string | null;
+    trade_type: string | null;
+    work_type: string | null;
+  } | null;
 }
 
 export function usePipelineItems(type: PipelineType, status: PipelineStatus = "open") {
@@ -215,7 +221,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type)",
         )
         .eq("pipeline_type", "booked")
         .order("created_at", { ascending: false });
