@@ -3,6 +3,7 @@ import type { ReportMetrics } from "@/lib/reportMetrics";
 import type { FunnelMetrics } from "@/lib/funnelMetrics";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CONVERSATION_TAGGING_LAUNCH_LABEL } from "@/data/constants";
 
 interface Props {
   metrics: ReportMetrics;
@@ -81,6 +82,11 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
           <p className="mt-1 text-xs text-muted-foreground">
             Every step from first dial to closed deal. {mode === "of_top" ? "% shown is conversion from top of funnel." : "% shown is conversion from previous stage."}
           </p>
+          {funnel.scoped && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Connection-stage tracking started {CONVERSATION_TAGGING_LAUNCH_LABEL} — Conversation, Problem, Solution & Commitment counts only include calls from that date forward.
+            </p>
+          )}
         </div>
         <div className="flex rounded-md border border-border bg-card p-0.5">
           <Button

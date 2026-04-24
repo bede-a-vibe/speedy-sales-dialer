@@ -1,6 +1,7 @@
 import { StatCard } from "@/components/StatCard";
 import { formatDurationSeconds } from "@/lib/duration";
 import type { ReportMetrics } from "@/lib/reportMetrics";
+import { CONVERSATION_TAGGING_LAUNCH_LABEL } from "@/data/constants";
 
 interface HeadlineKpiStripProps {
   metrics: ReportMetrics;
@@ -8,6 +9,12 @@ interface HeadlineKpiStripProps {
 
 export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
   const { dialer, bookingsMade } = metrics;
+  const convoBooking = dialer.conversationToBookingRate; // number | null
+  const convoSubtext = convoBooking === null
+    ? `No data before ${CONVERSATION_TAGGING_LAUNCH_LABEL}`
+    : dialer.conversationMetricsScoped
+      ? `Since ${CONVERSATION_TAGGING_LAUNCH_LABEL}`
+      : "closing skill";
 
   return (
     <div className="space-y-2">
@@ -44,8 +51,8 @@ export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
         <StatCard
           compact
           label="Conversation → Booking"
-          value={`${dialer.conversationToBookingRate}%`}
-          subtext="closing skill"
+          value={convoBooking === null ? "—" : `${convoBooking}%`}
+          subtext={convoSubtext}
         />
         <StatCard
           compact

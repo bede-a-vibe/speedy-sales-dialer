@@ -1,5 +1,6 @@
 import type { ReportMetrics } from "@/lib/reportMetrics";
 import { formatDurationSeconds } from "@/lib/duration";
+import { CONVERSATION_TAGGING_LAUNCH_LABEL } from "@/data/constants";
 
 export type StatCategory = "activity" | "conversations" | "outcomes" | "bookings";
 
@@ -63,8 +64,15 @@ export const STAT_CATALOG: StatDefinition[] = [
     category: "conversations",
     subgroup: "Conversion %",
     isPercent: true,
-    raw: (m) => pct(m.dialer.conversations, m.dialer.pickUps),
-    format: (m) => `${pct(m.dialer.conversations, m.dialer.pickUps)}%`,
+    subtext: `since ${CONVERSATION_TAGGING_LAUNCH_LABEL}`,
+    raw: (m) =>
+      m.dialer.conversationToBookingRate === null
+        ? 0
+        : pct(m.dialer.conversations, m.dialer.pickUps),
+    format: (m) =>
+      m.dialer.conversationToBookingRate === null
+        ? "—"
+        : `${pct(m.dialer.conversations, m.dialer.pickUps)}%`,
   },
   { id: "immediate_hang_ups", label: "Immediate Hang-Ups", category: "conversations", subgroup: "Quality", raw: (m) => m.dialer.immediateHangUps, format: (m) => String(m.dialer.immediateHangUps) },
   { id: "short_hangups_15s", label: "Short Hangups <15s", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder15s, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder15s) },
@@ -104,8 +112,12 @@ export const STAT_CATALOG: StatDefinition[] = [
     category: "bookings",
     subgroup: "Conversion %",
     isPercent: true,
-    raw: (m) => m.dialer.conversationToBookingRate,
-    format: (m) => `${m.dialer.conversationToBookingRate}%`,
+    subtext: `since ${CONVERSATION_TAGGING_LAUNCH_LABEL}`,
+    raw: (m) => m.dialer.conversationToBookingRate ?? 0,
+    format: (m) =>
+      m.dialer.conversationToBookingRate === null
+        ? "—"
+        : `${m.dialer.conversationToBookingRate}%`,
   },
   {
     id: "pickup_booking",
