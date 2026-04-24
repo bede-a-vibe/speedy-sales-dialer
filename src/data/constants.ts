@@ -231,7 +231,6 @@ export const REVIEW_COUNT_OPTIONS = [
 export const PHONE_TYPE_OPTIONS = [
   "mobile",
   "landline",
-  "business_line",
   "unknown",
 ];
 
