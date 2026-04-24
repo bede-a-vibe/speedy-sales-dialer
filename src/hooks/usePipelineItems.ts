@@ -96,6 +96,15 @@ export interface BookedAppointmentReportItem {
     state: string | null;
     trade_type: string | null;
     work_type: string | null;
+    business_size: string | null;
+    prospect_tier: string | null;
+    buying_signal_strength: string | null;
+    phone_type: string | null;
+    has_google_ads: string | null;
+    has_facebook_ads: string | null;
+    dm_phone: string | null;
+    gbp_rating: number | null;
+    review_count: number | null;
   } | null;
 }
 
@@ -221,7 +230,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked")
         .order("created_at", { ascending: false });
