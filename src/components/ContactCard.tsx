@@ -353,6 +353,24 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
           <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
         </a>
 
+        {(() => {
+          const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
+          if (!ghlUrl) return null;
+          return (
+            <a
+              href={ghlUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open contact in GoHighLevel"
+              className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground hover:bg-accent transition-colors"
+            >
+              <UserCheck className="h-4 w-4" />
+              <span className="text-sm truncate">GHL Contact</span>
+              <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+            </a>
+          );
+        })()}
+
         {(contact.city || contact.state) && (
           <div className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground">
             <MapPin className="h-4 w-4" />
