@@ -2164,7 +2164,7 @@ export default function DialerPage() {
                       {/* GHL Calendar selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Calendar <span className="text-primary">(required)</span>
+                          GHL Calendar <span className="text-muted-foreground">(optional — book manually in GHL)</span>
                         </label>
                         <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
                           <SelectTrigger className="w-full border-border bg-background">
@@ -2181,7 +2181,7 @@ export default function DialerPage() {
                       {/* GHL Pipeline selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Pipeline <span className="text-primary">(required)</span>
+                          GHL Pipeline <span className="text-muted-foreground">(optional)</span>
                         </label>
                         <Select value={ghlPipelineId} onValueChange={setGhlPipelineId}>
                           <SelectTrigger className="w-full border-border bg-background">
@@ -2199,7 +2199,7 @@ export default function DialerPage() {
                       {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
                         <div>
                           <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                            Pipeline Stage <span className="text-primary">(required)</span>
+                            Pipeline Stage <span className="text-muted-foreground">(optional)</span>
                           </label>
                           <Select value={ghlStageId} onValueChange={setGhlStageId}>
                             <SelectTrigger className="w-full border-border bg-background">
