@@ -189,3 +189,48 @@ export async function ghlBulkLinkContacts(
     ...(statusFilter ? { statusFilter } : {}),
   });
 }
+
+// ── Background sync runner ────────────────────────────────────────────
+
+async function invokeSyncRunner<T = unknown>(body: Record<string, unknown>): Promise<T> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
+
+  const url = `https://${PROJECT_ID}.supabase.co/functions/v1/ghl-sync-runner`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json?.error ?? `Sync runner failed (${res.status})`);
+  }
+  return json as T;
+}
+
+export async function startBackgroundGhlSync(opts: {
+  mode: "active" | "all";
+  batchSize?: number;
+  delayMs?: number;
+}) {
+  return invokeSyncRunner<{ jobId: string; status: string }>({
+    action: "start",
+    mode: opts.mode,
+    batchSize: opts.batchSize,
+    delayMs: opts.delayMs,
+  });
+}
+
+export async function cancelBackgroundGhlSync(jobId?: string) {
+  return invokeSyncRunner<{ ok: boolean }>({ action: "cancel", ...(jobId ? { jobId } : {}) });
+}
+
+export async function resumeBackgroundGhlSync() {
+  return invokeSyncRunner<{ jobId: string; status: string }>({ action: "resume" });
+}
