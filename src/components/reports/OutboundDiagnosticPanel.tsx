@@ -107,7 +107,12 @@ export function OutboundDiagnosticPanel({ diagnostic, pickUpRate, repNameMap }: 
 
       <div className="rounded-lg border border-border bg-background p-4">
         <h3 className="mb-3 text-[10px] uppercase tracking-widest text-muted-foreground">Call Duration Diagnostics</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="font-mono text-2xl font-bold text-foreground">{diagnostic.immediateHangUps}</p>
+            <p className="text-xs text-muted-foreground">immediate hang-ups</p>
+            <p className="text-[10px] text-muted-foreground">{diagnostic.immediateHangUpRate}% of dials · rep-tagged</p>
+          </div>
           <div>
             <p className="font-mono text-2xl font-bold text-foreground">{diagnostic.shortHangupsUnder15s}</p>
             <p className="text-xs text-muted-foreground">&lt;15s connected hangups</p>
@@ -139,6 +144,7 @@ export function OutboundDiagnosticPanel({ diagnostic, pickUpRate, repNameMap }: 
                 <TableHead className="text-right">Not-Int %</TableHead>
                 <TableHead className="text-right">DNC %</TableHead>
                 <TableHead className="text-right">&lt;15s %</TableHead>
+                <TableHead className="text-right">Hang-Up %</TableHead>
                 <TableHead>Flag</TableHead>
               </TableRow>
             </TableHeader>
@@ -150,6 +156,12 @@ export function OutboundDiagnosticPanel({ diagnostic, pickUpRate, repNameMap }: 
                   <TableCell className="text-right font-mono text-foreground">{row.notInterestedRate}%</TableCell>
                   <TableCell className="text-right font-mono text-foreground">{row.dncRate}%</TableCell>
                   <TableCell className="text-right font-mono text-foreground">{row.shortHangupRate}%</TableCell>
+                  <TableCell className={cn("text-right font-mono", row.immediateHangUpRate >= 15 ? "text-destructive font-semibold" : "text-foreground")}>
+                    {row.immediateHangUpRate}%
+                    {row.immediateHangUps > 0 && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">({row.immediateHangUps})</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {row.flags.length === 0 ? (
                       <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 text-[10px]">
