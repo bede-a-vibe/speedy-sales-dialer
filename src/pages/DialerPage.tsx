@@ -759,7 +759,7 @@ export default function DialerPage() {
     && (!requiresPipelineAssignment || !!session.assignedRepId)
     && (!requiresAnySchedule || !!session.followUpDate)
     && (!requiresFollowUpSchedule || !!session.followUpTime)
-    && (!requiresBookedSchedule || (!!session.followUpTime && !!ghlCalendarId && !!ghlPipelineId && !!ghlStageId))
+    && (!requiresBookedSchedule || !!session.followUpTime)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
     && !createPipelineItem.isPending
@@ -785,7 +785,6 @@ export default function DialerPage() {
     if (requiresAnySchedule && !session.followUpDate) items.push(requiresBookedSchedule ? "Choose an appointment date" : "Choose a follow-up date");
     if (requiresFollowUpSchedule && !session.followUpTime) items.push("Choose a follow-up time");
     if (requiresBookedSchedule && !session.followUpTime) items.push("Choose an appointment time");
-    if (requiresBookedSchedule && !ghlCalendarId) items.push("Select a GHL calendar");
     if (dialpad.isEndingCall) items.push("Wait for the active call to finish ending");
     if (createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending) items.push("Saving the previous action");
 
@@ -2063,6 +2062,13 @@ export default function DialerPage() {
 
                   {requiresBookedSchedule && (
                     <div className="space-y-4">
+                      {/* Manual booking workflow callout */}
+                      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5 text-xs">
+                        <p className="font-semibold text-foreground">📅 Manual GHL booking workflow</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Book the appointment directly in GHL first, then fill in the date/time below to log it here. The GHL calendar/pipeline/stage fields are optional — leave them empty if you've already booked manually.
+                        </p>
+                      </div>
                       {/* Appointment Title */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -2165,7 +2171,7 @@ export default function DialerPage() {
                       {/* GHL Calendar selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Calendar <span className="text-primary">(required)</span>
+                          GHL Calendar <span className="text-muted-foreground">(optional — book manually in GHL)</span>
                         </label>
                         <Select value={ghlCalendarId} onValueChange={setGhlCalendarId}>
                           <SelectTrigger className="w-full border-border bg-background">
@@ -2182,7 +2188,7 @@ export default function DialerPage() {
                       {/* GHL Pipeline selector */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                          GHL Pipeline <span className="text-primary">(required)</span>
+                          GHL Pipeline <span className="text-muted-foreground">(optional)</span>
                         </label>
                         <Select value={ghlPipelineId} onValueChange={setGhlPipelineId}>
                           <SelectTrigger className="w-full border-border bg-background">
@@ -2200,7 +2206,7 @@ export default function DialerPage() {
                       {ghlPipelineId && ghlSelectedPipelineStages.length > 0 && (
                         <div>
                           <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                            Pipeline Stage <span className="text-primary">(required)</span>
+                            Pipeline Stage <span className="text-muted-foreground">(optional)</span>
                           </label>
                           <Select value={ghlStageId} onValueChange={setGhlStageId}>
                             <SelectTrigger className="w-full border-border bg-background">
