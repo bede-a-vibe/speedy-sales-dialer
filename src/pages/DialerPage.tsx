@@ -4,7 +4,6 @@ import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, 
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
-import { OutcomeButton } from "@/components/OutcomeButton";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 
 import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
