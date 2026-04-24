@@ -298,6 +298,9 @@ export default function DialerPage() {
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
+  // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
+  const enrichmentCoverage = useEnrichmentCoverage();
+
   // Conversation funnel tracking (manual capture per call)
   const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
 
