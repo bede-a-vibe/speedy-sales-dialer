@@ -1,4 +1,4 @@
-import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { AlertTriangle, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
