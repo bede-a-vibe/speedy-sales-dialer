@@ -725,6 +725,26 @@ export default function DialerPage() {
   const requiresBookedSchedule = session.selectedOutcome === "booked";
   const requiresAnySchedule = requiresFollowUpSchedule || requiresBookedSchedule;
 
+  // Conversation Progress is required for outcomes that need coaching context:
+  // not_interested, follow_up, booked. Rep must tag at least one stage reached,
+  // OR pick an exit reason, OR mark "hung up immediately".
+  const requiresConversationProgress =
+    session.selectedOutcome === "not_interested"
+    || session.selectedOutcome === "follow_up"
+    || session.selectedOutcome === "booked";
+
+  const conversationProgressFilled = (
+    conversationProgress.reachedConnection
+    || conversationProgress.reachedProblem
+    || conversationProgress.reachedSolution
+    || conversationProgress.reachedCommitment
+    || !!conversationProgress.exitReasonConnection
+    || !!conversationProgress.exitReasonProblem
+    || !!conversationProgress.exitReasonSolution
+    || !!conversationProgress.exitReasonCommitment
+    || !!conversationProgress.exitReasonBooking
+  );
+
   // Auto-select the explicit booked pipeline contract when available
   useEffect(() => {
     if (!ghlCalendarId && ghlCalendars.length > 0) {
