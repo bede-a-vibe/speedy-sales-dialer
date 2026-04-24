@@ -41,21 +41,40 @@ export function useEnrichmentCoverage() {
     queryFn: async (): Promise<EnrichmentCoverage> => {
       // Use a single PostgREST head request per column to get exact counts
       // without pulling rows. We run them in parallel.
-      const countWhere = async (
-        column: string,
-        op: "not.is" | "gt" | "neq",
-        value: string,
-      ) => {
-        let q = supabase.from("contacts").select("id", { count: "exact", head: true });
-        if (op === "not.is") q = q.not(column, "is", null);
-        else if (op === "gt") q = q.gt(column, value);
-        else if (op === "neq") q = q.neq(column, value);
-        const { count, error } = await q;
+      const countNotNull = async (column: string): Promise<number> => {
+        const { count, error } = await (supabase
+          .from("contacts")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .select("id", { count: "exact", head: true }) as any)
+          .not(column, "is", null);
         if (error) throw error;
         return count ?? 0;
       };
-
-      const totalQ = supabase.from("contacts").select("id", { count: "exact", head: true });
+      const countGt = async (column: string, value: number): Promise<number> => {
+        const { count, error } = await (supabase
+          .from("contacts")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .select("id", { count: "exact", head: true }) as any)
+          .gt(column, value);
+        if (error) throw error;
+        return count ?? 0;
+      };
+      const countNeq = async (column: string, value: string): Promise<number> => {
+        const { count, error } = await (supabase
+          .from("contacts")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .select("id", { count: "exact", head: true }) as any)
+          .neq(column, value);
+        if (error) throw error;
+        return count ?? 0;
+      };
+      const countAll = async (): Promise<number> => {
+        const { count, error } = await supabase
+          .from("contacts")
+          .select("id", { count: "exact", head: true });
+        if (error) throw error;
+        return count ?? 0;
+      };
 
       const [
         total,
@@ -69,19 +88,16 @@ export function useEnrichmentCoverage() {
         has_google_ads_known,
         has_facebook_ads_known,
       ] = await Promise.all([
-        totalQ.then(({ count, error }) => {
-          if (error) throw error;
-          return count ?? 0;
-        }),
-        countWhere("prospect_tier", "not.is", ""),
-        countWhere("buying_signal_strength", "not.is", ""),
-        countWhere("gbp_rating", "not.is", ""),
-        countWhere("review_count", "gt", "0"),
-        countWhere("work_type", "not.is", ""),
-        countWhere("business_size", "not.is", ""),
-        countWhere("dm_phone", "not.is", ""),
-        countWhere("has_google_ads", "neq", "unknown"),
-        countWhere("has_facebook_ads", "neq", "unknown"),
+        countAll(),
+        countNotNull("prospect_tier"),
+        countNotNull("buying_signal_strength"),
+        countNotNull("gbp_rating"),
+        countGt("review_count", 0),
+        countNotNull("work_type"),
+        countNotNull("business_size"),
+        countNotNull("dm_phone"),
+        countNeq("has_google_ads", "unknown"),
+        countNeq("has_facebook_ads", "unknown"),
       ]);
 
       return {

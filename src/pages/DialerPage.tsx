@@ -1873,6 +1873,8 @@ export default function DialerPage() {
             onPresetChange={applyDialerPreset}
             onReset={resetAdvancedFilters}
             disabled={session.isSessionActive}
+            matchingContactCount={session.isSessionActive ? null : queueLeadCount}
+            enrichmentCoverage={enrichmentCoverage.data}
           />
         )}
 
