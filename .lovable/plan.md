@@ -1,82 +1,78 @@
+## Plan: Make the dialer Filters actually return contacts
 
+Right now the Filters panel renders fine and the SQL behind it works, but most filter pickers will silently collapse the queue to **0 contacts** because they're filtering on data the database doesn't have, or on values that don't match what's stored. This plan fixes the three real bugs and removes the filters/options that have nothing to filter against, so reps can trust every filter they see.
 
-## Plan: Manual transcript upload on the contact page
+### What's actually wrong (verified against the database, 31,017 contacts)
 
-Add a way to paste (or upload a `.txt` file) of a Dialpad transcript directly onto a contact, then have the system run the same downstream pipeline as the webhook would: store the transcript, generate the AI summary, save the training/coaching note, and push the summary + AI fields back to GHL.
+| Filter | What the UI sends | What's in the DB | Result |
+|---|---|---|---|
+| Industry | `Plumbers`, `Electricians`, `HVAC`, `Builders`, `Renovators` | Same — **works** | ✅ |
+| State | `NSW`, `VIC`, `QLD`, etc. | Same (uppercased compare) — **works** | ✅ |
+| Phone Type | `mobile`, `landline`, `business_line`, `unknown` | `mobile` (22k), `landline` (6.9k), `unknown` (1.9k) — **works** (but `business_line` matches 0) | ⚠️ |
+| Trade Type | `Plumbers`, `Electricians`, `Builders`, `Renovators`, `HVAC`, `Roofers`, … (28 options) | `Electrical`, `Plumbing`, `HVAC`, `Renovations`, `Building & Construction` (5 only) | ❌ all but HVAC return 0 |
+| Google Ads / Facebook Ads | `Yes - Active`, `Yes - Paused`, `No`, `Unknown` (capitalized) | Every row is `unknown` (lowercase) | ❌ all options return 0 |
+| Prospect Tier | `Tier 1 - Hot` … | **0 rows have a value** | ❌ |
+| Buying Signal | `Strong`, `Moderate`, `Weak`, `None` | **0 rows have a value** | ❌ |
+| GBP Rating (≥) | 4.5 / 4.0 / 3.5 / 3.0 | **0 rows have a value** (column exists but empty) | ❌ |
+| Min Reviews (≥) | 100 / 50 / 20 / 10 | 0 rows populated | ❌ |
+| Work Type | Residential / Commercial / Mixed | **0 rows have a value** | ❌ |
+| Business Size | Sole Trader / 2-5 / etc. | **0 rows have a value** | ❌ |
+| DM Reachability | `yes` / `no` | 0 rows have `dm_phone` set | ❌ "yes" returns 0 |
+| Contact Owner | rep `user_id` / `unassigned` | `uploaded_by` populated for imports — **works** | ✅ |
 
-This is a stopgap so reps and you can keep the data flowing while the Dialpad webhook is still misbehaving. It does not change the webhook path — when that comes back, both routes will produce identical records.
+The "Hot today" and "DM direct" presets set Tier=Tier 1 + Signal=Strong, or DM Reachability=yes, so they also collapse the queue to 0. That's why presets feel broken.
 
-### Where it lives
+### Fix in three layers
 
-On the **Contact Detail page** (`/contacts/:id`), a new card titled **"Manual Transcript Upload"** placed just below the existing call history card.
+**1. Make the filters that should work, work (data normalization in the RPC)**
 
-```text
-┌─ Manual Transcript Upload ───────────────────────┐
-│ Use this when the Dialpad webhook didn't sync.   │
-│                                                  │
-│ Link to call (optional): [Most recent call ▾]    │
-│   • 24 Apr, 2:14pm — Voicemail (2m 14s)          │
-│   • 24 Apr, 11:02am — No answer                  │
-│   • Don't link, just save transcript             │
-│                                                  │
-│ Call duration (sec): [____]   Call date: [____]  │
-│                                                  │
-│ Transcript:                                      │
-│ ┌──────────────────────────────────────────────┐ │
-│ │ Paste transcript here, or drop a .txt file…  │ │
-│ │                                              │ │
-│ └──────────────────────────────────────────────┘ │
-│                                                  │
-│ [ ] Generate AI summary    [ ] Push to GHL       │
-│                                                  │
-│           [ Cancel ]   [ Save & Process ]        │
-└──────────────────────────────────────────────────┘
-```
+Update `claim_dialer_leads` and `get_dialer_queue_count` so the four mismatched filters compare case-insensitively and accept either form:
 
-### What happens when the rep clicks "Save & Process"
+- **`has_google_ads` / `has_facebook_ads`**: compare with `LOWER(c.has_google_ads) = LOWER(_has_google_ads)` and treat `Unknown`/`unknown` as the same value. Also normalize `Yes - Active` and `Yes - Paused` to match what the data ingest writes (today: only `unknown` exists, but once enrichment lands the UI options will match).
+- **`trade_type`**: build a small mapping in the RPC so UI labels (`Plumbers`, `Electricians`, `Builders`, `Renovators`, `Roofers`) also match the stored canonical values (`Plumbing`, `Electrical`, `Building & Construction`, `Renovations`, `Roofing`). Keep the existing `industry` fallback. Result: trade-type filter works for the 5 categories that have data.
+- **`phone_type`**: no DB change needed — just remove `business_line` from the UI options since 0 rows have it.
 
-1. Save the raw transcript as a `contact_notes` row with `source = 'dialpad_transcript'` (same as the webhook does).
-2. If a call log was selected from the dropdown, also write the transcript onto `call_logs.dialpad_transcript` and set `transcript_synced_at` so it shows up in the rest of the app's reporting.
-3. If "Generate AI summary" is checked: call the existing summary path used by the Dialpad function (Lovable AI Gateway, same prompt) and save the result as a second `contact_notes` row with `source = 'dialpad_summary'`. The training/coaching extraction (`dialpad_training_objection`) runs in the same step.
-4. If "Push to GHL" is checked and the contact has a `ghl_contact_id`: enqueue a `pending_ghl_pushes` row using the same shape the webhook uses. The existing retry processor picks it up within seconds and pushes the AI summary note + AI custom fields to GHL.
-5. Toast on success with what was saved + a link to view the new note in the existing notes panel below.
+This is a single new SQL migration that re-creates the two RPCs with the same signatures.
 
-### Behaviour rules
+**2. Hide filters with no data behind a "Show enrichment-only filters" toggle**
 
-- **Auth**: any authenticated user can upload a transcript for a contact. (DNC contacts are still allowed — we're only adding records, not reactivating.)
-- **Duplicate guard**: if a transcript with identical content already exists on the contact within the last 5 minutes, ask "It looks like you already saved this transcript. Save anyway?" before inserting.
-- **File upload**: `.txt` only, max 200KB. Bigger transcripts get pasted into the textarea (no upload limit there).
-- **No call log selected**: still works — the transcript and summary attach to the contact, just not a specific call. Useful when the call log itself never made it from Dialpad.
-- **Validation**: transcript must be at least 50 characters. Duration and date are optional and only used to give the AI summary better context.
-- **Failure modes**:
-  - Transcript saves first; summary generation failure shows a non-blocking warning ("Transcript saved, but AI summary failed — try again from the new card") with a "Retry summary" button on the just-saved transcript note.
-  - GHL push failure is silent to the user (already handled by the retry queue).
+In `AdvancedFilters.tsx`, group the picker into two rows:
+
+- **Active filters (always visible)**: Calling presets, Industry, State, Contact Owner, Phone Type, Trade Type
+- **Enrichment-only filters (collapsed behind "Advanced enrichment filters ▾")**: Prospect Tier, Buying Signal, GBP Rating, Min Reviews, Work Type, Business Size, DM Reachability, Google Ads, Facebook Ads
+
+Each enrichment filter gets a small grey hint under its label: "0 contacts have this set yet" computed from a one-time `useEnrichmentCoverage()` query (`SELECT count() FILTER (WHERE …)` per column, cached for 10 min). Once data lands in those columns the hint updates automatically and the filter becomes useful.
+
+This way a rep opening the panel sees only filters that will return contacts, but admins can still expand to use the enrichment ones once the data is populated by the GHL/AI sync.
+
+**3. Repair the broken presets**
+
+In `DialerPage.tsx` `applyPreset()`:
+
+- **Hot today** → only set what we have data for: leave Prospect Tier / Buying Signal alone (they'd zero the queue), instead set `phoneType = "mobile"` and `industries` left as user chose. Add a small helper toast: "Hot today is limited until lead scoring data is populated — showing best-quality mobiles."
+- **DM direct dials** → keep `phoneType = "mobile"` only; remove `setHasDmPhone("yes")` since 0 rows have a DM phone. Toast: "No DM phone numbers captured yet — filtering on mobile lines."
+- **DM capture** → set `phoneType = "landline"` only (where you'd most need a DM); remove `hasDmPhone = "no"`.
+- **Google Ads** → leave `hasGoogleAds` unset until enrichment writes real values; show toast "Google Ads enrichment data not available yet."
+- **High reviews** → same deferral toast.
+- **Landline enrichment** → keep `phoneType = "landline"`, remove `hasDmPhone = "no"`.
+
+Once enrichment data starts flowing the presets can be re-armed without UI changes.
+
+### Diagnostics so we catch the next "filter returns 0" bug fast
+
+Add a tiny "Queue preview" line under the filters: **"~3,275 contacts match these filters"** that calls `get_dialer_queue_count` (already exists) every time filters change, debounced 250ms. If it returns 0, swap the line to red: **"No contacts match — try removing a filter"** with a one-click "Reset filters" button. This already half-exists via `previewCount`; we just surface it next to the Filters card header instead of hiding it inside the queue health badge.
 
 ### Technical changes
 
-**1. New edge function `supabase/functions/manual-transcript-ingest/index.ts`**
-- Validates JWT, accepts `{ contactId, callLogId?, transcript, callDate?, durationSeconds?, generateSummary, pushToGhl }`
-- Reuses the same helpers that already exist inside `supabase/functions/dialpad/index.ts` (`generateAiSummary`, `upsertContactNote`, the GHL field/note push). Since edge functions can't import across function folders, we'll **extract those three helpers into a shared file** `supabase/functions/_shared/dialpad-pipeline.ts` and have both `dialpad/index.ts` and the new `manual-transcript-ingest/index.ts` import from there. (`_shared` is allowed inside `supabase/functions/`.)
-- Returns `{ noteIds: { transcriptNoteId, summaryNoteId? }, callLogUpdated, ghlEnqueued }`
-
-**2. New component `src/components/contacts/ManualTranscriptUpload.tsx`**
-- Card UI as drawn above
-- Uses `useContactCallLogs(contactId)` to populate the call log dropdown (already exists)
-- File drop via `<input type="file" accept=".txt">` + paste textarea
-- Calls the new edge function via `supabase.functions.invoke("manual-transcript-ingest", { body: ... })`
-- On success: invalidates `["contact-notes", contactId]` and `["contact-call-logs", contactId]` so the existing panels refresh
-
-**3. Edited `src/pages/ContactDetailPage.tsx`**
-- Renders `<ManualTranscriptUpload contact={contact} />` between the call history card and the notes card
-
-**4. (Optional, behind the same card) "Re-process this transcript"**
-- For any existing `contact_notes` row with `source = 'dialpad_transcript'` that has no matching `dialpad_summary` sibling, show a small "Generate AI summary" button next to it in the existing notes list. Clicking calls the same edge function with `{ transcript: existingNote.content, generateSummary: true, pushToGhl: true }` and skips the transcript-save step. Lets you backfill summaries for transcripts the webhook delivered but the AI step failed on.
+- **New SQL migration**: re-create `claim_dialer_leads` and `get_dialer_queue_count` with case-insensitive `has_google_ads`/`has_facebook_ads` matching and a `trade_type` UI→canonical mapping CTE.
+- **`src/data/constants.ts`**: remove `"business_line"` from `PHONE_TYPE_OPTIONS`. Add a `TRADE_TYPE_LABELS` mapping (`"Plumbers" → "Plumbing"` etc.) used only for display alignment.
+- **`src/components/dialer/AdvancedFilters.tsx`**: split rows into "Active" + collapsible "Advanced enrichment filters". Add per-field "0 contacts have this set" hint driven by props.
+- **New hook `src/hooks/useEnrichmentCoverage.ts`**: single `SELECT` returning counts per enrichment column, cached 10 min.
+- **`src/pages/DialerPage.tsx`**: rewrite `applyPreset()` per the table above; surface the queue preview count next to the Filters header with reset CTA.
 
 ### Out of scope
 
-- Bulk-uploading a folder of transcripts (one-at-a-time only for now)
-- Parsing transcript files in formats other than plain text (no PDF, DOCX, JSON)
-- Auto-matching a pasted transcript to a specific call log by content/timestamp (rep picks from the dropdown)
-- Replaying past failed Dialpad webhook deliveries (separate problem; this gives a manual escape hatch in the meantime)
-- Fixing the underlying Dialpad webhook — that's tracked separately in `mem://integrations/dialpad-webhook-setup`
-
+- Backfilling Prospect Tier / Buying Signal / GBP Rating / DM Phone — that's the GHL/AI enrichment pipeline's job and unblocks those filters automatically.
+- Adding new filter columns (e.g. "Last sentiment", "Has objection logged") — only fixing what's already exposed.
+- Touching the Contacts page filters (different code path, different UX, no reported issue).
+- Changing the queue scoring algorithm or cooldown rules.
