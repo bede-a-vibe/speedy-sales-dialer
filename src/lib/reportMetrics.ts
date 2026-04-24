@@ -2,7 +2,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type ReportCallLog = Pick<
   Tables<"call_logs">,
-  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds" | "exit_reason_connection"
+  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds" | "exit_reason_connection" | "reached_connection"
 >;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
