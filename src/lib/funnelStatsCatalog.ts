@@ -68,11 +68,11 @@ export const STAT_CATALOG: StatDefinition[] = [
     raw: (m) =>
       m.dialer.conversationToBookingRate === null
         ? 0
-        : pct(m.dialer.conversations, m.dialer.pickUps),
+        : pct(m.dialer.conversations, m.dialer.pickUpsSinceLaunch),
     format: (m) =>
       m.dialer.conversationToBookingRate === null
         ? "—"
-        : `${pct(m.dialer.conversations, m.dialer.pickUps)}%`,
+        : `${pct(m.dialer.conversations, m.dialer.pickUpsSinceLaunch)}%`,
   },
   { id: "immediate_hang_ups", label: "Immediate Hang-Ups", category: "conversations", subgroup: "Quality", raw: (m) => m.dialer.immediateHangUps, format: (m) => String(m.dialer.immediateHangUps) },
   { id: "short_hangups_15s", label: "Short Hangups <15s", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder15s, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder15s) },

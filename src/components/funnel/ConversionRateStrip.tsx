@@ -22,7 +22,7 @@ export function ConversionRateStrip({ metrics }: Props) {
   const pickupConversationValue: number | null =
     conversationBooking === null
       ? null
-      : pct(conversations, metrics.dialer.pickUps);
+      : pct(conversations, metrics.dialer.pickUpsSinceLaunch);
   const sinceSubtext = scoped ? `Since ${CONVERSATION_TAGGING_LAUNCH_LABEL}` : undefined;
   const noDataSubtext = `No data before ${CONVERSATION_TAGGING_LAUNCH_LABEL}`;
   const pickupBooking = metrics.bookingsMade.pickUpsToBookingRate;
