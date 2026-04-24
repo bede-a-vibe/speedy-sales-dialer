@@ -1,101 +1,193 @@
-
-
-## Plan: Benchmark contact categories side-by-side in the Custom Monitor
+## Plan: Custom multi-filter benchmark segments — final
 
 ### What you'll get
 
-A new "Compare by" picker in the Custom Monitor toolbar. When set to "None" (default), the monitor behaves exactly as it does today. When set to a category (Industry, State, Business Size, etc.), the table changes from a single "Selected period" row into one row **per category value you've picked**, with the same metric columns you've already selected. Same metrics, same date range, same rep filter — just sliced by category so you can see how Plumbers stack up against Electricians, or NSW vs VIC, in one glance.
+A new **"Segments"** mode in the Custom Monitor toolbar (sitting alongside the existing Single and By-Dimension modes). In Segments mode, every row in the table is a **custom segment** you've defined — a saved combination of filters from the dialer's vocabulary, like:
 
-A second control next to it lets you pick **2-6 specific values** from a multi-select dropdown (e.g. tick "Plumbers", "Electricians", "Builders"). Only those rows render. This avoids the table blowing up to 20+ industries and gives you full control over the comparison.
+- **Segment A**: NSW · Plumbers · 6-15 employees · Has Google Ads
+- **Segment B**: VIC · Electricians · Sole trader · Hot tier
+- **Segment C**: All Builders · Mobile · No DM phone captured
 
-### Categories available (matching dialer filters)
+Each segment becomes one row in the same table, with whatever metric columns you've already selected (Dials, Pickups, Conversations, Pickup → Booking, etc.), sortable by any column, with a Total row at the bottom and best/worst per column highlighted (green/red) like the existing Breakdown table.
 
-Pulled directly from the dialer's `AdvancedFilters.tsx` so the benchmark dimensions stay aligned with how you actually segment leads:
+### Persistence: private by default, opt-in team sharing
 
-- **Industry / Trade Type** (`contacts.trade_type`, falling back to `contacts.industry`)
-- **State** (`contacts.state`)
-- **Business Size** (`contacts.business_size`)
-- **Work Type** (`contacts.work_type`)
-- **Prospect Tier** (`contacts.prospect_tier`)
-- **Buying Signal Strength** (`contacts.buying_signal_strength`)
-- **Phone Type** (`contacts.phone_type`)
-- **Has Google Ads** (`contacts.has_google_ads`)
-- **Has Facebook Ads** (`contacts.has_facebook_ads`)
+Per your answer:
 
-The "Has DM Phone" filter is a derived boolean (`dm_phone IS NOT NULL`), and the GBP rating / review count tiers are numeric ranges — both supported the same way (computed grouping function, not a raw column read).
+- **Private segments** live in `localStorage` keyed by user (`funnel:benchmark-segments:<userId>:v1`). Instant CRUD, no infra.
+- **Team-shared segments** live in a new Supabase table `benchmark_segments` with RLS so any authenticated user can read all shared segments, but only the creator (or admin) can edit/delete.
+- The editor dialog has a **"Share with team"** switch. Off = private (localStorage). Toggling on promotes the segment to the database; toggling off pulls it back to localStorage.
+- The toolbar shows both lists merged, with a small icon distinguishing the two: 👤 private vs 👥 team. Sort: team segments first (everyone benefits), then your private ones.
 
-### Where the data comes from
+#### New table: `benchmark_segments`
 
-Currently the funnel page already loads:
-- All `call_logs` in the date range (with `contacts(business_name, industry)` joined)
-- All `pipeline_items` in the range
-- A count of `contacts` for lead-age buckets
+```sql
+create table public.benchmark_segments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  color text,                          -- optional accent for the row label
+  filters jsonb not null default '{}',  -- the Segment.filters shape (typed in TS)
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
-To benchmark by category we need each call log to know the category value of its contact. Two options:
+alter table public.benchmark_segments enable row level security;
 
-1. **Extend the existing `useCallLogsByDateRange` join** to also pull the columns we benchmark on (`trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count`). One change, no extra request, marginal payload increase.
-2. Lazy-fetch per category dimension on demand.
+-- Anyone authed can see team segments (it's a reporting table, low sensitivity)
+create policy "Authenticated users can view shared segments"
+  on public.benchmark_segments for select to authenticated using (true);
 
-I'll go with **option 1** — it's a single hook update, the columns are small text fields, and there's no per-interaction loading flicker when switching dimensions. Same approach for `pipeline_items` (so per-category booking counts work) by adding the same `contacts(...)` join.
+-- Only the creator can insert their own (created_by must match the caller)
+create policy "Users can insert own segments"
+  on public.benchmark_segments for insert to authenticated
+  with check (auth.uid() = created_by);
 
-### How the table renders
+-- Creator OR admin can update / delete
+create policy "Creator or admin can update segments"
+  on public.benchmark_segments for update to authenticated
+  using (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role))
+  with check (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role));
 
-The existing `CustomStatGrid` table currently renders one "Selected period" row plus optional "Previous period" and "Δ Change" rows. I'll extend it so:
+create policy "Creator or admin can delete segments"
+  on public.benchmark_segments for delete to authenticated
+  using (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role));
 
-- When **Compare by = None**: identical to today.
-- When **Compare by = Industry** (etc.) and 3 values picked: 3 rows, each labelled with the category value (e.g. "Plumbers", "Electricians", "Builders"). The first column changes from "Period" to the category name.
-- The **Previous period / Δ Change rows are hidden** in compare mode (mixing time comparison with category comparison would be confusing — pick one).
-- A small **"Total" row at the bottom** summing the picked categories so you can sanity-check that the slice covers most of your activity.
-- Sortable by any metric column (already supported by the table) so you can quickly see "which industry has the highest Pickup → Booking?".
-
-The "Cards" view stays as it is — comparison only applies in Table mode (it's the only layout that scales to 6 rows × N metrics cleanly).
-
-### How metrics are computed per category
-
-The trick is that `getReportMetrics(...)` currently runs on the full set of call logs. To get per-category metrics I'll:
-
-1. Compute a `categoryFor(log)` function based on the chosen dimension (e.g. `(log) => log.contacts?.state ?? "—"`).
-2. For each picked category value, filter `callLogs` and `bookedItems` to rows where the contact matches that value, then run the existing `getReportMetrics(...)` on that subset.
-3. Render one row per resulting `ReportMetrics` object using the same `STAT_CATALOG` formatters that already power the single-row view. **No metric-definition changes needed** — every column you've picked will Just Work, including the conversation-tagging-launch-clipped ones from the previous fix.
-
-Performance: with ~3000 call logs and 6 categories that's 6 × full-pass aggregation in JS. Each pass is ~5-10ms, so total is well under 100ms — fine for a client-side compute. If it ever gets slow we can memoize on `(dimension, valueSet, dateRange, repId)`.
-
-### UI: where the controls live
-
-Two new controls in the Custom Monitor toolbar, placed to the left of the existing "Customize columns" button:
-
-```
-[Compare by: None ▾]  [Values: Plumbers, Electricians, Builders ▾]  | Table | Cards | Customize columns
+-- Trigger to keep updated_at fresh
+create trigger benchmark_segments_set_updated
+  before update on public.benchmark_segments
+  for each row execute function public.update_updated_at_column();
 ```
 
-- **Compare by**: single-select dropdown of the 9 dimensions plus "None".
-- **Values**: multi-select chip picker of values present in the loaded data for the chosen dimension. Hidden when Compare by = None. Capped at 6 selections (with a hint "Maximum 6 categories"). Defaults to the top 3 by dials when you first switch dimensions, so the table is never empty.
+This re-uses the existing `has_role(...)` security-definer function and `update_updated_at_column()` trigger, so no new helpers needed. Low sensitivity: a "segment" is just a saved filter combo — there's no PII in it.
 
-Both selections persist to `localStorage` like the view-mode preference already does, keyed per dimension so switching back to a dimension restores the values you last picked.
+### How segments are evaluated (per row)
 
-### What this does NOT change
+For each segment, we filter the already-loaded `callLogs` and `bookedItems` to rows whose joined `contacts` row matches every condition in the segment, then run `getReportMetrics(...)` on that subset. Same code path the existing By-Dimension benchmark uses — so:
 
-- Doesn't change how Conversion Rate Strip, End-to-End Funnel, Custom Monitor's "Cards" view, or any other report renders — comparison is opt-in and lives entirely inside the Custom Monitor table.
-- Doesn't change which metrics are available or how they're computed for each row — same `STAT_CATALOG` definitions you already see.
-- Doesn't change the dialer, dashboard, targets, or any other page.
-- Doesn't change the database schema or any RPCs — purely client-side derivation.
-- Comparison is mutually exclusive with the existing **Compare to previous period** toggle — when you pick a category dimension, the previous-period rows are hidden (and vice versa). The toggle is disabled with a tooltip "Switch off Compare-by to enable previous-period comparison".
+- **Same metric formulas** as everywhere else, including the conversation-tagging launch-date clipping you locked in earlier.
+- **Same date range** as the page-level toolbar.
+- **Same rep filter** as the page-level toolbar.
+- **No new database queries for the metrics themselves** — the `contacts(...)` join already pulls every column we need (`trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count`).
+
+A separate small query computes a **"contacts matching this segment overall"** count (independent of date range, like the dialer's match count) so each segment row also shows segment size — useful sanity check for "is my segment 5 contacts or 5,000?".
+
+### Empty-row behavior
+
+Per your answer: **always show every active segment**, even when it has zero dials in the date range. Predictable, no toggle. Empty rows render with `—` in metric columns and a muted style so they don't distract.
+
+### UI: the Custom Monitor toolbar
+
+Three-mode toggle replacing today's implicit "is benchmark-dim set?" check:
+
+```
+[Single | By Dimension | Segments]   [+ New Segment]   | Table | Cards | Customize columns
+```
+
+- **Single** — today's default, one row, no comparison.
+- **By Dimension** — today's existing dropdown-driven benchmark.
+- **Segments** — the new mode.
+
+When **Segments** is active:
+
+- A chip strip below the toolbar lists every segment (private + team), each clickable to edit, with `✕` to remove. Inactive segments (none yet) → empty state with a "Create your first segment" button.
+- `[+ New Segment]` opens the editor dialog.
+- "Compare to previous period" stays mutually exclusive with Segments mode (same disabled-with-tooltip pattern as today's By-Dimension mode).
+
+### The "New / Edit Segment" dialog (modal, like Customize Columns)
+
+Mirrors the dialer's `AdvancedFilters` vocabulary so reps recognize every field:
+
+| Field | Control | Source of options |
+|---|---|---|
+| Name (required) | Text input | — |
+| State | MultiSelect | `AUSTRALIAN_STATES` |
+| Industry / Trade | MultiSelect | `INDUSTRIES` + `TRADE_TYPES` (combined like the dialer) |
+| Work Type | Select (incl. "Any") | `WORK_TYPES` |
+| Business Size | Select | `BUSINESS_SIZES` |
+| Prospect Tier | Select | `PROSPECT_TIERS` |
+| Buying Signal | Select | `BUYING_SIGNAL_OPTIONS` |
+| Phone Type | Select | `PHONE_TYPE_OPTIONS` |
+| Has Google Ads | Select | `AD_STATUS_OPTIONS` |
+| Has Facebook Ads | Select | `AD_STATUS_OPTIONS` |
+| Has DM Phone | Select | `DM_STATUS_OPTIONS` |
+| Min GBP Rating | Number input | `GBP_RATING_OPTIONS` |
+| Min Review Count | Number input | `REVIEW_COUNT_OPTIONS` |
+| **Share with team** | Switch | — |
+
+Top of the dialog: a **"Copy from current dialer filters"** button — when present, it reads the dialer's filter blob from `localStorage` (the dialer already persists filters there per `readStoredDialerFilters` in `DialerPage.tsx`) and pre-fills the form. Disabled with a tooltip when no filters are stored yet.
+
+Bottom of the dialog: a live **"X contacts match these filters"** count (matches the dialer Filters panel ergonomic). Computed by re-using the dialer's existing `get_dialer_queue_count` RPC — but in *non-queue mode* by passing all the filters and skipping the queue-only constraints. Actually simpler: just run a head `count` query on `contacts` with the segment's WHERE clauses. Implemented as a small `countContactsForSegment(segment)` helper that reuses the same param shape.
+
+### Segment row display
+
+```
+┌─────────────────────────────┬────────┬─────────┬───────────────┬──────────────┐
+│ SEGMENT                     │ DIALS  │ PICKUPS │ PICKUP→BOOK   │ TALK/CONV    │
+├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
+│ 👥 NSW Plumbers (Hot)        │  284   │   93    │   3.2%        │   4:12       │
+│   NSW · Plumbers · Hot      │        │         │               │              │
+├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
+│ 👥 VIC Electricians (Ads)   │ 2,150  │  776    │   1.4%        │   3:48       │
+│   VIC · Electricians · Goog │        │         │               │              │
+├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
+│ 👤 All Builders (Mobile)    │   26   │    7    │   0%          │   0:54       │
+│   Builders · Mobile         │        │         │               │              │
+├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
+│ 👤 NSW Hot · Sole Trader    │   —    │    —    │     —         │     —        │
+│   NSW · Hot · Sole trader   │        │         │               │              │
+├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
+│ Total                       │ 2,460  │  876    │   1.6%        │   3:55       │
+└─────────────────────────────┴────────┴─────────┴───────────────┴──────────────┘
+```
+
+The 👥/👤 icon shows team vs private. Hovering a row reveals an Edit pencil and a small `✕`. Best/worst per column tinted green/red, only when ≥3 segments have non-zero data (same threshold as the existing Breakdown table).
+
+### How this coexists with what's already there
+
+- **Single mode** = today's default. Unchanged.
+- **By-Dimension mode** = today's "Compare by Industry / State / …" picker. Unchanged.
+- **Segments mode** = new.
+- The mode state defaults to "Single" so existing users see no change on first load.
+- The existing `benchmarkDim`/`benchmarkValuesByDim` localStorage keys keep working — no migration needed.
 
 ### Files I'll touch
 
-1. `src/hooks/useCallLogs.ts` — extend the `contacts(...)` join in `useCallLogsByDateRange` to include the benchmark columns.
-2. `src/hooks/usePipelineItems.ts` (or wherever booked items are loaded for the funnel page — I'll check on implementation) — same `contacts(...)` join extension.
-3. `src/lib/reportMetrics.ts` — accept an optional `contactFilter: (log) => boolean` (or just rely on caller-side pre-filtering, which keeps the function pure). I'll go with pre-filtering — no signature change.
-4. `src/lib/benchmarkDimensions.ts` (new, ~80 lines) — defines the 9 dimensions, each with `{ id, label, getValueFromCallLog, getValueFromBookedItem, listAvailableValues }`. Centralizes the "what does Industry mean" logic so both the dropdown and the row computation read from one place.
-5. `src/components/funnel/CustomStatGrid.tsx` — add the two new controls, render multi-row table when comparing, hide previous-period UI in compare mode.
-6. `src/components/funnel/CompareByPicker.tsx` (new) — small wrapper around the existing `MultiSelect` for the values picker.
-7. `src/pages/CallFunnelPage.tsx` — wire the new state into `CustomStatGrid` and recompute per-category metrics.
+1. **`src/lib/benchmarkSegments.ts` (new, ~180 lines)**
+   - `Segment` type (matches the table's `filters` jsonb shape).
+   - `matchSegmentForCallLog(log, segment)` and `matchSegmentForBooking(item, segment)` — pure JS predicates against the joined `contacts` row.
+   - `summarizeSegmentFilters(segment)` → short subtitle like `"NSW · Plumbers · Hot"`.
+   - `useSegmentsStore()` hook — merges localStorage (private) + Supabase query (team), exposes `create / update / delete / toggleShared`.
+   - `countContactsForSegment(segment)` — `supabase.from("contacts").select("id", { head: true, count: "exact" })` with the segment's WHERE clauses.
+
+2. **`src/components/funnel/SegmentEditorDialog.tsx` (new, ~280 lines)**
+   - Modal form using `Dialog`, `Select`, `MultiSelect`, `Switch`, `Input`.
+   - "Copy from current dialer filters" button reading the same `STORAGE_KEY` the dialer writes.
+   - Live "X contacts match" footer using `countContactsForSegment`.
+
+3. **`src/components/funnel/CustomStatGrid.tsx`**
+   - Replace the implicit two-mode logic with a `mode: "single" | "dimension" | "segments"` state.
+   - Add the three-button mode toggle, the segment chip strip, the `[+ New Segment]` button.
+   - Add a new `SegmentTableView` component (sibling of `BenchmarkTableView`/`TableView`) — same column structure, segment-name + filter-summary first column.
+
+4. **`src/pages/CallFunnelPage.tsx`**
+   - Wire in `useSegmentsStore()`.
+   - For each active segment, compute `ReportMetrics` via `getReportMetrics(...)` after pre-filtering `callLogs` and `bookedAppointments` with `matchSegmentForCallLog` / `matchSegmentForBooking`.
+   - Pass `segments` and `segmentRows` into `CustomStatGrid`.
+
+5. **Migration: create `benchmark_segments` table + RLS** (the SQL block above).
+
+### What this does NOT change
+
+- Dialer, dashboard, targets, follow-ups, contacts, reports SOP page — unchanged.
+- The conversation-tagging launch-date clipping — preserved (rides on the same `getReportMetrics` calls).
+- Funnel chart, Conversion Rate Strip, Trend chart, Stage Drop-Off panel, existing Breakdown table — unchanged.
+- Single-mode and By-Dimension mode in the Custom Monitor — unchanged, just gated behind a mode toggle.
 
 ### Out of scope
 
-- Comparing dimensions across **different date ranges** (e.g. Plumbers in March vs Plumbers in April) — that's a date-vs-date comparison, not a category one.
-- Saving/sharing benchmark presets — selections persist locally only.
-- Charts / heatmaps for the comparison — table only, per your answer.
-- Adding the comparison to the Dashboard, Reports SOP page, or any other surface — Custom Monitor only.
-- Backfilling missing `business_size` / `prospect_tier` etc. on contacts — categories with empty values will show up as a "—" row if anyone picks them; we already saw most enrichment columns are empty, so the most useful initial dimensions will be **Industry**, **State**, and **Phone Type** until enrichment is populated.
-
+- **Auto-suggested segments** — none. Reps create their own.
+- **Comparing the same segment across two date ranges** — that's a date-vs-date comparison, separate feature.
+- **Dialer-side "dial this segment now" buttons** — would require queue/scoring changes; great follow-up but not in this change.
+- **Segment groups / folders** — flat list in v1.
+- **Editing team segments by non-creators** — only the creator (or an admin) can edit a team segment. Others see them read-only.
