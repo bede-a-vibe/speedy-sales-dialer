@@ -520,23 +520,53 @@ async function bulkLinkContacts(
   serviceRoleKey: string,
   batchSize = 50,
   delayMs = 6000,
+  offset = 0,
+  statusFilter: "all" | "active" = "all",
 ) {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Get all contacts without ghl_contact_id
-  const { data: unlinked, error: fetchError } = await supabase
+  // Count remaining unlinked rows so the client can show progress
+  const countQueryBuilder = supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .or("ghl_contact_id.is.null,ghl_contact_id.eq.")
+    .not("phone", "is", null);
+  if (statusFilter === "active") {
+    countQueryBuilder.in("status", ["dnc", "follow_up", "booked", "called"]);
+  }
+  const { count: remainingTotal, error: countError } = await countQueryBuilder;
+  if (countError) {
+    throw new Error(`Failed to count unlinked contacts: ${countError.message}`);
+  }
+
+  // Fetch one batch only — the client drives the loop and shows progress between batches
+  const fetchQueryBuilder = supabase
     .from("contacts")
     .select("id, phone, business_name, contact_person, email, website, city, state, industry")
     .or("ghl_contact_id.is.null,ghl_contact_id.eq.")
     .not("phone", "is", null)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .range(offset, offset + batchSize - 1);
+  if (statusFilter === "active") {
+    fetchQueryBuilder.in("status", ["dnc", "follow_up", "booked", "called"]);
+  }
+  const { data: unlinked, error: fetchError } = await fetchQueryBuilder;
 
   if (fetchError) {
     throw new Error(`Failed to fetch unlinked contacts: ${fetchError.message}`);
   }
 
   if (!unlinked || unlinked.length === 0) {
-    return { linked: 0, failed: 0, skipped: 0, total: 0 };
+    return {
+      processed: 0,
+      linked: 0,
+      failed: 0,
+      skipped: 0,
+      total: remainingTotal ?? 0,
+      hasMore: false,
+      nextOffset: offset,
+      errors: [],
+    };
   }
 
   let linked = 0;
@@ -544,10 +574,7 @@ async function bulkLinkContacts(
   let skipped = 0;
   const errors: Array<{ contactId: string; error: string }> = [];
 
-  for (let i = 0; i < unlinked.length; i += batchSize) {
-    const batch = unlinked.slice(i, i + batchSize);
-
-    for (const contact of batch) {
+  for (const contact of unlinked) {
       if (!contact.phone || contact.phone.trim() === "") {
         skipped++;
         continue;
@@ -596,22 +623,26 @@ async function bulkLinkContacts(
           await new Promise((r) => setTimeout(r, 15000));
         }
       }
-    }
-
-    // Rate limit pause between batches (skip on last batch)
-    if (i + batchSize < unlinked.length) {
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-
-    console.log(`[Bulk Link] Progress: ${linked + failed + skipped}/${unlinked.length} (linked=${linked}, failed=${failed}, skipped=${skipped})`);
   }
 
+  // Note: when linked > 0, those rows now have ghl_contact_id and disappear from the unlinked
+  // pool, so the client should advance offset by (skipped + failed) only — not by batch length.
+  const advance = skipped + failed;
+  const remainingAfter = Math.max(0, (remainingTotal ?? 0) - linked);
+  console.log(
+    `[Bulk Link] Batch done: linked=${linked} failed=${failed} skipped=${skipped} remaining=${remainingAfter}`,
+  );
+
   return {
-    total: unlinked.length,
+    processed: unlinked.length,
+    total: remainingTotal ?? 0,
     linked,
     failed,
     skipped,
-    errors: errors.slice(0, 50), // Cap error list at 50
+    hasMore: remainingAfter > 0,
+    nextOffset: offset + advance,
+    delayMs,
+    errors: errors.slice(0, 50),
   };
 }
 
