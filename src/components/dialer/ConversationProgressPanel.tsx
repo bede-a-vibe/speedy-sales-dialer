@@ -187,7 +187,7 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
           )}
         >
           <PhoneOff className="h-3.5 w-3.5" />
-          {isImmediateHangUp ? "Tagged as immediate hang-up" : "Hung up before I could speak"}
+          {isImmediateHangUp ? "Tagged: hang up during/after opener" : "Hang up during/after opener"}
         </Button>
       )}
 
