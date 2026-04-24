@@ -3,9 +3,17 @@ import { Settings2, X, ArrowDown, ArrowUp, LayoutGrid, Rows3, ArrowUpDown } from
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { MetricPickerDialog } from "./MetricPickerDialog";
 import { computeDelta, STAT_CATALOG_BY_ID, STAT_CATEGORY_LABEL } from "@/lib/funnelStatsCatalog";
 import type { ReportMetrics } from "@/lib/reportMetrics";
+import { BENCHMARK_DIMENSIONS, BENCHMARK_NONE } from "@/lib/benchmarkDimensions";
+
+export interface BenchmarkRow {
+  label: string;
+  metrics: ReportMetrics;
+}
 
 interface Props {
   metrics: ReportMetrics;
@@ -16,11 +24,22 @@ interface Props {
   onSetAll: (ids: string[]) => void;
   onReset: () => void;
   compareMode: boolean;
+  /** Compare-by dimension id, or "none" to disable. */
+  benchmarkDimensionId: string;
+  onBenchmarkDimensionChange: (id: string) => void;
+  /** Available category values for the chosen dimension (sorted, top first). */
+  benchmarkAvailableValues: string[];
+  /** Currently selected category values (capped at 6). */
+  benchmarkSelectedValues: string[];
+  onBenchmarkSelectedValuesChange: (values: string[]) => void;
+  /** Pre-computed metrics, one row per selected category value. */
+  benchmarkRows: BenchmarkRow[];
 }
 
 type ViewMode = "table" | "cards";
 
 const VIEW_STORAGE_KEY = "funnel:monitor-view:v1";
+const MAX_BENCHMARK_VALUES = 6;
 
 function getInitialView(): ViewMode {
   if (typeof window === "undefined") return "table";
@@ -36,6 +55,12 @@ export function CustomStatGrid({
   onSetAll,
   onReset,
   compareMode,
+  benchmarkDimensionId,
+  onBenchmarkDimensionChange,
+  benchmarkAvailableValues,
+  benchmarkSelectedValues,
+  onBenchmarkSelectedValuesChange,
+  benchmarkRows,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(getInitialView);
@@ -62,6 +87,18 @@ export function CustomStatGrid({
     }
   };
 
+  const compareByActive = benchmarkDimensionId !== BENCHMARK_NONE;
+  const dimensionLabel =
+    BENCHMARK_DIMENSIONS.find((d) => d.id === benchmarkDimensionId)?.label ?? "Category";
+
+  const handleValuesChange = (next: string[]) => {
+    if (next.length > MAX_BENCHMARK_VALUES) {
+      onBenchmarkSelectedValuesChange(next.slice(0, MAX_BENCHMARK_VALUES));
+    } else {
+      onBenchmarkSelectedValuesChange(next);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Toolbar — Meta Ads style */}
@@ -70,10 +107,43 @@ export function CustomStatGrid({
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Your Monitor</h3>
           <p className="text-xs text-muted-foreground">
             {visibleStats.length} {visibleStats.length === 1 ? "metric" : "metrics"} selected
-            {compareMode && previousMetrics ? " • comparing to previous period" : ""}
+            {compareByActive
+              ? ` • benchmarking by ${dimensionLabel}`
+              : compareMode && previousMetrics
+                ? " • comparing to previous period"
+                : ""}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Compare-by dimension */}
+          <Select value={benchmarkDimensionId} onValueChange={onBenchmarkDimensionChange}>
+            <SelectTrigger className="h-8 w-[180px] border-border bg-card text-xs">
+              <SelectValue placeholder="Compare by…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={BENCHMARK_NONE}>Compare by: None</SelectItem>
+              {BENCHMARK_DIMENSIONS.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  Compare by: {d.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Values multi-select (only when comparing) */}
+          {compareByActive ? (
+            <div className="w-[260px]">
+              <MultiSelect
+                options={benchmarkAvailableValues}
+                selected={benchmarkSelectedValues}
+                onChange={handleValuesChange}
+                placeholder={`Pick up to ${MAX_BENCHMARK_VALUES} ${dimensionLabel.toLowerCase()}…`}
+                emptyMessage="No values in this date range"
+                maxDisplayed={2}
+              />
+            </div>
+          ) : null}
+
           {/* View toggle */}
           <div className="inline-flex rounded-md border border-border bg-card p-0.5">
             <button
@@ -108,6 +178,10 @@ export function CustomStatGrid({
         </div>
       </div>
 
+      {compareByActive && benchmarkSelectedValues.length > MAX_BENCHMARK_VALUES - 1 ? (
+        <p className="text-[10px] text-muted-foreground">Maximum {MAX_BENCHMARK_VALUES} categories.</p>
+      ) : null}
+
       {visibleStats.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">
@@ -116,22 +190,34 @@ export function CustomStatGrid({
           </p>
         </div>
       ) : view === "table" ? (
-        <TableView
-          stats={visibleStats}
-          metrics={metrics}
-          previousMetrics={previousMetrics}
-          compareMode={compareMode}
-          onRemove={onRemove}
-          sortBy={sortBy}
-          sortDir={sortDir}
-          onSort={handleSort}
-        />
+        compareByActive ? (
+          <BenchmarkTableView
+            stats={visibleStats}
+            rows={benchmarkRows}
+            dimensionLabel={dimensionLabel}
+            onRemove={onRemove}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+        ) : (
+          <TableView
+            stats={visibleStats}
+            metrics={metrics}
+            previousMetrics={previousMetrics}
+            compareMode={compareMode}
+            onRemove={onRemove}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+        )
       ) : (
         <CardView
           stats={visibleStats}
           metrics={metrics}
           previousMetrics={previousMetrics}
-          compareMode={compareMode}
+          compareMode={compareMode && !compareByActive}
           onRemove={onRemove}
         />
       )}
