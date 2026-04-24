@@ -144,22 +144,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         </div>
         <div className="flex items-center gap-2">
           {headerActions}
-          {(() => {
-            const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
-            if (!ghlUrl) return null;
-            return (
-              <a
-                href={ghlUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open contact in GoHighLevel"
-                className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1 text-[10px] uppercase tracking-widest font-mono text-secondary-foreground hover:bg-accent transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                GHL
-              </a>
-            );
-          })()}
           <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
             {contact.industry}
           </span>
