@@ -123,7 +123,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className="h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-xs text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200"
+        className="h-8 gap-1.5 text-xs"
       >
         <CalendarCheck2 className="h-3.5 w-3.5" />
         I booked this in GHL
