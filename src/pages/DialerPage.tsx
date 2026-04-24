@@ -2481,14 +2481,6 @@ export default function DialerPage() {
                 </Button>
               </div>
 
-              {/* Notes */}
-              <ContactNotesPanel
-                contactId={session.currentContact.id}
-                notes={session.notes}
-                onNotesChange={session.setNotes}
-                enabled={session.isSessionActive}
-              />
-
               {/* Dialpad Sync — auto-opens only when there's an issue */}
               <CollapsiblePanel
                 title="Dialpad Sync"
