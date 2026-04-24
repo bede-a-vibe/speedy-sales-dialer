@@ -1,5 +1,17 @@
 import { useState } from "react";
-import { Settings2, X, ArrowDown, ArrowUp, LayoutGrid, Rows3, ArrowUpDown } from "lucide-react";
+import {
+  Settings2,
+  X,
+  ArrowDown,
+  ArrowUp,
+  LayoutGrid,
+  Rows3,
+  ArrowUpDown,
+  Users,
+  User,
+  Pencil,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,11 +21,21 @@ import { MetricPickerDialog } from "./MetricPickerDialog";
 import { computeDelta, STAT_CATALOG_BY_ID, STAT_CATEGORY_LABEL } from "@/lib/funnelStatsCatalog";
 import type { ReportMetrics } from "@/lib/reportMetrics";
 import { BENCHMARK_DIMENSIONS, BENCHMARK_NONE } from "@/lib/benchmarkDimensions";
+import type { Segment } from "@/lib/benchmarkSegments";
+import { summarizeSegmentFilters } from "@/lib/benchmarkSegments";
 
 export interface BenchmarkRow {
   label: string;
   metrics: ReportMetrics;
 }
+
+export interface SegmentRow {
+  segment: Segment;
+  metrics: ReportMetrics;
+  matchingContacts?: number | null;
+}
+
+export type MonitorMode = "single" | "dimension" | "segments";
 
 interface Props {
   metrics: ReportMetrics;
@@ -24,6 +46,9 @@ interface Props {
   onSetAll: (ids: string[]) => void;
   onReset: () => void;
   compareMode: boolean;
+  /** Current monitor mode. */
+  mode: MonitorMode;
+  onModeChange: (mode: MonitorMode) => void;
   /** Compare-by dimension id, or "none" to disable. */
   benchmarkDimensionId: string;
   onBenchmarkDimensionChange: (id: string) => void;
@@ -34,6 +59,18 @@ interface Props {
   onBenchmarkSelectedValuesChange: (values: string[]) => void;
   /** Pre-computed metrics, one row per selected category value. */
   benchmarkRows: BenchmarkRow[];
+  /** Saved segments (team + private), pre-merged. */
+  segments: Segment[];
+  /** Pre-computed metrics, one row per segment. */
+  segmentRows: SegmentRow[];
+  /** Open the editor dialog for a new segment. */
+  onCreateSegment: () => void;
+  /** Open the editor dialog for an existing segment. */
+  onEditSegment: (segment: Segment) => void;
+  /** Delete a segment. */
+  onDeleteSegment: (segment: Segment) => void;
+  /** Returns true if the current user can edit/delete a given segment. */
+  canEditSegment: (segment: Segment) => boolean;
 }
 
 type ViewMode = "table" | "cards";
@@ -55,12 +92,20 @@ export function CustomStatGrid({
   onSetAll,
   onReset,
   compareMode,
+  mode,
+  onModeChange,
   benchmarkDimensionId,
   onBenchmarkDimensionChange,
   benchmarkAvailableValues,
   benchmarkSelectedValues,
   onBenchmarkSelectedValuesChange,
   benchmarkRows,
+  segments,
+  segmentRows,
+  onCreateSegment,
+  onEditSegment,
+  onDeleteSegment,
+  canEditSegment,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(getInitialView);
@@ -87,7 +132,8 @@ export function CustomStatGrid({
     }
   };
 
-  const compareByActive = benchmarkDimensionId !== BENCHMARK_NONE;
+  const compareByActive = mode === "dimension" && benchmarkDimensionId !== BENCHMARK_NONE;
+  const segmentsActive = mode === "segments";
   const dimensionLabel =
     BENCHMARK_DIMENSIONS.find((d) => d.id === benchmarkDimensionId)?.label ?? "Category";
 
@@ -107,30 +153,59 @@ export function CustomStatGrid({
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Your Monitor</h3>
           <p className="text-xs text-muted-foreground">
             {visibleStats.length} {visibleStats.length === 1 ? "metric" : "metrics"} selected
-            {compareByActive
-              ? ` • benchmarking by ${dimensionLabel}`
-              : compareMode && previousMetrics
-                ? " • comparing to previous period"
-                : ""}
+            {segmentsActive
+              ? ` • ${segmentRows.length} ${segmentRows.length === 1 ? "segment" : "segments"}`
+              : compareByActive
+                ? ` • benchmarking by ${dimensionLabel}`
+                : compareMode && previousMetrics
+                  ? " • comparing to previous period"
+                  : ""}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Compare-by dimension */}
-          <Select value={benchmarkDimensionId} onValueChange={onBenchmarkDimensionChange}>
-            <SelectTrigger className="h-8 w-[180px] border-border bg-card text-xs">
-              <SelectValue placeholder="Compare by…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={BENCHMARK_NONE}>Compare by: None</SelectItem>
-              {BENCHMARK_DIMENSIONS.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  Compare by: {d.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Mode toggle: Single | By Dimension | Segments */}
+          <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+            {(
+              [
+                { id: "single", label: "Single" },
+                { id: "dimension", label: "By Dimension" },
+                { id: "segments", label: "Segments" },
+              ] as { id: MonitorMode; label: string }[]
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onModeChange(m.id)}
+                className={cn(
+                  "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                  mode === m.id
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Values multi-select (only when comparing) */}
+          {/* Dimension picker — only when mode = "dimension" */}
+          {mode === "dimension" ? (
+            <Select value={benchmarkDimensionId} onValueChange={onBenchmarkDimensionChange}>
+              <SelectTrigger className="h-8 w-[180px] border-border bg-card text-xs">
+                <SelectValue placeholder="Compare by…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={BENCHMARK_NONE}>Compare by: None</SelectItem>
+                {BENCHMARK_DIMENSIONS.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    Compare by: {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          {/* Values multi-select (only when comparing by dimension) */}
           {compareByActive ? (
             <div className="w-[260px]">
               <MultiSelect
@@ -142,6 +217,14 @@ export function CustomStatGrid({
                 maxDisplayed={2}
               />
             </div>
+          ) : null}
+
+          {/* New segment button — only in segments mode */}
+          {segmentsActive ? (
+            <Button variant="outline" size="sm" onClick={onCreateSegment}>
+              <Plus className="h-3.5 w-3.5" />
+              New Segment
+            </Button>
           ) : null}
 
           {/* View toggle */}
@@ -182,6 +265,46 @@ export function CustomStatGrid({
         <p className="text-[10px] text-muted-foreground">Maximum {MAX_BENCHMARK_VALUES} categories.</p>
       ) : null}
 
+      {/* Segment chip strip */}
+      {segmentsActive && segments.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {segments.map((seg) => {
+            const editable = canEditSegment(seg);
+            return (
+              <div
+                key={seg.id}
+                className={cn(
+                  "group inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-xs",
+                  editable && "cursor-pointer hover:border-primary/40",
+                )}
+                onClick={editable ? () => onEditSegment(seg) : undefined}
+                title={editable ? "Click to edit" : "Read-only (created by another user)"}
+              >
+                {seg.shared ? (
+                  <Users className="h-3 w-3 text-primary" />
+                ) : (
+                  <User className="h-3 w-3 text-muted-foreground" />
+                )}
+                <span className="font-medium text-foreground">{seg.name}</span>
+                {editable ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Delete segment "${seg.name}"?`)) onDeleteSegment(seg);
+                    }}
+                    className="rounded-sm p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-destructive group-hover:opacity-100"
+                    aria-label={`Remove ${seg.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
       {visibleStats.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">
@@ -189,6 +312,31 @@ export function CustomStatGrid({
             to build your monitor.
           </p>
         </div>
+      ) : segmentsActive ? (
+        segments.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No segments yet. A segment is a saved combination of filters (state, industry, business size,
+              ads, etc.) that becomes one row in the table — perfect for benchmarking different cohorts side
+              by side.
+            </p>
+            <Button size="sm" className="mt-4" onClick={onCreateSegment}>
+              <Plus className="h-3.5 w-3.5" />
+              Create your first segment
+            </Button>
+          </div>
+        ) : (
+          <SegmentTableView
+            stats={visibleStats}
+            rows={segmentRows}
+            onRemoveStat={onRemove}
+            onEditSegment={onEditSegment}
+            canEditSegment={canEditSegment}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+        )
       ) : view === "table" ? (
         compareByActive ? (
           <BenchmarkTableView
