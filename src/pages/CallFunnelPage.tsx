@@ -12,7 +12,12 @@ import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
 import { ConversionRateStrip } from "@/components/funnel/ConversionRateStrip";
-import { CustomStatGrid, type BenchmarkRow } from "@/components/funnel/CustomStatGrid";
+import {
+  CustomStatGrid,
+  type BenchmarkRow,
+  type SegmentRow,
+  type MonitorMode,
+} from "@/components/funnel/CustomStatGrid";
 import { MetricTrendChart } from "@/components/funnel/MetricTrendChart";
 import { useFunnelMetricSelection } from "@/hooks/useFunnelMetricSelection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,12 +32,22 @@ import {
   BENCHMARK_NONE,
   listDimensionValues,
 } from "@/lib/benchmarkDimensions";
+import {
+  matchSegment,
+  useSegmentsStore,
+  type Segment,
+  type SegmentInput,
+} from "@/lib/benchmarkSegments";
+import { SegmentEditorDialog } from "@/components/funnel/SegmentEditorDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const ALL_REPS_VALUE = "all";
 const MAX_BENCHMARK_VALUES = 6;
 const BENCHMARK_DIM_KEY = "funnel:benchmark-dim:v1";
 const BENCHMARK_VALUES_KEY = "funnel:benchmark-values:v1";
+const MONITOR_MODE_KEY = "funnel:monitor-mode:v1";
 
 function readJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -67,6 +82,19 @@ export default function CallFunnelPage() {
   const [compareMode, setCompareMode] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownDimensionId>("none");
   const [activeGroupLabel, setActiveGroupLabel] = useState<string | null>(null);
+  const [monitorMode, setMonitorMode] = useState<MonitorMode>(() =>
+    readJSON<MonitorMode>(MONITOR_MODE_KEY, "single"),
+  );
+  const [segmentEditorOpen, setSegmentEditorOpen] = useState(false);
+  const [editingSegment, setEditingSegment] = useState<Segment | null>(null);
+
+  const { user } = useAuth();
+  const segmentsStore = useSegmentsStore();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MONITOR_MODE_KEY, JSON.stringify(monitorMode));
+  }, [monitorMode]);
 
   const activeRepId = selectedRepId === ALL_REPS_VALUE ? undefined : selectedRepId;
 
@@ -200,6 +228,24 @@ export default function CallFunnelPage() {
     });
   }, [benchmarkDim, benchmarkSelectedValues, callLogs, bookedAppointments, dateFrom, dateTo, activeRepId, contactAttempts]);
 
+  // Compute one ReportMetrics per saved segment.
+  const segmentRows: SegmentRow[] = useMemo(() => {
+    if (monitorMode !== "segments" || segmentsStore.segments.length === 0) return [];
+    return segmentsStore.segments.map((segment) => {
+      const filteredLogs = (callLogs as any[]).filter((l) => matchSegment(l, segment));
+      const filteredBookings = (bookedAppointments as any[]).filter((b) => matchSegment(b, segment));
+      const m = getReportMetrics({
+        callLogs: filteredLogs,
+        bookedItems: filteredBookings,
+        from: dateFrom,
+        to: dateTo,
+        repUserId: activeRepId,
+        contacts: contactAttempts,
+      });
+      return { segment, metrics: m };
+    });
+  }, [monitorMode, segmentsStore.segments, callLogs, bookedAppointments, dateFrom, dateTo, activeRepId, contactAttempts]);
+
   const breakdownGroups = useMemo(() => {
     if (breakdown === "none") return [];
     return buildBreakdownGroups({
@@ -224,6 +270,33 @@ export default function CallFunnelPage() {
     BREAKDOWN_DIMENSIONS.find((d) => d.id === breakdown)?.label ?? "Breakdown";
 
   const compareByActive = benchmarkDim !== BENCHMARK_NONE;
+  const segmentsActive = monitorMode === "segments";
+
+  const handleCreateSegment = () => {
+    setEditingSegment(null);
+    setSegmentEditorOpen(true);
+  };
+  const handleEditSegment = (segment: Segment) => {
+    setEditingSegment(segment);
+    setSegmentEditorOpen(true);
+  };
+  const handleDeleteSegment = async (segment: Segment) => {
+    try {
+      await segmentsStore.remove(segment.id);
+      toast.success("Segment removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't remove segment");
+    }
+  };
+  const handleSaveSegment = async (input: SegmentInput) => {
+    if (editingSegment) {
+      await segmentsStore.update(editingSegment.id, input);
+      toast.success("Segment updated");
+    } else {
+      await segmentsStore.create(input);
+      toast.success("Segment created");
+    }
+  };
 
   return (
     <AppLayout title="Call Funnel">
@@ -251,17 +324,21 @@ export default function CallFunnelPage() {
             htmlFor="compare-toggle"
             className={cn(
               "cursor-pointer text-xs",
-              compareByActive ? "text-muted-foreground/50" : "text-muted-foreground",
+              (compareByActive || segmentsActive) ? "text-muted-foreground/50" : "text-muted-foreground",
             )}
-            title={compareByActive ? "Switch off Compare-by to enable previous-period comparison" : undefined}
+            title={
+              compareByActive || segmentsActive
+                ? "Switch off Compare-by / Segments to enable previous-period comparison"
+                : undefined
+            }
           >
             Compare to previous period
           </Label>
           <Switch
             id="compare-toggle"
-            checked={compareMode && !compareByActive}
+            checked={compareMode && !compareByActive && !segmentsActive}
             onCheckedChange={setCompareMode}
-            disabled={compareByActive}
+            disabled={compareByActive || segmentsActive}
           />
         </div>
 
@@ -281,13 +358,21 @@ export default function CallFunnelPage() {
             onRemove={remove}
             onSetAll={setAll}
             onReset={reset}
-            compareMode={compareMode && !compareByActive}
+            compareMode={compareMode && !compareByActive && !segmentsActive}
+            mode={monitorMode}
+            onModeChange={setMonitorMode}
             benchmarkDimensionId={benchmarkDim}
             onBenchmarkDimensionChange={handleBenchmarkDimChange}
             benchmarkAvailableValues={benchmarkAvailableValues}
             benchmarkSelectedValues={benchmarkSelectedValues}
             onBenchmarkSelectedValuesChange={handleBenchmarkValuesChange}
             benchmarkRows={benchmarkRows}
+            segments={segmentsStore.segments}
+            segmentRows={segmentRows}
+            onCreateSegment={handleCreateSegment}
+            onEditSegment={handleEditSegment}
+            onDeleteSegment={handleDeleteSegment}
+            canEditSegment={segmentsStore.canEdit}
           />
         </ReportSection>
 
@@ -372,6 +457,14 @@ export default function CallFunnelPage() {
           </div>
         </ReportSection>
       </div>
+
+      <SegmentEditorDialog
+        open={segmentEditorOpen}
+        onOpenChange={setSegmentEditorOpen}
+        initial={editingSegment}
+        onSave={handleSaveSegment}
+        canShare={!!user}
+      />
     </AppLayout>
   );
 }
