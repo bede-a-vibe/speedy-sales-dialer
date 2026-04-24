@@ -27,6 +27,7 @@ import {
   BENCHMARK_NONE,
   listDimensionValues,
 } from "@/lib/benchmarkDimensions";
+import { cn } from "@/lib/utils";
 
 const ALL_REPS_VALUE = "all";
 const MAX_BENCHMARK_VALUES = 6;
