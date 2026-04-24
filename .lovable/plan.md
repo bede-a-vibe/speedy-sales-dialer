@@ -1,82 +1,101 @@
 
 
-## Plan: Stop "Pickup → Conversation" and "Conversation → Booking" from being polluted by pre-launch data
+## Plan: Benchmark contact categories side-by-side in the Custom Monitor
 
-### What's wrong today
+### What you'll get
 
-The "Pickup → Conversation" and "Conversation → Booking" tiles in your screenshot show **1%** and **264%**. Both numbers are nonsense, and they're nonsense for the same reason:
+A new "Compare by" picker in the Custom Monitor toolbar. When set to "None" (default), the monitor behaves exactly as it does today. When set to a category (Industry, State, Business Size, etc.), the table changes from a single "Selected period" row into one row **per category value you've picked**, with the same metric columns you've already selected. Same metrics, same date range, same rep filter — just sliced by category so you can see how Plumbers stack up against Electricians, or NSW vs VIC, in one glance.
 
-- **Conversations** is defined as `call_logs.reached_connection = true`.
-- The conversation-progress feature that writes that column only started recording values on **2026-04-23**.
-- Every call log from **2026-03-17 → 2026-04-22** has `reached_connection = false` because that's the column default — not because the rep didn't actually have a conversation.
-- Result: across any date range that includes pre-2026-04-23 data, the numerator (bookings, talk time) is huge and the denominator (conversations) is tiny → "Conversation → Booking" can easily exceed 100%.
+A second control next to it lets you pick **2-6 specific values** from a multi-select dropdown (e.g. tick "Plumbers", "Electricians", "Builders"). Only those rows render. This avoids the table blowing up to 20+ industries and gives you full control over the comparison.
 
-I confirmed this directly in the database:
+### Categories available (matching dialer filters)
+
+Pulled directly from the dialer's `AdvancedFilters.tsx` so the benchmark dimensions stay aligned with how you actually segment leads:
+
+- **Industry / Trade Type** (`contacts.trade_type`, falling back to `contacts.industry`)
+- **State** (`contacts.state`)
+- **Business Size** (`contacts.business_size`)
+- **Work Type** (`contacts.work_type`)
+- **Prospect Tier** (`contacts.prospect_tier`)
+- **Buying Signal Strength** (`contacts.buying_signal_strength`)
+- **Phone Type** (`contacts.phone_type`)
+- **Has Google Ads** (`contacts.has_google_ads`)
+- **Has Facebook Ads** (`contacts.has_facebook_ads`)
+
+The "Has DM Phone" filter is a derived boolean (`dm_phone IS NOT NULL`), and the GBP rating / review count tiers are numeric ranges — both supported the same way (computed grouping function, not a raw column read).
+
+### Where the data comes from
+
+Currently the funnel page already loads:
+- All `call_logs` in the date range (with `contacts(business_name, industry)` joined)
+- All `pipeline_items` in the range
+- A count of `contacts` for lead-age buckets
+
+To benchmark by category we need each call log to know the category value of its contact. Two options:
+
+1. **Extend the existing `useCallLogsByDateRange` join** to also pull the columns we benchmark on (`trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count`). One change, no extra request, marginal payload increase.
+2. Lazy-fetch per category dimension on demand.
+
+I'll go with **option 1** — it's a single hook update, the columns are small text fields, and there's no per-interaction loading flicker when switching dimensions. Same approach for `pipeline_items` (so per-category booking counts work) by adding the same `contacts(...)` join.
+
+### How the table renders
+
+The existing `CustomStatGrid` table currently renders one "Selected period" row plus optional "Previous period" and "Δ Change" rows. I'll extend it so:
+
+- When **Compare by = None**: identical to today.
+- When **Compare by = Industry** (etc.) and 3 values picked: 3 rows, each labelled with the category value (e.g. "Plumbers", "Electricians", "Builders"). The first column changes from "Period" to the category name.
+- The **Previous period / Δ Change rows are hidden** in compare mode (mixing time comparison with category comparison would be confusing — pick one).
+- A small **"Total" row at the bottom** summing the picked categories so you can sanity-check that the slice covers most of your activity.
+- Sortable by any metric column (already supported by the table) so you can quickly see "which industry has the highest Pickup → Booking?".
+
+The "Cards" view stays as it is — comparison only applies in Table mode (it's the only layout that scales to 6 rows × N metrics cleanly).
+
+### How metrics are computed per category
+
+The trick is that `getReportMetrics(...)` currently runs on the full set of call logs. To get per-category metrics I'll:
+
+1. Compute a `categoryFor(log)` function based on the chosen dimension (e.g. `(log) => log.contacts?.state ?? "—"`).
+2. For each picked category value, filter `callLogs` and `bookedItems` to rows where the contact matches that value, then run the existing `getReportMetrics(...)` on that subset.
+3. Render one row per resulting `ReportMetrics` object using the same `STAT_CATALOG` formatters that already power the single-row view. **No metric-definition changes needed** — every column you've picked will Just Work, including the conversation-tagging-launch-clipped ones from the previous fix.
+
+Performance: with ~3000 call logs and 6 categories that's 6 × full-pass aggregation in JS. Each pass is ~5-10ms, so total is well under 100ms — fine for a client-side compute. If it ever gets slow we can memoize on `(dimension, valueSet, dateRange, repId)`.
+
+### UI: where the controls live
+
+Two new controls in the Custom Monitor toolbar, placed to the left of the existing "Customize columns" button:
 
 ```
-2026-04-22  dials=33  reached_connection=true  → 0
-2026-04-23  dials=29  reached_connection=true  → 2   ← feature went live
-2026-04-24  dials=54  reached_connection=true  → 12
+[Compare by: None ▾]  [Values: Plumbers, Electricians, Builders ▾]  | Table | Cards | Customize columns
 ```
 
-So the data isn't broken — we just need to stop pretending the "Conversation" metric exists for dates before the tagging system was turned on.
+- **Compare by**: single-select dropdown of the 9 dimensions plus "None".
+- **Values**: multi-select chip picker of values present in the loaded data for the chosen dimension. Hidden when Compare by = None. Capped at 6 selections (with a hint "Maximum 6 categories"). Defaults to the top 3 by dials when you first switch dimensions, so the table is never empty.
 
-### The fix
-
-**Introduce a single launch-date constant** for the conversation-tagging system and use it to:
-
-1. **Filter the conversations denominator** — only count `reached_connection = true` calls from on/after the launch date.
-2. **Filter the conversation→booking numerator the same way** — only count bookings made on/after the launch date when computing the conversation→booking rate. Otherwise we'd still divide weeks of bookings by 2 days of conversations.
-3. **Show "—" instead of a misleading percentage** when the date range being viewed has *no overlap* with the post-launch period (e.g. someone runs a March report).
-4. **Add a small "Since YYYY-MM-DD" subtext** under both tiles so the team understands why these two are scoped differently from the other rates. This avoids future "why doesn't this match the other tile?" confusion.
-
-The other six tiles in the strip (Dial → Pickup, Pickup → Booking, Booking → Showed, Showed → Closed, Lead → Booked, Talk / Conversation) all use metrics that have been recorded correctly the whole time and stay untouched.
-
-### Where the change lives
-
-**1. New constant** — somewhere stable like `src/data/constants.ts`:
-
-```ts
-// Conversation-progress tagging (reached_connection / reached_problem_awareness / etc.)
-// went live on this date. Any call log before this date has reached_connection=false
-// purely because the field didn't exist yet — not because the rep failed to converse.
-// Metrics that depend on these tags must clip to this date or they will be polluted.
-export const CONVERSATION_TAGGING_LAUNCH_DATE = "2026-04-23";
-```
-
-**2. `src/lib/reportMetrics.ts`** — change how `conversations` and `conversationToBookingRate` are computed:
-
-- `conversations` becomes: filtered call logs where `reached_connection === true` **AND** `created_at >= CONVERSATION_TAGGING_LAUNCH_DATE`.
-- A new field `conversationsEligibleDials` (number of dials in the range that are on/after the launch date) so we can also tell the UI when the slice is non-zero.
-- `conversationToBookingRate` becomes: bookings made on/after the launch date *and* in the date range, divided by that same scoped `conversations` count. If `conversations === 0` *and* the date range ends before the launch date, return `null` (not 0) so the UI can render "—".
-- Add a small flag `conversationMetricsScoped: boolean` or just expose the launch-date itself on the metrics object so the tile can render the "Since 23 Apr" footnote when the user's selected range overlaps the cutoff.
-
-**3. `src/components/funnel/ConversionRateStrip.tsx`** — the only place these two tiles render:
-
-- Replace the inline `pct(...)` math with the values straight off the new metrics object.
-- When the value is `null`, show `—` and a subtext "No data since 23 Apr 2026".
-- When the date range starts before the launch date, show the percentage and add a `subtext="Since 23 Apr 2026"` so anyone comparing tiles knows the scope.
-
-**4. `src/lib/funnelStatsCatalog.ts`** — the `pickup_conversation` and `conversation_to_booking` entries used in the customizable Custom Stat Grid currently call the same raw fields. Update them to read the same scoped values from `metrics.dialer.conversations` / `metrics.dialer.conversationToBookingRate` (which will now already be scoped because the metrics layer changed). No catalog UI changes — just keep the labels and add `"(since 23 Apr)"` to the subtext for those two stats only.
-
-**5. `src/lib/funnelMetrics.ts` (End-to-End Funnel chart)** — same family of bug. The funnel chart's "Connection / Problem-Awareness / Solution-Awareness / Commitment" bars all read `reached_*` flags. For any date range that includes pre-launch dates, the funnel collapses to near-zero after the Pickup stage, which looks alarming but isn't real. Apply the same launch-date clamp inside `computeFunnel`: only count `reached_*` flags from logs on/after the launch date, and add a single line of subtext on the funnel header card ("Connection-stage tracking started 23 Apr 2026") when the date range straddles the cutoff.
+Both selections persist to `localStorage` like the view-mode preference already does, keyed per dimension so switching back to a dimension restores the values you last picked.
 
 ### What this does NOT change
 
-- It does **not** delete or touch any historical call logs.
-- It does **not** affect Dial → Pickup, Pickup → Booking, Booking → Showed, Showed → Closed, Lead → Booked, or Talk Time. Those have always been recorded correctly.
-- It does **not** affect the Bookings Made KPI, Cash Collected, Show-Up Rate, or any rep leaderboards / targets — those don't depend on `reached_connection`.
-- It does **not** change the dialer UI or how reps tag conversation progress going forward.
+- Doesn't change how Conversion Rate Strip, End-to-End Funnel, Custom Monitor's "Cards" view, or any other report renders — comparison is opt-in and lives entirely inside the Custom Monitor table.
+- Doesn't change which metrics are available or how they're computed for each row — same `STAT_CATALOG` definitions you already see.
+- Doesn't change the dialer, dashboard, targets, or any other page.
+- Doesn't change the database schema or any RPCs — purely client-side derivation.
+- Comparison is mutually exclusive with the existing **Compare to previous period** toggle — when you pick a category dimension, the previous-period rows are hidden (and vice versa). The toggle is disabled with a tooltip "Switch off Compare-by to enable previous-period comparison".
 
-### Why a hardcoded launch date instead of "any date the user picks"
+### Files I'll touch
 
-The launch date is a property of the *dataset*, not of the user's filter. If we just clamped to whatever range the user selected, the numbers would still be wrong any time someone picked a range starting before 23 Apr. The constant lets every viewer see honest numbers regardless of the filter, and it's documented in code so the next person who looks at it knows exactly why.
-
-If you ever backfill the historical `reached_connection` values (e.g. by reprocessing transcripts), we just delete the constant and the metrics revert to using all data automatically.
+1. `src/hooks/useCallLogs.ts` — extend the `contacts(...)` join in `useCallLogsByDateRange` to include the benchmark columns.
+2. `src/hooks/usePipelineItems.ts` (or wherever booked items are loaded for the funnel page — I'll check on implementation) — same `contacts(...)` join extension.
+3. `src/lib/reportMetrics.ts` — accept an optional `contactFilter: (log) => boolean` (or just rely on caller-side pre-filtering, which keeps the function pure). I'll go with pre-filtering — no signature change.
+4. `src/lib/benchmarkDimensions.ts` (new, ~80 lines) — defines the 9 dimensions, each with `{ id, label, getValueFromCallLog, getValueFromBookedItem, listAvailableValues }`. Centralizes the "what does Industry mean" logic so both the dropdown and the row computation read from one place.
+5. `src/components/funnel/CustomStatGrid.tsx` — add the two new controls, render multi-row table when comparing, hide previous-period UI in compare mode.
+6. `src/components/funnel/CompareByPicker.tsx` (new) — small wrapper around the existing `MultiSelect` for the values picker.
+7. `src/pages/CallFunnelPage.tsx` — wire the new state into `CustomStatGrid` and recompute per-category metrics.
 
 ### Out of scope
 
-- Backfilling pre-23-Apr `reached_connection` values from transcripts (separate, larger job).
-- Re-defining "Conversation" to mean something else (e.g. "any call >30s talk time"). The current definition is the right one for coaching; we just need it to be honest about when it started being recorded.
-- Touching the rep-comparison or per-rep coaching scorecards. They use the same `conversations` field so they'll benefit automatically once the metrics layer change lands — no extra work needed.
+- Comparing dimensions across **different date ranges** (e.g. Plumbers in March vs Plumbers in April) — that's a date-vs-date comparison, not a category one.
+- Saving/sharing benchmark presets — selections persist locally only.
+- Charts / heatmaps for the comparison — table only, per your answer.
+- Adding the comparison to the Dashboard, Reports SOP page, or any other surface — Custom Monitor only.
+- Backfilling missing `business_size` / `prospect_tier` etc. on contacts — categories with empty values will show up as a "—" row if anyone picks them; we already saw most enrichment columns are empty, so the most useful initial dimensions will be **Industry**, **State**, and **Phone Type** until enrichment is populated.
 
