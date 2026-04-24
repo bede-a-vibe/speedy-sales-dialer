@@ -1027,6 +1027,8 @@ Deno.serve(async (req) => {
           svcKey,
           body.batchSize ?? 50,
           body.delayMs ?? 6000,
+          body.offset ?? 0,
+          body.statusFilter === "active" ? "active" : "all",
         );
         break;
       }
