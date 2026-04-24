@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
+import { ManualTranscriptUpload } from "@/components/contacts/ManualTranscriptUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
