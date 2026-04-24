@@ -1,91 +1,79 @@
+## Plan: Background-running GHL sync (continues without the page open)
 
+Right now the sync loop lives in your browser tab — close the tab or navigate away and it stops mid-run. We'll move the loop to the server so once you press **Sync All Unlinked**, it runs to completion in the background. You can close the page, come back tomorrow, and the linked count will have climbed without you needing to babysit it.
 
-## Plan: Live GHL Custom Fields panel in the dialer
+### What you'll see
 
-Render the GHL custom fields, organized into the same folder groups you have in GHL, directly on the active contact card during a call. Reps fill them out as they talk; values save to Supabase immediately and sync to GHL automatically.
-
-### What you'll see on the dialer
-
-A new collapsible panel **"Contact Intelligence"** between the existing "Decision Maker" panel and the "Sales Toolkit", with one tab per GHL folder you showed:
+The GHL Sync page gets a small but important upgrade:
 
 ```
-┌─ Contact Intelligence ─ [GHL synced ✓]──────────┐
-│ [Qualification] [Business] [Digital] [Call AI]  │
-│ [Gatekeeper]    [General]  [Additional]         │
+┌─ Run a sync ─────────────────────────────────────┐
+│ A background job will keep running even if you  │
+│ close this page.                                 │
 │                                                  │
-│ ── Qualification & Buying Signals ──────────────│
-│ Buying Signal Strength    [Hot ▾]               │
-│ Budget Indication         [$5k–$10k ▾]          │
-│ Authority Level           [Decision Maker ▾]    │
-│ Timeline                  [______________]      │
-│ Pain Points               [______________]      │
-│ Current Solution          [______________]      │
-│ Competitor                [______________]      │
-│ Ready to Buy?             [Yes ▾]               │
+│ [ Sync Active Only (109) ]                       │
+│ [ Sync All Unlinked (26,738) ]                   │
+│ [ Stop background job ]   ← only when running    │
 │                                                  │
-│ Last saved 2s ago · Synced to GHL ✓             │
+│ ─── Background job: ghl_sync_2026-04-24_1842 ───│
+│ Status: ⚙ Running  ·  Started 3 min ago          │
+│ Mode: All unlinked                               │
+│ Progress: ▓▓░░░░░░░░░░  1,840 / 26,738          │
+│ ✓ Linked 1,802 · + Created 14 · ⤵ Skipped 24   │
+│ ⚠ Failed: 0   · Last batch: 4.8s · ETA ~62 min  │
+│ Auto-refreshing every 5s                         │
 └──────────────────────────────────────────────────┘
 ```
 
-**Behavior**
-- Tabs match your GHL folders exactly: Qualification & Buying Signals, Business Profile, Digital Presence & Opportunity, AI Call Intelligence, Gatekeeper Intelligence, Call Activity, General Info, Additional Info, (OLD) Location, Contact
-- Fields render based on GHL field type: `TEXT` → input, `LARGE_TEXT` → textarea, `DROPDOWN`/`RADIO` → select with the picklist options pulled from GHL, `NUMERICAL` → number input, `DATE` → date picker, `CHECKBOX`/`SINGLE_OPTIONS` → multi-select chips
-- Auto-save with **1.5s debounce** per field — no save button. Status indicator shows "Saving…" → "Saved" → "Synced to GHL ✓"
-- Persisted in **two places** on every change: Supabase `contacts` row (for fast reads/queue logic) and GHL via `update_contact_fields` (for CRM truth)
-- If GHL push fails, falls back to the existing `pending_ghl_pushes` retry queue so values aren't lost
-- Folder tab badges show how many fields in that folder are filled (e.g. `Qualification 3/8`)
+Behavior changes:
+- Pressing **Sync All Unlinked** kicks off a server-side job and immediately returns. The page just polls its progress every 5s.
+- Closing the page, refreshing, or navigating to another route does **not** stop the job.
+- Re-opening `/admin/ghl-sync` automatically picks up and shows the in-progress job.
+- A new **Stop background job** button gracefully halts the loop after the current batch.
+- If a previous run finished while the page was closed, you'll see a "Last completed run" summary at the top with the totals.
 
-### Where it lives
+### How it works under the hood
 
-`src/pages/DialerPage.tsx` — slotted into the active call sidebar between `<DecisionMakerCapture />` and `<SalesToolkit />`. Already-captured DM/Gatekeeper fields (which are duplicated in your `contacts` table columns) display the same value in both places — editing in one updates the other on the next reload.
+Three pieces:
+
+**1. New `ghl_sync_jobs` table** — single source of truth for job state
+```
+id (uuid)              status (queued|running|paused|done|failed|cancelled)
+mode (active|all)      batch_size, delay_ms
+offset, total          processed, linked, failed, skipped
+created_by (user)      started_at, finished_at
+last_batch_ms          last_error
+```
+Only one row per user can be `running` at a time. RLS limits visibility to admins.
+
+**2. Edge function loop** — `ghl-sync-runner` (new)
+- Triggered by the page when the user clicks Sync. Runs detached (`EdgeRuntime.waitUntil`) so the HTTP response returns instantly and the loop keeps executing on Supabase's side.
+- Each iteration: claim next batch from `contacts`, call the existing GHL `upsert_contact` per row, update the `ghl_sync_jobs` row with new offsets/counters, sleep `delay_ms`, check if `status` was changed to `cancelled` by the user, repeat until `hasMore=false`.
+- On any uncaught failure, marks job `failed` with the error message so the UI can show it.
+- Edge functions on Supabase have a generous wall-clock budget for background tasks (using `EdgeRuntime.waitUntil`) — we'll size batches (50) and delays (6s) so a 26k run finishes inside a single invocation. If the runtime ever evicts the worker mid-loop, the next page load detects a `running` job whose `updated_at` is stale (>2 min) and restarts it from `offset`, so resumption is automatic.
+
+**3. Reworked `GhlSyncPage.tsx`**
+- On mount: query `ghl_sync_jobs` for the latest job for this admin (`order by created_at desc limit 1`).
+- If status is `running`/`queued`: render the progress card and start polling every 5s via React Query (`refetchInterval: 5000`).
+- If status is `done`/`failed`/`cancelled`: render a "Last completed run" summary with a "Start new sync" CTA.
+- Buttons call the new `ghl-sync-runner` action with `{ start: true, mode, batchSize, delayMs }` or `{ cancel: true, jobId }`.
+- Removes the old in-browser `while` loop and `stopRef` — the client no longer drives the loop, just observes it.
 
 ### Technical changes
 
-**1. New `src/lib/ghlFieldFolders.ts`**
-- Static config mapping each GHL folder name to:
-  - tab order/label
-  - icon
-  - the list of field keys (`contact.buying_signal_strength`, `contact.budget_indication`, etc.) that belong to it
-  - per-field UI overrides (placeholder text, helper hint shown to rep)
-- Built from your existing `resolveFieldId` map in `supabase/functions/ghl/index.ts` so we know which 55 fields are addressable
-
-**2. New hook `src/hooks/useGHLFieldSchema.ts`**
-- Calls `ghlGetCustomFields()` once per session, caches with React Query (5 min stale time)
-- Returns a normalized schema: `{ key, id, dataType, picklistOptions[], folder }` per field
-- Used by the panel to render the correct input control + options for DROPDOWN/RADIO fields
-
-**3. New hook `src/hooks/useGHLContactFields.ts`**
-- For a given Supabase `contact` + `ghlContactId`:
-  - Reads the matching column values from the `contacts` row (the ones already mirrored: `dm_name`, `budget_indication`, `buying_signal_strength`, etc.)
-  - For GHL-only fields (no Supabase column), fetches `ghlGetContact(ghlContactId)` once and reads `customFields[]`
-  - Exposes a `setField(key, value)` that:
-    1. Updates local React state (instant UI)
-    2. Debounced 1.5s: writes to Supabase column if mirrored, calls `ghlUpdateContactFields(ghlContactId, { [key]: value })` for the GHL push
-    3. On GHL failure, enqueues `pending_ghl_pushes` row via the existing retry path
-
-**4. New component `src/components/dialer/ContactIntelligencePanel.tsx`**
-- Collapsible card (matches existing `DecisionMakerCapture` styling)
-- Tab list driven by `ghlFieldFolders.ts`
-- Renders each folder as a 1- or 2-column grid of labeled inputs
-- Per-tab counter, per-field "Saving/Saved/Synced" pill, last-saved timestamp at bottom
-
-**5. Edited `src/pages/DialerPage.tsx`**
-- Import + render `<ContactIntelligencePanel contact={currentContact} ghlContactId={ghlContactId} />` between the existing DM panel and Sales Toolkit
-- Pass through the same `ghlContactId` already resolved for the "View in GHL" link
-
-**6. Edited `src/lib/ghl.ts`**
-- No new actions needed (already have `ghlGetCustomFields`, `ghlGetContact`, `ghlUpdateContactFields`)
-- Light typing tweak: export a `GhlCustomFieldSchema` type for the schema hook
-
-**7. Migration: add any missing Supabase columns for fields we want fast queue access to** (e.g., `timeline`, `current_solution`, `competitor`, `ready_to_buy`)
-- Most qualification fields already exist on `contacts` (per the schema you showed). For any GHL field we want filterable in the dialer queue but missing from the table, add nullable `text` columns
-- Will list the exact additions after reading the resolveFieldId map; estimate ~6–10 new columns
+- **Migration**: create `ghl_sync_jobs` table + indexes + RLS (admins read/write own rows) + a `ghl_sync_jobs_active_per_user_unique` partial unique index where `status in ('queued','running')` to prevent double-starts.
+- **New edge function** `supabase/functions/ghl-sync-runner/index.ts`:
+  - `action: "start"` → insert job row, return `jobId`, kick the loop with `EdgeRuntime.waitUntil(runLoop(jobId))`.
+  - `action: "cancel"` → set `status='cancelled'` on the job; the running loop checks this between batches and exits cleanly.
+  - `action: "status"` → return latest job row (also fine to read directly from the table via PostgREST; we'll use direct read for simplicity).
+  - The loop reuses the existing `upsertContact` helper from `supabase/functions/ghl/index.ts` by importing the shared logic into a small `_shared.ts` file (allowed inside the `supabase/functions` tree).
+- **Edited** `src/lib/ghl.ts`: add `startBackgroundGhlSync({ mode, batchSize, delayMs })`, `cancelBackgroundGhlSync(jobId)`, `getLatestGhlSyncJob()`.
+- **Rewritten** `src/pages/GhlSyncPage.tsx`: drops the `useRef`/`while` loop, uses two React Query hooks (counts + latest job with 5s `refetchInterval`), and shows the new progress UI plus a "Last run" summary card.
+- **Self-healing** stale-job detector: when the page loads and sees a `running` job whose `updated_at` is older than 2 minutes, it shows a "Job stalled — resume" button that calls `start` with the same `jobId` to continue from `offset`.
 
 ### Out of scope
 
-- Bulk-editing custom fields from a list view (this is dialer-only for now)
-- Surfacing custom fields in the contact list / contact detail pages — easy follow-up once the panel is proven
-- Two-way realtime sync from GHL → dialer panel mid-call (the existing `ghl-webhook` already updates the Supabase row, so a contact reload picks it up; live mid-call refresh isn't worth the complexity yet)
-- Adding fields that don't already exist in your GHL location — this only renders what GHL gives us
-- Editing GHL field definitions/picklists from inside the app (do that in GHL)
-
+- Multiple concurrent syncs by the same admin (intentionally blocked by the unique index — keeps GHL API rate limits sane).
+- Email/Slack notification when the job finishes (easy follow-up if you want it; the data is already there in `ghl_sync_jobs.finished_at`).
+- A jobs history page showing past runs — we'll keep the rows in the table, but the UI only surfaces the most recent one for now.
+- Pulling new GHL-only contacts back into Supabase (still out of scope from the original plan).
