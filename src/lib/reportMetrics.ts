@@ -94,6 +94,10 @@ export interface ReportMetrics {
     callBacks: number;
     pickUpToFollowUpRate: number;
     conversations: number;
+    /** Pickups on/after the conversation-tagging launch date. Use as the
+     *  denominator for Pickup → Conversation so it stays apples-to-apples
+     *  with `conversations` (which is also clipped to launch). */
+    pickUpsSinceLaunch: number;
     /**
      * Bookings made / Conversations.
      * `null` when the selected date range ends before the conversation-tagging
