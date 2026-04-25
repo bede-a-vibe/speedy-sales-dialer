@@ -2174,6 +2174,7 @@ export default function DialerPage() {
                   />
                 }
               />
+              </div>
 
               {session.isSessionPaused && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
@@ -2181,6 +2182,7 @@ export default function DialerPage() {
                 </div>
               )}
 
+              <div data-coach-step="decision-maker-capture">
               <CollapsiblePanel
                 title="Decision Maker"
                 subtitle="Capture DM name, route, and gatekeeper notes"
