@@ -811,6 +811,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_users_with_last_login: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          last_sign_in_at: string
+          user_id: string
+        }[]
+      }
       bulk_update_google_reviews: { Args: { updates: Json }; Returns: Json }
       claim_dialer_leads: {
         Args: {

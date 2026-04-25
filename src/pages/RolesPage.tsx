@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone } from "lucide-react";
+import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ interface ProfileRow {
   user_id: string;
   display_name: string | null;
   email: string | null;
+  last_sign_in_at?: string | null;
 }
 
 interface RoleRow {
@@ -69,6 +70,29 @@ const ROLE_META: Record<AppRole, { label: string; description: string; icon: typ
 
 const ROLE_ORDER: AppRole[] = ["admin", "coach", "sales_rep"];
 
+function formatLastLogin(iso: string | null | undefined): { label: string; tone: string } {
+  if (!iso) return { label: "Never signed in", tone: "text-muted-foreground" };
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return { label: "Unknown", tone: "text-muted-foreground" };
+  const now = Date.now();
+  const diffMs = now - then;
+  const minutes = Math.round(diffMs / 60_000);
+  const hours = Math.round(diffMs / 3_600_000);
+  const days = Math.round(diffMs / 86_400_000);
+  let label: string;
+  if (minutes < 1) label = "Just now";
+  else if (minutes < 60) label = `${minutes}m ago`;
+  else if (hours < 24) label = `${hours}h ago`;
+  else if (days < 30) label = `${days}d ago`;
+  else label = new Date(iso).toLocaleDateString();
+  // Color: green <24h, amber <7d, muted otherwise
+  const tone =
+    hours < 24 ? "text-emerald-600 dark:text-emerald-400"
+    : days < 7 ? "text-amber-600 dark:text-amber-400"
+    : "text-muted-foreground";
+  return { label, tone };
+}
+
 export default function RolesPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -82,11 +106,11 @@ export default function RolesPage() {
     queryKey: ["admin-users-with-roles"],
     staleTime: 15_000,
     queryFn: async () => {
-      const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, display_name, email").order("display_name"),
+      const [usersRes, rolesRes] = await Promise.all([
+        supabase.rpc("admin_list_users_with_last_login"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
-      if (profilesRes.error) throw profilesRes.error;
+      if (usersRes.error) throw usersRes.error;
       if (rolesRes.error) throw rolesRes.error;
       const rolesByUser = new Map<string, AppRole[]>();
       for (const row of (rolesRes.data ?? []) as RoleRow[]) {
@@ -94,7 +118,7 @@ export default function RolesPage() {
         arr.push(row.role);
         rolesByUser.set(row.user_id, arr);
       }
-      return ((profilesRes.data ?? []) as ProfileRow[]).map((p) => ({
+      return ((usersRes.data ?? []) as ProfileRow[]).map((p) => ({
         ...p,
         roles: rolesByUser.get(p.user_id) ?? [],
       }));
@@ -199,6 +223,7 @@ export default function RolesPage() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Last Login</TableHead>
                 <TableHead>Current Roles</TableHead>
                 <TableHead className="text-right">Manage</TableHead>
               </TableRow>
@@ -210,6 +235,7 @@ export default function RolesPage() {
                     <TableRow key={`skeleton-${idx}`}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-8 w-40 ml-auto" /></TableCell>
                     </TableRow>
@@ -218,7 +244,7 @@ export default function RolesPage() {
               )}
               {!usersQuery.isLoading && filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
                     No users match that search.
                   </TableCell>
                 </TableRow>
@@ -226,6 +252,7 @@ export default function RolesPage() {
               {filteredUsers.map((u) => {
                 const isSelf = user?.id === u.user_id;
                 const userLabel = u.display_name?.trim() || u.email || "Unknown";
+                const lastLogin = formatLastLogin(u.last_sign_in_at);
                 return (
                   <TableRow key={u.user_id}>
                     <TableCell>
@@ -239,6 +266,12 @@ export default function RolesPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {u.email ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className={`flex items-center gap-1.5 ${lastLogin.tone}`}>
+                        <Clock className="h-3.5 w-3.5" />
+                        <span title={u.last_sign_in_at ?? "Never"}>{lastLogin.label}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {u.roles.length === 0 ? (
