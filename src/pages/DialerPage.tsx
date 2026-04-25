@@ -1675,8 +1675,19 @@ export default function DialerPage() {
     <AppLayout title="Dialer">
       <div className="mx-auto max-w-6xl space-y-6">
         {isCoach && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-            🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded. Use this to walk through the rep workflow.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            <div>
+              🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded.
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-200"
+              onClick={() => setCoachTourOpen(true)}
+            >
+              <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
+              Start guided tour
+            </Button>
           </div>
         )}
         <DailyTarget />
