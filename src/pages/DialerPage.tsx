@@ -63,7 +63,8 @@ import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
 import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
-import { GraduationCap } from "lucide-react";
+import { ScenarioMode } from "@/components/coach/ScenarioMode";
+import { GraduationCap, Sparkles } from "lucide-react";
 
 const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
 
