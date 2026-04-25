@@ -1705,6 +1705,7 @@ export default function DialerPage() {
         {/* ── Filters & Controls ── */}
         <div className="flex flex-wrap items-center gap-4">
           <Button
+            data-coach-step="filters-button"
             variant={showAdvancedFilters ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -1732,7 +1733,7 @@ export default function DialerPage() {
           )}
 
           <div className="flex flex-1 flex-wrap items-center gap-3">
-            <span className="text-xs font-mono text-muted-foreground">
+            <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
               {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {queueFocusLabel && (
