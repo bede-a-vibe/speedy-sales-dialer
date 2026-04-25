@@ -223,6 +223,7 @@ export default function RolesPage() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Last Login</TableHead>
                 <TableHead>Current Roles</TableHead>
                 <TableHead className="text-right">Manage</TableHead>
               </TableRow>
@@ -234,6 +235,7 @@ export default function RolesPage() {
                     <TableRow key={`skeleton-${idx}`}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-8 w-40 ml-auto" /></TableCell>
                     </TableRow>
@@ -242,7 +244,7 @@ export default function RolesPage() {
               )}
               {!usersQuery.isLoading && filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
                     No users match that search.
                   </TableCell>
                 </TableRow>
@@ -250,6 +252,7 @@ export default function RolesPage() {
               {filteredUsers.map((u) => {
                 const isSelf = user?.id === u.user_id;
                 const userLabel = u.display_name?.trim() || u.email || "Unknown";
+                const lastLogin = formatLastLogin(u.last_sign_in_at);
                 return (
                   <TableRow key={u.user_id}>
                     <TableCell>
@@ -263,6 +266,12 @@ export default function RolesPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {u.email ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className={`flex items-center gap-1.5 ${lastLogin.tone}`}>
+                        <Clock className="h-3.5 w-3.5" />
+                        <span title={u.last_sign_in_at ?? "Never"}>{lastLogin.label}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {u.roles.length === 0 ? (
