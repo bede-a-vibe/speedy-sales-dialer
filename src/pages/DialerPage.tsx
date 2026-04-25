@@ -1804,6 +1804,7 @@ export default function DialerPage() {
           {!session.isSessionActive ? (
             <>
               <Button
+                data-coach-step="start-session"
                 onClick={session.startDialing}
                 disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
                 className="px-6 font-semibold"
