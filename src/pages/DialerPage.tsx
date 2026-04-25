@@ -2150,6 +2150,7 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
                   ...session.currentContact,
