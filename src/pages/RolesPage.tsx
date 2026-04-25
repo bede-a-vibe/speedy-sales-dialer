@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone } from "lucide-react";
+import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ interface ProfileRow {
   user_id: string;
   display_name: string | null;
   email: string | null;
+  last_sign_in_at?: string | null;
 }
 
 interface RoleRow {
@@ -82,11 +83,11 @@ export default function RolesPage() {
     queryKey: ["admin-users-with-roles"],
     staleTime: 15_000,
     queryFn: async () => {
-      const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, display_name, email").order("display_name"),
+      const [usersRes, rolesRes] = await Promise.all([
+        supabase.rpc("admin_list_users_with_last_login"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
-      if (profilesRes.error) throw profilesRes.error;
+      if (usersRes.error) throw usersRes.error;
       if (rolesRes.error) throw rolesRes.error;
       const rolesByUser = new Map<string, AppRole[]>();
       for (const row of (rolesRes.data ?? []) as RoleRow[]) {
@@ -94,7 +95,7 @@ export default function RolesPage() {
         arr.push(row.role);
         rolesByUser.set(row.user_id, arr);
       }
-      return ((profilesRes.data ?? []) as ProfileRow[]).map((p) => ({
+      return ((usersRes.data ?? []) as ProfileRow[]).map((p) => ({
         ...p,
         roles: rolesByUser.get(p.user_id) ?? [],
       }));
