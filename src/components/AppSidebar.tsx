@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { Button } from "@/components/ui/button";
-import { useIsAdmin } from "@/hooks/useUserRole";
+import { useCanViewAdmin, useIsCoach } from "@/hooks/useUserRole";
 import {
   Sidebar,
   SidebarContent,
@@ -38,7 +38,8 @@ const adminItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const isAdmin = useIsAdmin();
+  const canViewAdmin = useCanViewAdmin();
+  const isCoach = useIsCoach();
   const [quickBookOpen, setQuickBookOpen] = useState(false);
 
   return (
@@ -51,8 +52,17 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h1 className="text-sm font-bold text-sidebar-primary tracking-tight">SalesDialer</h1>
-              <p className="text-[10px] text-sidebar-foreground font-mono uppercase tracking-widest">CRM</p>
+              <h1 className="text-sm font-bold text-sidebar-primary tracking-tight">
+                SalesDialer
+                {isCoach && (
+                  <span className="ml-2 inline-flex items-center rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest text-amber-400">
+                    Coach
+                  </span>
+                )}
+              </h1>
+              <p className="text-[10px] text-sidebar-foreground font-mono uppercase tracking-widest">
+                {isCoach ? "Demo Mode" : "CRM"}
+              </p>
             </div>
           )}
         </div>
@@ -84,10 +94,10 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isAdmin && (
+        {canViewAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">
-              Admin
+              {isCoach ? "Admin (read-only)" : "Admin"}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
