@@ -1,193 +1,93 @@
-## Plan: Custom multi-filter benchmark segments — final
+## Plan: Coach role + demo mode + coach-safe dialer
 
-### What you'll get
+### What this delivers
 
-A new **"Segments"** mode in the Custom Monitor toolbar (sitting alongside the existing Single and By-Dimension modes). In Segments mode, every row in the table is a **custom segment** you've defined — a saved combination of filters from the dialer's vocabulary, like:
+`contact@frontendng.com` becomes a **coach** account that sees every screen and every button (Contacts, Pipelines, Reports, Funnel, Targets, GHL Sync, Dialpad Settings, Dialer) exactly as an admin does, can open every form and click every action, but **cannot write to the live database**. Writes are intercepted in the UI with a friendly "Demo mode — change not saved" toast that summarizes what would have happened, AND blocked at the database level by RLS as a hard safety net.
 
-- **Segment A**: NSW · Plumbers · 6-15 employees · Has Google Ads
-- **Segment B**: VIC · Electricians · Sole trader · Hot tier
-- **Segment C**: All Builders · Mobile · No DM phone captured
+### 1. Database — new role + safety net (migration)
 
-Each segment becomes one row in the same table, with whatever metric columns you've already selected (Dials, Pickups, Conversations, Pickup → Booking, etc.), sortable by any column, with a Total row at the bottom and best/worst per column highlighted (green/red) like the existing Breakdown table.
+- Add `'coach'` to the `app_role` enum.
+- Add `public.is_admin_or_coach(_user_id uuid)` security-definer helper returning `has_role(uid,'admin') OR has_role(uid,'coach')`.
+- Extend SELECT policies to include coach where they aren't already open to all authenticated users:
+  - `dialpad_settings` — add coach to view policy.
+  - `dialer_lead_locks` — add a new SELECT policy for coach (so the dialer page can show the queue state).
+  - `pending_ghl_pushes` — add coach to admin read policy.
+  - `dialpad_calls` — extend SELECT policy to coach.
+- Add new RPC `public.preview_dialer_leads(...)` — same signature/scoring as `claim_dialer_leads` but does NOT insert into `dialer_lead_locks`. Returns `{ total_available_count, claimed_contacts }`. Restricted to coach/admin.
+- **No INSERT/UPDATE/DELETE policies are modified.** Coach has zero write access at the DB layer because no policy names the `coach` role.
 
-### Persistence: private by default, opt-in team sharing
+### 2. Switch Jeff's account (data operation)
 
-Per your answer:
+- Find `user_id` for `contact@frontendng.com` in `auth.users`.
+- Delete `(user_id, 'admin')` row from `public.user_roles`.
+- Insert `(user_id, 'coach')` row.
 
-- **Private segments** live in `localStorage` keyed by user (`funnel:benchmark-segments:<userId>:v1`). Instant CRUD, no infra.
-- **Team-shared segments** live in a new Supabase table `benchmark_segments` with RLS so any authenticated user can read all shared segments, but only the creator (or admin) can edit/delete.
-- The editor dialog has a **"Share with team"** switch. Off = private (localStorage). Toggling on promotes the segment to the database; toggling off pulls it back to localStorage.
-- The toolbar shows both lists merged, with a small icon distinguishing the two: 👤 private vs 👥 team. Sort: team segments first (everyone benefits), then your private ones.
+### 3. Frontend — role hooks (`src/hooks/useUserRole.ts`)
 
-#### New table: `benchmark_segments`
+Extend with:
+- `useIsCoach()` — true when roles include `coach`.
+- `useCanViewAdmin()` — true for admin OR coach (used for sidebar Admin section + admin-only routes).
+- `useCanWrite()` — true only for admin (used to gate every write action).
+- `useDemoMode()` — true when coach (no admin), used by interception wrapper.
 
-```sql
-create table public.benchmark_segments (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  color text,                          -- optional accent for the row label
-  filters jsonb not null default '{}',  -- the Segment.filters shape (typed in TS)
-  created_by uuid not null references auth.users(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+### 4. Demo-mode write interception (`src/lib/demoMode.ts` — new file)
 
-alter table public.benchmark_segments enable row level security;
+- Export `interceptDemoWrite(actionName: string, summary: string): boolean` — when called inside a coach session, shows the toast `🎓 Demo mode — would [actionName]: [summary]` and returns `true` (signaling caller to skip the real write).
+- Export `useDemoGuard()` hook returning a wrapped helper bound to current role.
+- All call sites add a single early-return guard: `if (demoGuard("delete contact", contact.business_name)) return;` before the Supabase mutation runs.
 
--- Anyone authed can see team segments (it's a reporting table, low sensitivity)
-create policy "Authenticated users can view shared segments"
-  on public.benchmark_segments for select to authenticated using (true);
+Wrap these call sites:
+- **Contacts** (`ContactsPage.tsx`, `ContactDetailPage.tsx`): create, edit, delete, status change, repair drift, DNC toggle, add note, manual transcript upload, import CSV (`UploadPage.tsx`).
+- **Pipelines** (`BookedOutcomePanel.tsx`, `PipelinesPage.tsx`, `FollowUpsPage.tsx`): record outcome, reschedule, assign, complete follow-up.
+- **Targets** (`TargetsPage.tsx`): bulk save, delete target.
+- **Call openers** (`CallOpenersManager.tsx`): create, update, delete, toggle active.
+- **Dialpad settings** (`DialpadSettingsPage.tsx`): upsert, delete, GHL user mapping save.
+- **GHL sync** (`GhlSyncPage.tsx`): start, stop, resume.
+- **Quick Book** (`QuickBookDialog.tsx`): submit (booking + follow-up), create new contact.
+- **Dialer** (`DialerPage.tsx`, `useDialerSession.ts`, `useCallLogs.ts`, `usePipelineItems.ts`, `DecisionMakerCapture.tsx`, `useContactNotes.ts`): log call, create pipeline item, schedule follow-up, decision-maker save.
 
--- Only the creator can insert their own (created_by must match the caller)
-create policy "Users can insert own segments"
-  on public.benchmark_segments for insert to authenticated
-  with check (auth.uid() = created_by);
+Buttons stay visible and clickable for coach so Jeff sees the full workflow — only the actual mutation is short-circuited.
 
--- Creator OR admin can update / delete
-create policy "Creator or admin can update segments"
-  on public.benchmark_segments for update to authenticated
-  using (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role))
-  with check (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role));
+### 5. Sidebar + route gating
 
-create policy "Creator or admin can delete segments"
-  on public.benchmark_segments for delete to authenticated
-  using (auth.uid() = created_by or has_role(auth.uid(), 'admin'::app_role));
+- `AppSidebar.tsx`:
+  - Use `useCanViewAdmin()` instead of `useIsAdmin()` to render the Admin section (Reports, Call Funnel, Targets, GHL Sync, Dialpad Settings).
+  - When `useIsCoach()`, show a small amber "COACH" badge next to the SalesDialer logo.
+- `ProtectedApp.tsx`:
+  - Rename `AdminRoute` → `AdminOrCoachRoute` and switch its check from `isAdmin` to `useCanViewAdmin()`. Targets, Dialpad Settings, GHL Sync all become coach-accessible (read-only via RLS + demo mode).
 
--- Trigger to keep updated_at fresh
-create trigger benchmark_segments_set_updated
-  before update on public.benchmark_segments
-  for each row execute function public.update_updated_at_column();
-```
+### 6. Coach-safe dialer (`DialerPage.tsx` + new `useCoachQueuePreview` hook)
 
-This re-uses the existing `has_role(...)` security-definer function and `update_updated_at_column()` trigger, so no new helpers needed. Low sensitivity: a "segment" is just a saved filter combo — there's no PII in it.
+When `useIsCoach()`:
+- Render a sticky amber banner at the top of `DialerPage`: *"🎓 Coaching Session — calls and outcomes are not recorded. This is read-only demo mode."*
+- Replace `useRollingDialerQueue` with new `useCoachQueuePreview({ filters })` that:
+  - Calls `preview_dialer_leads` RPC (no locks).
+  - Buffers 25 leads, advances locally on "next/skip".
+  - No heartbeat, no lock release, no `dialer_lead_locks` writes.
+- `DialpadCTI` renders with `autoInitiateCall={false}` and `phoneNumber={null}` — iframe loads so Jeff sees the real CTI panel, but no auto-dial.
+- Outcome buttons + "Log Call" + booking flow remain clickable; clicks route through demo-mode interception.
+- `useDialerDialpad` short-circuits in coach mode (no Dialpad API calls, no `dialpad_calls` writes).
+- "Start Session" / "Stop Session" still work (purely local state in coach mode).
 
-### How segments are evaluated (per row)
+### 7. What this does NOT change
 
-For each segment, we filter the already-loaded `callLogs` and `bookedItems` to rows whose joined `contacts` row matches every condition in the segment, then run `getReportMetrics(...)` on that subset. Same code path the existing By-Dimension benchmark uses — so:
+- Admin users keep full live access — every admin write policy is untouched and continues to name `admin`.
+- Sales reps — no behavior change.
+- The Custom Monitor / Bar Comparison / End-to-end Funnel work from earlier turns is not modified.
+- No auto-confirm changes for new signups.
+- No password rotation for Jeff's account.
 
-- **Same metric formulas** as everywhere else, including the conversation-tagging launch-date clipping you locked in earlier.
-- **Same date range** as the page-level toolbar.
-- **Same rep filter** as the page-level toolbar.
-- **No new database queries for the metrics themselves** — the `contacts(...)` join already pulls every column we need (`trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count`).
+### 8. Security guarantees
 
-A separate small query computes a **"contacts matching this segment overall"** count (independent of date range, like the dialer's match count) so each segment row also shows segment size — useful sanity check for "is my segment 5 contacts or 5,000?".
+Two independent layers:
+1. **UI demo-mode interception** — clean UX, no surprise errors, readable toast feedback.
+2. **RLS lockdown** — even if Jeff opens devtools and POSTs directly to Supabase, every INSERT/UPDATE/DELETE policy is checked against the `admin` role only and rejects coach writes at the database.
 
-### Empty-row behavior
+### Files touched
 
-Per your answer: **always show every active segment**, even when it has zero dials in the date range. Predictable, no toggle. Empty rows render with `—` in metric columns and a muted style so they don't distract.
+- New migration: enum extension, helper function, SELECT policy additions, `preview_dialer_leads` RPC.
+- Data migration: role swap for `contact@frontendng.com`.
+- New: `src/lib/demoMode.ts`, `src/hooks/useCoachQueuePreview.ts`.
+- Modified: `useUserRole.ts`, `AppSidebar.tsx`, `ProtectedApp.tsx`, `DialerPage.tsx`, `useDialerSession.ts`, `useCallLogs.ts`, `usePipelineItems.ts`, `useContactNotes.ts`, `useDialerDialpad.ts`, `ContactsPage.tsx`, `ContactDetailPage.tsx`, `UploadPage.tsx`, `PipelinesPage.tsx`, `FollowUpsPage.tsx`, `BookedOutcomePanel.tsx`, `TargetsPage.tsx`, `CallOpenersManager.tsx`, `DialpadSettingsPage.tsx`, `GhlSyncPage.tsx`, `QuickBookDialog.tsx`, `DecisionMakerCapture.tsx`.
 
-### UI: the Custom Monitor toolbar
-
-Three-mode toggle replacing today's implicit "is benchmark-dim set?" check:
-
-```
-[Single | By Dimension | Segments]   [+ New Segment]   | Table | Cards | Customize columns
-```
-
-- **Single** — today's default, one row, no comparison.
-- **By Dimension** — today's existing dropdown-driven benchmark.
-- **Segments** — the new mode.
-
-When **Segments** is active:
-
-- A chip strip below the toolbar lists every segment (private + team), each clickable to edit, with `✕` to remove. Inactive segments (none yet) → empty state with a "Create your first segment" button.
-- `[+ New Segment]` opens the editor dialog.
-- "Compare to previous period" stays mutually exclusive with Segments mode (same disabled-with-tooltip pattern as today's By-Dimension mode).
-
-### The "New / Edit Segment" dialog (modal, like Customize Columns)
-
-Mirrors the dialer's `AdvancedFilters` vocabulary so reps recognize every field:
-
-| Field | Control | Source of options |
-|---|---|---|
-| Name (required) | Text input | — |
-| State | MultiSelect | `AUSTRALIAN_STATES` |
-| Industry / Trade | MultiSelect | `INDUSTRIES` + `TRADE_TYPES` (combined like the dialer) |
-| Work Type | Select (incl. "Any") | `WORK_TYPES` |
-| Business Size | Select | `BUSINESS_SIZES` |
-| Prospect Tier | Select | `PROSPECT_TIERS` |
-| Buying Signal | Select | `BUYING_SIGNAL_OPTIONS` |
-| Phone Type | Select | `PHONE_TYPE_OPTIONS` |
-| Has Google Ads | Select | `AD_STATUS_OPTIONS` |
-| Has Facebook Ads | Select | `AD_STATUS_OPTIONS` |
-| Has DM Phone | Select | `DM_STATUS_OPTIONS` |
-| Min GBP Rating | Number input | `GBP_RATING_OPTIONS` |
-| Min Review Count | Number input | `REVIEW_COUNT_OPTIONS` |
-| **Share with team** | Switch | — |
-
-Top of the dialog: a **"Copy from current dialer filters"** button — when present, it reads the dialer's filter blob from `localStorage` (the dialer already persists filters there per `readStoredDialerFilters` in `DialerPage.tsx`) and pre-fills the form. Disabled with a tooltip when no filters are stored yet.
-
-Bottom of the dialog: a live **"X contacts match these filters"** count (matches the dialer Filters panel ergonomic). Computed by re-using the dialer's existing `get_dialer_queue_count` RPC — but in *non-queue mode* by passing all the filters and skipping the queue-only constraints. Actually simpler: just run a head `count` query on `contacts` with the segment's WHERE clauses. Implemented as a small `countContactsForSegment(segment)` helper that reuses the same param shape.
-
-### Segment row display
-
-```
-┌─────────────────────────────┬────────┬─────────┬───────────────┬──────────────┐
-│ SEGMENT                     │ DIALS  │ PICKUPS │ PICKUP→BOOK   │ TALK/CONV    │
-├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
-│ 👥 NSW Plumbers (Hot)        │  284   │   93    │   3.2%        │   4:12       │
-│   NSW · Plumbers · Hot      │        │         │               │              │
-├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
-│ 👥 VIC Electricians (Ads)   │ 2,150  │  776    │   1.4%        │   3:48       │
-│   VIC · Electricians · Goog │        │         │               │              │
-├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
-│ 👤 All Builders (Mobile)    │   26   │    7    │   0%          │   0:54       │
-│   Builders · Mobile         │        │         │               │              │
-├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
-│ 👤 NSW Hot · Sole Trader    │   —    │    —    │     —         │     —        │
-│   NSW · Hot · Sole trader   │        │         │               │              │
-├─────────────────────────────┼────────┼─────────┼───────────────┼──────────────┤
-│ Total                       │ 2,460  │  876    │   1.6%        │   3:55       │
-└─────────────────────────────┴────────┴─────────┴───────────────┴──────────────┘
-```
-
-The 👥/👤 icon shows team vs private. Hovering a row reveals an Edit pencil and a small `✕`. Best/worst per column tinted green/red, only when ≥3 segments have non-zero data (same threshold as the existing Breakdown table).
-
-### How this coexists with what's already there
-
-- **Single mode** = today's default. Unchanged.
-- **By-Dimension mode** = today's "Compare by Industry / State / …" picker. Unchanged.
-- **Segments mode** = new.
-- The mode state defaults to "Single" so existing users see no change on first load.
-- The existing `benchmarkDim`/`benchmarkValuesByDim` localStorage keys keep working — no migration needed.
-
-### Files I'll touch
-
-1. **`src/lib/benchmarkSegments.ts` (new, ~180 lines)**
-   - `Segment` type (matches the table's `filters` jsonb shape).
-   - `matchSegmentForCallLog(log, segment)` and `matchSegmentForBooking(item, segment)` — pure JS predicates against the joined `contacts` row.
-   - `summarizeSegmentFilters(segment)` → short subtitle like `"NSW · Plumbers · Hot"`.
-   - `useSegmentsStore()` hook — merges localStorage (private) + Supabase query (team), exposes `create / update / delete / toggleShared`.
-   - `countContactsForSegment(segment)` — `supabase.from("contacts").select("id", { head: true, count: "exact" })` with the segment's WHERE clauses.
-
-2. **`src/components/funnel/SegmentEditorDialog.tsx` (new, ~280 lines)**
-   - Modal form using `Dialog`, `Select`, `MultiSelect`, `Switch`, `Input`.
-   - "Copy from current dialer filters" button reading the same `STORAGE_KEY` the dialer writes.
-   - Live "X contacts match" footer using `countContactsForSegment`.
-
-3. **`src/components/funnel/CustomStatGrid.tsx`**
-   - Replace the implicit two-mode logic with a `mode: "single" | "dimension" | "segments"` state.
-   - Add the three-button mode toggle, the segment chip strip, the `[+ New Segment]` button.
-   - Add a new `SegmentTableView` component (sibling of `BenchmarkTableView`/`TableView`) — same column structure, segment-name + filter-summary first column.
-
-4. **`src/pages/CallFunnelPage.tsx`**
-   - Wire in `useSegmentsStore()`.
-   - For each active segment, compute `ReportMetrics` via `getReportMetrics(...)` after pre-filtering `callLogs` and `bookedAppointments` with `matchSegmentForCallLog` / `matchSegmentForBooking`.
-   - Pass `segments` and `segmentRows` into `CustomStatGrid`.
-
-5. **Migration: create `benchmark_segments` table + RLS** (the SQL block above).
-
-### What this does NOT change
-
-- Dialer, dashboard, targets, follow-ups, contacts, reports SOP page — unchanged.
-- The conversation-tagging launch-date clipping — preserved (rides on the same `getReportMetrics` calls).
-- Funnel chart, Conversion Rate Strip, Trend chart, Stage Drop-Off panel, existing Breakdown table — unchanged.
-- Single-mode and By-Dimension mode in the Custom Monitor — unchanged, just gated behind a mode toggle.
-
-### Out of scope
-
-- **Auto-suggested segments** — none. Reps create their own.
-- **Comparing the same segment across two date ranges** — that's a date-vs-date comparison, separate feature.
-- **Dialer-side "dial this segment now" buttons** — would require queue/scoring changes; great follow-up but not in this change.
-- **Segment groups / folders** — flat list in v1.
-- **Editing team segments by non-creators** — only the creator (or an admin) can edit a team segment. Others see them read-only.
+Approve and I'll build it.
