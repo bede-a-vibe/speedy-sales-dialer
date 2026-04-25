@@ -2788,6 +2788,9 @@ export default function DialerPage() {
           storageKey={COACH_TOUR_STORAGE_KEY}
         />
       )}
+      {isCoach && (
+        <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
+      )}
     </AppLayout>
   );
 }
