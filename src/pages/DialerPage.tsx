@@ -2260,6 +2260,7 @@ export default function DialerPage() {
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
               {/* Log This Call — outcomes + conversation tagging in one card */}
+              <div data-coach-step="log-call-panel">
               <LogCallPanel
                 selectedOutcome={session.selectedOutcome}
                 canSubmit={canSubmit}
@@ -2274,14 +2275,17 @@ export default function DialerPage() {
                 conversationProgress={conversationProgress}
                 onConversationProgressChange={setConversationProgress}
               />
+              </div>
 
               {/* Notes — directly under Log This Call so reps don't have to scan */}
+              <div data-coach-step="notes-panel">
               <ContactNotesPanel
                 contactId={session.currentContact.id}
                 notes={session.notes}
                 onNotesChange={session.setNotes}
                 enabled={session.isSessionActive}
               />
+              </div>
 
               {requiresPipelineAssignment && (
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
