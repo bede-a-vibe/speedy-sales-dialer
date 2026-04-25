@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus, GraduationCap, GitBranch, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus, GraduationCap, GitBranch, RefreshCw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { Button } from "@/components/ui/button";
-import { useCanViewAdmin, useIsCoach } from "@/hooks/useUserRole";
+import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import {
   Sidebar,
   SidebarContent,
@@ -35,11 +35,16 @@ const adminItems = [
   { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },
 ];
 
+const adminOnlyItems = [
+  { title: "User Roles", url: "/admin/roles", icon: ShieldCheck },
+];
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const canViewAdmin = useCanViewAdmin();
   const isCoach = useIsCoach();
+  const isAdmin = useIsAdmin();
   const [quickBookOpen, setQuickBookOpen] = useState(false);
 
   return (
@@ -102,6 +107,21 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end
+                        className="hover:bg-sidebar-accent/50 transition-colors"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                {isAdmin && adminOnlyItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink

@@ -16,6 +16,7 @@ const TargetsPage = lazy(() => import("@/pages/TargetsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
+const RolesPage = lazy(() => import("@/pages/RolesPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -38,6 +39,19 @@ function AdminRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/" replace />;
   }
 
+  return <>{children}</>;
+}
+
+function AdminOnlyRoute({ children }: { children: ReactNode }) {
+  const { loading: authLoading } = useAuth();
+  const { isAdmin, isLoading } = useAdminAccess();
+
+  if (authLoading || isLoading) {
+    return <FullPageLoading />;
+  }
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -96,6 +110,14 @@ function ProtectedRoutes() {
             <AdminRoute>
               <GhlSyncPage />
             </AdminRoute>
+          )}
+        />
+        <Route
+          path="/admin/roles"
+          element={(
+            <AdminOnlyRoute>
+              <RolesPage />
+            </AdminOnlyRoute>
           )}
         />
         <Route path="*" element={<NotFound />} />
