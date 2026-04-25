@@ -63,7 +63,8 @@ import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
 import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
-import { GraduationCap } from "lucide-react";
+import { ScenarioMode } from "@/components/coach/ScenarioMode";
+import { GraduationCap, Sparkles } from "lucide-react";
 
 const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
 
@@ -347,6 +348,7 @@ export default function DialerPage() {
   const isOnline = useNetworkStatus();
   const isCoach = useIsCoach();
   const [coachTourOpen, setCoachTourOpen] = useState(false);
+  const [scenarioOpen, setScenarioOpen] = useState(false);
 
   // Auto-launch the tour the first time a coach lands on the dialer.
   useEffect(() => {
@@ -1679,15 +1681,26 @@ export default function DialerPage() {
             <div>
               🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded.
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-200"
-              onClick={() => setCoachTourOpen(true)}
-            >
-              <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
-              Start guided tour
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-200"
+                onClick={() => setScenarioOpen(true)}
+              >
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                Practice outcomes
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-200"
+                onClick={() => setCoachTourOpen(true)}
+              >
+                <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
+                Start guided tour
+              </Button>
+            </div>
           </div>
         )}
         <DailyTarget />
@@ -2774,6 +2787,9 @@ export default function DialerPage() {
           onClose={() => setCoachTourOpen(false)}
           storageKey={COACH_TOUR_STORAGE_KEY}
         />
+      )}
+      {isCoach && (
+        <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
       )}
     </AppLayout>
   );
