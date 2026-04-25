@@ -2208,6 +2208,7 @@ export default function DialerPage() {
                   existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
                 />
               </CollapsiblePanel>
+              </div>
 
               {/* GHL Custom Fields — full intelligence capture during the call */}
               <CollapsiblePanel
