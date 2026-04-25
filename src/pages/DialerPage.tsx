@@ -61,6 +61,7 @@ import {
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
+import { useIsCoach } from "@/hooks/useUserRole";
 
 const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
   mobile: "Mobile",
@@ -283,6 +284,7 @@ PanelSkeleton.displayName = "PanelSkeleton";
 export default function DialerPage() {
   const storedFilters = useMemo(() => readStoredDialerFilters(), []);
   const isOnline = useNetworkStatus();
+  const isCoach = useIsCoach();
   const [industries, setIndustries] = useState<string[]>(() => storedFilters?.industries ?? []);
   const [states, setStates] = useState<string[]>(() => storedFilters?.states ?? []);
   const [contactOwner, setContactOwner] = useState<string>(() => storedFilters?.contactOwner ?? "all");
@@ -1599,6 +1601,11 @@ export default function DialerPage() {
   return (
     <AppLayout title="Dialer">
       <div className="mx-auto max-w-6xl space-y-6">
+        {isCoach && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded. Use this to walk through the rep workflow.
+          </div>
+        )}
         <DailyTarget />
 
         <Suspense fallback={<Dialog open={session.showSummary}><DialogContent className="sm:max-w-md"><PanelSkeleton height="h-56" /></DialogContent></Dialog>}>
@@ -2152,7 +2159,7 @@ export default function DialerPage() {
                 visible={showDialpadCTI}
                 onToggleVisible={() => setShowDialpadCTI((v) => !v)}
                 phoneNumber={session.currentContact?.phone ?? null}
-                autoInitiateCall={session.isDialing && !session.isSessionPaused}
+                autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
                 outboundCallerId={selectedCallerId || null}
                 customData={session.currentContact ? JSON.stringify({
                   contact_id: session.currentContact.id,
