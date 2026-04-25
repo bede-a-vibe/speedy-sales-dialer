@@ -2767,6 +2767,14 @@ export default function DialerPage() {
           </div>
         )}
       </div>
+      {isCoach && (
+        <CoachTour
+          steps={DIALER_COACH_STEPS}
+          open={coachTourOpen}
+          onClose={() => setCoachTourOpen(false)}
+          storageKey={COACH_TOUR_STORAGE_KEY}
+        />
+      )}
     </AppLayout>
   );
 }
