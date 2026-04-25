@@ -2588,7 +2588,7 @@ export default function DialerPage() {
               )}
 
               {/* Log & Skip actions */}
-              <div className="space-y-2">
+              <div data-coach-step="log-and-skip" className="space-y-2">
                 <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
                   {createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
