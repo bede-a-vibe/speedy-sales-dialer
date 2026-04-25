@@ -62,6 +62,67 @@ import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
+import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
+import { GraduationCap } from "lucide-react";
+
+const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
+
+const DIALER_COACH_STEPS: CoachStep[] = [
+  {
+    target: "filters-button",
+    title: "1. Pick who you're calling",
+    body: "Filters narrow the queue by industry, state, trade, prospect tier, and more. Reps usually start a session with a filter preset that matches today's focus list.",
+    placement: "bottom",
+  },
+  {
+    target: "queue-counter",
+    title: "2. Check the queue depth",
+    body: "This shows how many leads match the current filters and are ready to dial. The system locks each lead to one rep so two people never call the same business.",
+    placement: "bottom",
+  },
+  {
+    target: "start-session",
+    title: "3. Start dialing",
+    body: "Hitting Start Dialing claims the next prioritized lead, opens the contact card, and (for real reps) auto-places a Dialpad call. In coach mode no call is placed.",
+    placement: "bottom",
+  },
+  {
+    target: "contact-card",
+    title: "4. Read the contact card",
+    body: "Business details, phone, prior outcomes and decision-maker intel show up here. Reps glance at this before the prospect picks up so they're context-ready.",
+    placement: "right",
+  },
+  {
+    target: "log-call-panel",
+    title: "5. Log the call outcome",
+    body: "Every call must be dispositioned. Quick outcomes (No Answer, Voicemail) are at the top; conversation outcomes (Not Interested, DNC, Follow-up, Booked) are below. Click an outcome to select it — click again to fast-log.",
+    placement: "left",
+  },
+  {
+    target: "log-call-panel",
+    title: "6. Tag the conversation depth",
+    body: "When you reach a person, mark how far the conversation got: Connection, Problem Awareness, Solution Awareness, Commitment. This drives the call-funnel metrics on the Reports page.",
+    placement: "left",
+  },
+  {
+    target: "notes-panel",
+    title: "7. Write the call note",
+    body: "Notes sync to the contact and to GHL. Keep it short: what happened, the next step, and any useful info for the next rep who picks this lead up.",
+    placement: "left",
+  },
+  {
+    target: "log-and-skip",
+    title: "8. Save and move on — or skip",
+    body: "Press Enter (or click the green button) to save the outcome and load the next lead. Use Skip Lead (or hit S) if the contact is uncallable right now without burning an attempt.",
+    placement: "left",
+  },
+  {
+    target: "decision-maker-capture",
+    title: "9. Capture decision-maker intel",
+    body: "When you get past the gatekeeper or learn who the DM is, drop their name, role and best time-to-call here. Future reps inherit it.",
+    placement: "right",
+  },
+];
 
 const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
   mobile: "Mobile",
@@ -285,6 +346,18 @@ export default function DialerPage() {
   const storedFilters = useMemo(() => readStoredDialerFilters(), []);
   const isOnline = useNetworkStatus();
   const isCoach = useIsCoach();
+  const [coachTourOpen, setCoachTourOpen] = useState(false);
+
+  // Auto-launch the tour the first time a coach lands on the dialer.
+  useEffect(() => {
+    if (!isCoach) return;
+    try {
+      const seen = window.localStorage.getItem(COACH_TOUR_STORAGE_KEY);
+      if (!seen) setCoachTourOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, [isCoach]);
   const [industries, setIndustries] = useState<string[]>(() => storedFilters?.industries ?? []);
   const [states, setStates] = useState<string[]>(() => storedFilters?.states ?? []);
   const [contactOwner, setContactOwner] = useState<string>(() => storedFilters?.contactOwner ?? "all");
@@ -1602,8 +1675,19 @@ export default function DialerPage() {
     <AppLayout title="Dialer">
       <div className="mx-auto max-w-6xl space-y-6">
         {isCoach && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-            🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded. Use this to walk through the rep workflow.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            <div>
+              🎓 <span className="font-semibold">Coaching session</span> — every screen is fully interactive, but calls aren't placed and outcomes aren't recorded.
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-200"
+              onClick={() => setCoachTourOpen(true)}
+            >
+              <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
+              Start guided tour
+            </Button>
           </div>
         )}
         <DailyTarget />
@@ -1621,6 +1705,7 @@ export default function DialerPage() {
         {/* ── Filters & Controls ── */}
         <div className="flex flex-wrap items-center gap-4">
           <Button
+            data-coach-step="filters-button"
             variant={showAdvancedFilters ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -1648,7 +1733,7 @@ export default function DialerPage() {
           )}
 
           <div className="flex flex-1 flex-wrap items-center gap-3">
-            <span className="text-xs font-mono text-muted-foreground">
+            <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
               {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
             </span>
             {queueFocusLabel && (
@@ -1719,6 +1804,7 @@ export default function DialerPage() {
           {!session.isSessionActive ? (
             <>
               <Button
+                data-coach-step="start-session"
                 onClick={session.startDialing}
                 disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
                 className="px-6 font-semibold"
@@ -2064,6 +2150,7 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
                   ...session.currentContact,
@@ -2087,6 +2174,7 @@ export default function DialerPage() {
                   />
                 }
               />
+              </div>
 
               {session.isSessionPaused && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
@@ -2094,6 +2182,7 @@ export default function DialerPage() {
                 </div>
               )}
 
+              <div data-coach-step="decision-maker-capture">
               <CollapsiblePanel
                 title="Decision Maker"
                 subtitle="Capture DM name, route, and gatekeeper notes"
@@ -2119,6 +2208,7 @@ export default function DialerPage() {
                   existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
                 />
               </CollapsiblePanel>
+              </div>
 
               {/* GHL Custom Fields — full intelligence capture during the call */}
               <CollapsiblePanel
@@ -2170,6 +2260,7 @@ export default function DialerPage() {
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
               {/* Log This Call — outcomes + conversation tagging in one card */}
+              <div data-coach-step="log-call-panel">
               <LogCallPanel
                 selectedOutcome={session.selectedOutcome}
                 canSubmit={canSubmit}
@@ -2184,14 +2275,17 @@ export default function DialerPage() {
                 conversationProgress={conversationProgress}
                 onConversationProgressChange={setConversationProgress}
               />
+              </div>
 
               {/* Notes — directly under Log This Call so reps don't have to scan */}
+              <div data-coach-step="notes-panel">
               <ContactNotesPanel
                 contactId={session.currentContact.id}
                 notes={session.notes}
                 onNotesChange={session.setNotes}
                 enabled={session.isSessionActive}
               />
+              </div>
 
               {requiresPipelineAssignment && (
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
@@ -2494,7 +2588,7 @@ export default function DialerPage() {
               )}
 
               {/* Log & Skip actions */}
-              <div className="space-y-2">
+              <div data-coach-step="log-and-skip" className="space-y-2">
                 <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
                   {createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2673,6 +2767,14 @@ export default function DialerPage() {
           </div>
         )}
       </div>
+      {isCoach && (
+        <CoachTour
+          steps={DIALER_COACH_STEPS}
+          open={coachTourOpen}
+          onClose={() => setCoachTourOpen(false)}
+          storageKey={COACH_TOUR_STORAGE_KEY}
+        />
+      )}
     </AppLayout>
   );
 }
