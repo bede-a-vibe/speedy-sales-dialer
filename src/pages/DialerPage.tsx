@@ -346,6 +346,18 @@ export default function DialerPage() {
   const storedFilters = useMemo(() => readStoredDialerFilters(), []);
   const isOnline = useNetworkStatus();
   const isCoach = useIsCoach();
+  const [coachTourOpen, setCoachTourOpen] = useState(false);
+
+  // Auto-launch the tour the first time a coach lands on the dialer.
+  useEffect(() => {
+    if (!isCoach) return;
+    try {
+      const seen = window.localStorage.getItem(COACH_TOUR_STORAGE_KEY);
+      if (!seen) setCoachTourOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, [isCoach]);
   const [industries, setIndustries] = useState<string[]>(() => storedFilters?.industries ?? []);
   const [states, setStates] = useState<string[]>(() => storedFilters?.states ?? []);
   const [contactOwner, setContactOwner] = useState<string>(() => storedFilters?.contactOwner ?? "all");
