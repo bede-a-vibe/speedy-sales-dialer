@@ -885,6 +885,28 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
+      preview_dialer_leads: {
+        Args: {
+          _business_size?: string
+          _buying_signal_strength?: string
+          _claim_size?: number
+          _contact_owner?: string
+          _has_dm_phone?: boolean
+          _has_facebook_ads?: string
+          _has_google_ads?: string
+          _industries?: string[]
+          _min_gbp_rating?: number
+          _min_review_count?: number
+          _phone_type?: string
+          _prospect_tier?: string
+          _session_id: string
+          _states?: string[]
+          _trade_types?: string[]
+          _work_type?: string
+        }
+        Returns: Json
+      }
       refresh_dialer_lead_locks: {
         Args: {
           _contact_ids?: string[]
@@ -903,7 +925,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "sales_rep"
+      app_role: "admin" | "sales_rep" | "coach"
       appointment_outcome:
         | "no_show"
         | "rescheduled"
@@ -1053,7 +1075,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "sales_rep"],
+      app_role: ["admin", "sales_rep", "coach"],
       appointment_outcome: [
         "no_show",
         "rescheduled",

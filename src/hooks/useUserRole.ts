@@ -29,9 +29,25 @@ export function useAdminAccess() {
     ...roleQuery,
     roles,
     isAdmin: roles.includes("admin"),
+    isCoach: roles.includes("coach"),
+    canViewAdmin: roles.includes("admin") || roles.includes("coach"),
+    canWrite: roles.includes("admin") || (!roles.includes("coach")),
+    isDemoMode: roles.includes("coach") && !roles.includes("admin"),
   };
 }
 
 export function useIsAdmin() {
   return useAdminAccess().isAdmin;
+}
+
+export function useIsCoach() {
+  return useAdminAccess().isCoach;
+}
+
+export function useCanViewAdmin() {
+  return useAdminAccess().canViewAdmin;
+}
+
+export function useIsDemoMode() {
+  return useAdminAccess().isDemoMode;
 }
