@@ -62,6 +62,67 @@ import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
+import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
+import { GraduationCap } from "lucide-react";
+
+const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
+
+const DIALER_COACH_STEPS: CoachStep[] = [
+  {
+    target: "filters-button",
+    title: "1. Pick who you're calling",
+    body: "Filters narrow the queue by industry, state, trade, prospect tier, and more. Reps usually start a session with a filter preset that matches today's focus list.",
+    placement: "bottom",
+  },
+  {
+    target: "queue-counter",
+    title: "2. Check the queue depth",
+    body: "This shows how many leads match the current filters and are ready to dial. The system locks each lead to one rep so two people never call the same business.",
+    placement: "bottom",
+  },
+  {
+    target: "start-session",
+    title: "3. Start dialing",
+    body: "Hitting Start Dialing claims the next prioritized lead, opens the contact card, and (for real reps) auto-places a Dialpad call. In coach mode no call is placed.",
+    placement: "bottom",
+  },
+  {
+    target: "contact-card",
+    title: "4. Read the contact card",
+    body: "Business details, phone, prior outcomes and decision-maker intel show up here. Reps glance at this before the prospect picks up so they're context-ready.",
+    placement: "right",
+  },
+  {
+    target: "log-call-panel",
+    title: "5. Log the call outcome",
+    body: "Every call must be dispositioned. Quick outcomes (No Answer, Voicemail) are at the top; conversation outcomes (Not Interested, DNC, Follow-up, Booked) are below. Click an outcome to select it — click again to fast-log.",
+    placement: "left",
+  },
+  {
+    target: "log-call-panel",
+    title: "6. Tag the conversation depth",
+    body: "When you reach a person, mark how far the conversation got: Connection, Problem Awareness, Solution Awareness, Commitment. This drives the call-funnel metrics on the Reports page.",
+    placement: "left",
+  },
+  {
+    target: "notes-panel",
+    title: "7. Write the call note",
+    body: "Notes sync to the contact and to GHL. Keep it short: what happened, the next step, and any useful info for the next rep who picks this lead up.",
+    placement: "left",
+  },
+  {
+    target: "log-and-skip",
+    title: "8. Save and move on — or skip",
+    body: "Press Enter (or click the green button) to save the outcome and load the next lead. Use Skip Lead (or hit S) if the contact is uncallable right now without burning an attempt.",
+    placement: "left",
+  },
+  {
+    target: "decision-maker-capture",
+    title: "9. Capture decision-maker intel",
+    body: "When you get past the gatekeeper or learn who the DM is, drop their name, role and best time-to-call here. Future reps inherit it.",
+    placement: "right",
+  },
+];
 
 const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
   mobile: "Mobile",
