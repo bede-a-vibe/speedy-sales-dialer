@@ -70,6 +70,29 @@ const ROLE_META: Record<AppRole, { label: string; description: string; icon: typ
 
 const ROLE_ORDER: AppRole[] = ["admin", "coach", "sales_rep"];
 
+function formatLastLogin(iso: string | null | undefined): { label: string; tone: string } {
+  if (!iso) return { label: "Never signed in", tone: "text-muted-foreground" };
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return { label: "Unknown", tone: "text-muted-foreground" };
+  const now = Date.now();
+  const diffMs = now - then;
+  const minutes = Math.round(diffMs / 60_000);
+  const hours = Math.round(diffMs / 3_600_000);
+  const days = Math.round(diffMs / 86_400_000);
+  let label: string;
+  if (minutes < 1) label = "Just now";
+  else if (minutes < 60) label = `${minutes}m ago`;
+  else if (hours < 24) label = `${hours}h ago`;
+  else if (days < 30) label = `${days}d ago`;
+  else label = new Date(iso).toLocaleDateString();
+  // Color: green <24h, amber <7d, muted otherwise
+  const tone =
+    hours < 24 ? "text-emerald-600 dark:text-emerald-400"
+    : days < 7 ? "text-amber-600 dark:text-amber-400"
+    : "text-muted-foreground";
+  return { label, tone };
+}
+
 export default function RolesPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
