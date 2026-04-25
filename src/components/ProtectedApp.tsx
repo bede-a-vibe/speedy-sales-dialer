@@ -1,8 +1,9 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "@/pages/DashboardPage";
+import { installDemoFetchInterceptor, setDemoModeActive } from "@/lib/demoMode";
 
 const DialerPage = lazy(() => import("@/pages/DialerPage"));
 const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
@@ -27,17 +28,28 @@ function FullPageLoading() {
 
 function AdminRoute({ children }: { children: ReactNode }) {
   const { loading: authLoading } = useAuth();
-  const { isAdmin, isLoading } = useAdminAccess();
+  const { canViewAdmin, isLoading } = useAdminAccess();
 
   if (authLoading || isLoading) {
     return <FullPageLoading />;
   }
 
-  if (!isAdmin) {
+  if (!canViewAdmin) {
     return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
+}
+
+/** Keeps the global demo-mode flag in sync with the current user's role. */
+function DemoModeSync() {
+  const { isDemoMode } = useAdminAccess();
+  useEffect(() => {
+    installDemoFetchInterceptor();
+    setDemoModeActive(Boolean(isDemoMode));
+    return () => setDemoModeActive(false);
+  }, [isDemoMode]);
+  return null;
 }
 
 function ProtectedRoutes() {
@@ -51,6 +63,7 @@ function ProtectedRoutes() {
 
   return (
     <Suspense fallback={<FullPageLoading />}>
+      <DemoModeSync />
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dialer" element={<DialerPage />} />
