@@ -1538,6 +1538,13 @@ export default function ContactsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <QuickBookDialog
+          open={!!followUpContact}
+          onOpenChange={(open) => { if (!open) setFollowUpContact(null); }}
+          initialContact={followUpContact}
+          initialPipelineType="follow_up"
+        />
       </div>
     </AppLayout>
   );
