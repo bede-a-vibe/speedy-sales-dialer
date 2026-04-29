@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
 import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
 import { useUpdateContact, useCreateContact, usePaginatedContacts, type ContactsSortOption } from "@/hooks/useContacts";
@@ -763,6 +764,7 @@ export default function ContactsPage() {
   const [statusChangeContact, setStatusChangeContact] = useState<Contact | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [followUpContact, setFollowUpContact] = useState<Contact | null>(null);
   const [createForm, setCreateForm] = useState<{
     business_name: string;
     contact_person: string;
