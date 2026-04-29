@@ -2214,15 +2214,57 @@ async function syncWebhookPayload(params: {
               .limit(1)
               .maybeSingle();
 
-            // If no recent call log, try to find any active user
-            let userId = recentUser?.user_id;
+            // Try to map a Dialpad user id from the webhook payload to a Supabase user
+            // via dialpad_settings — this is the most reliable way to attribute a
+            // direct-Dialpad ("manual") call to the correct rep.
+            let userId: string | null = recentUser?.user_id ?? null;
+
+            try {
+              const payloadDialpadUserIds = uniqueNormalizedStrings([
+                payload.user_id,
+                (payload as unknown as JsonRecord).target_id,
+                (payload as unknown as JsonRecord).operator_id,
+                (payload as unknown as JsonRecord).owner_id,
+              ]);
+
+              // Probe the live Dialpad call object for any user id we can resolve.
+              const probeCallInfo = await fetchDialpadCallInfo(webhookCallId, apiKey);
+              const callObjectUserIds = probeCallInfo && isRecord(probeCallInfo)
+                ? extractDialpadUserIds(probeCallInfo)
+                : [];
+
+              const candidateDialpadUserIds = uniqueNormalizedStrings([
+                ...payloadDialpadUserIds,
+                ...callObjectUserIds,
+              ]);
+
+              if (candidateDialpadUserIds.length > 0) {
+                const { data: settingsMatch } = await adminClient
+                  .from("dialpad_settings")
+                  .select("user_id, dialpad_user_id")
+                  .in("dialpad_user_id", candidateDialpadUserIds)
+                  .eq("is_active", true)
+                  .limit(1)
+                  .maybeSingle();
+
+                if (settingsMatch?.user_id) {
+                  userId = settingsMatch.user_id;
+                  console.log(`[webhook] Resolved manual-dial user_id=${userId} from dialpad_user_id=${settingsMatch.dialpad_user_id}`);
+                }
+              }
+            } catch (resolveErr) {
+              console.warn("[webhook] Failed to resolve dialpad user from settings:", resolveErr);
+            }
+
+            // Last resort: if still unresolved, fall back to the first profile so the call
+            // is at least counted somewhere (matches previous behavior).
             if (!userId) {
               const { data: anyUser } = await adminClient
                 .from("profiles")
                 .select("user_id")
                 .limit(1)
                 .maybeSingle();
-              userId = anyUser?.user_id;
+              userId = anyUser?.user_id ?? null;
             }
 
             if (userId) {
@@ -2274,6 +2316,54 @@ async function syncWebhookPayload(params: {
                     userId,
                     newTracked.created_at,
                   );
+                }
+
+                // ── Manual-dial backfill ─────────────────────────────────────
+                // If no call_log exists for this Dialpad call, create one so it
+                // counts as a "dial" in dashboards/targets/leaderboards. We pick
+                // a conservative outcome based on talk time; the rep can correct
+                // it later from the contact history.
+                if (!resolvedCallLogId) {
+                  const inferredOutcome: "no_answer" | "voicemail" =
+                    talkTimeSeconds !== null && talkTimeSeconds >= 5 && talkTimeSeconds <= 45
+                      ? "voicemail"
+                      : "no_answer";
+
+                  const callStartedIso = (() => {
+                    const started = typeof payload.date_started === "number" ? payload.date_started : null;
+                    if (started && Number.isFinite(started)) {
+                      const ms = started > 1e12 ? started : started * 1000;
+                      return new Date(ms).toISOString();
+                    }
+                    return new Date().toISOString();
+                  })();
+
+                  const insertPayload: Record<string, unknown> = {
+                    contact_id: matchedContact.id,
+                    user_id: userId,
+                    outcome: inferredOutcome,
+                    notes: "Auto-logged from Dialpad (manual dial — placed outside the in-app dialer).",
+                    dialpad_call_id: dialpadCallId,
+                    created_at: callStartedIso,
+                  };
+                  if (talkTimeSeconds !== null) insertPayload.dialpad_talk_time_seconds = talkTimeSeconds;
+                  if (totalDurationSeconds !== null) insertPayload.dialpad_total_duration_seconds = totalDurationSeconds;
+                  if (summary) insertPayload.dialpad_summary = summary;
+                  if (transcript) insertPayload.dialpad_transcript = transcript;
+                  if (syncedAt) insertPayload.transcript_synced_at = syncedAt;
+
+                  const { data: backfilled, error: backfillErr } = await adminClient
+                    .from("call_logs")
+                    .insert(insertPayload)
+                    .select("id")
+                    .single();
+
+                  if (backfillErr) {
+                    console.warn(`[webhook] Failed to backfill call_log for manual dial:`, backfillErr.message);
+                  } else if (backfilled?.id) {
+                    resolvedCallLogId = backfilled.id;
+                    console.log(`[webhook] Backfilled call_log id=${resolvedCallLogId} for manual Dialpad call ${dialpadCallId} (outcome=${inferredOutcome})`);
+                  }
                 }
 
                 if (resolvedCallLogId) {
