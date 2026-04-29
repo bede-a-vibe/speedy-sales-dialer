@@ -1346,6 +1346,16 @@ export default function ContactsPage() {
                                   Call
                                 </a>
                               )}
+                              {!contact.is_dnc && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setFollowUpContact(contact); }}
+                                  className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                  title="Schedule follow-up"
+                                >
+                                  <CalendarPlus className="h-3.5 w-3.5" />
+                                  Follow up
+                                </button>
+                              )}
                               {autoRepairPlan && (
                                 <button
                                   onClick={(e) => repairContactDrift(contact, e)}
