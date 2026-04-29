@@ -48,6 +48,8 @@ type PipelineType = "booked" | "follow_up";
 interface QuickBookDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialContact?: Contact | null;
+  initialPipelineType?: PipelineType;
 }
 
 function getRepLabel(name: string | null, email: string | null) {
@@ -107,7 +109,7 @@ function getQuickCreateDefaultSchedule(type: PipelineType) {
   return setMinutes(setHours(next, defaultHour), 0);
 }
 
-export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
+export function QuickBookDialog({ open, onOpenChange, initialContact = null, initialPipelineType }: QuickBookDialogProps) {
   const { user } = useAuth();
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
@@ -138,7 +140,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
     state: "",
   });
 
-  const [pipelineType, setPipelineType] = useState<PipelineType>("booked");
+  const [pipelineType, setPipelineType] = useState<PipelineType>(initialPipelineType ?? "booked");
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
   const [assignedRepId, setAssignedRepId] = useState("");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
@@ -225,7 +227,7 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setSelectedContact(null);
       setShowCreateForm(false);
       setNewContact({ business_name: "", contact_person: "", phone: "", email: "", industry: "", city: "", state: "" });
-      setPipelineType("booked");
+      setPipelineType(initialPipelineType ?? "booked");
       setFollowUpMethod("call");
       setScheduledDate(undefined);
       setScheduledTime("09:00");
@@ -236,7 +238,19 @@ export function QuickBookDialog({ open, onOpenChange }: QuickBookDialogProps) {
       setGhlPipelineId("");
       setGhlStageId("");
     }
-  }, [open, user?.id]);
+  }, [open, user?.id, initialPipelineType]);
+
+  // Pre-seed contact and pipeline type when opened from a row action
+  useEffect(() => {
+    if (!open) return;
+    if (initialContact) {
+      setSelectedContact(initialContact);
+      setQuery(initialContact.business_name ?? "");
+    }
+    if (initialPipelineType) {
+      setPipelineType(initialPipelineType);
+    }
+  }, [open, initialContact, initialPipelineType]);
 
   // Search contacts
   useEffect(() => {
