@@ -261,7 +261,8 @@ export function getReportMetrics({
   repUserId?: string;
   contacts?: ReportContact[];
 }): ReportMetrics {
-  const filteredCallLogs = repUserId ? callLogs.filter((log) => log.user_id === repUserId) : callLogs;
+  const filteredCallLogs = (repUserId ? callLogs.filter((log) => log.user_id === repUserId) : callLogs)
+    .filter((log) => isInDateRange(log.created_at, from, to));
   const bookingsForCreatedView = repUserId
     ? bookedItems.filter((item) => item.created_by === repUserId)
     : bookedItems;
