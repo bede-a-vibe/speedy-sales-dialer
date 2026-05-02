@@ -1,93 +1,73 @@
-## Plan: Coach role + demo mode + coach-safe dialer
+## Problem
 
-### What this delivers
+On the Call Funnel page, the **Key Conversion Rates** strip below the funnel shows wrong percentages:
 
-`contact@frontendng.com` becomes a **coach** account that sees every screen and every button (Contacts, Pipelines, Reports, Funnel, Targets, GHL Sync, Dialpad Settings, Dialer) exactly as an admin does, can open every form and click every action, but **cannot write to the live database**. Writes are intercepted in the UI with a friendly "Demo mode — change not saved" toast that summarizes what would have happened, AND blocked at the database level by RLS as a hard safety net.
+- DIAL → PICKUP: shows **2%** (should be ~41%, i.e. 55 pickups / 135 dials)
+- PICKUP → CONVERSATION: **3%** (should be ~53%)
+- CONVERSATION → BOOKING: **1%** (should be ~10%)
+- PICKUP → BOOKING: **0%** (should be ~5%)
 
-### 1. Database — new role + safety net (migration)
+Meanwhile the funnel above it correctly shows 135 → 55 → 29 → 3 with the right percentages in the right-hand columns.
 
-- Add `'coach'` to the `app_role` enum.
-- Add `public.is_admin_or_coach(_user_id uuid)` security-definer helper returning `has_role(uid,'admin') OR has_role(uid,'coach')`.
-- Extend SELECT policies to include coach where they aren't already open to all authenticated users:
-  - `dialpad_settings` — add coach to view policy.
-  - `dialer_lead_locks` — add a new SELECT policy for coach (so the dialer page can show the queue state).
-  - `pending_ghl_pushes` — add coach to admin read policy.
-  - `dialpad_calls` — extend SELECT policy to coach.
-- Add new RPC `public.preview_dialer_leads(...)` — same signature/scoring as `claim_dialer_leads` but does NOT insert into `dialer_lead_locks`. Returns `{ total_available_count, claimed_contacts }`. Restricted to coach/admin.
-- **No INSERT/UPDATE/DELETE policies are modified.** Coach has zero write access at the DB layer because no policy names the `coach` role.
+## Root cause
 
-### 2. Switch Jeff's account (data operation)
+In `src/lib/reportMetrics.ts`, `getReportMetrics()` accepts `from` and `to` parameters and uses them when filtering **bookings**, but it does **not** apply those bounds to `callLogs`:
 
-- Find `user_id` for `contact@frontendng.com` in `auth.users`.
-- Delete `(user_id, 'admin')` row from `public.user_roles`.
-- Insert `(user_id, 'coach')` row.
+```ts
+const filteredCallLogs = repUserId
+  ? callLogs.filter((log) => log.user_id === repUserId)
+  : callLogs;
+```
 
-### 3. Frontend — role hooks (`src/hooks/useUserRole.ts`)
+This means `metrics.dialer.dials`, `metrics.dialer.pickUps`, `metrics.dialer.pickUpRate`, `metrics.dialer.conversations`, etc. are computed against **every call_log row currently in the React Query cache for that hook**, not just the ones inside `[from, to]`.
 
-Extend with:
-- `useIsCoach()` — true when roles include `coach`.
-- `useCanViewAdmin()` — true for admin OR coach (used for sidebar Admin section + admin-only routes).
-- `useCanWrite()` — true only for admin (used to gate every write action).
-- `useDemoMode()` — true when coach (no admin), used by interception wrapper.
+When the user changes the date range, the `useCallLogsByDateRange` hook re-fetches with new bounds, but other components on the page (Reports/Custom Stats) and previous queries can leave cached rows from a wider range available, and the `previous period` compare mode also intentionally fetches a longer span (`previousFrom → dateTo`) into the same hook. In that compare-mode fetch path, `callLogs` contains both the current and previous period rows, so `dials/pickUps/pickUpRate` get inflated.
 
-### 4. Demo-mode write interception (`src/lib/demoMode.ts` — new file)
+The funnel's bar counts hide the bug because they read `funnel.stages` (computed from `filteredLogs`, which IS date-filtered via `filterFunnelLogs`), while `Pick Ups` and `Unique Leads Dialed` happen to look right when the cache contains only the current range. The strip exposes the inconsistency because rates use the unfiltered denominator.
 
-- Export `interceptDemoWrite(actionName: string, summary: string): boolean` — when called inside a coach session, shows the toast `🎓 Demo mode — would [actionName]: [summary]` and returns `true` (signaling caller to skip the real write).
-- Export `useDemoGuard()` hook returning a wrapped helper bound to current role.
-- All call sites add a single early-return guard: `if (demoGuard("delete contact", contact.business_name)) return;` before the Supabase mutation runs.
+The same bug also affects:
+- Custom Stat Grid (any card driven by `metrics.dialer.*`)
+- Reports page KPIs (`/reports`) which reuses `getReportMetrics`
+- Targets page progress (which reads `metrics.dialer.dials` and pickup rate)
+- Hourly breakdown when no rep filter is active
 
-Wrap these call sites:
-- **Contacts** (`ContactsPage.tsx`, `ContactDetailPage.tsx`): create, edit, delete, status change, repair drift, DNC toggle, add note, manual transcript upload, import CSV (`UploadPage.tsx`).
-- **Pipelines** (`BookedOutcomePanel.tsx`, `PipelinesPage.tsx`, `FollowUpsPage.tsx`): record outcome, reschedule, assign, complete follow-up.
-- **Targets** (`TargetsPage.tsx`): bulk save, delete target.
-- **Call openers** (`CallOpenersManager.tsx`): create, update, delete, toggle active.
-- **Dialpad settings** (`DialpadSettingsPage.tsx`): upsert, delete, GHL user mapping save.
-- **GHL sync** (`GhlSyncPage.tsx`): start, stop, resume.
-- **Quick Book** (`QuickBookDialog.tsx`): submit (booking + follow-up), create new contact.
-- **Dialer** (`DialerPage.tsx`, `useDialerSession.ts`, `useCallLogs.ts`, `usePipelineItems.ts`, `DecisionMakerCapture.tsx`, `useContactNotes.ts`): log call, create pipeline item, schedule follow-up, decision-maker save.
+## Fix
 
-Buttons stay visible and clickable for coach so Jeff sees the full workflow — only the actual mutation is short-circuited.
+Make `getReportMetrics()` apply the `[from, to]` window to `callLogs` the same way it already does for bookings.
 
-### 5. Sidebar + route gating
+### Changes
 
-- `AppSidebar.tsx`:
-  - Use `useCanViewAdmin()` instead of `useIsAdmin()` to render the Admin section (Reports, Call Funnel, Targets, GHL Sync, Dialpad Settings).
-  - When `useIsCoach()`, show a small amber "COACH" badge next to the SalesDialer logo.
-- `ProtectedApp.tsx`:
-  - Rename `AdminRoute` → `AdminOrCoachRoute` and switch its check from `isAdmin` to `useCanViewAdmin()`. Targets, Dialpad Settings, GHL Sync all become coach-accessible (read-only via RLS + demo mode).
+1. **`src/lib/reportMetrics.ts`**
+   - In `getReportMetrics`, after the existing rep filter, also filter by date:
+     ```ts
+     const filteredCallLogs = (repUserId
+       ? callLogs.filter((log) => log.user_id === repUserId)
+       : callLogs
+     ).filter((log) => isInDateRange(log.created_at, from, to));
+     ```
+   - Apply the same date filter to the `repComparison` per-rep call log slices so rep rows reflect only the selected window.
+   - Update `dailyVolumeMap` building to iterate the now-date-filtered array (already does, just verify).
 
-### 6. Coach-safe dialer (`DialerPage.tsx` + new `useCoachQueuePreview` hook)
+2. **`src/lib/hourlyMetrics.ts`**
+   - `getHourlyMetrics` already filters by `date.startsWith(...)` so it is fine. No change.
 
-When `useIsCoach()`:
-- Render a sticky amber banner at the top of `DialerPage`: *"🎓 Coaching Session — calls and outcomes are not recorded. This is read-only demo mode."*
-- Replace `useRollingDialerQueue` with new `useCoachQueuePreview({ filters })` that:
-  - Calls `preview_dialer_leads` RPC (no locks).
-  - Buffers 25 leads, advances locally on "next/skip".
-  - No heartbeat, no lock release, no `dialer_lead_locks` writes.
-- `DialpadCTI` renders with `autoInitiateCall={false}` and `phoneNumber={null}` — iframe loads so Jeff sees the real CTI panel, but no auto-dial.
-- Outcome buttons + "Log Call" + booking flow remain clickable; clicks route through demo-mode interception.
-- `useDialerDialpad` short-circuits in coach mode (no Dialpad API calls, no `dialpad_calls` writes).
-- "Start Session" / "Stop Session" still work (purely local state in coach mode).
+3. **Quick sanity check on `compareMode`**
+   - In `CallFunnelPage.tsx`, `previousMetrics` passes `from: previousFrom, to: previousTo` to `getReportMetrics` while feeding it the wider `callLogs` array. After the fix, `previousMetrics` will correctly be scoped to the previous window, and `metrics` to the current window, even though both share the same fetched array. No code change needed here.
 
-### 7. What this does NOT change
+### Verification
 
-- Admin users keep full live access — every admin write policy is untouched and continues to name `admin`.
-- Sales reps — no behavior change.
-- The Custom Monitor / Bar Comparison / End-to-end Funnel work from earlier turns is not modified.
-- No auto-confirm changes for new signups.
-- No password rotation for Jeff's account.
+After the change, with `From=2026-04-27` and `To=2026-04-30`:
 
-### 8. Security guarantees
+- DB confirms 135 call_logs in range with 55 answered outcomes (`booked + not_interested + dnc + follow_up`).
+- The strip will show:
+  - Dial → Pickup: 41%
+  - Pickup → Booking: 5%
+  - Lead → Booked: 2%
+- The funnel bars and right-hand percentages remain unchanged.
+- Reports page totals will drop to match the date range exactly (this is the intended behavior, even though some users may have grown used to the inflated numbers).
 
-Two independent layers:
-1. **UI demo-mode interception** — clean UX, no surprise errors, readable toast feedback.
-2. **RLS lockdown** — even if Jeff opens devtools and POSTs directly to Supabase, every INSERT/UPDATE/DELETE policy is checked against the `admin` role only and rejects coach writes at the database.
+### Out of scope
 
-### Files touched
-
-- New migration: enum extension, helper function, SELECT policy additions, `preview_dialer_leads` RPC.
-- Data migration: role swap for `contact@frontendng.com`.
-- New: `src/lib/demoMode.ts`, `src/hooks/useCoachQueuePreview.ts`.
-- Modified: `useUserRole.ts`, `AppSidebar.tsx`, `ProtectedApp.tsx`, `DialerPage.tsx`, `useDialerSession.ts`, `useCallLogs.ts`, `usePipelineItems.ts`, `useContactNotes.ts`, `useDialerDialpad.ts`, `ContactsPage.tsx`, `ContactDetailPage.tsx`, `UploadPage.tsx`, `PipelinesPage.tsx`, `FollowUpsPage.tsx`, `BookedOutcomePanel.tsx`, `TargetsPage.tsx`, `CallOpenersManager.tsx`, `DialpadSettingsPage.tsx`, `GhlSyncPage.tsx`, `QuickBookDialog.tsx`, `DecisionMakerCapture.tsx`.
-
-Approve and I'll build it.
+- No schema or migration changes.
+- No UI changes.
+- The `useCallLogsByDateRange` hook stays as-is; the fix is purely in the metric calculator so that any caller passing `from/to` gets consistent results regardless of what is in the array.
