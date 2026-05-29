@@ -8,7 +8,9 @@ export type ReportCallLog = Pick<
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
->;
+> & {
+  monthly_recurring_value?: number | null;
+};
 
 export type ReportContact = Pick<
   Tables<"contacts">,
@@ -122,6 +124,16 @@ export interface ReportMetrics {
     pickUpsToBookingRate: number;
     sameDayNextDayBookings: number;
     sameDayNextDayRate: number;
+  };
+  sales: {
+    closes: number;
+    setupRevenue: number;
+    monthlyRecurring: number;
+    firstYearValue: number;
+    dialToCloseRate: number;
+    revenuePerDial: number;
+    firstYearValuePerDial: number;
+    avgDialsPerClose: number;
   };
   appointmentPerformance: {
     setter: AppointmentPerformanceMetrics;
