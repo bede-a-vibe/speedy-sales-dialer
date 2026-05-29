@@ -1,0 +1,3 @@
+ALTER TABLE public.contacts DROP CONSTRAINT IF EXISTS contacts_status_check;
+ALTER TABLE public.contacts ADD CONSTRAINT contacts_status_check
+  CHECK (status = ANY (ARRAY['uncalled'::text, 'called'::text, 'dnc'::text, 'follow_up'::text, 'booked'::text, 'closed'::text, 'not_interested'::text]));
