@@ -13,7 +13,13 @@ export function useAnimatedCounter(target: number, duration = 800, enabled = tru
 
     const start = prevTarget.current;
     const diff = target - start;
-    if (diff === 0) return;
+    if (diff === 0) {
+      // Target matches our last known target, but `value` may be mid-animation
+      // from a previous run that was cancelled (e.g. data refetched briefly to
+      // 0 then back). Snap to target so the displayed number never lies.
+      setValue(target);
+      return;
+    }
 
     const startTime = performance.now();
 
@@ -36,6 +42,10 @@ export function useAnimatedCounter(target: number, duration = 800, enabled = tru
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      // Mark this target as "seen" so a subsequent effect with the same target
+      // won't think the value is already settled when the animation was
+      // actually cancelled mid-flight.
+      prevTarget.current = target;
     };
   }, [target, duration, enabled]);
 
