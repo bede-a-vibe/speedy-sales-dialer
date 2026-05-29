@@ -17,9 +17,12 @@ export function ForecastingTab({ metrics, rangeDays, openBookingsCount, openBook
   const [revenueTarget, setRevenueTarget] = useState(50000);
   const dialsPerDay = rangeDays > 0 ? metrics.dialer.dials / rangeDays : 0;
   const revPerDial = metrics.sales.firstYearValuePerDial;
-  const showRate = metrics.appointmentPerformance.setter.showUpRate / 100;
-  const closeRate = metrics.appointmentPerformance.setter.closeRate / 100;
-  const avgDeal = metrics.appointmentPerformance.setter.averageDealValue;
+  const setter = metrics.appointmentPerformance.setter;
+  // Use resolved appointments (outcome assigned) as denominator so future,
+  // not-yet-held bookings don't drag the show rate down to misleading levels.
+  const showRate = setter.resolvedAppointments > 0 ? setter.showed / setter.resolvedAppointments : 0;
+  const closeRate = setter.closeRate / 100;
+  const avgDeal = setter.averageDealValue;
 
   const project = (days: number) => {
     const projDials = Math.round(dialsPerDay * days);
