@@ -29,6 +29,7 @@ import {
 } from "@/lib/repCoachingMetrics";
 import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { HeadlineKpiStrip } from "@/components/reports/HeadlineKpiStrip";
+import { SalesEfficiencyPanel } from "@/components/reports/SalesEfficiencyPanel";
 import { ReportTabGroup, type TabGroupDef } from "@/components/reports/ReportTabGroup";
 
 const ALL_REPS_VALUE = "all";
@@ -175,6 +176,13 @@ export default function ReportsPage() {
 
       <div className="mx-auto max-w-6xl space-y-5 pt-5">
         <HeadlineKpiStrip metrics={metrics} />
+
+        <ReportSection
+          title="Sales Efficiency"
+          description={`Dial \u2192 sale economics${activeRepId ? ` for ${selectedRepLabel}` : " across the team"}. Counts closes (Showed & Closed) attributed to the rep who booked them.`}
+        >
+          <SalesEfficiencyPanel metrics={metrics} />
+        </ReportSection>
 
         <ReportTabGroup
           groups={TAB_GROUPS}

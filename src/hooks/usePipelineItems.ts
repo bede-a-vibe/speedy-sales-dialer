@@ -90,6 +90,7 @@ export interface BookedAppointmentReportItem {
   outcome_recorded_at: string | null;
   status: PipelineStatus;
   deal_value: number | null;
+  monthly_recurring_value: number | null;
   reschedule_count: number;
   contacts?: {
     industry: string | null;
@@ -230,7 +231,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked")
         .order("created_at", { ascending: false });

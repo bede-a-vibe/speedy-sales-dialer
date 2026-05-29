@@ -1,73 +1,86 @@
-## Problem
+# Sales Efficiency: Dial → Sale and Revenue per Dial
 
-On the Call Funnel page, the **Key Conversion Rates** strip below the funnel shows wrong percentages:
+## What we're building
 
-- DIAL → PICKUP: shows **2%** (should be ~41%, i.e. 55 pickups / 135 dials)
-- PICKUP → CONVERSATION: **3%** (should be ~53%)
-- CONVERSATION → BOOKING: **1%** (should be ~10%)
-- PICKUP → BOOKING: **0%** (should be ~5%)
+A new "Sales Efficiency" view that answers:
+- How many dials did it take to close a sale?
+- What is the dial → sale rate?
+- How much revenue (one-off + recurring) has each rep generated?
+- What is the **revenue per dial** (both setup-only and including MRR)?
 
-Meanwhile the funnel above it correctly shows 135 → 55 → 29 → 3 with the right percentages in the right-hand columns.
+Plus, properly record your 4 signed clients so the numbers exist.
 
-## Root cause
+## The 4 signed clients (matched in DB)
 
-In `src/lib/reportMetrics.ts`, `getReportMetrics()` accepts `from` and `to` parameters and uses them when filtering **bookings**, but it does **not** apply those bounds to `callLogs`:
+| Business | Phone | Contact | Booking date |
+|---|---|---|---|
+| Atek Electrics | +61423328225 | Alec | 06/05/2026 |
+| Electripol | +61418182724 | Jeremy | 05/05/2026 |
+| OneAU Energy | +61487166358 | Darren | 28/04/2026 |
+| Wired Up Innovations | +61481734946 | Tom | 08/04/2026 |
 
-```ts
-const filteredCallLogs = repUserId
-  ? callLogs.filter((log) => log.user_id === repUserId)
-  : callLogs;
+All four are currently `booked / open` with no outcome and no deal value, all created by the same user (you). They need to be flipped to `showed_closed` with the deal value recorded.
+
+## Step 1 — Schema: add MRR column
+
+Pipeline items today only have `deal_value` (one-off). To accurately separate setup vs recurring per your decision:
+
+```text
+pipeline_items
+  + monthly_recurring_value  numeric  NULL   -- e.g. 1500
+   deal_value                numeric  NULL   -- one-off / setup, e.g. 1000
 ```
 
-This means `metrics.dialer.dials`, `metrics.dialer.pickUps`, `metrics.dialer.pickUpRate`, `metrics.dialer.conversations`, etc. are computed against **every call_log row currently in the React Query cache for that hook**, not just the ones inside `[from, to]`.
+Update `validate_pipeline_item()` trigger so `monthly_recurring_value` is also cleared unless `appointment_outcome = 'showed_closed'` (mirroring how `deal_value` is handled).
 
-When the user changes the date range, the `useCallLogsByDateRange` hook re-fetches with new bounds, but other components on the page (Reports/Custom Stats) and previous queries can leave cached rows from a wider range available, and the `previous period` compare mode also intentionally fetches a longer span (`previousFrom → dateTo`) into the same hook. In that compare-mode fetch path, `callLogs` contains both the current and previous period rows, so `dials/pickUps/pickUpRate` get inflated.
+## Step 2 — Backfill the 4 deals
 
-The funnel's bar counts hide the bug because they read `funnel.stages` (computed from `filteredLogs`, which IS date-filtered via `filterFunnelLogs`), while `Pick Ups` and `Unique Leads Dialed` happen to look right when the cache contains only the current range. The strip exposes the inconsistency because rates use the unfiltered denominator.
+For each of the four pipeline_items rows above, set:
+- `appointment_outcome = 'showed_closed'`
+- `deal_value = 1000` (landing page setup)
+- `monthly_recurring_value = 1500` (monthly retainer)
+- `outcome_recorded_at = now()`
 
-The same bug also affects:
-- Custom Stat Grid (any card driven by `metrics.dialer.*`)
-- Reports page KPIs (`/reports`) which reuses `getReportMetrics`
-- Targets page progress (which reads `metrics.dialer.dials` and pickup rate)
-- Hourly breakdown when no rep filter is active
+The existing `sync_pipeline_outcome_to_contact()` trigger will then move each contact's `status` to `closed`.
 
-## Fix
+## Step 3 — Sales Efficiency metrics
 
-Make `getReportMetrics()` apply the `[from, to]` window to `callLogs` the same way it already does for bookings.
+Extend `src/lib/reportMetrics.ts`:
 
-### Changes
+```text
+sales: {
+  closes              // count of showed_closed in range (created_by = rep)
+  setupRevenue        // sum(deal_value)
+  monthlyRecurring    // sum(monthly_recurring_value)
+  firstYearValue      // setupRevenue + monthlyRecurring * 12
+  dialToCloseRate     // closes / dials  (%)
+  revenuePerDial      // setupRevenue / dials
+  firstYearValuePerDial // firstYearValue / dials
+  avgDialsPerClose    // dials / closes
+}
+```
 
-1. **`src/lib/reportMetrics.ts`**
-   - In `getReportMetrics`, after the existing rep filter, also filter by date:
-     ```ts
-     const filteredCallLogs = (repUserId
-       ? callLogs.filter((log) => log.user_id === repUserId)
-       : callLogs
-     ).filter((log) => isInDateRange(log.created_at, from, to));
-     ```
-   - Apply the same date filter to the `repComparison` per-rep call log slices so rep rows reflect only the selected window.
-   - Update `dailyVolumeMap` building to iterate the now-date-filtered array (already does, just verify).
+All scoped to the existing rep filter and date range (same plumbing as `repComparison`). `dials` reuses the already-filtered `callLogs`.
 
-2. **`src/lib/hourlyMetrics.ts`**
-   - `getHourlyMetrics` already filters by `date.startsWith(...)` so it is fine. No change.
+## Step 4 — UI
 
-3. **Quick sanity check on `compareMode`**
-   - In `CallFunnelPage.tsx`, `previousMetrics` passes `from: previousFrom, to: previousTo` to `getReportMetrics` while feeding it the wider `callLogs` array. After the fix, `previousMetrics` will correctly be scoped to the previous window, and `metrics` to the current window, even though both share the same fetched array. No code change needed here.
+**Reports page** — new `SalesEfficiencyPanel` rendered under the existing KPI strip:
+- 4 tiles: Closes • Dial → Sale % • $/Dial • Avg Dials per Close
+- Sub-row: Setup Revenue • MRR • First-Year Value
+- Respects the existing rep selector and date range.
 
-### Verification
+**Dashboard** — new compact "My Sales" panel under `DashboardQuickStats`, hardcoded to the logged-in user, lifetime-to-date:
+- Closes • $/Dial • Dial → Sale % • Total Revenue (setup + MRR-so-far)
 
-After the change, with `From=2026-04-27` and `To=2026-04-30`:
+Both reuse the same `getReportMetrics` engine — no duplicate math.
 
-- DB confirms 135 call_logs in range with 55 answered outcomes (`booked + not_interested + dnc + follow_up`).
-- The strip will show:
-  - Dial → Pickup: 41%
-  - Pickup → Booking: 5%
-  - Lead → Booked: 2%
-- The funnel bars and right-hand percentages remain unchanged.
-- Reports page totals will drop to match the date range exactly (this is the intended behavior, even though some users may have grown used to the inflated numbers).
+## Technical notes
 
-### Out of scope
+- Migration adds the column, updates the trigger, and uses a data migration script for the 4 backfill rows (handled via the insert tool after migration approval so types regen first).
+- `repComparison` rows get the new `sales` block too, so the existing rep table can later add a Revenue column.
+- No new tables, no new RLS — `pipeline_items` policies cover the new column automatically.
 
-- No schema or migration changes.
-- No UI changes.
-- The `useCallLogsByDateRange` hook stays as-is; the fix is purely in the metric calculator so that any caller passing `from/to` gets consistent results regardless of what is in the array.
+## Not in scope
+
+- Editing MRR from the booking UI (we can add a "Monthly recurring" input to `BookedOutcomePanel` in a follow-up if you want users to set it themselves; for now the 4 rows are seeded via the backfill).
+- Churn / cancellation tracking — MRR is treated as active indefinitely.

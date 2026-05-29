@@ -687,6 +687,7 @@ export type Database = {
           deal_value: number | null
           follow_up_method: string
           id: string
+          monthly_recurring_value: number | null
           notes: string
           outcome_notes: string
           outcome_recorded_at: string | null
@@ -709,6 +710,7 @@ export type Database = {
           deal_value?: number | null
           follow_up_method?: string
           id?: string
+          monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
           outcome_recorded_at?: string | null
@@ -731,6 +733,7 @@ export type Database = {
           deal_value?: number | null
           follow_up_method?: string
           id?: string
+          monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
           outcome_recorded_at?: string | null

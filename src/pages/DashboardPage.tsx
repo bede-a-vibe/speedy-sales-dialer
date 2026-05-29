@@ -6,6 +6,7 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats";
 import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerformancePanel";
+import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
@@ -56,6 +57,9 @@ export default function DashboardPage() {
 
         {/* Row 2: Quick Stats */}
         <DashboardQuickStats />
+
+        {/* Row 2.5: My Sales — lifetime dial-to-sale economics */}
+        <MySalesPanel />
 
         {/* Row 3: Achievements with confetti & gamification */}
         <DailyAchievements />

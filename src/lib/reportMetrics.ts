@@ -8,7 +8,9 @@ export type ReportCallLog = Pick<
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
->;
+> & {
+  monthly_recurring_value?: number | null;
+};
 
 export type ReportContact = Pick<
   Tables<"contacts">,
@@ -122,6 +124,16 @@ export interface ReportMetrics {
     pickUpsToBookingRate: number;
     sameDayNextDayBookings: number;
     sameDayNextDayRate: number;
+  };
+  sales: {
+    closes: number;
+    setupRevenue: number;
+    monthlyRecurring: number;
+    firstYearValue: number;
+    dialToCloseRate: number;
+    revenuePerDial: number;
+    firstYearValuePerDial: number;
+    avgDialsPerClose: number;
   };
   appointmentPerformance: {
     setter: AppointmentPerformanceMetrics;
@@ -460,6 +472,32 @@ export function getReportMetrics({
   const immediateHangUps = filteredCallLogs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
   const immediateHangUpRate = toPercent(immediateHangUps, totalDials);
 
+  // ---- Sales Efficiency (closed deals attributed to the rep who booked them) ----
+  const closedDealsInRange = bookingsMadeInRange.filter(
+    (item) => item.appointment_outcome === "showed_closed",
+  );
+  const setupRevenue = closedDealsInRange.reduce(
+    (sum, item) => sum + (item.deal_value ?? 0),
+    0,
+  );
+  const monthlyRecurring = closedDealsInRange.reduce(
+    (sum, item) => sum + (item.monthly_recurring_value ?? 0),
+    0,
+  );
+  const closes = closedDealsInRange.length;
+  const firstYearValue = setupRevenue + monthlyRecurring * 12;
+  const dialsCount = filteredCallLogs.length;
+  const sales = {
+    closes,
+    setupRevenue,
+    monthlyRecurring,
+    firstYearValue,
+    dialToCloseRate: toPercent(closes, dialsCount),
+    revenuePerDial: dialsCount > 0 ? Math.round((setupRevenue / dialsCount) * 100) / 100 : 0,
+    firstYearValuePerDial: dialsCount > 0 ? Math.round((firstYearValue / dialsCount) * 100) / 100 : 0,
+    avgDialsPerClose: closes > 0 ? Math.round(dialsCount / closes) : 0,
+  };
+
   const outboundDiagnostic: OutboundDiagnosticMetrics = {
     contactRate,
     uniqueDialRate,
@@ -516,5 +554,6 @@ export function getReportMetrics({
       closer: closerPerformance.outcomeCounts,
     },
     outboundDiagnostic,
+    sales,
   };
 }
