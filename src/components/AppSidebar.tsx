@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus, GraduationCap, GitBranch, RefreshCw, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, Target, CalendarPlus, GraduationCap, GitBranch, RefreshCw, ShieldCheck, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
@@ -29,6 +29,7 @@ const mainItems = [
 
 const adminItems = [
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Analytics", url: "/analytics", icon: TrendingUp },
   { title: "Call Funnel", url: "/reports/funnel", icon: GitBranch },
   { title: "Targets", url: "/targets", icon: Target },
   { title: "GHL Sync", url: "/admin/ghl-sync", icon: RefreshCw },
