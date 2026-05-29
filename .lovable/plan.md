@@ -1,86 +1,76 @@
-# Sales Efficiency: Dial → Sale and Revenue per Dial
 
-## What we're building
+# Cold-Calling Analytics Dashboard
 
-A new "Sales Efficiency" view that answers:
-- How many dials did it take to close a sale?
-- What is the dial → sale rate?
-- How much revenue (one-off + recurring) has each rep generated?
-- What is the **revenue per dial** (both setup-only and including MRR)?
+A new top-level **Analytics** section modelled on Odin Analytics' structure, but built around the cold-calling funnel: **Dials → Conversations → Bookings → Showed → Closed → Revenue**. Internal team/admin only. Existing Reports page stays untouched.
 
-Plus, properly record your 4 signed clients so the numbers exist.
+## Route & shell
 
-## The 4 signed clients (matched in DB)
+- New page at `/analytics` (admin-only via existing `useUserRole`), added to the sidebar under "Analytics".
+- Header with date-range picker (reuse existing `ReportsToolbar` range logic), team-wide vs per-rep filter, and a "Showing data for [range]" strip.
+- Tabbed layout matching Odin: Summary · Activity · Funnel · Rep Performance · Sources · Forecasting · Lead Tracker.
 
-| Business | Phone | Contact | Booking date |
-|---|---|---|---|
-| Atek Electrics | +61423328225 | Alec | 06/05/2026 |
-| Electripol | +61418182724 | Jeremy | 05/05/2026 |
-| OneAU Energy | +61487166358 | Darren | 28/04/2026 |
-| Wired Up Innovations | +61481734946 | Tom | 08/04/2026 |
+## Tabs
 
-All four are currently `booked / open` with no outcome and no deal value, all created by the same user (you). They need to be flipped to `showed_closed` with the deal value recorded.
+### 1. Summary (Executive)
+Headline tile row: **Dials**, **Conversations**, **Bookings**, **Showed**, **Closed**, **Revenue (setup + first-year)**.
+Secondary row: **Dial→Close %**, **$/Dial**, **Avg Dials/Close**, **Booking Show Rate**, **Show Close Rate**, **Avg Deal Value**.
+- End-to-end funnel viz (reuse `EndToEndFunnel` logic, expanded).
+- Monthly trend line: dials vs bookings vs closes vs revenue.
+- Top channels table: dials/bookings/closes/revenue per **industry** and per **lead-list / state** (Odin's "Channel Performance" equivalent).
 
-## Step 1 — Schema: add MRR column
+### 2. Activity Metrics
+- Daily dial volume bar chart.
+- Talk time totals + average per call.
+- Connect rate, voicemail rate, no-answer rate (from `call_logs.outcome`).
+- Hourly heat map (reuse `BookingHeatMap` / `PickupHeatMap`).
+- Conversation depth funnel: Connection → Problem → Solution → Commitment (uses `reached_*` flags on `call_logs`).
 
-Pipeline items today only have `deal_value` (one-off). To accurately separate setup vs recurring per your decision:
+### 3. Funnel
+Dedicated full-width funnel: Dials → Conversations → Bookings → Showed → Showed&Closed.
+- Conversion % between each stage, with delta vs prior period.
+- Breakdown table: same funnel sliced by rep, by industry, by state.
 
-```text
-pipeline_items
-  + monthly_recurring_value  numeric  NULL   -- e.g. 1500
-   deal_value                numeric  NULL   -- one-off / setup, e.g. 1000
-```
+### 4. Rep Performance (Leaderboard)
+- Per-rep table with: Dials, Talk time, Conversations, Bookings, Showed, Closed, $/Dial, Dials/Close, Show%, Close%, Setup $, MRR, First-year $.
+- Sortable, highlights top performer per column.
+- Per-rep monthly trend mini-charts.
 
-Update `validate_pipeline_item()` trigger so `monthly_recurring_value` is also cleared unless `appointment_outcome = 'showed_closed'` (mirroring how `deal_value` is handled).
+### 5. Sources / Segments
+Odin's "Lead Sources" equivalent for cold calling — slice the funnel by:
+- **Industry** (`contacts.industry`)
+- **State** (`contacts.state`)
+- **Trade type / work type / business size / prospect tier**
+- **Buying signal strength**, **has_google_ads**, **has_facebook_ads**
+Each segment shows: leads called, contact rate, booking rate, close rate, revenue, $/dial.
 
-## Step 2 — Backfill the 4 deals
+### 6. Forecasting
+- Project next 30/60/90 days revenue based on current dial volume × current conversion rates.
+- Pipeline value: open bookings × historical show rate × historical close rate × avg deal value.
+- Required-dials-to-target calculator using `performance_targets`.
 
-For each of the four pipeline_items rows above, set:
-- `appointment_outcome = 'showed_closed'`
-- `deal_value = 1000` (landing page setup)
-- `monthly_recurring_value = 1500` (monthly retainer)
-- `outcome_recorded_at = now()`
+### 7. Lead Tracker
+Searchable table of every contact with: status, last outcome, call attempts, last called, assigned rep, current pipeline stage, deal value. Filterable by funnel stage. Click-through to existing contact detail page.
 
-The existing `sync_pipeline_outcome_to_contact()` trigger will then move each contact's `status` to `closed`.
+## Technical
 
-## Step 3 — Sales Efficiency metrics
+- New folder `src/components/analytics/` for tab components.
+- New `src/lib/analyticsMetrics.ts` aggregating from existing tables: `call_logs`, `pipeline_items`, `contacts`, `profiles`, `performance_targets`. No new tables required.
+- Reuse existing data sources: extends `reportMetrics.ts`, `funnelMetrics.ts`, `hourlyMetrics.ts`, `useBookedAppointmentsByDateRange`. Add new Supabase RPCs only if client-side aggregation gets slow on 50k+ contacts (defer until needed).
+- Pull revenue from `pipeline_items.deal_value` + `monthly_recurring_value` (already populated). First-year value = `deal_value + monthly_recurring_value × 12`, consistent with `MySalesPanel` / `SalesEfficiencyPanel`.
+- Date range stored in URL search params so links are shareable.
+- StatCard component reused; charts via existing `recharts`.
 
-Extend `src/lib/reportMetrics.ts`:
+## Out of scope (for this pass)
 
-```text
-sales: {
-  closes              // count of showed_closed in range (created_by = rep)
-  setupRevenue        // sum(deal_value)
-  monthlyRecurring    // sum(monthly_recurring_value)
-  firstYearValue      // setupRevenue + monthlyRecurring * 12
-  dialToCloseRate     // closes / dials  (%)
-  revenuePerDial      // setupRevenue / dials
-  firstYearValuePerDial // firstYearValue / dials
-  avgDialsPerClose    // dials / closes
-}
-```
+- Client-facing/external view (we'll add a separate read-only route later if needed).
+- New database tables, new edge functions.
+- Real-time updates (page is on-demand refresh).
+- CSV export (can add per-table later).
 
-All scoped to the existing rep filter and date range (same plumbing as `repComparison`). `dials` reuses the already-filtered `callLogs`.
+## Build order
 
-## Step 4 — UI
-
-**Reports page** — new `SalesEfficiencyPanel` rendered under the existing KPI strip:
-- 4 tiles: Closes • Dial → Sale % • $/Dial • Avg Dials per Close
-- Sub-row: Setup Revenue • MRR • First-Year Value
-- Respects the existing rep selector and date range.
-
-**Dashboard** — new compact "My Sales" panel under `DashboardQuickStats`, hardcoded to the logged-in user, lifetime-to-date:
-- Closes • $/Dial • Dial → Sale % • Total Revenue (setup + MRR-so-far)
-
-Both reuse the same `getReportMetrics` engine — no duplicate math.
-
-## Technical notes
-
-- Migration adds the column, updates the trigger, and uses a data migration script for the 4 backfill rows (handled via the insert tool after migration approval so types regen first).
-- `repComparison` rows get the new `sales` block too, so the existing rep table can later add a Revenue column.
-- No new tables, no new RLS — `pipeline_items` policies cover the new column automatically.
-
-## Not in scope
-
-- Editing MRR from the booking UI (we can add a "Monthly recurring" input to `BookedOutcomePanel` in a follow-up if you want users to set it themselves; for now the 4 rows are seeded via the backfill).
-- Churn / cancellation tracking — MRR is treated as active indefinitely.
+1. Page shell + routing + sidebar entry + tab skeleton.
+2. Summary tab (highest value, reuses most existing code).
+3. Activity + Funnel tabs.
+4. Rep Performance + Sources tabs.
+5. Forecasting + Lead Tracker tabs.
