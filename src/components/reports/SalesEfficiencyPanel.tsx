@@ -14,6 +14,11 @@ const currencyPrecise = (n: number) =>
 export function SalesEfficiencyPanel({ metrics }: SalesEfficiencyPanelProps) {
   const { sales, dialer } = metrics;
 
+  const perDialAt = (months: number) =>
+    dialer.dials > 0
+      ? (sales.setupRevenue + sales.monthlyRecurring * months) / dialer.dials
+      : 0;
+
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -46,6 +51,26 @@ export function SalesEfficiencyPanel({ metrics }: SalesEfficiencyPanelProps) {
           label="$ / Dial (first-year)"
           value={currencyPrecise(sales.firstYearValuePerDial)}
           subtext="including 12 mo MRR"
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <StatCard
+          compact
+          label="$ / Dial (3 mo)"
+          value={currencyPrecise(perDialAt(3))}
+          subtext="setup + 3 × MRR"
+        />
+        <StatCard
+          compact
+          label="$ / Dial (6 mo)"
+          value={currencyPrecise(perDialAt(6))}
+          subtext="setup + 6 × MRR"
+        />
+        <StatCard
+          compact
+          label="$ / Dial (9 mo)"
+          value={currencyPrecise(perDialAt(9))}
+          subtext="setup + 9 × MRR"
         />
       </div>
     </div>
