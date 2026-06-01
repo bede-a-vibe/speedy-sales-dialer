@@ -52,6 +52,9 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     return BOOKED_APPOINTMENT_DEFAULT_TIME;
   });
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showSecondMeeting, setShowSecondMeeting] = useState(false);
+  const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
+  const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
   const [dealValue, setDealValue] = useState(item.deal_value != null ? String(item.deal_value) : "");
   const [monthlyValue, setMonthlyValue] = useState(
@@ -65,9 +68,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
-  // For "Second Meeting Booked" we accept either an explicit follow-up date
-  // or fall back to the reschedule date the user already picked above.
-  const secondMeetingIso = followUpIso ?? rescheduleIso;
+  const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
@@ -295,9 +296,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         <Button
           variant="outline"
           size="sm"
-          onClick={handleSecondMeetingBooked}
-          disabled={isSaving || !secondMeetingIso}
-          title={!secondMeetingIso ? "Pick a date (use 'Pick new day' or 'Schedule follow-up')" : undefined}
+          onClick={() => setShowSecondMeeting((v) => !v)}
+          disabled={isSaving}
         >
           <CalendarCheck2 className="h-4 w-4" />
           Second Meeting Booked
@@ -341,6 +341,45 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
               disabled={!rescheduleIso || isSaving}
             >
               Confirm reschedule
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {showSecondMeeting && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Book second meeting</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !secondMeetingDate && "text-muted-foreground")}>
+                  <CalendarCheck2 className="h-4 w-4" />
+                  {secondMeetingDate ? format(secondMeetingDate, "PPP") : "Pick meeting day"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={secondMeetingDate}
+                  onSelect={setSecondMeetingDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={secondMeetingTime}
+              onChange={(e) => setSecondMeetingTime(e.target.value)}
+              className="w-[120px] bg-background"
+            />
+            <Button
+              size="sm"
+              onClick={handleSecondMeetingBooked}
+              disabled={!secondMeetingIso || isSaving}
+            >
+              Confirm second meeting
             </Button>
           </div>
         </div>
