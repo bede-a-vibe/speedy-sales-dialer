@@ -945,6 +945,8 @@ export type Database = {
         | "showed_closed"
         | "showed_no_close"
         | "showed_verbal_commitment"
+        | "second_meeting_booked"
+        | "no_close_follow_up"
       call_outcome:
         | "no_answer"
         | "voicemail"
@@ -1095,6 +1097,8 @@ export const Constants = {
         "showed_closed",
         "showed_no_close",
         "showed_verbal_commitment",
+        "second_meeting_booked",
+        "no_close_follow_up",
       ],
       call_outcome: [
         "no_answer",
