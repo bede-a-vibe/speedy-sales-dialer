@@ -32,6 +32,7 @@ export interface PipelineItemUpdate {
   outcome_recorded_at?: string | null;
   outcome_notes?: string;
   deal_value?: number | null;
+  monthly_recurring_value?: number | null;
   follow_up_method?: FollowUpMethod;
   ghl_opportunity_id?: string | null;
   ghl_pipeline_id?: string | null;
