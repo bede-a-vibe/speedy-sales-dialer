@@ -47,6 +47,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [monthlyValue, setMonthlyValue] = useState(
     (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
   );
+  const [retainerCadence, setRetainerCadence] = useState<"monthly" | "weekly">("monthly");
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [followUpTime, setFollowUpTime] = useState("09:00");
@@ -56,7 +57,12 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
-    const mrr = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
+    const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
+    // Normalize to monthly for storage in monthly_recurring_value.
+    const mrr =
+      retainerInput != null && retainerCadence === "weekly"
+        ? Math.round(retainerInput * (52 / 12) * 100) / 100
+        : retainerInput;
     onRecordOutcome(
       item,
       outcome,
@@ -135,7 +141,31 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       />
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Deal value (for Close)</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Deal value (for Close)</p>
+          <div className="flex rounded-md border border-border bg-background p-0.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setRetainerCadence("monthly")}
+              className={cn(
+                "px-2 py-0.5 rounded-sm transition-colors",
+                retainerCadence === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setRetainerCadence("weekly")}
+              className={cn(
+                "px-2 py-0.5 rounded-sm transition-colors",
+                retainerCadence === "weekly" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Weekly
+            </button>
+          </div>
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="flex flex-1 items-center gap-2">
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -157,11 +187,16 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
               step="0.01"
               value={monthlyValue}
               onChange={(e) => setMonthlyValue(e.target.value)}
-              placeholder="Monthly retainer ($/mo)"
+              placeholder={retainerCadence === "weekly" ? "Retainer ($/wk)" : "Retainer ($/mo)"}
               className="w-full bg-background"
             />
           </div>
         </div>
+        {retainerCadence === "weekly" && monthlyValue ? (
+          <p className="text-[11px] text-muted-foreground">
+            Stored as ${(parseFloat(monthlyValue) * (52 / 12)).toFixed(2)}/mo for reporting.
+          </p>
+        ) : null}
       </div>
 
       {/* Follow-up scheduling */}
