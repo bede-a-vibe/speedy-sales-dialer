@@ -5,6 +5,8 @@ import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "
 import { cn } from "@/lib/utils";
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Link } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { BookedOutcomePanel } from "./BookedOutcomePanel";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
@@ -230,7 +232,17 @@ export function BookedPipelineBoard({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {activeItem?.contacts?.business_name ?? "Appointment outcome"}
+              {activeItem?.contact_id ? (
+                <Link
+                  to={`/contacts/${activeItem.contact_id}`}
+                  className="inline-flex items-center gap-1.5 hover:text-primary hover:underline transition-colors"
+                >
+                  {activeItem?.contacts?.business_name ?? "Appointment outcome"}
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              ) : (
+                activeItem?.contacts?.business_name ?? "Appointment outcome"
+              )}
             </DialogTitle>
           </DialogHeader>
           {activeItem ? (
