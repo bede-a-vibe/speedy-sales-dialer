@@ -391,11 +391,6 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </div>
       )}
 
-      <p className="text-[11px] text-muted-foreground">
-        Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
-        <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
-        <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
-      </p>
       {showNoCloseFollowUp && (
         <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Schedule no-close follow-up</p>
@@ -435,6 +430,12 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           </div>
         </div>
       )}
+
+      <p className="text-[11px] text-muted-foreground">
+        Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
+        <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
+        <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
+      </p>
       {/* Rename Showed - Closed label */}
     </div>
   );
