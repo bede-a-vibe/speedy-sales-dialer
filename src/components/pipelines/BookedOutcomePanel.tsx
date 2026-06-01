@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign, CalendarPlus } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarPlus, CalendarCheck2, PhoneForwarded } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +63,36 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     );
   };
 
+  const handleSecondMeetingBooked = () => {
+    if (!followUpIso) {
+      // Defer to react via toast in parent? Simpler: ignore without date.
+      return;
+    }
+    // Pass the chosen date as scheduledFor so the parent can create a new booked item.
+    onRecordOutcome(
+      item,
+      "second_meeting_booked",
+      outcomeNotes,
+      followUpIso,
+      undefined,
+      followUpIso,
+      undefined,
+    );
+  };
+
+  const handleNoCloseFollowUp = () => {
+    if (!followUpIso) return;
+    onRecordOutcome(
+      item,
+      "no_close_follow_up",
+      outcomeNotes,
+      undefined,
+      undefined,
+      followUpIso,
+      followUpMethod,
+    );
+  };
+
   return (
     <div className="space-y-3 rounded-lg border border-border bg-background/60 p-4">
       {onAssign && (
@@ -119,7 +149,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             onCheckedChange={(checked) => setWantsFollowUp(checked === true)}
           />
           <CalendarPlus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Schedule follow-up</span>
+          <span className="text-sm font-medium text-foreground">Schedule follow-up / second meeting</span>
         </label>
 
         {wantsFollowUp && (
@@ -199,12 +229,38 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           disabled={isSaving}
         >
           <DollarSign className="h-4 w-4" />
-          Showed - Closed
+          Close
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_no_close")} disabled={isSaving}>
-          Showed - No Close
+          No Close
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleNoCloseFollowUp}
+          disabled={isSaving || !followUpIso}
+          title={!followUpIso ? "Tick 'Schedule follow-up' and pick a date" : undefined}
+        >
+          <PhoneForwarded className="h-4 w-4" />
+          No Close Follow-up
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSecondMeetingBooked}
+          disabled={isSaving || !followUpIso}
+          title={!followUpIso ? "Tick 'Schedule follow-up' and pick the second meeting date" : undefined}
+        >
+          <CalendarCheck2 className="h-4 w-4" />
+          Second Meeting Booked
         </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
+        <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
+        <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
+      </p>
+      {/* Rename Showed - Closed label */}
     </div>
   );
 }

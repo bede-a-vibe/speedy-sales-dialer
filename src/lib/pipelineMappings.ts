@@ -93,6 +93,14 @@ const APPOINTMENT_OUTCOME_TO_GHL_SYNC: Record<AppointmentOutcomeValue, {
     callOutcome: "not_interested",
     createsFollowUpTask: true,
   },
+  second_meeting_booked: {
+    callOutcome: "booked",
+    createsFollowUpTask: false,
+  },
+  no_close_follow_up: {
+    callOutcome: "follow_up",
+    createsFollowUpTask: true,
+  },
 };
 
 export function getContactStatusForPipelineType(type: PipelineType): ContactLifecycleStatus {

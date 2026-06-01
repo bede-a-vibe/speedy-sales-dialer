@@ -4,8 +4,10 @@ export const APPOINTMENT_OUTCOME_OPTIONS = [
   { value: "no_show", label: "No Show" },
   { value: "rescheduled", label: "Rescheduled" },
   { value: "showed_verbal_commitment", label: "Showed - Verbal Commitment" },
-  { value: "showed_closed", label: "Showed - Closed" },
-  { value: "showed_no_close", label: "Showed - No Close" },
+  { value: "second_meeting_booked", label: "Second Meeting Booked" },
+  { value: "no_close_follow_up", label: "No Close Follow-up" },
+  { value: "showed_closed", label: "Close" },
+  { value: "showed_no_close", label: "No Close" },
 ] as const;
 
 export type AppointmentOutcomeValue = (typeof APPOINTMENT_OUTCOME_OPTIONS)[number]["value"];
@@ -14,8 +16,10 @@ export const APPOINTMENT_OUTCOME_LABELS: Record<AppointmentOutcomeValue, string>
   no_show: "No Show",
   rescheduled: "Rescheduled",
   showed_verbal_commitment: "Showed - Verbal Commitment",
-  showed_closed: "Showed - Closed",
-  showed_no_close: "Showed - No Close",
+  second_meeting_booked: "Second Meeting Booked",
+  no_close_follow_up: "No Close Follow-up",
+  showed_closed: "Close",
+  showed_no_close: "No Close",
 };
 
 export function getAppointmentOutcomeLabel(outcome: AppointmentOutcomeValue | null | undefined) {

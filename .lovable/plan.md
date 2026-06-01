@@ -1,76 +1,61 @@
+## Goal
 
-# Cold-Calling Analytics Dashboard
+Extend booked-appointment outcomes from 5 to 7 so reps can mark exactly what happened after the meeting, and roll the new outcomes through Reports and Analytics.
 
-A new top-level **Analytics** section modelled on Odin Analytics' structure, but built around the cold-calling funnel: **Dials → Conversations → Bookings → Showed → Closed → Revenue**. Internal team/admin only. Existing Reports page stays untouched.
+## New outcome set (UI labels)
 
-## Route & shell
+Existing kept: **No Show**, **Reschedule**, **Verbal Commitment**, **Showed – Closed** (rename label to **Close**), **Showed – No Close** (rename label to **No Close**).
 
-- New page at `/analytics` (admin-only via existing `useUserRole`), added to the sidebar under "Analytics".
-- Header with date-range picker (reuse existing `ReportsToolbar` range logic), team-wide vs per-rep filter, and a "Showing data for [range]" strip.
-- Tabbed layout matching Odin: Summary · Activity · Funnel · Rep Performance · Sources · Forecasting · Lead Tracker.
+New:
+- **Second Meeting Booked** — opens a booking dialog to schedule the follow-up meeting + assign closer. Original appointment is marked completed with this outcome; a new `booked` pipeline_item is created.
+- **No Close Follow-up** — completes the appointment with this outcome and prompts the rep to pick a follow-up date + method (call/email). Creates a `follow_up` pipeline_item with the rep-chosen date (no 2-day auto default).
 
-## Tabs
+## Database
 
-### 1. Summary (Executive)
-Headline tile row: **Dials**, **Conversations**, **Bookings**, **Showed**, **Closed**, **Revenue (setup + first-year)**.
-Secondary row: **Dial→Close %**, **$/Dial**, **Avg Dials/Close**, **Booking Show Rate**, **Show Close Rate**, **Avg Deal Value**.
-- End-to-end funnel viz (reuse `EndToEndFunnel` logic, expanded).
-- Monthly trend line: dials vs bookings vs closes vs revenue.
-- Top channels table: dials/bookings/closes/revenue per **industry** and per **lead-list / state** (Odin's "Channel Performance" equivalent).
+New migration adds two values to the `appointment_outcome` enum:
 
-### 2. Activity Metrics
-- Daily dial volume bar chart.
-- Talk time totals + average per call.
-- Connect rate, voicemail rate, no-answer rate (from `call_logs.outcome`).
-- Hourly heat map (reuse `BookingHeatMap` / `PickupHeatMap`).
-- Conversation depth funnel: Connection → Problem → Solution → Commitment (uses `reached_*` flags on `call_logs`).
+```sql
+ALTER TYPE appointment_outcome ADD VALUE IF NOT EXISTS 'second_meeting_booked';
+ALTER TYPE appointment_outcome ADD VALUE IF NOT EXISTS 'no_close_follow_up';
+```
 
-### 3. Funnel
-Dedicated full-width funnel: Dials → Conversations → Bookings → Showed → Showed&Closed.
-- Conversion % between each stage, with delta vs prior period.
-- Breakdown table: same funnel sliced by rep, by industry, by state.
+Update `sync_pipeline_outcome_to_contact()` trigger:
+- `second_meeting_booked` → contact status `booked`, NO auto follow-up insert (the new booked pipeline_item is created from the client with date/closer).
+- `no_close_follow_up` → contact status `follow_up`, NO auto follow-up insert (client inserts the follow_up pipeline_item with rep-chosen date/method).
 
-### 4. Rep Performance (Leaderboard)
-- Per-rep table with: Dials, Talk time, Conversations, Bookings, Showed, Closed, $/Dial, Dials/Close, Show%, Close%, Setup $, MRR, First-year $.
-- Sortable, highlights top performer per column.
-- Per-rep monthly trend mini-charts.
+Leave existing `no_show` / `showed_verbal_commitment` auto-2-day-follow-up behavior alone.
 
-### 5. Sources / Segments
-Odin's "Lead Sources" equivalent for cold calling — slice the funnel by:
-- **Industry** (`contacts.industry`)
-- **State** (`contacts.state`)
-- **Trade type / work type / business size / prospect tier**
-- **Buying signal strength**, **has_google_ads**, **has_facebook_ads**
-Each segment shows: leads called, contact rate, booking rate, close rate, revenue, $/dial.
+## Frontend
 
-### 6. Forecasting
-- Project next 30/60/90 days revenue based on current dial volume × current conversion rates.
-- Pipeline value: open bookings × historical show rate × historical close rate × avg deal value.
-- Required-dials-to-target calculator using `performance_targets`.
+### `src/lib/appointments.ts`
+Add the two new entries to `APPOINTMENT_OUTCOME_OPTIONS` and labels. Rename `showed_closed` label to "Close", `showed_no_close` to "No Close".
 
-### 7. Lead Tracker
-Searchable table of every contact with: status, last outcome, call attempts, last called, assigned rep, current pipeline stage, deal value. Filterable by funnel stage. Click-through to existing contact detail page.
+### `src/components/pipelines/BookedOutcomePanel.tsx`
+- Add two buttons: **Second Meeting Booked**, **No Close Follow-up**.
+- **Second Meeting Booked** click → opens a sub-dialog with date+time picker and closer select; on confirm: records outcome `second_meeting_booked` on current item AND creates a new `pipeline_items` row (`pipeline_type='booked'`, scheduled_for=picked, assigned_user_id=picked closer).
+- **No Close Follow-up** click → reveals the existing follow-up scheduler section (date + time + method) inline; on save records outcome `no_close_follow_up` AND creates the `follow_up` pipeline_item with the chosen date/method via existing `onRecordOutcome` (already supports followUpDate + followUpMethod params).
 
-## Technical
+### `src/lib/pipelineMappings.ts`
+Add GHL sync mapping entries for the two new outcomes (mirror to appropriate GHL stages — same logic as showed_no_close for the no-close-follow-up case, and same as a fresh booking for second_meeting_booked).
 
-- New folder `src/components/analytics/` for tab components.
-- New `src/lib/analyticsMetrics.ts` aggregating from existing tables: `call_logs`, `pipeline_items`, `contacts`, `profiles`, `performance_targets`. No new tables required.
-- Reuse existing data sources: extends `reportMetrics.ts`, `funnelMetrics.ts`, `hourlyMetrics.ts`, `useBookedAppointmentsByDateRange`. Add new Supabase RPCs only if client-side aggregation gets slow on 50k+ contacts (defer until needed).
-- Pull revenue from `pipeline_items.deal_value` + `monthly_recurring_value` (already populated). First-year value = `deal_value + monthly_recurring_value × 12`, consistent with `MySalesPanel` / `SalesEfficiencyPanel`.
-- Date range stored in URL search params so links are shareable.
-- StatCard component reused; charts via existing `recharts`.
+### Reporting
 
-## Out of scope (for this pass)
+`src/lib/reportMetrics.ts`:
+- Add `second_meeting_booked` and `no_close_follow_up` to `appointmentOutcomeCounts` initializer.
+- `showed` denominator stays the same (showed = closed + no_close + verbal_commitment + no_close_follow_up + second_meeting_booked — since all of these mean the prospect attended).
+- Expose new counters: `secondMeetingsBooked`, `noCloseFollowUps`.
 
-- Client-facing/external view (we'll add a separate read-only route later if needed).
-- New database tables, new edge functions.
-- Real-time updates (page is on-demand refresh).
-- CSV export (can add per-table later).
+`src/lib/analyticsMetrics.ts`:
+- Include both new outcomes in "resolved" filters (alongside the existing `!== "no_show" && !== "rescheduled"` checks).
+- Add to Funnel + Rep Performance breakdowns as distinct buckets.
 
-## Build order
+### Visual surfaces
+- Funnel tab: add two new bars/segments.
+- Rep Performance tab: show per-rep counts for the new outcomes.
+- Sales Efficiency panel (Reports): "Second Meetings Booked" tile and "No Close → Follow-up" tile next to existing Close/No Close.
 
-1. Page shell + routing + sidebar entry + tab skeleton.
-2. Summary tab (highest value, reuses most existing code).
-3. Activity + Funnel tabs.
-4. Rep Performance + Sources tabs.
-5. Forecasting + Lead Tracker tabs.
+## Out of scope
+
+- No changes to call_logs outcomes (dialer dispositions) — these are appointment-only outcomes.
+- No changes to existing No Show / Reschedule / Verbal Commitment behavior.
+- No retroactive backfill of historic appointments.
