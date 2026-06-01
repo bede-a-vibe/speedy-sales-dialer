@@ -32,7 +32,14 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
 }
 
-type HistoryFilter = "all" | "no_show" | "showed_closed" | "showed_no_close" | "showed_verbal_commitment";
+type HistoryFilter =
+  | "all"
+  | "no_show"
+  | "showed_closed"
+  | "showed_no_close"
+  | "showed_verbal_commitment"
+  | "second_meeting_booked"
+  | "no_close_follow_up";
 type HistorySortKey = "repName" | "total" | "closed" | "showUpRate" | "closeRate";
 type SortDirection = "asc" | "desc";
 
@@ -491,8 +498,10 @@ export default function PipelinesPage() {
                 <SelectItem value="all">All completed outcomes</SelectItem>
                 <SelectItem value="no_show">No Show</SelectItem>
                 <SelectItem value="showed_verbal_commitment">Verbal Commitment</SelectItem>
-                <SelectItem value="showed_closed">Showed - Closed</SelectItem>
-                <SelectItem value="showed_no_close">Showed - No Close</SelectItem>
+                <SelectItem value="second_meeting_booked">Second Meeting Booked</SelectItem>
+                <SelectItem value="no_close_follow_up">No Close Follow-up</SelectItem>
+                <SelectItem value="showed_closed">Close</SelectItem>
+                <SelectItem value="showed_no_close">No Close</SelectItem>
               </SelectContent>
             </Select>
           </div>
