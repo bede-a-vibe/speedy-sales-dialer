@@ -230,7 +230,7 @@ export function BookedPipelineBoard({
       </div>
 
       <Dialog open={!!activeItem} onOpenChange={(open) => { if (!open) setActiveItem(null); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto sm:max-h-[calc(100vh-3rem)]">
           <DialogHeader>
             <DialogTitle>
               {activeItem?.contact_id ? (
