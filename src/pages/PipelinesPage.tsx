@@ -587,6 +587,10 @@ export default function PipelinesPage() {
                   repMap={repMap}
                   bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
                   bookedEntryStageName={defaultBookedStage?.name ?? null}
+                  reps={reps}
+                  isSaving={updatePipelineItem.isPending}
+                  onAssign={handleAssign}
+                  onRecordOutcome={handleBookedOutcome}
                 />
                 <BookedAppointmentsTable
                   items={booked}
