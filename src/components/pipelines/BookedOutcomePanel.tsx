@@ -229,7 +229,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           disabled={isSaving}
         >
           <DollarSign className="h-4 w-4" />
-          Showed - Closed
+          Close
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_no_close")} disabled={isSaving}>
           No Close
