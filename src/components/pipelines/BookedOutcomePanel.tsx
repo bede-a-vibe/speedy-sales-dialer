@@ -54,6 +54,12 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
+  const rescheduleIso = rescheduleDate
+    ? combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME)
+    : undefined;
+  // For "Second Meeting Booked" we accept either an explicit follow-up date
+  // or fall back to the reschedule date the user already picked above.
+  const secondMeetingIso = followUpIso ?? rescheduleIso;
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
@@ -76,18 +82,15 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   };
 
   const handleSecondMeetingBooked = () => {
-    if (!followUpIso) {
-      // Defer to react via toast in parent? Simpler: ignore without date.
-      return;
-    }
+    if (!secondMeetingIso) return;
     // Pass the chosen date as scheduledFor so the parent can create a new booked item.
     onRecordOutcome(
       item,
       "second_meeting_booked",
       outcomeNotes,
-      followUpIso,
+      secondMeetingIso,
       undefined,
-      followUpIso,
+      secondMeetingIso,
       undefined,
     );
   };
@@ -306,8 +309,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           variant="outline"
           size="sm"
           onClick={handleSecondMeetingBooked}
-          disabled={isSaving || !followUpIso}
-          title={!followUpIso ? "Tick 'Schedule follow-up' and pick the second meeting date" : undefined}
+          disabled={isSaving || !secondMeetingIso}
+          title={!secondMeetingIso ? "Pick a date (use 'Pick new day' or 'Schedule follow-up')" : undefined}
         >
           <CalendarCheck2 className="h-4 w-4" />
           Second Meeting Booked
