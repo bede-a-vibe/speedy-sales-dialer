@@ -1,8 +1,12 @@
 import { format, formatDistanceToNowStrict, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Clock3 } from "lucide-react";
-import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
+import { useState } from "react";
+import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BookedOutcomePanel } from "./BookedOutcomePanel";
+import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 type BoardStageKey = "stale" | "today" | "upcoming" | "overdue";
 
@@ -80,12 +84,29 @@ export function BookedPipelineBoard({
   repMap,
   bookedPipelineName,
   bookedEntryStageName,
+  reps,
+  isSaving,
+  onAssign,
+  onRecordOutcome,
 }: {
   items: PipelineItemWithRelations[];
   repMap: Map<string, string>;
   bookedPipelineName?: string | null;
   bookedEntryStageName?: string | null;
+  reps: SalesRepOption[];
+  isSaving: boolean;
+  onAssign: (id: string, userId: string) => Promise<void>;
+  onRecordOutcome: (
+    item: PipelineItemWithRelations,
+    outcome: AppointmentOutcomeValue,
+    notes: string,
+    scheduledFor?: string,
+    dealValue?: number,
+    followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
+  ) => Promise<void>;
 }) {
+  const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
   const grouped = BOARD_STAGES.map((stage) => ({
     ...stage,
     title: stage.fallbackTitle,
@@ -144,7 +165,12 @@ export function BookedPipelineBoard({
                   const setter = repMap.get(item.created_by) || "Unknown rep";
 
                   return (
-                    <article key={item.id} className="rounded-lg border border-border bg-background/90 p-3 shadow-sm">
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveItem(item)}
+                      className="w-full text-left rounded-lg border border-border bg-background/90 p-3 shadow-sm transition-colors hover:border-primary/50 hover:bg-background cursor-pointer"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -191,7 +217,7 @@ export function BookedPipelineBoard({
                         </div>
                         {item.notes ? <p className="line-clamp-2 italic text-muted-foreground">"{item.notes}"</p> : null}
                       </div>
-                    </article>
+                    </button>
                   );
                 })
               )}
@@ -199,6 +225,28 @@ export function BookedPipelineBoard({
           </section>
         ))}
       </div>
+
+      <Dialog open={!!activeItem} onOpenChange={(open) => { if (!open) setActiveItem(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {activeItem?.contacts?.business_name ?? "Appointment outcome"}
+            </DialogTitle>
+          </DialogHeader>
+          {activeItem ? (
+            <BookedOutcomePanel
+              item={activeItem}
+              reps={reps}
+              isSaving={isSaving}
+              onAssign={onAssign}
+              onRecordOutcome={async (...args) => {
+                await onRecordOutcome(...args);
+                setActiveItem(null);
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
