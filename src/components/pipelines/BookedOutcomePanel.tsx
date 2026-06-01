@@ -34,6 +34,7 @@ interface BookedOutcomePanelProps {
     dealValue?: number,
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
+    monthlyValue?: number,
   ) => Promise<void>;
 }
 
@@ -42,7 +43,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     item.scheduled_for ? new Date(item.scheduled_for) : undefined,
   );
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
-  const [dealValue, setDealValue] = useState("");
+  const [dealValue, setDealValue] = useState(item.deal_value != null ? String(item.deal_value) : "");
+  const [monthlyValue, setMonthlyValue] = useState(
+    (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
+  );
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [followUpTime, setFollowUpTime] = useState("09:00");
@@ -52,6 +56,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
+    const mrr = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
     onRecordOutcome(
       item,
       outcome,
@@ -60,6 +65,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       val,
       wantsFollowUp && followUpIso ? followUpIso : undefined,
       wantsFollowUp ? followUpMethod : undefined,
+      mrr,
     );
   };
 
@@ -128,17 +134,34 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         ghlStageId={item.ghl_stage_id}
       />
 
-      <div className="flex items-center gap-2">
-        <DollarSign className="h-4 w-4 text-muted-foreground" />
-        <Input
-          type="number"
-          min="0"
-          step="0.01"
-          value={dealValue}
-          onChange={(e) => setDealValue(e.target.value)}
-          placeholder="Deal value (for closed deals)"
-          className="w-full bg-background sm:w-[240px]"
-        />
+      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Deal value (for Close)</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-1 items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={dealValue}
+              onChange={(e) => setDealValue(e.target.value)}
+              placeholder="Upfront ($)"
+              className="w-full bg-background"
+            />
+          </div>
+          <div className="flex flex-1 items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={monthlyValue}
+              onChange={(e) => setMonthlyValue(e.target.value)}
+              placeholder="Monthly retainer ($/mo)"
+              className="w-full bg-background"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Follow-up scheduling */}

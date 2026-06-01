@@ -86,6 +86,8 @@ interface BookedAppointmentsTableProps {
     scheduledFor?: string,
     dealValue?: number,
     followUpDate?: string,
+    followUpMethod?: any,
+    monthlyValue?: number,
   ) => Promise<void>;
 }
 
