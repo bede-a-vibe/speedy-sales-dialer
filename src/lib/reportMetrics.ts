@@ -35,6 +35,8 @@ export interface AppointmentPerformanceMetrics {
   showedClosed: number;
   showedNoClose: number;
   showedVerbalCommitment: number;
+  secondMeetingsBooked: number;
+  noCloseFollowUps: number;
   showed: number;
   showUpRate: number;
   closeRate: number;
