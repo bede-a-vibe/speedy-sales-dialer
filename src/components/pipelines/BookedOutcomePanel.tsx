@@ -42,6 +42,16 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(
     item.scheduled_for ? new Date(item.scheduled_for) : undefined,
   );
+  const [rescheduleTime, setRescheduleTime] = useState<string>(() => {
+    if (item.scheduled_for) {
+      const d = new Date(item.scheduled_for);
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+    return BOOKED_APPOINTMENT_DEFAULT_TIME;
+  });
+  const [showReschedule, setShowReschedule] = useState(false);
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
   const [dealValue, setDealValue] = useState(item.deal_value != null ? String(item.deal_value) : "");
   const [monthlyValue, setMonthlyValue] = useState(
@@ -54,9 +64,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
-  const rescheduleIso = rescheduleDate
-    ? combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME)
-    : undefined;
+  const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   // For "Second Meeting Booked" we accept either an explicit follow-up date
   // or fall back to the reschedule date the user already picked above.
   const secondMeetingIso = followUpIso ?? rescheduleIso;
@@ -248,35 +256,14 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
-          variant="secondary"
-          onClick={() =>
-            rescheduleDate &&
-            fireOutcome("rescheduled", combineDateTime(rescheduleDate, BOOKED_APPOINTMENT_DEFAULT_TIME))
-          }
-          disabled={!rescheduleDate || isSaving}
+          variant={showReschedule ? "default" : "secondary"}
+          onClick={() => setShowReschedule((v) => !v)}
+          disabled={isSaving}
           size="sm"
         >
           <CalendarClock className="h-4 w-4" />
           Reschedule
         </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
-              <CalendarClock className="h-4 w-4" />
-              {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick new day"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={rescheduleDate}
-              onSelect={setRescheduleDate}
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-              initialFocus
-              className="p-3 pointer-events-auto"
-            />
-          </PopoverContent>
-        </Popover>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("no_show")} disabled={isSaving}>
           No Show
         </Button>
@@ -316,6 +303,49 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           Second Meeting Booked
         </Button>
       </div>
+
+      {showReschedule && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reschedule appointment</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
+                  <CalendarClock className="h-4 w-4" />
+                  {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick new day"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={rescheduleDate}
+                  onSelect={setRescheduleDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={rescheduleTime}
+              onChange={(e) => setRescheduleTime(e.target.value)}
+              className="w-[120px] bg-background"
+            />
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!rescheduleIso) return;
+                fireOutcome("rescheduled", rescheduleIso);
+              }}
+              disabled={!rescheduleIso || isSaving}
+            >
+              Confirm reschedule
+            </Button>
+          </div>
+        </div>
+      )}
+
       <p className="text-[11px] text-muted-foreground">
         Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
         <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
