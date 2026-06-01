@@ -331,6 +331,7 @@ export default function PipelinesPage() {
     dealValue?: number,
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
+    monthlyValue?: number,
   ) => {
     try {
       if (outcome === "rescheduled") {
@@ -356,6 +357,7 @@ export default function PipelinesPage() {
           outcome_notes: notes,
           status: "completed",
           ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
+          ...(outcome === "showed_closed" && monthlyValue != null ? { monthly_recurring_value: monthlyValue } : {}),
         });
 
         toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
