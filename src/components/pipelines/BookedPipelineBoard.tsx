@@ -106,6 +106,7 @@ export function BookedPipelineBoard({
     dealValue?: number,
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
+    monthlyValue?: number,
   ) => Promise<void>;
 }) {
   const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
