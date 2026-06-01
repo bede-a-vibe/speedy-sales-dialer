@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign, CalendarPlus, CalendarCheck2, PhoneForwarded } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,12 +64,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
   );
   const [retainerCadence, setRetainerCadence] = useState<"monthly" | "weekly">("monthly");
-  const [wantsFollowUp, setWantsFollowUp] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
-  const [followUpTime, setFollowUpTime] = useState("09:00");
-  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
-  const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
   const noCloseFollowUpIso = noCloseFollowUpDate ? combineDateTime(noCloseFollowUpDate, noCloseFollowUpTime) : undefined;
@@ -89,8 +83,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       outcomeNotes,
       scheduledFor,
       val,
-      wantsFollowUp && followUpIso ? followUpIso : undefined,
-      wantsFollowUp ? followUpMethod : undefined,
+      undefined,
+      undefined,
       mrr,
     );
   };
@@ -110,8 +104,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   };
 
   const handleNoCloseFollowUp = () => {
-    const iso = noCloseFollowUpIso ?? followUpIso;
-    const method = noCloseFollowUpIso ? noCloseFollowUpMethod : followUpMethod;
+    const iso = noCloseFollowUpIso;
+    const method = noCloseFollowUpMethod;
     if (!iso) return;
     onRecordOutcome(
       item,
