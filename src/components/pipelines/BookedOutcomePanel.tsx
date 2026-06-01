@@ -396,6 +396,45 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
         <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
       </p>
+      {showNoCloseFollowUp && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Schedule no-close follow-up</p>
+          <FollowUpMethodSelector value={noCloseFollowUpMethod} onChange={setNoCloseFollowUpMethod} allowedMethods={["call", "email"]} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !noCloseFollowUpDate && "text-muted-foreground")}>
+                  <PhoneForwarded className="h-4 w-4" />
+                  {noCloseFollowUpDate ? format(noCloseFollowUpDate, "PPP") : "Pick follow-up date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={noCloseFollowUpDate}
+                  onSelect={setNoCloseFollowUpDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={noCloseFollowUpTime}
+              onChange={(e) => setNoCloseFollowUpTime(e.target.value)}
+              className="w-[120px] bg-background"
+            />
+            <Button
+              size="sm"
+              onClick={handleNoCloseFollowUp}
+              disabled={!noCloseFollowUpIso || isSaving}
+            >
+              Confirm follow-up
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Rename Showed - Closed label */}
     </div>
   );
