@@ -47,6 +47,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [monthlyValue, setMonthlyValue] = useState(
     (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
   );
+  const [retainerCadence, setRetainerCadence] = useState<"monthly" | "weekly">("monthly");
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [followUpTime, setFollowUpTime] = useState("09:00");
@@ -56,7 +57,12 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
-    const mrr = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
+    const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
+    // Normalize to monthly for storage in monthly_recurring_value.
+    const mrr =
+      retainerInput != null && retainerCadence === "weekly"
+        ? Math.round(retainerInput * (52 / 12) * 100) / 100
+        : retainerInput;
     onRecordOutcome(
       item,
       outcome,
