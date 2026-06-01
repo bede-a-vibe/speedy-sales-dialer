@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign, CalendarPlus, CalendarCheck2, PhoneForwarded } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,12 +64,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
   );
   const [retainerCadence, setRetainerCadence] = useState<"monthly" | "weekly">("monthly");
-  const [wantsFollowUp, setWantsFollowUp] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
-  const [followUpTime, setFollowUpTime] = useState("09:00");
-  const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
 
-  const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
   const noCloseFollowUpIso = noCloseFollowUpDate ? combineDateTime(noCloseFollowUpDate, noCloseFollowUpTime) : undefined;
@@ -89,8 +83,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       outcomeNotes,
       scheduledFor,
       val,
-      wantsFollowUp && followUpIso ? followUpIso : undefined,
-      wantsFollowUp ? followUpMethod : undefined,
+      undefined,
+      undefined,
       mrr,
     );
   };
@@ -110,8 +104,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   };
 
   const handleNoCloseFollowUp = () => {
-    const iso = noCloseFollowUpIso ?? followUpIso;
-    const method = noCloseFollowUpIso ? noCloseFollowUpMethod : followUpMethod;
+    const iso = noCloseFollowUpIso;
+    const method = noCloseFollowUpMethod;
     if (!iso) return;
     onRecordOutcome(
       item,
@@ -216,50 +210,6 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             Stored as ${(parseFloat(monthlyValue) * (52 / 12)).toFixed(2)}/mo for reporting.
           </p>
         ) : null}
-      </div>
-
-      {/* Follow-up scheduling */}
-      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox
-            checked={wantsFollowUp}
-            onCheckedChange={(checked) => setWantsFollowUp(checked === true)}
-          />
-          <CalendarPlus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Schedule follow-up / second meeting</span>
-        </label>
-
-        {wantsFollowUp && (
-          <div className="flex flex-col gap-2 pl-6">
-            <FollowUpMethodSelector value={followUpMethod} onChange={setFollowUpMethod} allowedMethods={["call", "email"]} />
-            <div className="flex flex-wrap items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("justify-start bg-background", !followUpDate && "text-muted-foreground")}>
-                    <CalendarPlus className="h-4 w-4" />
-                    {followUpDate ? format(followUpDate, "PPP") : "Pick follow-up date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={followUpDate}
-                    onSelect={setFollowUpDate}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-              <Input
-                type="time"
-                value={followUpTime}
-                onChange={(e) => setFollowUpTime(e.target.value)}
-                className="w-[120px] bg-background"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
