@@ -14,6 +14,7 @@ import {
   usePipelineItems,
   useSalesReps,
   useUpdatePipelineItem,
+  useCreatePipelineItem,
   type PipelineItemWithRelations,
   type FollowUpMethod,
 } from "@/hooks/usePipelineItems";
@@ -223,6 +224,7 @@ export default function PipelinesPage() {
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
+  const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
   const { pushCallNote } = useGHLContactSync();
   const { pushFollowUp } = useGHLFollowUpSync();
@@ -350,6 +352,40 @@ export default function PipelinesPage() {
         });
 
         toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
+
+        // Create child pipeline_items for the two new outcomes
+        if (outcome === "second_meeting_booked" && followUpDate) {
+          try {
+            await createPipelineItem.mutateAsync({
+              contact_id: item.contact_id,
+              pipeline_type: "booked",
+              assigned_user_id: item.assigned_user_id,
+              created_by: user?.id ?? item.created_by,
+              scheduled_for: followUpDate,
+              notes: notes || `Re-booked from appointment on ${item.scheduled_for ? new Date(item.scheduled_for).toLocaleDateString("en-AU") : ""}`.trim(),
+              status: "open",
+            } as any);
+            toast.success("Second meeting added to the booked board.");
+          } catch {
+            toast.error("Could not create second meeting. Add it manually.");
+          }
+        } else if (outcome === "no_close_follow_up" && followUpDate) {
+          try {
+            await createPipelineItem.mutateAsync({
+              contact_id: item.contact_id,
+              pipeline_type: "follow_up",
+              assigned_user_id: item.assigned_user_id,
+              created_by: user?.id ?? item.created_by,
+              scheduled_for: followUpDate,
+              follow_up_method: followUpMethod ?? "call",
+              notes: notes || "Follow-up after no-close meeting",
+              status: "open",
+            } as any);
+            toast.success("Follow-up scheduled.");
+          } catch {
+            toast.error("Could not create follow-up. Add it manually.");
+          }
+        }
       }
 
       if (followUpDate) {
