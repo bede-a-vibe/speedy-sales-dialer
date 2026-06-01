@@ -193,6 +193,8 @@ function createAppointmentOutcomeCounts(): AppointmentOutcomeCounts {
     showed_closed: 0,
     showed_no_close: 0,
     showed_verbal_commitment: 0,
+    second_meeting_booked: 0,
+    no_close_follow_up: 0,
   };
 }
 
@@ -231,7 +233,12 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   }
 
   const resolvedAppointments = items.filter((item) => !!item.appointment_outcome).length;
-  const showed = appointmentOutcomeCounts.showed_closed + appointmentOutcomeCounts.showed_no_close + appointmentOutcomeCounts.showed_verbal_commitment;
+  const showed =
+    appointmentOutcomeCounts.showed_closed
+    + appointmentOutcomeCounts.showed_no_close
+    + appointmentOutcomeCounts.showed_verbal_commitment
+    + appointmentOutcomeCounts.second_meeting_booked
+    + appointmentOutcomeCounts.no_close_follow_up;
   const pendingOutcome = items.filter(
     (item) => !item.appointment_outcome && item.scheduled_for && new Date(item.scheduled_for) < new Date(),
   ).length;
@@ -244,6 +251,8 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       showedClosed: appointmentOutcomeCounts.showed_closed,
       showedNoClose: appointmentOutcomeCounts.showed_no_close,
       showedVerbalCommitment: appointmentOutcomeCounts.showed_verbal_commitment,
+      secondMeetingsBooked: appointmentOutcomeCounts.second_meeting_booked,
+      noCloseFollowUps: appointmentOutcomeCounts.no_close_follow_up,
       showed,
       showUpRate: toPercent(showed, items.length),
       closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
