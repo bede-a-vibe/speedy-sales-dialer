@@ -55,6 +55,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [showSecondMeeting, setShowSecondMeeting] = useState(false);
   const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
   const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
+  const [showNoCloseFollowUp, setShowNoCloseFollowUp] = useState(false);
+  const [noCloseFollowUpDate, setNoCloseFollowUpDate] = useState<Date | undefined>(undefined);
+  const [noCloseFollowUpTime, setNoCloseFollowUpTime] = useState<string>("09:00");
+  const [noCloseFollowUpMethod, setNoCloseFollowUpMethod] = useState<FollowUpMethod>("call");
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
   const [dealValue, setDealValue] = useState(item.deal_value != null ? String(item.deal_value) : "");
   const [monthlyValue, setMonthlyValue] = useState(
@@ -69,6 +73,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
+  const noCloseFollowUpIso = noCloseFollowUpDate ? combineDateTime(noCloseFollowUpDate, noCloseFollowUpTime) : undefined;
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
@@ -105,15 +110,17 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   };
 
   const handleNoCloseFollowUp = () => {
-    if (!followUpIso) return;
+    const iso = noCloseFollowUpIso ?? followUpIso;
+    const method = noCloseFollowUpIso ? noCloseFollowUpMethod : followUpMethod;
+    if (!iso) return;
     onRecordOutcome(
       item,
       "no_close_follow_up",
       outcomeNotes,
       undefined,
       undefined,
-      followUpIso,
-      followUpMethod,
+      iso,
+      method,
     );
   };
 
@@ -286,9 +293,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         <Button
           variant="outline"
           size="sm"
-          onClick={handleNoCloseFollowUp}
-          disabled={isSaving || !followUpIso}
-          title={!followUpIso ? "Tick 'Schedule follow-up' and pick a date" : undefined}
+          onClick={() => setShowNoCloseFollowUp((v) => !v)}
+          disabled={isSaving}
         >
           <PhoneForwarded className="h-4 w-4" />
           No Close Follow-up
