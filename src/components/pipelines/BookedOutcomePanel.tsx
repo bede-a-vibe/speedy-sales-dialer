@@ -55,6 +55,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [showSecondMeeting, setShowSecondMeeting] = useState(false);
   const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
   const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
+  const [showNoCloseFollowUp, setShowNoCloseFollowUp] = useState(false);
+  const [noCloseFollowUpDate, setNoCloseFollowUpDate] = useState<Date | undefined>(undefined);
+  const [noCloseFollowUpTime, setNoCloseFollowUpTime] = useState<string>("09:00");
+  const [noCloseFollowUpMethod, setNoCloseFollowUpMethod] = useState<FollowUpMethod>("call");
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || "");
   const [dealValue, setDealValue] = useState(item.deal_value != null ? String(item.deal_value) : "");
   const [monthlyValue, setMonthlyValue] = useState(
@@ -69,6 +73,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const followUpIso = followUpDate ? combineDateTime(followUpDate, followUpTime) : undefined;
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
+  const noCloseFollowUpIso = noCloseFollowUpDate ? combineDateTime(noCloseFollowUpDate, noCloseFollowUpTime) : undefined;
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
@@ -105,15 +110,17 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   };
 
   const handleNoCloseFollowUp = () => {
-    if (!followUpIso) return;
+    const iso = noCloseFollowUpIso ?? followUpIso;
+    const method = noCloseFollowUpIso ? noCloseFollowUpMethod : followUpMethod;
+    if (!iso) return;
     onRecordOutcome(
       item,
       "no_close_follow_up",
       outcomeNotes,
       undefined,
       undefined,
-      followUpIso,
-      followUpMethod,
+      iso,
+      method,
     );
   };
 
@@ -286,9 +293,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         <Button
           variant="outline"
           size="sm"
-          onClick={handleNoCloseFollowUp}
-          disabled={isSaving || !followUpIso}
-          title={!followUpIso ? "Tick 'Schedule follow-up' and pick a date" : undefined}
+          onClick={() => setShowNoCloseFollowUp((v) => !v)}
+          disabled={isSaving}
         >
           <PhoneForwarded className="h-4 w-4" />
           No Close Follow-up
@@ -390,6 +396,45 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
         <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
       </p>
+      {showNoCloseFollowUp && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Schedule no-close follow-up</p>
+          <FollowUpMethodSelector value={noCloseFollowUpMethod} onChange={setNoCloseFollowUpMethod} allowedMethods={["call", "email"]} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !noCloseFollowUpDate && "text-muted-foreground")}>
+                  <PhoneForwarded className="h-4 w-4" />
+                  {noCloseFollowUpDate ? format(noCloseFollowUpDate, "PPP") : "Pick follow-up date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={noCloseFollowUpDate}
+                  onSelect={setNoCloseFollowUpDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={noCloseFollowUpTime}
+              onChange={(e) => setNoCloseFollowUpTime(e.target.value)}
+              className="w-[120px] bg-background"
+            />
+            <Button
+              size="sm"
+              onClick={handleNoCloseFollowUp}
+              disabled={!noCloseFollowUpIso || isSaving}
+            >
+              Confirm follow-up
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Rename Showed - Closed label */}
     </div>
   );
