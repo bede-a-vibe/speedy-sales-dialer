@@ -1,6 +1,36 @@
 import { CalendarIcon, Layers, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+
+function toISO(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function buildPresets() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const addDays = (n: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + n);
+    return d;
+  };
+  const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+  const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const thisMonthStart = startOfMonth(today);
+  const lastMonthRef = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const yearStart = new Date(today.getFullYear(), 0, 1);
+
+  return [
+    { key: "last7", label: "Last 7 days", from: addDays(-6), to: today },
+    { key: "last30", label: "Last 30 days", from: addDays(-29), to: today },
+    { key: "last90", label: "Last 90 days", from: addDays(-89), to: today },
+    { key: "thisMonth", label: "This month", from: thisMonthStart, to: today },
+    { key: "lastMonth", label: "Last month", from: startOfMonth(lastMonthRef), to: endOfMonth(lastMonthRef) },
+    { key: "ytd", label: "Year to date", from: yearStart, to: today },
+    { key: "all", label: "All time", from: new Date(2020, 0, 1), to: today },
+  ];
+}
 
 interface RepOption {
   user_id: string;
@@ -37,9 +67,32 @@ export function ReportsToolbar({
   onBreakdownChange,
   breakdownOptions,
 }: ReportsToolbarProps) {
+  const presets = buildPresets();
+  const activePreset = presets.find((p) => toISO(p.from) === dateFrom && toISO(p.to) === dateTo)?.key;
+
+  const applyPreset = (from: Date, to: Date) => {
+    onDateFromChange(toISO(from));
+    onDateToChange(toISO(to));
+  };
+
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {presets.map((p) => (
+            <Button
+              key={p.key}
+              type="button"
+              size="sm"
+              variant={activePreset === p.key ? "secondary" : "ghost"}
+              className="h-7 px-2.5 text-xs"
+              onClick={() => applyPreset(p.from, p.to)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">From</span>
@@ -95,6 +148,7 @@ export function ReportsToolbar({
           </div>
         ) : null}
         {isLoading && <span className="ml-auto animate-pulse text-xs text-muted-foreground">Loading…</span>}
+        </div>
       </div>
     </div>
   );
