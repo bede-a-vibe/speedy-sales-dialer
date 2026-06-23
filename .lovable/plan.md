@@ -1,24 +1,14 @@
-## Make "I booked this in GHL" count as a dialer booking with a call time
+## Confirm prefill + verify the two earlier bookings are already correct
 
-Right now the button already creates a `call_logs` row with `outcome=booked` + a `pipeline_items` row, so it does technically log. The gap is that the call is stamped at "now" instead of when you actually dialled, so it falls into the wrong hour/day in Reports and the heat map.
+### Prefill behavior (already in place)
+The "When did you make the call?" field already defaults to the current date + time when the dialog opens, and the user can change it before submitting. No code change needed for the prefill itself.
 
-### Changes to `QuickBookRecoveryButton.tsx`
+### The two bookings clicked earlier today
+Before this feature shipped, the button stamped:
+- `call_logs.created_at` = insert time (Postgres default `now()`) → the moment you clicked the button
+- `contacts.last_called_at` = `new Date().toISOString()` → also the moment you clicked
 
-1. **Add a "Call time" field** to the dialog (date + time picker), defaulting to now. Label it "When did you make the call?" so it's clear this is the dial time, not the appointment time.
-2. **Keep the existing "Appointment date/time"** field for when the meeting is booked for.
-3. On submit:
-   - Insert into `call_logs` with `created_at = callTime` so it attributes to the right hour/day in Reports, hourly metrics, leaderboards, and heat maps.
-   - Set `contacts.last_called_at = callTime` (instead of `now()`).
-   - Pipeline item, contact status, and `meeting_booked_date` continue to use the appointment time.
-4. **Toast confirmation** updated to say "Booking logged — counted as a call at {callTime}, appointment {appointmentTime}".
+So both of those bookings are **already** logged at the exact time you clicked the button — which you've confirmed is the actual call time. No backfill needed.
 
-### Validation
-
-- Call time must be ≤ now (can't log a future call).
-- Appointment time can be future or past (matches current behavior — you backfill past meetings too).
-
-### Out of scope
-
-- No DB schema changes.
-- No GHL push from this button (it stays a local log; GHL already has the booking since the user made it there).
-- No changes to the dialer flow itself.
+### Verification step
+Run a read-only query to confirm the two `call_logs` rows from today with `outcome=booked` have `created_at` matching when you clicked (i.e. earlier today, not some other time). If they look right, we're done. If anything's off, I'll fix those specific rows.
