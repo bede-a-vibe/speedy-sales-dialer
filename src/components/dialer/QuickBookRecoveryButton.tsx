@@ -41,6 +41,11 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
     return d;
   });
   const [time, setTime] = useState<string>("10:00");
+  const [callDate, setCallDate] = useState<Date | undefined>(() => new Date());
+  const [callTime, setCallTime] = useState<string>(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,6 +63,18 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
     const scheduled = new Date(date);
     scheduled.setHours(hours, minutes, 0, 0);
 
+    if (!callDate) {
+      toast.error("Pick the call time.");
+      return;
+    }
+    const [cHours, cMinutes] = callTime.split(":").map((n) => Number(n) || 0);
+    const callMade = new Date(callDate);
+    callMade.setHours(cHours, cMinutes, 0, 0);
+    if (callMade.getTime() > Date.now()) {
+      toast.error("Call time can't be in the future.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       // 1. Write call_log (outcome=booked)
@@ -69,6 +86,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
           outcome: "booked",
           notes: notes || `Booking recovered manually — appointment booked directly in GHL on ${format(scheduled, "PPpp")}.`,
           reached_connection: true,
+          created_at: callMade.toISOString(),
         })
         .select("id")
         .single();
@@ -95,7 +113,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
         .update({
           status: "booked",
           last_outcome: "booked",
-          last_called_at: new Date().toISOString(),
+          last_called_at: callMade.toISOString(),
           meeting_booked_date: scheduled.toISOString(),
         })
         .eq("id", contactId);
@@ -103,7 +121,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
       if (contactErr) throw contactErr;
 
       toast.success("Booking recovered", {
-        description: `${contactName} is now logged as booked for ${format(scheduled, "PPp")}.`,
+        description: `Counted as a call at ${format(callMade, "PPp")} — appointment ${format(scheduled, "PPp")}.`,
       });
       setOpen(false);
       setNotes("");
@@ -146,9 +164,49 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
               <p className="mt-1 text-sm font-medium text-foreground">{contactName}</p>
             </div>
 
+            <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
+              <Label className="text-xs uppercase tracking-widest text-muted-foreground">
+                When did you make the call?
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                So it counts towards your dialer activity in the right hour/day.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start font-normal",
+                        !callDate && "text-muted-foreground",
+                      )}
+                    >
+                      {callDate ? format(callDate, "PP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={callDate}
+                      onSelect={(d) => d && setCallDate(d)}
+                      disabled={(d) => d > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  type="time"
+                  value={callTime}
+                  onChange={(e) => setCallTime(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Date</Label>
+                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Appointment date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -174,7 +232,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
                 </Popover>
               </div>
               <div>
-                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Time</Label>
+                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Appointment time</Label>
                 <Input
                   type="time"
                   value={time}
