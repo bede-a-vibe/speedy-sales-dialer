@@ -78,19 +78,25 @@ export function ReportsToolbar({
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex max-w-6xl flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {presets.map((p) => (
-            <Button
-              key={p.key}
-              type="button"
-              size="sm"
-              variant={activePreset === p.key ? "secondary" : "ghost"}
-              className="h-7 px-2.5 text-xs"
-              onClick={() => applyPreset(p.from, p.to)}
-            >
-              {p.label}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1">
+          {presets.map((p) => {
+            const active = activePreset === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => applyPreset(p.from, p.to)}
+                className={
+                  "rounded-md px-3 py-1.5 text-sm transition-colors " +
+                  (active
+                    ? "border border-primary text-foreground"
+                    : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")
+                }
+              >
+                {p.label}
+              </button>
+            );
+          })}
         </div>
         <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
