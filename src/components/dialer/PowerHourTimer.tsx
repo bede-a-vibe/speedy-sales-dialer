@@ -4,6 +4,44 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const POWER_HOUR_DURATION_MS = 60 * 60 * 1000; // 60 minutes
+const PH_STATE_KEY = "powerHour_state_v1";
+
+interface PersistedPowerHourState {
+  isRunning: boolean;
+  isPaused: boolean;
+  /** Wall-clock ms when the timer started, adjusted for pauses. */
+  startTime: number | null;
+  /** Wall-clock ms when the user paused (0 if not paused). */
+  pausedAt: number;
+  /** Elapsed ms — only authoritative while paused or complete. */
+  elapsedMs: number;
+  /** Calls counted toward this Power Hour (persisted independently of session). */
+  powerHourCalls: number;
+  /** Last sessionCallCount we observed, used to compute deltas. */
+  lastSeenSessionCount: number;
+}
+
+function loadPersistedState(): PersistedPowerHourState | null {
+  try {
+    const raw = localStorage.getItem(PH_STATE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedPowerHourState;
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedState(state: PersistedPowerHourState | null) {
+  try {
+    if (!state) {
+      localStorage.removeItem(PH_STATE_KEY);
+      return;
+    }
+    localStorage.setItem(PH_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
 
 interface PowerHourTimerProps {
   /** Current session call count (from useDialerSession) */
@@ -27,10 +65,13 @@ interface PowerHourTimerProps {
  * like it's worth gold — because it is.
  */
 export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = false, compact = false }: PowerHourTimerProps) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [callsAtStart, setCallsAtStart] = useState(0);
+  // Hydrate from localStorage so the timer survives navigating away from the dialer.
+  const persistedRef = useRef<PersistedPowerHourState | null>(loadPersistedState());
+  const [isRunning, setIsRunning] = useState(() => persistedRef.current?.isRunning ?? false);
+  const [isPaused, setIsPaused] = useState(() => persistedRef.current?.isPaused ?? false);
+  const [elapsedMs, setElapsedMs] = useState(() => persistedRef.current?.elapsedMs ?? 0);
+  const [powerHourCalls, setPowerHourCalls] = useState(() => persistedRef.current?.powerHourCalls ?? 0);
+  const lastSeenSessionCountRef = useRef<number>(persistedRef.current?.lastSeenSessionCount ?? sessionCallCount);
   const [bestCallsPerHour, setBestCallsPerHour] = useState<number>(() => {
     try {
       return Number(localStorage.getItem("powerHour_bestCPH") ?? "0");
@@ -39,14 +80,34 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     }
   });
 
-  const startTimeRef = useRef<number | null>(null);
-  const pausedAtRef = useRef<number>(0);
+  const startTimeRef = useRef<number | null>(persistedRef.current?.startTime ?? null);
+  const pausedAtRef = useRef<number>(persistedRef.current?.pausedAt ?? 0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const powerHourCalls = isRunning || isPaused ? sessionCallCount - callsAtStart : 0;
   const remainingMs = Math.max(0, POWER_HOUR_DURATION_MS - elapsedMs);
   const isComplete = isRunning && remainingMs <= 0;
   const progressPct = Math.min((elapsedMs / POWER_HOUR_DURATION_MS) * 100, 100);
+
+  // On mount, if we resumed in a "running" state, recompute elapsed from the stored startTime.
+  useEffect(() => {
+    if (isRunning && !isPaused && startTimeRef.current !== null) {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Track call count deltas so new calls during the Power Hour add up across remounts.
+  useEffect(() => {
+    if (!isRunning && !isPaused) {
+      lastSeenSessionCountRef.current = sessionCallCount;
+      return;
+    }
+    const delta = sessionCallCount - lastSeenSessionCountRef.current;
+    if (delta > 0) {
+      setPowerHourCalls((prev) => prev + delta);
+    }
+    lastSeenSessionCountRef.current = sessionCallCount;
+  }, [sessionCallCount, isRunning, isPaused]);
 
   // Calls per hour (projected from current pace)
   const callsPerHour = useMemo(() => {
@@ -74,6 +135,56 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     };
   }, [isRunning, isPaused]);
 
+  // Persist state whenever it changes so we can restore after unmount/navigation.
+  useEffect(() => {
+    if (!isRunning && !isPaused && elapsedMs === 0 && powerHourCalls === 0) {
+      savePersistedState(null);
+      return;
+    }
+    savePersistedState({
+      isRunning,
+      isPaused,
+      startTime: startTimeRef.current,
+      pausedAt: pausedAtRef.current,
+      elapsedMs,
+      powerHourCalls,
+      lastSeenSessionCount: lastSeenSessionCountRef.current,
+    });
+  }, [isRunning, isPaused, elapsedMs, powerHourCalls]);
+
+  // Auto-pause on unmount (e.g. user navigates away from dialer) so no time is lost.
+  // They can resume right where they left off when they return.
+  useEffect(() => {
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+      // Snapshot current running state without triggering React updates.
+      const running = isRunningLatest.current;
+      const paused = isPausedLatest.current;
+      if (running && !paused && startTimeRef.current !== null) {
+        const now = Date.now();
+        const frozenElapsed = now - startTimeRef.current;
+        savePersistedState({
+          isRunning: true,
+          isPaused: true,
+          startTime: startTimeRef.current,
+          pausedAt: now,
+          elapsedMs: frozenElapsed,
+          powerHourCalls: powerHourCallsLatest.current,
+          lastSeenSessionCount: lastSeenSessionCountRef.current,
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refs that always hold the latest values for use in the unmount cleanup above.
+  const isRunningLatest = useRef(isRunning);
+  const isPausedLatest = useRef(isPaused);
+  const powerHourCallsLatest = useRef(powerHourCalls);
+  useEffect(() => { isRunningLatest.current = isRunning; }, [isRunning]);
+  useEffect(() => { isPausedLatest.current = isPaused; }, [isPaused]);
+  useEffect(() => { powerHourCallsLatest.current = powerHourCalls; }, [powerHourCalls]);
+
   // Auto-complete when time runs out
   useEffect(() => {
     if (isComplete) {
@@ -97,7 +208,8 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     startTimeRef.current = now;
     pausedAtRef.current = 0;
     setElapsedMs(0);
-    setCallsAtStart(sessionCallCount);
+    setPowerHourCalls(0);
+    lastSeenSessionCountRef.current = sessionCallCount;
     setIsRunning(true);
     setIsPaused(false);
   }, [sessionCallCount]);
@@ -111,21 +223,9 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     startPowerHour();
   }, [autoStart, isSessionActive, isRunning, isPaused, elapsedMs, startPowerHour]);
 
-  // Auto-reset when session ends so next session can auto-start cleanly
-  const wasSessionActiveRef = useRef(isSessionActive);
-  useEffect(() => {
-    if (wasSessionActiveRef.current && !isSessionActive) {
-      // Session ended — clear power hour state
-      setIsRunning(false);
-      setIsPaused(false);
-      setElapsedMs(0);
-      setCallsAtStart(0);
-      startTimeRef.current = null;
-      pausedAtRef.current = 0;
-      if (tickRef.current) clearInterval(tickRef.current);
-    }
-    wasSessionActiveRef.current = isSessionActive;
-  }, [isSessionActive]);
+  // Note: Power Hour is intentionally NOT auto-reset when the dialer session ends.
+  // If a user accidentally stops the session or navigates away, the timer auto-pauses
+  // and they can resume from where they left off. Only an explicit Reset clears it.
 
   const pausePowerHour = useCallback(() => {
     setIsPaused(true);
@@ -146,10 +246,11 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     setIsRunning(false);
     setIsPaused(false);
     setElapsedMs(0);
-    setCallsAtStart(0);
+    setPowerHourCalls(0);
     startTimeRef.current = null;
     pausedAtRef.current = 0;
     if (tickRef.current) clearInterval(tickRef.current);
+    savePersistedState(null);
   }, []);
 
   // Intensity colour based on calls/hour pace
