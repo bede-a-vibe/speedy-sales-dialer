@@ -970,7 +970,7 @@ Deno.serve(async (req) => {
           body.calendarId,
           body.startDate,
           body.endDate,
-          body.timezone ?? "Australia/Sydney",
+          body.timezone ?? "Australia/Melbourne",
         );
         break;
       }
