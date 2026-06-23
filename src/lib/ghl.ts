@@ -88,7 +88,7 @@ export async function ghlGetFreeSlots(
   calendarId: string,
   startDate: string,
   endDate: string,
-  timezone = "Australia/Sydney",
+  timezone = "Australia/Melbourne",
 ) {
   return invokeGHL<Record<string, string[]>>({
     action: "get_free_slots",
