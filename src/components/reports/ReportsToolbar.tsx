@@ -1,36 +1,43 @@
-import { CalendarIcon, Layers, Users } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon, ChevronDown, Layers, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import type { DateRange as RDDateRange } from "react-day-picker";
 
 function toISO(d: Date) {
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-function buildPresets() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const addDays = (n: number) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + n);
-    return d;
-  };
-  const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-  const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const thisMonthStart = startOfMonth(today);
-  const lastMonthRef = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const yearStart = new Date(today.getFullYear(), 0, 1);
-
-  return [
-    { key: "last7", label: "Last 7 days", from: addDays(-6), to: today },
-    { key: "last30", label: "Last 30 days", from: addDays(-29), to: today },
-    { key: "last90", label: "Last 90 days", from: addDays(-89), to: today },
-    { key: "thisMonth", label: "This month", from: thisMonthStart, to: today },
-    { key: "lastMonth", label: "Last month", from: startOfMonth(lastMonthRef), to: endOfMonth(lastMonthRef) },
-    { key: "ytd", label: "Year to date", from: yearStart, to: today },
-    { key: "all", label: "All time", from: new Date(2020, 0, 1), to: today },
-  ];
+function parseISO(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
+
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+type Preset = { key: string; label: string; build: () => { from: Date; to: Date; label: string } };
+
+const PRESETS: Preset[] = [
+  { key: "last7", label: "Last 7 days", build: () => { const to = new Date(); return { from: addDays(to, -6), to, label: "Last 7 days" }; } },
+  { key: "last30", label: "Last 30 days", build: () => { const to = new Date(); return { from: addDays(to, -29), to, label: "Last 30 days" }; } },
+  { key: "thisMonth", label: "This month", build: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now, label: "This month" }; } },
+  { key: "lastMonth", label: "Last month", build: () => { const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth() - 1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); return { from: first, to: last, label: "Last month" }; } },
+  { key: "q1", label: "Q1", build: () => { const y = new Date().getFullYear(); return { from: new Date(y, 0, 1), to: new Date(y, 2, 31), label: `Q1 ${y}` }; } },
+  { key: "ytd", label: "Year to date", build: () => { const now = new Date(); return { from: new Date(now.getFullYear(), 0, 1), to: now, label: "Year to date" }; } },
+  { key: "last90", label: "Last 90 days", build: () => { const to = new Date(); return { from: addDays(to, -89), to, label: "Last 90 days" }; } },
+  { key: "all", label: "All time", build: () => ({ from: new Date(2020, 0, 1), to: new Date(), label: "All time" }) },
+];
 
 interface RepOption {
   user_id: string;
@@ -67,57 +74,88 @@ export function ReportsToolbar({
   onBreakdownChange,
   breakdownOptions,
 }: ReportsToolbarProps) {
-  const presets = buildPresets();
-  const activePreset = presets.find((p) => toISO(p.from) === dateFrom && toISO(p.to) === dateTo)?.key;
+  const [open, setOpen] = useState(false);
+  const fromDate = dateFrom ? parseISO(dateFrom) : undefined;
+  const toDate = dateTo ? parseISO(dateTo) : undefined;
+  const [picker, setPicker] = useState<RDDateRange | undefined>({ from: fromDate, to: toDate });
 
-  const applyPreset = (from: Date, to: Date) => {
+  const activePresetKey = PRESETS.find((p) => {
+    const r = p.build();
+    return toISO(r.from) === dateFrom && toISO(r.to) === dateTo;
+  })?.key;
+  const activeLabel = activePresetKey
+    ? PRESETS.find((p) => p.key === activePresetKey)!.build().label
+    : fromDate && toDate
+      ? `${format(fromDate, "d MMM")} – ${format(toDate, "d MMM yyyy")}`
+      : "Select range";
+
+  const applyRange = (from: Date, to: Date) => {
     onDateFromChange(toISO(from));
     onDateToChange(toISO(to));
+    setPicker({ from, to });
+    setOpen(false);
+  };
+
+  const applyCustom = () => {
+    if (picker?.from && picker?.to) {
+      applyRange(picker.from, picker.to);
+    }
   };
 
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-1">
-          {presets.map((p) => {
-            const active = activePreset === p.key;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => applyPreset(p.from, p.to)}
-                className={
-                  "rounded-md px-3 py-1.5 text-sm transition-colors " +
-                  (active
-                    ? "border border-primary text-foreground"
-                    : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")
-                }
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">From</span>
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => onDateFromChange(e.target.value)}
-            className="w-[150px] border-border bg-card text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">To</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => onDateToChange(e.target.value)}
-            className="w-[150px] border-border bg-card text-sm"
-          />
-        </div>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("gap-2 font-normal")}>
+              <CalendarIcon className="h-4 w-4" />
+              <span>{activeLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <div className="flex flex-col sm:flex-row">
+              <div className="flex flex-col gap-1 border-b border-border p-3 sm:border-b-0 sm:border-r">
+                {PRESETS.map((p) => {
+                  const isActive = activePresetKey === p.key;
+                  return (
+                    <Button
+                      key={p.key}
+                      variant={isActive ? "secondary" : "ghost"}
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => {
+                        const r = p.build();
+                        applyRange(r.from, r.to);
+                      }}
+                    >
+                      {p.label}
+                    </Button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-col">
+                <Calendar
+                  mode="range"
+                  numberOfMonths={2}
+                  selected={picker}
+                  onSelect={setPicker}
+                  defaultMonth={picker?.from ?? fromDate}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="flex items-center justify-between gap-2 border-t border-border p-3">
+                  <div className="text-xs text-muted-foreground">
+                    {picker?.from ? format(picker.from, "d MMM yyyy") : "—"} →{" "}
+                    {picker?.to ? format(picker.to, "d MMM yyyy") : "—"}
+                  </div>
+                  <Button size="sm" onClick={applyCustom} disabled={!picker?.from || !picker?.to}>
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">Rep</span>
@@ -154,7 +192,6 @@ export function ReportsToolbar({
           </div>
         ) : null}
         {isLoading && <span className="ml-auto animate-pulse text-xs text-muted-foreground">Loading…</span>}
-        </div>
       </div>
     </div>
   );
