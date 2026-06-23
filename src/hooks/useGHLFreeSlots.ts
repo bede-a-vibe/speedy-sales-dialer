@@ -21,7 +21,7 @@ function formatSlotLabel(startIso: string, endIso: string): string {
 export function useGHLFreeSlots(
   calendarId: string | undefined,
   date: Date | undefined,
-  timezone = "Australia/Sydney",
+  timezone = "Australia/Melbourne",
 ) {
   const dateKey = date ? format(date, "yyyy-MM-dd") : "";
 
