@@ -270,8 +270,36 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
 
   // Not active — show start button
   if (!isRunning && !isPaused && elapsedMs === 0) {
-    // In compact (top-banner) mode, hide entirely until running
-    if (compact) return null;
+    // Compact (top-banner) mode: show a slim start chip instead of hiding entirely
+    if (compact) {
+      return (
+        <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-2.5 flex items-center gap-3">
+          <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+            Power Hour
+          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            60 minutes of focused dialling.
+          </span>
+          {bestCallsPerHour > 0 && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Trophy className="h-3 w-3 text-yellow-500" />
+              PB: {bestCallsPerHour}/hr
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto border-orange-500/30 text-orange-500 hover:bg-orange-500/10 h-7"
+            onClick={startPowerHour}
+            disabled={!isSessionActive}
+          >
+            <Flame className="h-3.5 w-3.5 mr-1.5" />
+            Start
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-3">

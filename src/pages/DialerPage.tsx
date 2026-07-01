@@ -2105,15 +2105,18 @@ export default function DialerPage() {
           </CollapsiblePanel>
         )}
 
+        {session.isSessionActive && (
+          <PowerHourTimer
+            sessionCallCount={session.callCount}
+            isSessionActive={session.isSessionActive}
+            autoStart
+            compact
+          />
+        )}
+
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
           <>
-            <PowerHourTimer
-              sessionCallCount={session.callCount}
-              isSessionActive={session.isSessionActive}
-              autoStart
-              compact
-            />
             {dialpad.dialpadHealth && (
               <div
                 className={cn(
