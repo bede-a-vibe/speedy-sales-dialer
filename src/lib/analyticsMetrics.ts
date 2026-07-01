@@ -237,6 +237,8 @@ export interface RepPerformanceRow {
   dialToCloseRate: number;
   revenuePerDial: number;
   dialsPerClose: number;
+  dialsPerHour: number;
+  activeHours: number;
 }
 
 export function getRepPerformance(
@@ -258,6 +260,19 @@ export function getRepPerformance(
     const pickUps = repLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome as never)).length;
     const talkTime = repLogs.reduce((s, l) => s + getTalkTimeSeconds(l as never), 0);
     const bookingsCount = repBookings.length;
+
+    // Dials per hour: dials divided by the number of distinct local hour-buckets
+    // (YYYY-MM-DD HH) in which this rep placed at least one dial. This measures
+    // intensity while actually dialling, not raw wall-clock hours.
+    const hourBuckets = new Set<string>();
+    for (const l of repLogs) {
+      const d = new Date(l.created_at);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+      hourBuckets.add(key);
+    }
+    const activeHours = hourBuckets.size;
+    const dialsPerHour = activeHours > 0 ? Math.round((dials / activeHours) * 10) / 10 : 0;
 
     // Show/close from bookings scheduled in-range, attributed to setter (created_by)
     const scheduledInRange = bookings.filter(
@@ -290,6 +305,8 @@ export function getRepPerformance(
       dialToCloseRate: pct(closed, dials),
       revenuePerDial: dials > 0 ? Math.round((firstYearValue / dials) * 100) / 100 : 0,
       dialsPerClose: closed > 0 ? Math.round(dials / closed) : 0,
+      dialsPerHour,
+      activeHours,
       // expose pickUps to silence unused warning; not currently surfaced
       ...(pickUps as unknown as object ? {} : {}),
     });

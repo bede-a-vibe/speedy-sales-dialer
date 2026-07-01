@@ -21,6 +21,8 @@ type SortKey = keyof RepPerformanceRow;
 
 const COLUMNS: { key: SortKey; label: string; format: (r: RepPerformanceRow) => string | number; align?: "right" }[] = [
   { key: "dials", label: "Dials", format: (r) => r.dials.toLocaleString(), align: "right" },
+  { key: "dialsPerHour", label: "Dials/Hr", format: (r) => (r.activeHours > 0 ? r.dialsPerHour.toFixed(1) : "—"), align: "right" },
+  { key: "activeHours", label: "Active Hrs", format: (r) => (r.activeHours > 0 ? r.activeHours : "—"), align: "right" },
   { key: "talkTimeSeconds", label: "Talk", format: (r) => formatDurationSeconds(r.talkTimeSeconds), align: "right" },
   { key: "conversations", label: "Conv", format: (r) => r.conversations, align: "right" },
   { key: "bookings", label: "Book", format: (r) => r.bookings, align: "right" },
