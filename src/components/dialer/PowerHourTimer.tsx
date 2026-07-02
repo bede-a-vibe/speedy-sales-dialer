@@ -339,7 +339,45 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
 
   // Completed state
   if (!isRunning && !isPaused && elapsedMs > 0) {
-    if (compact) return null;
+    if (compact) {
+      return (
+        <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-2.5 flex items-center gap-3">
+          <Trophy className="h-4 w-4 text-yellow-500 shrink-0" />
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold whitespace-nowrap">
+            Power Hour Complete
+          </span>
+          <div className="flex items-center gap-4 text-xs ml-2">
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-3.5 w-3.5 text-orange-500" />
+              <span className="font-mono font-black text-foreground">{powerHourCalls}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">calls</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Target className={cn("h-3.5 w-3.5", intensityColor)} />
+              <span className={cn("font-mono font-black", intensityColor)}>{callsPerHour}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">/hr</span>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+              <span className="font-mono font-black text-yellow-500">{bestCallsPerHour}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">PB</span>
+            </div>
+          </div>
+          {powerHourCalls >= bestCallsPerHour && powerHourCalls > 0 && (
+            <span className="text-xs font-bold text-yellow-500 whitespace-nowrap">New PB!</span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-7 border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
+            onClick={resetPowerHour}
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            Start New
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-4">
         <div className="flex items-center gap-2 mb-3">
