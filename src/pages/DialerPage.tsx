@@ -400,6 +400,9 @@ export default function DialerPage() {
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
   const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
+  const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
+  const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
+  const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -416,7 +419,10 @@ export default function DialerPage() {
     phoneType,
     hasDmPhone,
     contactOwner,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner]);
+    hasExistingAgency,
+    existingAgencyServices,
+    includeDisqualified,
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -452,6 +458,9 @@ export default function DialerPage() {
     setBuyingSignalStrength("all");
     setPhoneType("all");
     setHasDmPhone("all");
+    setHasExistingAgency("all");
+    setExistingAgencyServices([]);
+    setIncludeDisqualified(false);
     setSelectedPreset("all");
   }, []);
 
