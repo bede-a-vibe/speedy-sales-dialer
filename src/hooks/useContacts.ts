@@ -128,6 +128,12 @@ async function claimDialerLeads({
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
     _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
+    _include_dnc: filters?.includeDnc ?? false,
+    _include_disqualified: filters?.includeDisqualified ?? false,
+    _dnc_reasons: filters?.dncReasons && filters.dncReasons.length > 0 ? filters.dncReasons : null,
+    _dq_reasons: filters?.dqReasons && filters.dqReasons.length > 0 ? filters.dqReasons : null,
+    _has_existing_agency: filters?.hasExistingAgency && filters.hasExistingAgency !== "all" ? filters.hasExistingAgency : null,
+    _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
   });
 }
 
@@ -181,6 +187,12 @@ async function getDialerQueueCount({
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
     _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
+    _include_dnc: filters?.includeDnc ?? false,
+    _include_disqualified: filters?.includeDisqualified ?? false,
+    _dnc_reasons: filters?.dncReasons && filters.dncReasons.length > 0 ? filters.dncReasons : null,
+    _dq_reasons: filters?.dqReasons && filters.dqReasons.length > 0 ? filters.dqReasons : null,
+    _has_existing_agency: filters?.hasExistingAgency && filters.hasExistingAgency !== "all" ? filters.hasExistingAgency : null,
+    _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
   });
 }
 
