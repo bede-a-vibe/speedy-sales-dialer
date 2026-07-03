@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 import { CallOutcome, OUTCOME_CONFIG } from "@/data/mockData";
 import {
   PhoneMissed, Voicemail, ThumbsDown, PhoneOff,
-  CalendarClock, CalendarCheck, CircleX,
+  CalendarClock, CalendarCheck, CircleX, UserX,
 } from "lucide-react";
 
 const ICONS: Record<string, React.ElementType> = {
   PhoneMissed, Voicemail, ThumbsDown, PhoneOff,
-  CalendarClock, CalendarCheck, CircleX,
+  CalendarClock, CalendarCheck, CircleX, UserX,
 };
 
 interface OutcomeButtonProps {
@@ -29,6 +29,7 @@ export const OutcomeButton = React.forwardRef<HTMLButtonElement, OutcomeButtonPr
         ref={ref}
         type="button"
         onClick={() => onClick(outcome)}
+        title={config.description}
         className={cn(
           "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all",
           "hover:scale-[1.02] active:scale-[0.98]",
