@@ -372,6 +372,9 @@ export default function DialerPage() {
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
   const [appointmentTitle, setAppointmentTitle] = useState<string>("");
+  const [dqReason, setDqReason] = useState<DqReason | null>(null);
+  const [dqNotes, setDqNotes] = useState<string>("");
+  const [dncReason, setDncReason] = useState<DncReason | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
