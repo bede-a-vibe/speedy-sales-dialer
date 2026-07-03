@@ -2014,6 +2014,12 @@ export default function DialerPage() {
             setPhoneType={setPhoneType}
             hasDmPhone={hasDmPhone}
             setHasDmPhone={setHasDmPhone}
+            hasExistingAgency={hasExistingAgency}
+            setHasExistingAgency={setHasExistingAgency}
+            existingAgencyServices={existingAgencyServices}
+            setExistingAgencyServices={setExistingAgencyServices}
+            includeDisqualified={includeDisqualified}
+            setIncludeDisqualified={setIncludeDisqualified}
             selectedPreset={selectedPreset}
             onPresetChange={applyDialerPreset}
             onReset={resetAdvancedFilters}
