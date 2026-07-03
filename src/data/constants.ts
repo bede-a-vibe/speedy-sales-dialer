@@ -4,7 +4,8 @@ export type CallOutcome =
   | "not_interested"
   | "dnc"
   | "follow_up"
-  | "booked";
+  | "booked"
+  | "disqualified";
 
 // Conversation-progress tagging (reached_connection / reached_problem_awareness / etc.)
 // went live on this date. Any call log before this date has reached_connection=false
@@ -261,12 +262,56 @@ export const AUSTRALIAN_STATES = [
 
 export const OUTCOME_CONFIG: Record<
   CallOutcome,
-  { label: string; color: string; bgClass: string; icon: string; shortcut: string }
+  { label: string; color: string; bgClass: string; icon: string; shortcut: string; description?: string }
 > = {
   no_answer: { label: "No Answer", color: "outcome-no-answer", bgClass: "bg-[hsl(var(--outcome-no-answer))]", icon: "PhoneMissed", shortcut: "1" },
   voicemail: { label: "Voicemail Left", color: "outcome-voicemail", bgClass: "bg-[hsl(var(--outcome-voicemail))]", icon: "Voicemail", shortcut: "2" },
   not_interested: { label: "Not Interested", color: "outcome-not-interested", bgClass: "bg-[hsl(var(--outcome-not-interested))]", icon: "ThumbsDown", shortcut: "3" },
-  dnc: { label: "Do Not Call", color: "outcome-dnc", bgClass: "bg-[hsl(var(--outcome-dnc))]", icon: "PhoneOff", shortcut: "4" },
+  dnc: { label: "Do Not Call", color: "outcome-dnc", bgClass: "bg-[hsl(var(--outcome-dnc))]", icon: "PhoneOff", shortcut: "4", description: "Prospect asked to be removed, was abusive, or repeatedly wrong number. Blocks all future dialing." },
   follow_up: { label: "Follow Up", color: "outcome-follow-up", bgClass: "bg-[hsl(var(--outcome-follow-up))]", icon: "CalendarClock", shortcut: "5" },
   booked: { label: "Booked", color: "outcome-booked", bgClass: "bg-[hsl(var(--outcome-booked))]", icon: "CalendarCheck", shortcut: "6" },
+  disqualified: {
+    label: "Disqualified",
+    color: "outcome-not-interested",
+    bgClass: "bg-[hsl(var(--outcome-not-interested))]",
+    icon: "UserX",
+    shortcut: "7",
+    description: "ONLY use when the business either can't afford us (no budget) OR explicitly said they don't want to grow. Every other rejection is Not Interested.",
+  },
 };
+
+// ── DQ / DNC / Agency vocab ──
+
+export const DQ_REASONS = [
+  {
+    value: "financially_not_qualified" as const,
+    label: "Financially not qualified",
+    description: "Can't afford our services — no budget, cashflow issues, or not generating enough revenue to invest in marketing.",
+  },
+  {
+    value: "not_looking_to_grow" as const,
+    label: "Not looking to grow",
+    description: "Explicitly told us they don't want more leads or customers, or don't want to grow the business.",
+  },
+];
+
+export type DqReason = typeof DQ_REASONS[number]["value"];
+
+export const DNC_REASONS = [
+  { value: "requested_removal" as const, label: "Requested removal" },
+  { value: "abusive_or_hostile" as const, label: "Abusive / hostile" },
+  { value: "wrong_number_repeat" as const, label: "Wrong number (repeat)" },
+  { value: "other" as const, label: "Other (add note)" },
+];
+
+export type DncReason = typeof DNC_REASONS[number]["value"];
+
+export const AGENCY_SERVICES = [
+  { value: "seo" as const, label: "SEO" },
+  { value: "google_ads" as const, label: "Google Ads" },
+  { value: "meta_ads" as const, label: "Meta Ads (FB/IG)" },
+  { value: "website" as const, label: "Website / Landing" },
+  { value: "other" as const, label: "Other" },
+];
+
+export type AgencyService = typeof AGENCY_SERVICES[number]["value"];
