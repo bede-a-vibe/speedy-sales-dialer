@@ -12,7 +12,8 @@ export type ContactLifecycleStatus =
   | "called"
   | "follow_up"
   | "booked"
-  | "dnc";
+  | "dnc"
+  | "disqualified";
 
 export const DEFAULT_MANUAL_FOLLOW_UP_DELAY_DAYS = 2;
 
@@ -24,6 +25,7 @@ export const CALL_OUTCOME_LABELS: Record<CallOutcome | "wrong_number", string> =
   dnc: "DNC",
   follow_up: "Follow Up",
   booked: "Booked",
+  disqualified: "Disqualified",
   wrong_number: "Wrong Number",
 };
 
@@ -66,6 +68,11 @@ const CALL_OUTCOME_MAP: Record<CallOutcome, {
     contactStatus: "booked",
     pipelineType: "booked",
     ghlLabel: CALL_OUTCOME_LABELS.booked,
+  },
+  disqualified: {
+    contactStatus: "disqualified",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.disqualified,
   },
 };
 
