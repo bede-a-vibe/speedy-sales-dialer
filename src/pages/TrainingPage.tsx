@@ -296,10 +296,11 @@ export default function TrainingPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="scripts" className="space-y-4">
-                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-7">
+                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-8">
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
+                  <TabsTrigger value="definitions" className="border border-border bg-muted/40">Definitions</TabsTrigger>
                   <TabsTrigger value="patterns" className="border border-border bg-muted/40">Patterns</TabsTrigger>
                   <TabsTrigger value="examples" className="border border-border bg-muted/40">Examples</TabsTrigger>
                   <TabsTrigger value="reviews" className="border border-border bg-muted/40">Reviews</TabsTrigger>
