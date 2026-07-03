@@ -42,6 +42,12 @@ export type DialerFilterOptions = {
   phoneType?: string;
   hasDmPhone?: string;
   contactOwner?: string;
+  hasExistingAgency?: string; // "all" | "yes" | "no"
+  existingAgencyServices?: string[];
+  includeDisqualified?: boolean;
+  includeDnc?: boolean;
+  dqReasons?: string[];
+  dncReasons?: string[];
 };
 
 type RollingDialerQueueOptions = {
