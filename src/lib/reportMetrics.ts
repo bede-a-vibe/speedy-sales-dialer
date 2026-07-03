@@ -185,6 +185,7 @@ function createOutcomeCounts(): OutcomeCounts {
     dnc: 0,
     follow_up: 0,
     booked: 0,
+    disqualified: 0,
   };
 }
 
