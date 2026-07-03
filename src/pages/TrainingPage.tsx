@@ -405,9 +405,73 @@ export default function TrainingPage() {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="definitions">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-border bg-background/60 p-4">
+                      <div className="mb-3 flex items-start gap-3">
+                        <UserX className="mt-0.5 h-5 w-5 text-primary" />
+                        <div>
+                          <h3 className="font-medium text-foreground">Disqualified (DQ) — what it actually means</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Every business we cold-call could theoretically use digital marketing. There are only
+                            <span className="font-medium text-foreground"> two </span>
+                            legitimate reasons to mark a lead Disqualified. Everything else is
+                            <span className="font-medium text-foreground"> Not Interested </span>
+                            (they can be re-approached later) or
+                            <span className="font-medium text-foreground"> Do Not Call </span>
+                            (they asked to be removed).
+                          </p>
+                        </div>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="space-y-3">
+                        {DQ_REASONS.map((r) => (
+                          <div key={r.value} className="rounded-lg border border-border bg-card p-3">
+                            <p className="text-sm font-medium text-foreground">{r.label}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-[11px] text-muted-foreground">
+                        Wrong industry, out of area, bad fit, duplicates → these are
+                        <span className="font-medium text-foreground"> not </span>
+                        DQ reasons. Use Not Interested or leave a note.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-background/60 p-4">
+                      <div className="mb-3 flex items-start gap-3">
+                        <Building2 className="mt-0.5 h-5 w-5 text-primary" />
+                        <div>
+                          <h3 className="font-medium text-foreground">Existing Agency intel — why we capture it</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            A prospect already paying an agency has proven they'll invest in growth. That's
+                            higher intent than a cold lead. Always ask, and record which services they buy so
+                            we can filter and re-target these leads.
+                          </p>
+                        </div>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Services to tick</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {AGENCY_SERVICES.map((s) => (
+                            <div key={s.value} className="rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground">
+                              {s.label}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          Ask: "Just so I know — are you already running any SEO, Google Ads, or Meta ads at
+                          the moment?" If yes, capture the agency name and any spend/contract details in the
+                          notes.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="patterns">
-
-
                   <div className="rounded-xl border border-border bg-background/60 p-4">
                     <div className="mb-4 flex items-start gap-3">
                       <Workflow className="mt-0.5 h-5 w-5 text-primary" />
