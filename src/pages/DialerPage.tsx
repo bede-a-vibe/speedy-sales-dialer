@@ -1150,6 +1150,10 @@ export default function DialerPage() {
       toast.error("Choose a sales rep.");
       return;
     }
+    if (outcomeToLog === "disqualified" && !dqReason) {
+      toast.error("Pick a disqualification reason.");
+      return;
+    }
 
     session.leadAdvanceInFlightRef.current = true;
 
@@ -1199,6 +1203,12 @@ export default function DialerPage() {
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
+    const dqReasonSnapshot = dqReason;
+    const dqNotesSnapshot = dqNotes;
+    const dncReasonSnapshot = dncReason;
+    setDqReason(null);
+    setDqNotes("");
+    setDncReason(null);
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     void session.queue.ensureBuffer();
