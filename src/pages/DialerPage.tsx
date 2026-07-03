@@ -1421,6 +1421,9 @@ export default function DialerPage() {
     defaultFollowUpPipeline?.id,
     defaultFollowUpStage?.id,
     isOnline,
+    dqReason,
+    dqNotes,
+    dncReason,
   ]);
 
   const skipLead = useCallback(async () => {
