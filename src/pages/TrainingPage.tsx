@@ -406,6 +406,8 @@ export default function TrainingPage() {
                 </TabsContent>
 
                 <TabsContent value="patterns">
+
+
                   <div className="rounded-xl border border-border bg-background/60 p-4">
                     <div className="mb-4 flex items-start gap-3">
                       <Workflow className="mt-0.5 h-5 w-5 text-primary" />
