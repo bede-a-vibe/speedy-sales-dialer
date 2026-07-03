@@ -7,6 +7,7 @@ export type CallOutcomeForStage =
   | "dnc"
   | "follow_up"
   | "booked"
+  | "disqualified"
   | "wrong_number";
 
 export const GHL_PIPELINE_CONTRACT = {
@@ -61,6 +62,7 @@ export const CALL_OUTCOME_TO_STAGE: Record<CallOutcomeForStage, string> = {
   booked: OUTBOUND_PROSPECTING_STAGES.meeting_booked,
   not_interested: OUTBOUND_PROSPECTING_STAGES.not_interested,
   dnc: OUTBOUND_PROSPECTING_STAGES.disqualified,
+  disqualified: OUTBOUND_PROSPECTING_STAGES.disqualified,
   wrong_number: OUTBOUND_PROSPECTING_STAGES.bad_number_dead,
 };
 
