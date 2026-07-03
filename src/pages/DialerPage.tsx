@@ -58,6 +58,7 @@ import {
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
 } from "@/data/constants";
+import type { DqReason, DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
