@@ -2696,8 +2696,8 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     try {
-      const allowUnsignedWebhookJson = Deno.env.get("DIALPAD_WEBHOOK_ALLOW_UNSIGNED_JSON") === "true";
-      const payload = await extractWebhookPayload(req, webhookSecret, allowUnsignedWebhookJson);
+      // Signature verification is always required for webhook payloads.
+      const payload = await extractWebhookPayload(req, webhookSecret, false);
       const result = await syncWebhookPayload({
         adminClient,
         payload,
