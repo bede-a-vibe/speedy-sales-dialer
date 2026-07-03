@@ -9,7 +9,8 @@ export type CallOutcome =
   | "dnc"
   | "follow_up"
   | "booked"
-  | "wrong_number";
+  | "wrong_number"
+  | "disqualified";
 
 export interface PushCallNoteParams {
   ghlContactId: string;
