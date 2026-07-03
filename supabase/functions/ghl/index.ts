@@ -878,11 +878,13 @@ Deno.serve(async (req) => {
     const isServiceRole = serviceRoleKey && token === serviceRoleKey;
 
     let user: { id: string } | null = null;
+    let isAdmin = false;
 
     if (isServiceRole) {
       // Server-to-server call (from database triggers, other edge functions, etc.)
       // Use a system user ID for audit purposes
       user = { id: "system" };
+      isAdmin = true;
     } else {
       // Standard JWT auth from frontend
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -896,6 +898,22 @@ Deno.serve(async (req) => {
         return json({ error: "Unauthorized" }, 401);
       }
       user = jwtUser;
+
+      // Check role from user_roles via service-role client to bypass RLS recursion
+      try {
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const sbAdmin = createClient(supabaseUrl, svcKey);
+        const { data: roleRow } = await sbAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", jwtUser.id)
+          .in("role", ["admin", "coach"])
+          .maybeSingle();
+        isAdmin = !!roleRow;
+      } catch (roleErr) {
+        console.error("[GHL] Role lookup failed:", roleErr);
+        isAdmin = false;
+      }
     }
 
     const body = await req.json().catch(() => ({}));
@@ -903,6 +921,26 @@ Deno.serve(async (req) => {
 
     if (!action) {
       return json({ error: "Missing action" }, 400);
+    }
+
+    // Actions that mutate GHL state or perform bulk operations require admin/coach role.
+    const privilegedActions = new Set([
+      "create_contact",
+      "update_contact",
+      "update_contact_fields",
+      "upsert_contact",
+      "add_note",
+      "add_tag",
+      "create_task",
+      "create_opportunity",
+      "update_opportunity",
+      "create_appointment",
+      "create_followup_task",
+      "bulk_link_contacts",
+      "bulk_import_from_ghl",
+    ]);
+    if (privilegedActions.has(action) && !isAdmin) {
+      return json({ error: "Forbidden: admin or coach role required" }, 403);
     }
 
     let result: unknown;
