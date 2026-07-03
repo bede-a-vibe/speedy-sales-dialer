@@ -13,6 +13,7 @@ import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
+import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
 import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
@@ -58,6 +59,7 @@ import {
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
 } from "@/data/constants";
+import type { DqReason, DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { toast } from "sonner";
@@ -371,6 +373,9 @@ export default function DialerPage() {
   const [ghlPipelineId, setGhlPipelineId] = useState<string>("");
   const [ghlStageId, setGhlStageId] = useState<string>("");
   const [appointmentTitle, setAppointmentTitle] = useState<string>("");
+  const [dqReason, setDqReason] = useState<DqReason | null>(null);
+  const [dqNotes, setDqNotes] = useState<string>("");
+  const [dncReason, setDncReason] = useState<DncReason | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   const [showDialpadCTI, setShowDialpadCTI] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
@@ -396,6 +401,9 @@ export default function DialerPage() {
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
   const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
+  const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
+  const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
+  const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -412,7 +420,10 @@ export default function DialerPage() {
     phoneType,
     hasDmPhone,
     contactOwner,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner]);
+    hasExistingAgency,
+    existingAgencyServices,
+    includeDisqualified,
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -448,6 +459,9 @@ export default function DialerPage() {
     setBuyingSignalStrength("all");
     setPhoneType("all");
     setHasDmPhone("all");
+    setHasExistingAgency("all");
+    setExistingAgencyServices([]);
+    setIncludeDisqualified(false);
     setSelectedPreset("all");
   }, []);
 
@@ -1146,6 +1160,10 @@ export default function DialerPage() {
       toast.error("Choose a sales rep.");
       return;
     }
+    if (outcomeToLog === "disqualified" && !dqReason) {
+      toast.error("Pick a disqualification reason.");
+      return;
+    }
 
     session.leadAdvanceInFlightRef.current = true;
 
@@ -1195,6 +1213,12 @@ export default function DialerPage() {
     setGhlCalendarId("");
     setGhlPipelineId("");
     setGhlStageId("");
+    const dqReasonSnapshot = dqReason;
+    const dqNotesSnapshot = dqNotes;
+    const dncReasonSnapshot = dncReason;
+    setDqReason(null);
+    setDqNotes("");
+    setDncReason(null);
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     void session.queue.ensureBuffer();
@@ -1241,6 +1265,16 @@ export default function DialerPage() {
               ? (pipelineNotes || contactFollowUpNote || null)
               : null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: currentVoicemailCount + 1 } : {}),
+            ...(outcomeToLog === "disqualified"
+              ? {
+                  disqualified: true,
+                  disqualified_reason: dqReasonSnapshot,
+                  disqualified_notes: dqNotesSnapshot || null,
+                }
+              : {}),
+            ...(outcomeToLog === "dnc"
+              ? { dnc_reason: dncReasonSnapshot }
+              : {}),
           }),
         ]);
 
@@ -1397,6 +1431,9 @@ export default function DialerPage() {
     defaultFollowUpPipeline?.id,
     defaultFollowUpStage?.id,
     isOnline,
+    dqReason,
+    dqNotes,
+    dncReason,
   ]);
 
   const skipLead = useCallback(async () => {
@@ -1978,6 +2015,12 @@ export default function DialerPage() {
             setPhoneType={setPhoneType}
             hasDmPhone={hasDmPhone}
             setHasDmPhone={setHasDmPhone}
+            hasExistingAgency={hasExistingAgency}
+            setHasExistingAgency={setHasExistingAgency}
+            existingAgencyServices={existingAgencyServices}
+            setExistingAgencyServices={setExistingAgencyServices}
+            includeDisqualified={includeDisqualified}
+            setIncludeDisqualified={setIncludeDisqualified}
             selectedPreset={selectedPreset}
             onPresetChange={applyDialerPreset}
             onReset={resetAdvancedFilters}
@@ -2244,6 +2287,14 @@ export default function DialerPage() {
                 />
               </CollapsiblePanel>
 
+              <ExistingAgencyCapture
+                contactId={session.currentContact.id}
+                hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
+                existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
+                existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
+                existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
+              />
+
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
               <CollapsiblePanel
                 title="Sales Toolkit"
@@ -2290,6 +2341,12 @@ export default function DialerPage() {
                 }}
                 conversationProgress={conversationProgress}
                 onConversationProgressChange={setConversationProgress}
+                dqReason={dqReason}
+                onDqReasonChange={setDqReason}
+                dqNotes={dqNotes}
+                onDqNotesChange={setDqNotes}
+                dncReason={dncReason}
+                onDncReasonChange={setDncReason}
               />
               </div>
 

@@ -19,6 +19,7 @@ import {
   DM_STATUS_OPTIONS,
   INDUSTRIES,
   AUSTRALIAN_STATES,
+  AGENCY_SERVICES,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 
@@ -60,6 +61,12 @@ interface AdvancedFiltersProps {
   setPhoneType: (v: string) => void;
   hasDmPhone: string;
   setHasDmPhone: (v: string) => void;
+  hasExistingAgency: string;
+  setHasExistingAgency: (v: string) => void;
+  existingAgencyServices: string[];
+  setExistingAgencyServices: (v: string[]) => void;
+  includeDisqualified: boolean;
+  setIncludeDisqualified: (v: boolean) => void;
   selectedPreset: DialerFilterPreset;
   onPresetChange: (preset: DialerFilterPreset) => void;
   onReset: () => void;
@@ -116,6 +123,9 @@ export function AdvancedFilters({
   buyingSignalStrength, setBuyingSignalStrength,
   phoneType, setPhoneType,
   hasDmPhone, setHasDmPhone,
+  hasExistingAgency, setHasExistingAgency,
+  existingAgencyServices, setExistingAgencyServices,
+  includeDisqualified, setIncludeDisqualified,
   selectedPreset, onPresetChange,
   onReset,
   disabled = false,
@@ -420,6 +430,56 @@ export function AdvancedFilters({
               </Select>
               <CoverageHint count={cov.has_facebook_ads_known} total={cov.total} />
             </div>
+          </div>
+
+          {/* === HIGH-INTENT / EXCLUSION FILTERS === */}
+          <div className="mt-4 space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Agency status & exclusions
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Existing Agency</label>
+                <Select value={hasExistingAgency} onValueChange={setHasExistingAgency} disabled={disabled}>
+                  <SelectTrigger className="h-8 border-border bg-card text-xs">
+                    <SelectValue placeholder="Any" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any</SelectItem>
+                    <SelectItem value="yes">Has an agency (higher intent)</SelectItem>
+                    <SelectItem value="no">No agency</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] leading-tight text-muted-foreground/70">
+                  Businesses already paying an agency are actively investing in growth.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Agency Services</label>
+                <MultiSelect
+                  options={AGENCY_SERVICES.map((s) => s.label)}
+                  selected={AGENCY_SERVICES.filter((s) => existingAgencyServices.includes(s.value)).map((s) => s.label)}
+                  onChange={(labels) =>
+                    setExistingAgencyServices(
+                      AGENCY_SERVICES.filter((s) => labels.includes(s.label)).map((s) => s.value),
+                    )
+                  }
+                  placeholder="Any service"
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={includeDisqualified}
+                onChange={(e) => setIncludeDisqualified(e.target.checked)}
+                disabled={disabled}
+              />
+              Include disqualified leads in the queue
+            </label>
           </div>
         </CollapsibleContent>
       </Collapsible>
