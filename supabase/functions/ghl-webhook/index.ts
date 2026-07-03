@@ -252,15 +252,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // ── Secret validation ──────────────────────────────────────────────────
+  // ── Secret validation (required) ───────────────────────────────────────
   const webhookSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
-  if (webhookSecret) {
-    const incomingSignature = req.headers.get("x-ghl-signature") ??
-      req.headers.get("x-webhook-secret");
-    if (incomingSignature !== webhookSecret) {
-      console.warn("[ghl-webhook] Invalid or missing signature");
-      return json({ error: "Unauthorized" }, 401);
-    }
+  if (!webhookSecret) {
+    console.error("[ghl-webhook] GHL_WEBHOOK_SECRET is not configured");
+    return json({ error: "Webhook secret not configured" }, 500);
+  }
+  const incomingSignature = req.headers.get("x-ghl-signature") ??
+    req.headers.get("x-webhook-secret");
+  if (!incomingSignature || incomingSignature !== webhookSecret) {
+    console.warn("[ghl-webhook] Invalid or missing signature");
+    return json({ error: "Unauthorized" }, 401);
   }
 
   // ── Parse body ─────────────────────────────────────────────────────────
