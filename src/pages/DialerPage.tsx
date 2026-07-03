@@ -2317,6 +2317,12 @@ export default function DialerPage() {
                 }}
                 conversationProgress={conversationProgress}
                 onConversationProgressChange={setConversationProgress}
+                dqReason={dqReason}
+                onDqReasonChange={setDqReason}
+                dqNotes={dqNotes}
+                onDqNotesChange={setDqNotes}
+                dncReason={dncReason}
+                onDncReasonChange={setDncReason}
               />
               </div>
 
