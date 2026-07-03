@@ -1255,6 +1255,16 @@ export default function DialerPage() {
               ? (pipelineNotes || contactFollowUpNote || null)
               : null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: currentVoicemailCount + 1 } : {}),
+            ...(outcomeToLog === "disqualified"
+              ? {
+                  disqualified: true,
+                  disqualified_reason: dqReasonSnapshot,
+                  disqualified_notes: dqNotesSnapshot || null,
+                }
+              : {}),
+            ...(outcomeToLog === "dnc"
+              ? { dnc_reason: dncReasonSnapshot }
+              : {}),
           }),
         ]);
 
