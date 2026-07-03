@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, objectionEventDrafts, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
+import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
+import { UserX, Building2 } from "lucide-react";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
