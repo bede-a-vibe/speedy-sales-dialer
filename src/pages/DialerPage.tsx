@@ -2287,6 +2287,14 @@ export default function DialerPage() {
                 />
               </CollapsiblePanel>
 
+              <ExistingAgencyCapture
+                contactId={session.currentContact.id}
+                hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
+                existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
+                existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
+                existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
+              />
+
               {/* Sales Toolkit — Scripts, Objections, Voicemails */}
               <CollapsiblePanel
                 title="Sales Toolkit"
