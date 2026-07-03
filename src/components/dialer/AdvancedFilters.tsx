@@ -19,6 +19,7 @@ import {
   DM_STATUS_OPTIONS,
   INDUSTRIES,
   AUSTRALIAN_STATES,
+  AGENCY_SERVICES,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 
@@ -60,6 +61,12 @@ interface AdvancedFiltersProps {
   setPhoneType: (v: string) => void;
   hasDmPhone: string;
   setHasDmPhone: (v: string) => void;
+  hasExistingAgency: string;
+  setHasExistingAgency: (v: string) => void;
+  existingAgencyServices: string[];
+  setExistingAgencyServices: (v: string[]) => void;
+  includeDisqualified: boolean;
+  setIncludeDisqualified: (v: boolean) => void;
   selectedPreset: DialerFilterPreset;
   onPresetChange: (preset: DialerFilterPreset) => void;
   onReset: () => void;
@@ -116,6 +123,9 @@ export function AdvancedFilters({
   buyingSignalStrength, setBuyingSignalStrength,
   phoneType, setPhoneType,
   hasDmPhone, setHasDmPhone,
+  hasExistingAgency, setHasExistingAgency,
+  existingAgencyServices, setExistingAgencyServices,
+  includeDisqualified, setIncludeDisqualified,
   selectedPreset, onPresetChange,
   onReset,
   disabled = false,
