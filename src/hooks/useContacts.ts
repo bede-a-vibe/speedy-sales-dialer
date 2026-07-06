@@ -48,6 +48,8 @@ export type DialerFilterOptions = {
   includeDnc?: boolean;
   dqReasons?: string[];
   dncReasons?: string[];
+  leadType?: string;
+  leadChannel?: string;
 };
 
 type RollingDialerQueueOptions = {
@@ -134,6 +136,8 @@ async function claimDialerLeads({
     _dq_reasons: filters?.dqReasons && filters.dqReasons.length > 0 ? filters.dqReasons : null,
     _has_existing_agency: filters?.hasExistingAgency && filters.hasExistingAgency !== "all" ? filters.hasExistingAgency : null,
     _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
+    _lead_type: filters?.leadType && filters.leadType !== "all" ? filters.leadType : null,
+    _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
   });
 }
 
@@ -193,6 +197,8 @@ async function getDialerQueueCount({
     _dq_reasons: filters?.dqReasons && filters.dqReasons.length > 0 ? filters.dqReasons : null,
     _has_existing_agency: filters?.hasExistingAgency && filters.hasExistingAgency !== "all" ? filters.hasExistingAgency : null,
     _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
+    _lead_type: filters?.leadType && filters.leadType !== "all" ? filters.leadType : null,
+    _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
   });
 }
 
