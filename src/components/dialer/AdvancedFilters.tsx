@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info, Bookmark, Save, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useSmartLists } from "@/hooks/useSmartLists";
+import { useAuth } from "@/hooks/useAuth";
 import {
   TRADE_TYPES,
   WORK_TYPES,
@@ -33,6 +36,28 @@ export interface SalesRepOption {
 
 export type DialerFilterPreset = "all" | "hot_today" | "dm_direct" | "dm_capture" | "google_ads" | "high_review" | "landline_enrichment";
 
+export type DialerFilterSnapshot = {
+  leadType: string;
+  leadChannel: string;
+  industries: string[];
+  states: string[];
+  contactOwner: string;
+  tradeTypes: string[];
+  workType: string;
+  businessSize: string;
+  prospectTier: string;
+  minGbpRating: number | null;
+  minReviewCount: number | null;
+  hasGoogleAds: string;
+  hasFacebookAds: string;
+  buyingSignalStrength: string;
+  phoneType: string;
+  hasDmPhone: string;
+  hasExistingAgency: string;
+  existingAgencyServices: string[];
+  includeDisqualified: boolean;
+};
+
 interface AdvancedFiltersProps {
   industries: string[];
   setIndustries: (v: string[]) => void;
@@ -45,8 +70,8 @@ interface AdvancedFiltersProps {
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
-  tradeTypes: string[];
-  setTradeTypes: (v: string[]) => void;
+  tradeTypes?: string[];
+  setTradeTypes?: (v: string[]) => void;
   workType: string;
   setWorkType: (v: string) => void;
   businessSize: string;
@@ -81,6 +106,10 @@ interface AdvancedFiltersProps {
   matchingContactCount?: number | null;
   /** Per-column coverage stats so we can warn about empty enrichment fields. */
   enrichmentCoverage?: EnrichmentCoverage;
+  /** Snapshot of current filter state used when saving a new smart list. */
+  currentFilters?: DialerFilterSnapshot;
+  /** Applies a saved smart list to all dialer filter state. */
+  onApplySmartList?: (filters: Partial<DialerFilterSnapshot>) => void;
 }
 
 const PHONE_TYPE_LABELS: Record<string, string> = {
@@ -120,7 +149,6 @@ export function AdvancedFilters({
   leadChannel, setLeadChannel,
   contactOwner, setContactOwner,
   salesReps,
-  tradeTypes, setTradeTypes,
   workType, setWorkType,
   businessSize, setBusinessSize,
   prospectTier, setProspectTier,
@@ -139,8 +167,13 @@ export function AdvancedFilters({
   disabled = false,
   matchingContactCount = null,
   enrichmentCoverage,
+  currentFilters,
+  onApplySmartList,
 }: AdvancedFiltersProps) {
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
+  const [selectedSmartListId, setSelectedSmartListId] = useState<string>("");
+  const { user } = useAuth();
+  const { smartLists, createSmartList, deleteSmartList } = useSmartLists();
   const cov: EnrichmentCoverage = enrichmentCoverage ?? {
     prospect_tier: 0, buying_signal_strength: 0, gbp_rating: 0, review_count: 0,
     work_type: 0, business_size: 0, dm_phone: 0,
@@ -154,8 +187,113 @@ export function AdvancedFilters({
         ? "No contacts match these filters"
         : `${matchingContactCount.toLocaleString()} contacts match`;
 
+  const handleApplySmartList = (id: string) => {
+    setSelectedSmartListId(id);
+    const found = smartLists.find((sl) => sl.id === id);
+    if (!found || !onApplySmartList) return;
+    onApplySmartList(found.filters as Partial<DialerFilterSnapshot>);
+    toast.success(`Applied smart list: ${found.name}`);
+  };
+
+  const handleSaveSmartList = async () => {
+    if (!currentFilters) {
+      toast.error("Filter state unavailable");
+      return;
+    }
+    const name = window.prompt("Name this smart list:");
+    if (!name || !name.trim()) return;
+    try {
+      await createSmartList({ name: name.trim(), filters: currentFilters as unknown as Record<string, unknown> });
+      toast.success(`Saved "${name.trim()}"`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save smart list");
+    }
+  };
+
+  const handleDeleteSmartList = async (id: string, name: string) => {
+    if (!window.confirm(`Delete smart list "${name}"?`)) return;
+    try {
+      await deleteSmartList(id);
+      if (selectedSmartListId === id) setSelectedSmartListId("");
+      toast.success(`Deleted "${name}"`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete smart list");
+    }
+  };
+
+  const showBuyingSignal = cov.buying_signal_strength > 0;
+  const showWorkType = cov.work_type > 0;
+  const showBusinessSize = cov.business_size > 0;
+  const showGoogleAds = cov.has_google_ads_known > 0;
+  const showFacebookAds = cov.has_facebook_ads_known > 0;
+  const showDmPhone = cov.dm_phone > 0;
+
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 space-y-4">
+      {/* === SMART LISTS BAR === */}
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Bookmark className="h-3.5 w-3.5 text-primary" />
+          <p className="text-xs font-semibold text-foreground">Smart Lists</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={selectedSmartListId}
+            onValueChange={handleApplySmartList}
+            disabled={disabled || smartLists.length === 0}
+          >
+            <SelectTrigger className="h-8 flex-1 min-w-[180px] border-border bg-card text-xs">
+              <SelectValue placeholder={smartLists.length === 0 ? "No saved lists yet" : "Apply a smart list…"} />
+            </SelectTrigger>
+            <SelectContent>
+              {smartLists.map((sl) => (
+                <SelectItem key={sl.id} value={sl.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{sl.name}</span>
+                    {sl.created_by === user?.id ? (
+                      <span className="text-[10px] text-muted-foreground">(yours)</span>
+                    ) : null}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={handleSaveSmartList}
+            disabled={disabled}
+          >
+            <Save className="mr-1 h-3 w-3" />
+            Save as smart list
+          </Button>
+        </div>
+        {smartLists.filter((sl) => sl.created_by === user?.id).length > 0 ? (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {smartLists
+              .filter((sl) => sl.created_by === user?.id)
+              .map((sl) => (
+                <span
+                  key={sl.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  {sl.name}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSmartList(sl.id, sl.name)}
+                    className="hover:text-destructive"
+                    aria-label={`Delete ${sl.name}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+          </div>
+        ) : null}
+      </div>
+
       {/* Header + live match count */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -236,12 +374,12 @@ export function AdvancedFilters({
       {/* === ACTIVE FILTERS (always visible — these have data backing them) === */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Industry</label>
+          <label className="text-xs font-medium text-muted-foreground">Business Service</label>
           <MultiSelect
             options={INDUSTRIES}
             selected={industries}
             onChange={setIndustries}
-            placeholder="All Industries"
+            placeholder="All Services"
             disabled={disabled}
           />
         </div>
@@ -274,7 +412,7 @@ export function AdvancedFilters({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Phone Type</label>
           <Select value={phoneType} onValueChange={setPhoneType} disabled={disabled}>
@@ -288,17 +426,6 @@ export function AdvancedFilters({
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs font-medium text-muted-foreground">Trade Type</label>
-          <MultiSelect
-            options={TRADE_TYPES}
-            selected={tradeTypes}
-            onChange={setTradeTypes}
-            placeholder="All Trades"
-            disabled={disabled}
-          />
         </div>
       </div>
 
@@ -338,7 +465,7 @@ export function AdvancedFilters({
               <CoverageHint count={cov.prospect_tier} total={cov.total} />
             </div>
 
-            <div className="space-y-1">
+            {showBuyingSignal ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Buying Signal</label>
               <Select value={buyingSignalStrength} onValueChange={setBuyingSignalStrength} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -352,7 +479,7 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.buying_signal_strength} total={cov.total} />
-            </div>
+            </div> : null}
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">GBP Rating</label>
@@ -394,7 +521,7 @@ export function AdvancedFilters({
               <CoverageHint count={cov.review_count} total={cov.total} />
             </div>
 
-            <div className="space-y-1">
+            {showWorkType ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Work Type</label>
               <Select value={workType} onValueChange={setWorkType} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -408,9 +535,9 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.work_type} total={cov.total} />
-            </div>
+            </div> : null}
 
-            <div className="space-y-1">
+            {showBusinessSize ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Business Size</label>
               <Select value={businessSize} onValueChange={setBusinessSize} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -424,9 +551,9 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.business_size} total={cov.total} />
-            </div>
+            </div> : null}
 
-            <div className="space-y-1">
+            {showDmPhone ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">DM Reachability</label>
               <Select value={hasDmPhone} onValueChange={setHasDmPhone} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -440,9 +567,9 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.dm_phone} total={cov.total} />
-            </div>
+            </div> : null}
 
-            <div className="space-y-1">
+            {showGoogleAds ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Google Ads</label>
               <Select value={hasGoogleAds} onValueChange={setHasGoogleAds} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -456,9 +583,9 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.has_google_ads_known} total={cov.total} />
-            </div>
+            </div> : null}
 
-            <div className="space-y-1">
+            {showFacebookAds ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Facebook Ads</label>
               <Select value={hasFacebookAds} onValueChange={setHasFacebookAds} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
@@ -472,7 +599,7 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.has_facebook_ads_known} total={cov.total} />
-            </div>
+            </div> : null}
           </div>
 
           {/* === HIGH-INTENT / EXCLUSION FILTERS === */}
