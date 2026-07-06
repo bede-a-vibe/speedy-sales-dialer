@@ -269,6 +269,27 @@ export const AUSTRALIAN_STATES = [
   "WA",
 ];
 
+// Lead pool separation — cold vs warm vs outbound teams each dial their own pool.
+export const LEAD_TYPES = [
+  { value: "cold", label: "Cold — trades lists" },
+  { value: "warm", label: "Warm — inbound" },
+  { value: "outbound", label: "Outbound — re-engage" },
+];
+
+export const LEAD_CHANNELS = [
+  "Ads",
+  "Cold Email",
+  "Student",
+  "Website",
+  "Referral",
+  "Partnership",
+  "Cold Call",
+  "Booked session",
+  "LinkedIn",
+  "Legacy/Import",
+  "Other",
+];
+
 export const OUTCOME_CONFIG: Record<
   CallOutcome,
   { label: string; color: string; bgClass: string; icon: string; shortcut: string; description?: string }

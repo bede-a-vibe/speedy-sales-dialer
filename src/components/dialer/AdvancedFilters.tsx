@@ -20,6 +20,8 @@ import {
   INDUSTRIES,
   AUSTRALIAN_STATES,
   AGENCY_SERVICES,
+  LEAD_TYPES,
+  LEAD_CHANNELS,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 
@@ -36,6 +38,10 @@ interface AdvancedFiltersProps {
   setIndustries: (v: string[]) => void;
   states: string[];
   setStates: (v: string[]) => void;
+  leadType: string;
+  setLeadType: (v: string) => void;
+  leadChannel: string;
+  setLeadChannel: (v: string) => void;
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
@@ -110,6 +116,8 @@ function CoverageHint({ count, total }: { count: number; total: number }) {
 export function AdvancedFilters({
   industries, setIndustries,
   states, setStates,
+  leadType, setLeadType,
+  leadChannel, setLeadChannel,
   contactOwner, setContactOwner,
   salesReps,
   tradeTypes, setTradeTypes,
@@ -174,6 +182,41 @@ export function AdvancedFilters({
           <span>No contacts match the current filter set. Click "Reset All" or remove a filter to refill the queue.</span>
         </div>
       ) : null}
+
+      {/* === LEAD POOL (top-of-panel; first thing a rep picks) === */}
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+        <p className="text-xs font-semibold text-foreground">Lead Pool</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">Pool</label>
+            <Select value={leadType} onValueChange={setLeadType} disabled={disabled}>
+              <SelectTrigger className="h-8 border-border bg-card text-xs">
+                <SelectValue placeholder="All Pools" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Pools</SelectItem>
+                {LEAD_TYPES.map((lt) => (
+                  <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">Channel</label>
+            <Select value={leadChannel} onValueChange={setLeadChannel} disabled={disabled}>
+              <SelectTrigger className="h-8 border-border bg-card text-xs">
+                <SelectValue placeholder="All Channels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                {LEAD_CHANNELS.map((ch) => (
+                  <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
 
       {/* Calling presets */}
       <div className="space-y-2">

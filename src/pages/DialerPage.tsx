@@ -269,6 +269,8 @@ type StoredDialerFilters = {
   hasDmPhone?: string;
   showAdvancedFilters?: boolean;
   selectedPreset?: DialerFilterPreset;
+  leadType?: string;
+  leadChannel?: string;
 };
 
 function readStoredDialerFilters(): StoredDialerFilters | null {
@@ -404,6 +406,9 @@ export default function DialerPage() {
   const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
   const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
   const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
+  // Lead pool separation — default 'cold' so existing cold-calling flow is unchanged.
+  const [leadType, setLeadType] = useState<string>(() => storedFilters?.leadType ?? "cold");
+  const [leadChannel, setLeadChannel] = useState<string>(() => storedFilters?.leadChannel ?? "all");
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -423,7 +428,9 @@ export default function DialerPage() {
     hasExistingAgency,
     existingAgencyServices,
     includeDisqualified,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified]);
+    leadType,
+    leadChannel,
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -463,6 +470,9 @@ export default function DialerPage() {
     setExistingAgencyServices([]);
     setIncludeDisqualified(false);
     setSelectedPreset("all");
+    // Preserve the cold-calling default on reset.
+    setLeadType("cold");
+    setLeadChannel("all");
   }, []);
 
   useEffect(() => {
@@ -486,6 +496,8 @@ export default function DialerPage() {
           hasDmPhone,
           showAdvancedFilters,
           selectedPreset,
+          leadType,
+          leadChannel,
         } satisfies StoredDialerFilters),
       );
     } catch {
@@ -508,6 +520,8 @@ export default function DialerPage() {
     hasDmPhone,
     showAdvancedFilters,
     selectedPreset,
+    leadType,
+    leadChannel,
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
@@ -1990,6 +2004,10 @@ export default function DialerPage() {
             setIndustries={setIndustries}
             states={states}
             setStates={setStates}
+            leadType={leadType}
+            setLeadType={setLeadType}
+            leadChannel={leadChannel}
+            setLeadChannel={setLeadChannel}
             contactOwner={contactOwner}
             setContactOwner={setContactOwner}
             salesReps={salesReps}
