@@ -269,6 +269,9 @@ export type Database = {
             | null
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
+          lead_channel: string | null
+          lead_source: string | null
+          lead_type: string
           meeting_booked_date: string | null
           next_followup_date: string | null
           phone: string
@@ -340,6 +343,9 @@ export type Database = {
             | null
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
+          lead_channel?: string | null
+          lead_source?: string | null
+          lead_type?: string
           meeting_booked_date?: string | null
           next_followup_date?: string | null
           phone: string
@@ -411,6 +417,9 @@ export type Database = {
             | null
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
+          lead_channel?: string | null
+          lead_source?: string | null
+          lead_type?: string
           meeting_booked_date?: string | null
           next_followup_date?: string | null
           phone?: string
@@ -558,6 +567,48 @@ export type Database = {
           is_active?: boolean
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      ghl_import_exclude: {
+        Row: {
+          ghl_id: string
+        }
+        Insert: {
+          ghl_id: string
+        }
+        Update: {
+          ghl_id?: string
+        }
+        Relationships: []
+      }
+      ghl_import_state: {
+        Row: {
+          cursor: Json | null
+          done: boolean
+          id: number
+          imported: number
+          skipped_dupe: number
+          skipped_excluded: number
+          updated_at: string
+        }
+        Insert: {
+          cursor?: Json | null
+          done?: boolean
+          id?: number
+          imported?: number
+          skipped_dupe?: number
+          skipped_excluded?: number
+          updated_at?: string
+        }
+        Update: {
+          cursor?: Json | null
+          done?: boolean
+          id?: number
+          imported?: number
+          skipped_dupe?: number
+          skipped_excluded?: number
+          updated_at?: string
         }
         Relationships: []
       }

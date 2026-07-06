@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.enrich-leads]
 verify_jwt = false
+
+[functions.import-ghl-leads]
+verify_jwt = false
