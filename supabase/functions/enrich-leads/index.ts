@@ -443,10 +443,25 @@ async function processContact(
   }
 
   if (!base) {
+    // No site at all — still run industry classifier off business_name + email domain.
+    let industryOnly: string | null = null;
+    const needsIndustry =
+      !contact.industry || contact.industry.trim() === "" || contact.industry.trim().toLowerCase() === "other";
+    if (needsIndustry && lovableApiKey) {
+      const dom = emailDomain(contact.email);
+      industryOnly = await aiClassifyIndustry(
+        {
+          businessName: contact.business_name,
+          emailDomain: dom && !isFreeMailDomain(dom) ? dom : null,
+          homepageText: null,
+        },
+        lovableApiKey,
+      );
+    }
     return {
       mobile: null, email: null, name: null, ownerAttributed: false,
       source: "none", resolvedWebsite: null, siteFromEmail: false,
-      industry: null, homepageText: null,
+      industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
     };
   }
