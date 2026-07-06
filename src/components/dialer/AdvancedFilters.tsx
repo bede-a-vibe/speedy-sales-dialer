@@ -20,6 +20,8 @@ import {
   INDUSTRIES,
   AUSTRALIAN_STATES,
   AGENCY_SERVICES,
+  LEAD_TYPES,
+  LEAD_CHANNELS,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 
@@ -36,6 +38,10 @@ interface AdvancedFiltersProps {
   setIndustries: (v: string[]) => void;
   states: string[];
   setStates: (v: string[]) => void;
+  leadType: string;
+  setLeadType: (v: string) => void;
+  leadChannel: string;
+  setLeadChannel: (v: string) => void;
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
@@ -110,6 +116,8 @@ function CoverageHint({ count, total }: { count: number; total: number }) {
 export function AdvancedFilters({
   industries, setIndustries,
   states, setStates,
+  leadType, setLeadType,
+  leadChannel, setLeadChannel,
   contactOwner, setContactOwner,
   salesReps,
   tradeTypes, setTradeTypes,
