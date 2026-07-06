@@ -28,6 +28,35 @@ const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
 
+// Free-mail domains — never treat as a business website.
+const FREE_MAIL_DOMAINS = new Set<string>([
+  "gmail.com", "hotmail.com", "hotmail.com.au", "outlook.com", "outlook.com.au",
+  "live.com", "live.com.au", "yahoo.com", "yahoo.com.au", "bigpond.com",
+  "bigpond.net.au", "icloud.com", "me.com", "msn.com", "aol.com", "ymail.com",
+  "protonmail.com",
+]);
+
+// Trades that also populate contacts.trade_type when they come back as industry.
+const TRADE_TYPES_SET = new Set<string>([
+  "Plumbers", "HVAC", "Electricians", "Builders", "Renovators", "Roofers",
+  "Landscaping", "Pest Control", "Auto Repair", "Painters", "Concreters",
+  "Fencing", "Tilers", "Carpet Cleaning", "Cleaning Services", "Locksmiths",
+  "Garage Doors", "Pool Builders", "Solar Installers", "Tree Services",
+  "Removalists", "Demolition", "Pressure Washing", "Flooring",
+  "Glass & Glazing", "Scaffolding", "Earthmoving", "Welding & Fabrication",
+]);
+
+function emailDomain(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const at = email.trim().toLowerCase().split("@");
+  if (at.length !== 2 || !at[1]) return null;
+  return at[1];
+}
+
+function isFreeMailDomain(domain: string): boolean {
+  return FREE_MAIL_DOMAINS.has(domain.toLowerCase());
+}
+
 // AU mobile: 04XX XXX XXX or +61 4XX XXX XXX
 const MOBILE_RE = /(?:\+?61[\s-]?|0)4\d{2}[\s-]?\d{3}[\s-]?\d{3}/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
@@ -326,8 +355,60 @@ async function aiExtractName(text: string, apiKey: string): Promise<string | nul
   }
 }
 
+async function aiClassifyIndustry(
+  signals: { businessName?: string | null; emailDomain?: string | null; homepageText?: string | null },
+  apiKey: string,
+): Promise<string | null> {
+  const parts: string[] = [];
+  if (signals.businessName) parts.push(`Business name: ${signals.businessName}`);
+  if (signals.emailDomain) parts.push(`Email domain: ${signals.emailDomain}`);
+  if (signals.homepageText) parts.push(`Website text (truncated):\n${signals.homepageText.slice(0, 4000)}`);
+  const user = parts.join("\n\n").trim();
+  if (!user) return null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              'You classify an Australian business into ONE service category for a sales dialer. Prefer a value from this list if it fits: Plumbers, HVAC, Electricians, Builders, Renovators, Roofers, Landscaping, Pest Control, Auto Repair, Painters, Concreters, Fencing, Tilers, Carpet Cleaning, Cleaning Services, Locksmiths, Garage Doors, Pool Builders, Solar Installers, Tree Services, Removalists, Flooring, Glass & Glazing, Dentists, Chiropractors, Physiotherapists, Real Estate, Accountants, Lawyers, Gyms & Fitness, Beauty & Salon, Cafe & Restaurant, Medical & Health, Professional Services. If none fit, return a concise 1-3 word service name. Return JSON {"service": string|null}. Return null if there is not enough information to tell (e.g. an individual with only a name/gmail and no business).',
+          },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.warn(`[enrich-leads] AI classify ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+    const parsed = JSON.parse(content);
+    const service = parsed?.service;
+    if (typeof service !== "string") return null;
+    const trimmed = service.trim();
+    return trimmed ? trimmed : null;
+  } catch (err) {
+    console.warn("[enrich-leads] AI classify error:", err);
+    return null;
+  }
+}
+
 async function processContact(
-  contact: { id: string; website: string },
+  contact: {
+    id: string;
+    website: string | null;
+    email: string | null;
+    business_name: string | null;
+    industry: string | null;
+  },
   lovableApiKey: string | undefined,
 ): Promise<{
   mobile: string | null;
@@ -335,13 +416,39 @@ async function processContact(
   name: string | null;
   ownerAttributed: boolean;
   source: "jsonld" | "regex" | "ai" | "none";
+  resolvedWebsite: string | null;
+  siteFromEmail: boolean;
+  industry: string | null;
+  homepageText: string | null;
   pagesFetched: number;
   ms: number;
 }> {
   const start = Date.now();
-  const base = normalizeWebsite(contact.website);
+  let base = contact.website ? normalizeWebsite(contact.website) : null;
+  let siteFromEmail = false;
+  let resolvedWebsite: string | null = base;
+
+  // Derive site from a business email domain when no website is set.
+  if (!base && contact.email) {
+    const dom = emailDomain(contact.email);
+    if (dom && !isFreeMailDomain(dom)) {
+      const candidate = `https://${dom}`;
+      const probe = await fetchPage(candidate);
+      if (probe !== null) {
+        base = candidate;
+        resolvedWebsite = candidate;
+        siteFromEmail = true;
+      }
+    }
+  }
+
   if (!base) {
-    return { mobile: null, email: null, name: null, ownerAttributed: false, source: "none", pagesFetched: 0, ms: Date.now() - start };
+    return {
+      mobile: null, email: null, name: null, ownerAttributed: false,
+      source: "none", resolvedWebsite: null, siteFromEmail: false,
+      industry: null, homepageText: null,
+      pagesFetched: 0, ms: Date.now() - start,
+    };
   }
   const host = new URL(base).host;
 
@@ -349,12 +456,16 @@ async function processContact(
   let pagesFetched = 0;
   let sawJsonLd = false;
   let sawRegex = false;
+  let homepageText: string | null = null;
 
   for (let i = 0; i < PATHS.length && pagesFetched < MAX_FETCHES; i++) {
     const url = base + PATHS[i];
     const html = await fetchPage(url);
     if (html === null) continue;
     pagesFetched++;
+    if (PATHS[i] === "/" && !homepageText) {
+      homepageText = stripHtml(html).slice(0, 4000);
+    }
     const before = { name: result.name, mobile: result.mobile };
     result = extractFromHtml(html, host, result, PATHS[i]);
     if (!before.name && result.name && result.ownerAttributed) sawJsonLd = true;
@@ -379,12 +490,32 @@ async function processContact(
   else if (sawJsonLd) source = "jsonld";
   else if (sawRegex || result.mobile || result.email) source = "regex";
 
+  // Industry classification — only when currently null or 'Other'.
+  let industry: string | null = null;
+  const needsIndustry =
+    !contact.industry || contact.industry.trim() === "" || contact.industry.trim().toLowerCase() === "other";
+  if (needsIndustry && lovableApiKey) {
+    const dom = emailDomain(contact.email);
+    industry = await aiClassifyIndustry(
+      {
+        businessName: contact.business_name,
+        emailDomain: dom && !isFreeMailDomain(dom) ? dom : null,
+        homepageText,
+      },
+      lovableApiKey,
+    );
+  }
+
   return {
     mobile: result.mobile,
     email: result.email,
     name: result.name,
     ownerAttributed: result.ownerAttributed,
     source,
+    resolvedWebsite,
+    siteFromEmail,
+    industry,
+    homepageText,
     pagesFetched,
     ms: Date.now() - start,
   };
