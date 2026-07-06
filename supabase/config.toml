@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.ghl]
 verify_jwt = false
+
+[functions.enrich-leads]
+verify_jwt = false
