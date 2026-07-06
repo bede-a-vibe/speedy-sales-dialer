@@ -185,8 +185,10 @@ Deno.serve(async (req) => {
     let done = false;
 
     const startedAt = Date.now();
-    const MAX_PAGES = 5;
-    const MAX_MS = 55_000;
+    // Keep runtime under the calling-client timeout so we return JSON to the operator.
+    // The cron drain can call this repeatedly.
+    const MAX_PAGES = 2;
+    const MAX_MS = 20_000;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       if (Date.now() - startedAt > MAX_MS) break;
