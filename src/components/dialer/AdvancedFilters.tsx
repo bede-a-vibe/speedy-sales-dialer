@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { useSmartLists } from "@/hooks/useSmartLists";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  TRADE_TYPES,
   WORK_TYPES,
   BUSINESS_SIZES,
   PROSPECT_TIERS,
