@@ -35,12 +35,17 @@ const SEARCH_HOST_BLOCKLIST = [
   "yellowpages", "truelocal", "hotfrog", "localsearch", "oneflare",
   "hipages", "productreview", "whitepages", "google", "bing",
   "wikipedia", "youtube", "tiktok", "gumtree", "indeed", "seek",
-  "aircon-directory",
+  "aircon-directory", "dnb.com", "australia247", "australiacheck",
+  "cylex", "aussieweb", "startlocal", "purelocal", "womo",
+  "serviceseeking", "findabusiness", "wordofmouth", "aircon",
+  "brownbook", "tuugo", "cybo", "businesslist", "ezlocal",
+  "fyple", "ailba", "zipleaf", "australianplanet",
 ];
 
 function isBlockedSearchHost(host: string): boolean {
   const h = host.toLowerCase();
   if (/\.(gov|edu)(\.[a-z]{2})?$/.test(h)) return true;
+  if (h.includes("directory") || h.includes("-listings") || h.includes("businessprofile")) return true;
   return SEARCH_HOST_BLOCKLIST.some((needle) => h.includes(needle));
 }
 
