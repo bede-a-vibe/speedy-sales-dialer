@@ -183,6 +183,41 @@ export function AdvancedFilters({
         </div>
       ) : null}
 
+      {/* === LEAD POOL (top-of-panel; first thing a rep picks) === */}
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+        <p className="text-xs font-semibold text-foreground">Lead Pool</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">Pool</label>
+            <Select value={leadType} onValueChange={setLeadType} disabled={disabled}>
+              <SelectTrigger className="h-8 border-border bg-card text-xs">
+                <SelectValue placeholder="All Pools" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Pools</SelectItem>
+                {LEAD_TYPES.map((lt) => (
+                  <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">Channel</label>
+            <Select value={leadChannel} onValueChange={setLeadChannel} disabled={disabled}>
+              <SelectTrigger className="h-8 border-border bg-card text-xs">
+                <SelectValue placeholder="All Channels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                {LEAD_CHANNELS.map((ch) => (
+                  <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {/* Calling presets */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
