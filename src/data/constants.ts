@@ -206,6 +206,7 @@ export const PROSPECT_TIERS = [
   "Tier 2 - Warm",
   "Tier 3 - Nurture",
   "Tier 4 - Long Shot",
+  "Tier 5 - New / No Reviews",
 ];
 
 export const AD_STATUS_OPTIONS = [
