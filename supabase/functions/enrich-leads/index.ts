@@ -37,6 +37,48 @@ const NAME_ROLE_RE =
 const HOMEOWNER_RE = /home[\s-]?owner/i;
 const OWNER_KEYWORD_RE = /\b(owner|director|founder|principal|ceo|managing\s+director)\b/i;
 
+// Reject any name whose tokens (case-insensitive) hit this stoplist — CMS accounts,
+// web agencies, generic marketing/trade words, and location words that show up as
+// junk "names" in scraped HTML.
+const NAME_STOPLIST = new Set<string>([
+  "admin", "digital", "agency", "marketing", "seo", "web", "website", "media",
+  "design", "studio", "group", "solutions", "services", "service",
+  "construction", "constructions", "plumbing", "electrical", "heating",
+  "cooling", "air", "homeowner", "homeowners", "team", "company", "pty", "ltd",
+  "home", "owners", "best", "local", "trusted", "expert", "experts", "quality",
+  "google", "reviews", "testimonials", "contact", "about", "enquiries",
+  "sydney", "melbourne", "brisbane", "perth", "adelaide", "canberra",
+  "australia", "australian",
+]);
+
+// Strip a leading or trailing role word ("Founder Ray Glavinovic" -> "Ray Glavinovic")
+const ROLE_STRIP_RE =
+  /^(?:co[-\s]?founder|founder|owner|managing\s+director|director|principal|proprietor|ceo(?:\s*\/\s*founder)?)\s+|\s+(?:co[-\s]?founder|founder|owner|managing\s+director|director|principal|proprietor|ceo(?:\s*\/\s*founder)?)$/gi;
+
+function cleanCandidateName(raw: string): string | null {
+  if (!raw) return null;
+  let name = raw.trim();
+  // Drop trailing punctuation/comma clutter
+  name = name.replace(/[,;:.\-–—]+$/g, "").trim();
+  // Strip leading/trailing role words repeatedly
+  for (let i = 0; i < 3; i++) {
+    const next = name.replace(ROLE_STRIP_RE, "").trim();
+    if (next === name) break;
+    name = next;
+  }
+  if (!name) return null;
+  if (HOMEOWNER_RE.test(name)) return null;
+
+  const tokens = name.split(/\s+/);
+  if (tokens.length < 2 || tokens.length > 3) return null;
+
+  for (const tok of tokens) {
+    if (!/^[A-Z][a-z]+$/.test(tok)) return null; // strict Title-case alpha
+    if (NAME_STOPLIST.has(tok.toLowerCase())) return null;
+  }
+  return tokens.join(" ");
+}
+
 function normalizeAuMobile(raw: string): string | null {
   const digits = raw.replace(/[^\d+]/g, "");
   let d = digits.replace(/^\+/, "");
@@ -119,10 +161,14 @@ type ExtractResult = {
   aboutTextForAi: string | null;
 };
 
-function walkJsonLd(node: any, hits: { name?: string; telephone?: string; ownerAttributed?: boolean }) {
-  if (!node) return;
+// JSON-LD is walked defensively: we only accept a name from a Person node reached
+// through `founder`/`owner`, OR from a top-level Person entity. We do NOT walk
+// `author`, `creator`, `employee`, `publisher`, `provider`, `sameAs` — those return
+// the web agency that built the site (e.g. "LetsGo Digital") or generic team names.
+function collectPersonNames(node: any, opts: { viaOwnerKey: boolean; topLevel: boolean }, out: { name?: string; telephone?: string }) {
+  if (!node || out.name) return;
   if (Array.isArray(node)) {
-    for (const n of node) walkJsonLd(n, hits);
+    for (const n of node) collectPersonNames(n, opts, out);
     return;
   }
   if (typeof node !== "object") return;
@@ -131,25 +177,25 @@ function walkJsonLd(node: any, hits: { name?: string; telephone?: string; ownerA
   const types = Array.isArray(type) ? type : [type];
   const isPerson = types.some((t) => typeof t === "string" && /Person/i.test(t));
 
-  if (isPerson && !hits.name && typeof node.name === "string") {
-    if (!HOMEOWNER_RE.test(node.name)) {
-      hits.name = node.name.trim();
-      hits.ownerAttributed = true;
-    }
+  // Accept a Person's name only when reached via founder/owner, OR when this
+  // Person is itself a top-level entity (some sites publish a bare Person block).
+  if (isPerson && (opts.viaOwnerKey || opts.topLevel) && !out.name && typeof node.name === "string") {
+    const cleaned = cleanCandidateName(node.name);
+    if (cleaned) out.name = cleaned;
   }
-  if (isPerson && !hits.telephone && typeof node.telephone === "string") {
-    hits.telephone = node.telephone;
+  if (isPerson && !out.telephone && typeof node.telephone === "string") {
+    out.telephone = node.telephone;
   }
 
-  for (const key of ["founder", "owner", "author", "employee", "founders"]) {
-    if (node[key]) {
-      const before = hits.name;
-      walkJsonLd(node[key], hits);
-      if (!before && hits.name) hits.ownerAttributed = true;
-    }
+  // Only recurse into the whitelisted owner/founder keys. Do NOT recurse into
+  // `author`, `creator`, `employee`, `publisher`, `provider`, `sameAs`.
+  for (const key of ["founder", "owner", "founders"]) {
+    if (node[key]) collectPersonNames(node[key], { viaOwnerKey: true, topLevel: false }, out);
   }
-  for (const v of Object.values(node)) {
-    if (v && typeof v === "object") walkJsonLd(v, hits);
+  // Recurse through structural containers to reach nested Organizations that
+  // may have their own `founder`/`owner`.
+  for (const key of ["@graph", "mainEntity", "hasPart", "subOrganization", "parentOrganization"]) {
+    if (node[key]) collectPersonNames(node[key], { viaOwnerKey: false, topLevel: false }, out);
   }
 }
 
@@ -158,19 +204,19 @@ function extractFromHtml(html: string, siteHost: string, prev: ExtractResult, ur
 
   // 1. JSON-LD
   const ldBlocks = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) ?? [];
-  const hits: { name?: string; telephone?: string; ownerAttributed?: boolean } = {};
+  const hits: { name?: string; telephone?: string } = {};
   for (const block of ldBlocks) {
     const jsonText = block.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
     try {
       const parsed = JSON.parse(jsonText);
-      walkJsonLd(parsed, hits);
+      collectPersonNames(parsed, { viaOwnerKey: false, topLevel: true }, hits);
     } catch {
       // ignore malformed JSON-LD
     }
   }
   if (!out.name && hits.name) {
     out.name = hits.name;
-    out.ownerAttributed = out.ownerAttributed || !!hits.ownerAttributed;
+    out.ownerAttributed = true;
   }
   if (!out.mobile && hits.telephone) {
     const m = hits.telephone.match(MOBILE_RE)?.[0];
@@ -224,8 +270,9 @@ function extractFromHtml(html: string, siteHost: string, prev: ExtractResult, ur
       const idx = m.index;
       const window = text.slice(Math.max(0, idx - 40), idx + fullMatch.length + 40);
       if (HOMEOWNER_RE.test(window)) continue;
-      if (HOMEOWNER_RE.test(m[1])) continue;
-      out.name = m[1].trim();
+      const cleaned = cleanCandidateName(m[1]);
+      if (!cleaned) continue;
+      out.name = cleaned;
       out.ownerAttributed = true;
       break;
     }
