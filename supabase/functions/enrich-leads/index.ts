@@ -573,15 +573,14 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker")
-    .not("website", "is", null)
-    .neq("website", "");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
   } else {
     query = query
       .eq("dm_enrich_attempted", false)
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)")
       .order("phone_type", { ascending: true }) // 'landline','mobile','unknown' — landlines first alphabetically anyway; JS sort below refines
       .order("created_at", { ascending: true })
       .limit(batchSize);
@@ -607,8 +606,7 @@ Deno.serve(async (req) => {
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .eq("dm_enrich_attempted", false)
-      .not("website", "is", null)
-      .neq("website", "");
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)");
     remaining = Math.max((count ?? 0) - sorted.length, 0);
   }
 
@@ -619,13 +617,32 @@ Deno.serve(async (req) => {
 
   const perContact = async (c: any) => {
     try {
-      const r = await processContact({ id: c.id, website: c.website }, LOVABLE_API_KEY);
+      const r = await processContact({
+        id: c.id,
+        website: c.website,
+        email: c.email,
+        business_name: c.business_name,
+        industry: c.industry,
+      }, LOVABLE_API_KEY);
+
+      // Source: 'email-domain' if site came from email, 'website' if we fetched an
+      // existing site, 'ai-classify' if we only ran the classifier, else 'website'.
+      const enrichSource = r.siteFromEmail
+        ? "email-domain"
+        : r.pagesFetched > 0
+        ? "website"
+        : "ai-classify";
 
       const update: Record<string, any> = {
         dm_enrich_attempted: true,
         dm_enriched_at: new Date().toISOString(),
-        dm_enrich_source: "website",
+        dm_enrich_source: enrichSource,
       };
+
+      // If we resolved a site from email, persist it to website.
+      if (r.siteFromEmail && r.resolvedWebsite && (!c.website || c.website === "")) {
+        update.website = r.resolvedWebsite;
+      }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
         update.dm_phone = r.mobile;
@@ -646,6 +663,17 @@ Deno.serve(async (req) => {
           : "Website mobile (may be general line — ask for owner)";
       }
 
+      // Industry classification write-back: only if current is null or 'Other'.
+      if (r.industry) {
+        const cur = (c.industry ?? "").trim().toLowerCase();
+        if (!cur || cur === "other") {
+          update.industry = r.industry.trim();
+          if (TRADE_TYPES_SET.has(r.industry.trim()) && (!c.trade_type || c.trade_type === "")) {
+            update.trade_type = r.industry.trim();
+          }
+        }
+      }
+
       const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
       if (upErr) {
         console.error(`[enrich-leads] update ${c.id} failed:`, upErr.message);
@@ -654,6 +682,9 @@ Deno.serve(async (req) => {
       const logLine = {
         contactId: c.id,
         website: c.website,
+        resolved_website: r.resolvedWebsite,
+        site_from_email: r.siteFromEmail,
+        industry: r.industry,
         pages: r.pagesFetched,
         ms: r.ms,
         mobile: r.mobile,
@@ -661,6 +692,7 @@ Deno.serve(async (req) => {
         name: r.name,
         owner_attributed: r.ownerAttributed,
         source: r.source,
+        enrich_source: enrichSource,
       };
       console.log(`[enrich-leads] ${JSON.stringify(logLine)}`);
       logs.push(logLine);
