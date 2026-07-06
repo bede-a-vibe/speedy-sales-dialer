@@ -302,7 +302,7 @@ async function aiExtractName(text: string, apiKey: string): Promise<string | nul
           {
             role: "system",
             content:
-              'You extract the single business owner/director/founder\'s full name from About/Contact page text. Return JSON only: {"name": string|null}. Return null if not clearly stated. Never return the word "homeowner", "homeowners", or a generic role. Only return a real person\'s full name (first + last).',
+              'You extract the single business owner, director, or founder from About/Contact page text. Return ONLY JSON: {"name": string|null}. The value must be a real individual person\'s full name — first name + last name (optionally middle) — exactly as written on the page. Return null (never guess) if the owner\'s personal name is not clearly stated. NEVER return: a company or brand name, an agency name, the web designer, a CMS username (e.g. "rskadmin"), a role title (e.g. "Founder", "Director"), the words "homeowner"/"homeowners", or a generic team/family label. Do NOT prepend or append the role — return just the person\'s name.',
           },
           { role: "user", content: text },
         ],
@@ -318,9 +318,8 @@ async function aiExtractName(text: string, apiKey: string): Promise<string | nul
     const parsed = JSON.parse(content);
     const name = parsed?.name;
     if (typeof name !== "string" || !name.trim()) return null;
-    if (HOMEOWNER_RE.test(name)) return null;
-    if (!/\s/.test(name.trim())) return null; // require first + last
-    return name.trim();
+    // Apply the same cleaning + stoplist + Title-case validation as the other paths.
+    return cleanCandidateName(name);
   } catch (err) {
     console.warn("[enrich-leads] AI error:", err);
     return null;
