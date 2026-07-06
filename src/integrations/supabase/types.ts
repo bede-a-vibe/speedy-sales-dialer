@@ -232,6 +232,9 @@ export type Database = {
           disqualified_notes: string | null
           disqualified_reason: string | null
           dm_email: string | null
+          dm_enrich_attempted: boolean
+          dm_enrich_source: string | null
+          dm_enriched_at: string | null
           dm_linkedin: string | null
           dm_name: string | null
           dm_phone: string | null
@@ -300,6 +303,9 @@ export type Database = {
           disqualified_notes?: string | null
           disqualified_reason?: string | null
           dm_email?: string | null
+          dm_enrich_attempted?: boolean
+          dm_enrich_source?: string | null
+          dm_enriched_at?: string | null
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
@@ -368,6 +374,9 @@ export type Database = {
           disqualified_notes?: string | null
           disqualified_reason?: string | null
           dm_email?: string | null
+          dm_enrich_attempted?: boolean
+          dm_enrich_source?: string | null
+          dm_enriched_at?: string | null
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null

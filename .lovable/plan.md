@@ -1,128 +1,111 @@
-## Goal
+# Server-side Lead Enrichment Pipeline
 
-Add two new dispositions to the dialer — **Disqualified (DQ)** and a richer **DNC** with reason — plus a **competitor / existing-agency** intelligence capture so we can filter for high-intent leads. All data stored on the contact record for later CSV export or CRM migration.
+Build one new edge function `enrich-leads` plus a pg_cron schedule that drains the backlog and picks up newly-imported leads automatically. No other app code changes.
 
----
+## 1. Edge function: `supabase/functions/enrich-leads/index.ts`
 
-## 1. Disqualified (DQ) — narrow, well-defined
+`verify_jwt = false` in `supabase/config.toml` so pg_cron and a manual trigger can call it without a user JWT. Protected instead by a shared `ENRICH_LEADS_SECRET` header (generated via `generate_secret`) — pg_cron sends it, manual trigger sends it, everything else is rejected 401.
 
-DQ only has **two** reasons (tight by design so reps can't misuse it):
+### Request/response
+- POST body: `{ batchSize?: number (default 25, max 50), contactIds?: string[] }`. `contactIds` lets an admin force-enrich specific leads.
+- Response: `{ processed, mobiles_found, emails_found, names_found, remaining }`.
 
-- `financially_not_qualified` — Can't afford our services (no budget, cashflow issues, business isn't generating enough revenue to invest in marketing).
-- `not_looking_to_grow` — Explicitly told us they don't want more leads / customers / to grow.
+### Selection query (service-role client)
+```
+select id, website, phone, phone_type, prospect_tier
+from contacts
+where dm_enrich_attempted = false
+  and website is not null and website <> ''
+  and (dm_phone is null or dm_phone = '' or dm_email is null or dm_name is null)
+order by
+  (phone_type <> 'mobile') desc,          -- landlines first
+  case prospect_tier
+    when 'Tier 1 - Hot' then 1
+    when 'Tier 2 - Warm' then 2
+    else 9 end asc,
+  created_at asc
+limit :batchSize
+```
+Also compute `remaining` with a `count(*)` on the same predicate (without limit) so the caller knows when to stop looping.
 
-**Not** DQ reasons: wrong industry, out of area, bad fit, duplicate, competitor. Those either belong to DNC, or to the new competitor/agency capture below, or should just be marked Not Interested.
+### Per-contact pipeline
+1. Normalize website (add `https://` if missing, strip trailing slash).
+2. Candidate URLs, in order: `/`, `/contact`, `/contact-us`, `/about`, `/about-us`. Cap at 4 fetches. Stop early once we have both a mobile and a confident name.
+3. `fetch()` each with:
+   - `User-Agent: Mozilla/5.0 ... Chrome/... Safari/537.36`
+   - `AbortController` with 6s timeout per request
+   - `redirect: 'follow'`
+   - Skip non-200 / non-HTML / >2MB responses.
+4. Extract from each page:
+   - **JSON-LD blocks** first: parse every `<script type="application/ld+json">`, walk for `Person`/`Organization` with `founder`/`owner`/`author`/`employee` → capture `name` + `telephone`. Highest-confidence path; if it yields both a mobile and a name, mark `owner_attributed=true` and short-circuit.
+   - **Mobile regex** (AU only): `/(?:\+?61\s?|0)4\d{2}[\s-]?\d{3}[\s-]?\d{3}/g`. Normalize to `+61 4XX XXX XXX`. Reject anything matching `^1300|^1800|^13\d{2}$` or a landline pattern.
+   - **Email regex**: standard, then filter out `noreply@`, `no-reply@`, `example@`, anything ending in `.png/.jpg/.svg`, and image-CDN hostnames. Prefer addresses on the site's own domain.
+   - **Owner name regex**: `/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}),?\s+(Owner|Director|Founder|Managing Director|Principal|CEO)\b/`. Explicit denylist — reject if the surrounding 40-char window contains `homeowner`, `home owner`, `home-owner`, `homeowners`. This was the false-positive we hit before.
+5. **AI fallback for name** (only if steps above gave no confident name AND we successfully fetched an About or Contact page): call Lovable AI gateway.
+   - Endpoint: `POST https://ai.gateway.lovable.dev/v1/chat/completions`
+   - Headers: `Authorization: Bearer ${LOVABLE_API_KEY}`
+   - Body: `{ model: "google/gemini-2.5-flash", messages: [{role:"system", content:"You extract the single business owner/director's full name from About/Contact page text. Return JSON only: {\"name\": string|null}. Return null if not clearly stated. Never return the word 'homeowner' or a generic role."}, {role:"user", content: <trimmed 6k-char page text>}], response_format: {type:"json_object"}, temperature: 0.1 }`
+   - On 429/402 → skip AI for this contact (still mark attempted), log warning.
+6. **Write-back** (single `update` per contact):
+   - `dm_phone` = mobile ONLY if current `dm_phone` is null/empty. Never touch `phone` or `phone_e164`.
+   - `dm_phone_type = 'mobile'` when we set `dm_phone`.
+   - `dm_email` when found (same "only if empty" rule).
+   - `dm_name` only when confident (JSON-LD person, regex hit that passed the homeowner filter, or AI returned a non-null name).
+   - `best_route_to_decision_maker` = `'Website mobile (owner-attributed)'` if `owner_attributed`, else `'Website mobile (may be general line — ask for owner)'` when we set a `dm_phone`. Leave existing value alone otherwise.
+   - Always: `dm_enrich_attempted = true`, `dm_enriched_at = now()`, `dm_enrich_source = 'website'`. Set even on failure/no-hit so nothing loops.
 
-### Button UX
+### Concurrency & timing (addressing (a) and (b))
+- **(a) Outbound fetch:** Supabase edge functions (Deno) can `fetch()` any public HTTP(S) URL — no allowlist. Practical caveats: no fixed per-request egress cap, but total wall-clock is bounded (~150s hard limit, tighter for early return), and misbehaving hosts can hang → we enforce our own 6s AbortController on every fetch.
+- **(b) Execution budget:** Budget ~60s per invocation to stay well under the platform limit. With up to 4 fetches × 6s = 24s worst-case per contact serially, that would only be ~2 contacts/run. So process the batch with `Promise.all` in chunks of **5 concurrent contacts**; realistic per-contact time ≈ 3–8s. Default `batchSize=25` fits comfortably in ~30–45s. Hard cap `batchSize` at 50.
 
-- New **DQ** outcome button in the dialer's "Other Outcomes" row (icon: `UserX`).
-- Below the button label, a one-line helper: *"Only use when they can't afford us OR explicitly don't want to grow. Everything else is Not Interested."*
-- Clicking opens a small popover with the two reasons + optional notes. Both required to submit.
-- Info tooltip on the button title with the full definition so new reps hovering see it.
+### Errors & logging
+- Wrap each contact in try/catch — one failure never blocks the batch.
+- Per-contact log line: `contactId, ms, mobile?, email?, name?, source (jsonld|regex|ai|none)`.
+- Aggregate counters into the JSON response.
 
-## 2. DNC — add a reason + notes
+## 2. Scheduling (addressing (c))
 
-Keep existing `is_dnc` flag. Wrap the existing DNC button in the same reason-picker popover:
+Enable `pg_cron` and `pg_net` (if not already on). Add via the `supabase--insert` tool (contains project-specific URL + key, per project rules):
 
-- `requested_removal`
-- `abusive_or_hostile`
-- `wrong_number_repeat`
-- `other` (requires notes)
+```sql
+select cron.schedule(
+  'enrich-leads-drain',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://xhcvwhcpaeetmmzkuwyw.supabase.co/functions/v1/enrich-leads',
+    headers := jsonb_build_object(
+      'Content-Type','application/json',
+      'x-enrich-secret', '<ENRICH_LEADS_SECRET>'
+    ),
+    body := jsonb_build_object('batchSize', 25)
+  );
+  $$
+);
+```
 
-## 3. Competitor / existing-agency capture (new)
+Runs every minute. The function no-ops (`processed=0`) once `dm_enrich_attempted=false` is exhausted, so leaving it on is safe and newly-imported leads are picked up on the next tick automatically.
 
-New section in the in-call **Contact Intelligence Panel** (already exists) called **"Current Marketing"**:
+**Manual "Run enrichment now" trigger:** since the request said "keep it to this one function + scheduling — do not change any other part of the app", I will NOT add a UI button. Instead I'll document a one-line `curl` (or `supabase.functions.invoke('enrich-leads', { body:{ batchSize: 50 } })` snippet) you can paste from the browser console when logged in as admin. Say the word if you want an actual admin button and I'll add it in a follow-up.
 
-- Checkbox: **Has existing agency** (competitor)
-- If checked, service checkboxes reveal:
-  - SEO
-  - Google Ads
-  - Meta Ads (Facebook/Instagram)
-  - Website / landing pages
-  - Other (text)
-- Optional competitor name field
+## 3. Lovable AI call (addressing (d))
 
-This is separate from DQ — a business with an agency is *higher intent*, not disqualified. That's the whole point of tracking it.
+- Secret: `LOVABLE_API_KEY` is already provisioned in the project — no user action needed.
+- Model: `google/gemini-2.5-flash` (matches the allowlist; cheap and fast for a 6k-char extraction).
+- Called via the OpenAI-compatible `https://ai.gateway.lovable.dev/v1/chat/completions` endpoint with `response_format: json_object` and `temperature: 0.1`.
+- Only invoked as a name fallback (not for phone/email) to keep cost bounded — worst case one AI call per contact, and only when JSON-LD + regex both missed.
 
-### New filters in Advanced Filters + Contacts page
+## 4. Secrets to add before running
+- `ENRICH_LEADS_SECRET` — generate via `generate_secret` (used by cron header + manual trigger).
+- `LOVABLE_API_KEY` — should already exist; will verify with `fetch_secrets`.
 
-- **Existing agency**: Any / Yes / No
-- **Services with current agency**: multi-select (SEO, Google Ads, Meta Ads, Website)
-- Preset chip: **"Has competitor"** — pre-fills existing agency = Yes for prospecting warm targets
+## 5. Files touched
+- Add: `supabase/functions/enrich-leads/index.ts`
+- Edit: `supabase/config.toml` — add `[functions.enrich-leads]` block with `verify_jwt = false`.
+- Data change (via `supabase--insert`): enable `pg_cron`/`pg_net` if needed + `cron.schedule` call above.
 
-## 4. Data model (migration)
+No changes to `contacts` schema (columns already exist), no changes to the dialer, RPCs, or UI.
 
-New columns on `public.contacts`:
-
-- `disqualified` boolean, default false, not null
-- `disqualified_at` timestamptz
-- `disqualified_reason` text — check constraint via trigger: `financially_not_qualified` | `not_looking_to_grow`
-- `disqualified_notes` text
-- `dnc_reason` text — `requested_removal` | `abusive_or_hostile` | `wrong_number_repeat` | `other`
-- `dnc_notes` text
-- `dnc_recorded_at` timestamptz
-- `has_existing_agency` boolean
-- `existing_agency_name` text
-- `existing_agency_services` text[] — subset of `seo` | `google_ads` | `meta_ads` | `website` | `other`
-- `existing_agency_notes` text
-
-Indexes: `disqualified`, `has_existing_agency`, GIN on `existing_agency_services`. Extend the two `idx_contacts_dialer_queue*` partial indexes to also require `disqualified = false`.
-
-Extend `call_outcome` enum with `disqualified`.
-
-## 5. Dialer queue exclusion + filter surface
-
-Update the three SECURITY DEFINER RPCs (`claim_dialer_leads`, `preview_dialer_leads`, `get_dialer_queue_count`):
-
-- Add `AND c.disqualified IS NOT TRUE` alongside the existing DNC exclusion.
-- Add optional parameters: `_include_dnc`, `_include_disqualified`, `_dnc_reasons`, `_dq_reasons`, `_has_existing_agency`, `_existing_agency_services`.
-- When `_include_*` is true, bypass the corresponding exclusion so admins can build DQ-only or DNC-only lists via filters.
-
-## 6. GHL sync
-
-Mirror everything as tags so GHL remains the source of truth:
-
-- `DNC`, `DNC:requested_removal`, etc. (extend existing `pushDNC`)
-- New `pushDisqualified` — tags `DQ`, `DQ:financially_not_qualified` or `DQ:not_looking_to_grow`. No `dnd:true` (that's DNC-only).
-- New `pushExistingAgency` — tags `HasAgency`, `Service:SEO`, `Service:GoogleAds`, `Service:MetaAds`.
-- All also written to GHL notes with human-readable context.
-
-## 7. Training page
-
-In `src/pages/TrainingPage.tsx` add a new definitions block at the top of the outcomes section:
-
-- **Disqualified (DQ)** — full definition, the two allowed reasons, and 2–3 examples of what is NOT a DQ (wrong industry → Not Interested; won't answer → No Answer; rude → DNC).
-- **DNC** — the four reasons.
-- **Has Existing Agency** — why we capture it (higher intent, positioning for takeover), what services to ask about.
-
-Add the same short definitions to the `OUTCOME_CONFIG` metadata so tooltips on the dialer buttons pull from a single source of truth.
-
-## 8. Contacts page
-
-- New filter row: Status = All / Active / DNC / Disqualified / Has Agency
-- Reason multi-select appears when DNC or DQ is active
-- New badge on contact rows: DQ (with reason abbreviation), DNC (with reason), Agency (with service icons)
-- CSV export includes all new columns
-
-## 9. Contact detail page
-
-New **"Status & Marketing"** section:
-
-- DNC toggle + reason + notes + timestamp (admin editable)
-- DQ toggle + reason + notes + timestamp (admin editable)
-- Existing agency block: toggle, name, services checkboxes, notes (editable by any rep — this is intel)
-
----
-
-## Technical notes
-
-- `ALTER TYPE call_outcome ADD VALUE 'disqualified'` runs in its own migration statement before code deploys.
-- All three dialer RPCs get identical parameter shape so `useDialerSession` passes one filter object.
-- Existing `is_dnc` boolean stays — too many downstream references. New reason columns live alongside it.
-- DQ vs Not Interested distinction is enforced by button UX + training copy, not by validation (reps can technically still use it wrong, but tight definitions + only two reasons keep it clean).
-
-## Out of scope (ask if you want)
-
-- Backfilling reasons for existing `is_dnc=true` contacts
-- Auto-DQ rules (e.g. auto-flag sole traders with <$100k revenue markers)
-- Reactivation workflow (undo DQ/DNC from rep UI — admin-only via contact detail for now)
+## Out of scope / not doing
+- No new UI, no changes to imports, no touching `phone`/`phone_e164`, no other RPC edits.
+- No retry queue for failed sites in v1 — a failed fetch still marks `attempted=true`. If you later want a retry pass, we add a `dm_enrich_failed_at` column and a second cron that re-opens rows older than N days; flag it and I'll plan that separately.
