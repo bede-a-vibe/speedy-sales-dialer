@@ -28,6 +28,111 @@ const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
 
+// Best-effort free website discovery via DuckDuckGo HTML.
+// Skip hosts that are directories, socials, aggregators, gov/edu, or search engines.
+const SEARCH_HOST_BLOCKLIST = [
+  "facebook", "instagram", "linkedin", "twitter", "x.com", "yelp",
+  "yellowpages", "truelocal", "hotfrog", "localsearch", "oneflare",
+  "hipages", "productreview", "whitepages", "google", "bing",
+  "wikipedia", "youtube", "tiktok", "gumtree", "indeed", "seek",
+  "aircon-directory",
+];
+
+function isBlockedSearchHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (/\.(gov|edu)(\.[a-z]{2})?$/.test(h)) return true;
+  return SEARCH_HOST_BLOCKLIST.some((needle) => h.includes(needle));
+}
+
+function isRealBusinessName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 3) return false;
+  // Reject if it is only digits, spaces, punctuation, or a phone-shaped string.
+  if (!/[A-Za-z]/.test(trimmed)) return false;
+  if (/^[\d\s+()\-.]+$/.test(trimmed)) return false;
+  return true;
+}
+
+/** Best-effort: search DuckDuckGo HTML for a business's real website. Never throws. */
+async function findWebsiteViaSearch(
+  businessName: string,
+  city: string | null | undefined,
+  state: string | null | undefined,
+): Promise<string | null> {
+  try {
+    const parts = [businessName, city ?? "", state ?? "", "Australia"]
+      .map((s) => (s ?? "").trim())
+      .filter(Boolean);
+    const query = parts.join(" ");
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    let html: string;
+    try {
+      const res = await fetch(url, {
+        redirect: "follow",
+        signal: ctrl.signal,
+        headers: {
+          "User-Agent": UA,
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-AU,en;q=0.9",
+        },
+      });
+      if (!res.ok) {
+        try { await res.body?.cancel(); } catch { /* ignore */ }
+        return null;
+      }
+      html = await res.text();
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Extract candidate hrefs — both class="result__a" anchors and the raw
+    // DuckDuckGo redirect links "/l/?uddg=..." or "//duckduckgo.com/l/?uddg=...".
+    const hrefRe = /href=["']([^"']+)["']/gi;
+    const candidates: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = hrefRe.exec(html)) !== null) {
+      const raw = m[1];
+      if (!raw) continue;
+      // Only care about uddg redirects (DDG wraps every result this way).
+      if (!raw.includes("uddg=")) continue;
+      try {
+        const abs = raw.startsWith("//") ? "https:" + raw : raw.startsWith("/") ? "https://duckduckgo.com" + raw : raw;
+        const u = new URL(abs);
+        const real = u.searchParams.get("uddg");
+        if (!real) continue;
+        const decoded = decodeURIComponent(real);
+        candidates.push(decoded);
+      } catch {
+        // ignore malformed
+      }
+    }
+
+    for (const cand of candidates) {
+      let host: string;
+      let normalized: string | null;
+      try {
+        const u = new URL(cand);
+        host = u.host;
+        normalized = `${u.protocol}//${u.host}`;
+      } catch {
+        continue;
+      }
+      if (!host || isBlockedSearchHost(host)) continue;
+      // Confirm the candidate actually serves HTML.
+      const probe = await fetchPage(normalized!);
+      if (probe === null) continue;
+      return normalized;
+    }
+    return null;
+  } catch (err) {
+    console.warn("[enrich-leads] search error:", (err as { message?: string })?.message ?? err);
+    return null;
+  }
+}
+
 // Free-mail domains — never treat as a business website.
 const FREE_MAIL_DOMAINS = new Set<string>([
   "gmail.com", "hotmail.com", "hotmail.com.au", "outlook.com", "outlook.com.au",
@@ -408,6 +513,8 @@ async function processContact(
     email: string | null;
     business_name: string | null;
     industry: string | null;
+    city: string | null;
+    state: string | null;
   },
   lovableApiKey: string | undefined,
 ): Promise<{
@@ -418,6 +525,7 @@ async function processContact(
   source: "jsonld" | "regex" | "ai" | "none";
   resolvedWebsite: string | null;
   siteFromEmail: boolean;
+  siteFromSearch: boolean;
   industry: string | null;
   homepageText: string | null;
   pagesFetched: number;
@@ -426,6 +534,7 @@ async function processContact(
   const start = Date.now();
   let base = contact.website ? normalizeWebsite(contact.website) : null;
   let siteFromEmail = false;
+  let siteFromSearch = false;
   let resolvedWebsite: string | null = base;
 
   // Derive site from a business email domain when no website is set.
@@ -439,6 +548,17 @@ async function processContact(
         resolvedWebsite = candidate;
         siteFromEmail = true;
       }
+    }
+  }
+
+  // Best-effort free website discovery via DuckDuckGo HTML — only when we still
+  // have nothing and the business_name is real (not digits / a phone number).
+  if (!base && isRealBusinessName(contact.business_name)) {
+    const found = await findWebsiteViaSearch(contact.business_name!, contact.city, contact.state);
+    if (found) {
+      base = found;
+      resolvedWebsite = found;
+      siteFromSearch = true;
     }
   }
 
@@ -461,6 +581,7 @@ async function processContact(
     return {
       mobile: null, email: null, name: null, ownerAttributed: false,
       source: "none", resolvedWebsite: null, siteFromEmail: false,
+      siteFromSearch: false,
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
     };
@@ -529,6 +650,7 @@ async function processContact(
     source,
     resolvedWebsite,
     siteFromEmail,
+    siteFromSearch,
     industry,
     homepageText,
     pagesFetched,
@@ -573,14 +695,14 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker, city, state");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
   } else {
     query = query
       .eq("dm_enrich_attempted", false)
-      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)")
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.),and(business_name.not.is.null,business_name.neq.)")
       .order("phone_type", { ascending: true }) // 'landline','mobile','unknown' — landlines first alphabetically anyway; JS sort below refines
       .order("created_at", { ascending: true })
       .limit(batchSize);
@@ -606,13 +728,14 @@ Deno.serve(async (req) => {
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .eq("dm_enrich_attempted", false)
-      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)");
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.),and(business_name.not.is.null,business_name.neq.)");
     remaining = Math.max((count ?? 0) - sorted.length, 0);
   }
 
   let mobiles_found = 0;
   let emails_found = 0;
   let names_found = 0;
+  let websites_found = 0;
   const logs: any[] = [];
 
   const perContact = async (c: any) => {
@@ -623,11 +746,15 @@ Deno.serve(async (req) => {
         email: c.email,
         business_name: c.business_name,
         industry: c.industry,
+        city: c.city,
+        state: c.state,
       }, LOVABLE_API_KEY);
 
-      // Source: 'email-domain' if site came from email, 'website' if we fetched an
-      // existing site, 'ai-classify' if we only ran the classifier, else 'website'.
-      const enrichSource = r.siteFromEmail
+      // Source: 'search-website' if discovered via DDG, 'email-domain' if from
+      // email domain, 'website' if we fetched an existing site, else 'ai-classify'.
+      const enrichSource = r.siteFromSearch
+        ? "search-website"
+        : r.siteFromEmail
         ? "email-domain"
         : r.pagesFetched > 0
         ? "website"
@@ -639,9 +766,10 @@ Deno.serve(async (req) => {
         dm_enrich_source: enrichSource,
       };
 
-      // If we resolved a site from email, persist it to website.
-      if (r.siteFromEmail && r.resolvedWebsite && (!c.website || c.website === "")) {
+      // If we resolved a site from email OR search, persist it to website.
+      if ((r.siteFromEmail || r.siteFromSearch) && r.resolvedWebsite && (!c.website || c.website === "")) {
         update.website = r.resolvedWebsite;
+        if (r.siteFromSearch) websites_found++;
       }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
@@ -715,6 +843,7 @@ Deno.serve(async (req) => {
     mobiles_found,
     emails_found,
     names_found,
+    websites_found,
     remaining,
     logs,
   });
