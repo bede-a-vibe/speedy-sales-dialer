@@ -884,6 +884,33 @@ export type Database = {
         }
         Relationships: []
       }
+      smart_lists: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          filters: Json
+          id: string
+          is_shared: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          filters: Json
+          id?: string
+          is_shared?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          is_shared?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

@@ -6,7 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 
-import { AdvancedFilters, type DialerFilterPreset } from "@/components/dialer/AdvancedFilters";
+import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
@@ -473,6 +473,50 @@ export default function DialerPage() {
     // Preserve the cold-calling default on reset.
     setLeadType("cold");
     setLeadChannel("all");
+  }, []);
+
+  const currentFilterSnapshot: DialerFilterSnapshot = useMemo(() => ({
+    leadType,
+    leadChannel,
+    industries,
+    states,
+    contactOwner,
+    tradeTypes,
+    workType,
+    businessSize,
+    prospectTier,
+    minGbpRating,
+    minReviewCount,
+    hasGoogleAds,
+    hasFacebookAds,
+    buyingSignalStrength,
+    phoneType,
+    hasDmPhone,
+    hasExistingAgency,
+    existingAgencyServices,
+    includeDisqualified,
+  }), [leadType, leadChannel, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, hasExistingAgency, existingAgencyServices, includeDisqualified]);
+
+  const applySmartList = useCallback((f: Partial<DialerFilterSnapshot>) => {
+    if (f.leadType !== undefined) setLeadType(f.leadType);
+    if (f.leadChannel !== undefined) setLeadChannel(f.leadChannel);
+    if (f.industries !== undefined) setIndustries(f.industries);
+    if (f.states !== undefined) setStates(f.states);
+    if (f.contactOwner !== undefined) setContactOwner(f.contactOwner);
+    if (f.tradeTypes !== undefined) setTradeTypes(f.tradeTypes);
+    if (f.workType !== undefined) setWorkType(f.workType);
+    if (f.businessSize !== undefined) setBusinessSize(f.businessSize);
+    if (f.prospectTier !== undefined) setProspectTier(f.prospectTier);
+    if (f.minGbpRating !== undefined) setMinGbpRating(f.minGbpRating);
+    if (f.minReviewCount !== undefined) setMinReviewCount(f.minReviewCount);
+    if (f.hasGoogleAds !== undefined) setHasGoogleAds(f.hasGoogleAds);
+    if (f.hasFacebookAds !== undefined) setHasFacebookAds(f.hasFacebookAds);
+    if (f.buyingSignalStrength !== undefined) setBuyingSignalStrength(f.buyingSignalStrength);
+    if (f.phoneType !== undefined) setPhoneType(f.phoneType);
+    if (f.hasDmPhone !== undefined) setHasDmPhone(f.hasDmPhone);
+    if (f.hasExistingAgency !== undefined) setHasExistingAgency(f.hasExistingAgency);
+    if (f.existingAgencyServices !== undefined) setExistingAgencyServices(f.existingAgencyServices);
+    if (f.includeDisqualified !== undefined) setIncludeDisqualified(f.includeDisqualified);
   }, []);
 
   useEffect(() => {
@@ -2045,6 +2089,8 @@ export default function DialerPage() {
             disabled={session.isSessionActive}
             matchingContactCount={session.isSessionActive ? null : queueLeadCount}
             enrichmentCoverage={enrichmentCoverage.data}
+            currentFilters={currentFilterSnapshot}
+            onApplySmartList={applySmartList}
           />
         )}
 
