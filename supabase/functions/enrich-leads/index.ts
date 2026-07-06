@@ -28,6 +28,35 @@ const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
 
+// Free-mail domains — never treat as a business website.
+const FREE_MAIL_DOMAINS = new Set<string>([
+  "gmail.com", "hotmail.com", "hotmail.com.au", "outlook.com", "outlook.com.au",
+  "live.com", "live.com.au", "yahoo.com", "yahoo.com.au", "bigpond.com",
+  "bigpond.net.au", "icloud.com", "me.com", "msn.com", "aol.com", "ymail.com",
+  "protonmail.com",
+]);
+
+// Trades that also populate contacts.trade_type when they come back as industry.
+const TRADE_TYPES_SET = new Set<string>([
+  "Plumbers", "HVAC", "Electricians", "Builders", "Renovators", "Roofers",
+  "Landscaping", "Pest Control", "Auto Repair", "Painters", "Concreters",
+  "Fencing", "Tilers", "Carpet Cleaning", "Cleaning Services", "Locksmiths",
+  "Garage Doors", "Pool Builders", "Solar Installers", "Tree Services",
+  "Removalists", "Demolition", "Pressure Washing", "Flooring",
+  "Glass & Glazing", "Scaffolding", "Earthmoving", "Welding & Fabrication",
+]);
+
+function emailDomain(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const at = email.trim().toLowerCase().split("@");
+  if (at.length !== 2 || !at[1]) return null;
+  return at[1];
+}
+
+function isFreeMailDomain(domain: string): boolean {
+  return FREE_MAIL_DOMAINS.has(domain.toLowerCase());
+}
+
 // AU mobile: 04XX XXX XXX or +61 4XX XXX XXX
 const MOBILE_RE = /(?:\+?61[\s-]?|0)4\d{2}[\s-]?\d{3}[\s-]?\d{3}/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
@@ -326,8 +355,60 @@ async function aiExtractName(text: string, apiKey: string): Promise<string | nul
   }
 }
 
+async function aiClassifyIndustry(
+  signals: { businessName?: string | null; emailDomain?: string | null; homepageText?: string | null },
+  apiKey: string,
+): Promise<string | null> {
+  const parts: string[] = [];
+  if (signals.businessName) parts.push(`Business name: ${signals.businessName}`);
+  if (signals.emailDomain) parts.push(`Email domain: ${signals.emailDomain}`);
+  if (signals.homepageText) parts.push(`Website text (truncated):\n${signals.homepageText.slice(0, 4000)}`);
+  const user = parts.join("\n\n").trim();
+  if (!user) return null;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              'You classify an Australian business into ONE service category for a sales dialer. Prefer a value from this list if it fits: Plumbers, HVAC, Electricians, Builders, Renovators, Roofers, Landscaping, Pest Control, Auto Repair, Painters, Concreters, Fencing, Tilers, Carpet Cleaning, Cleaning Services, Locksmiths, Garage Doors, Pool Builders, Solar Installers, Tree Services, Removalists, Flooring, Glass & Glazing, Dentists, Chiropractors, Physiotherapists, Real Estate, Accountants, Lawyers, Gyms & Fitness, Beauty & Salon, Cafe & Restaurant, Medical & Health, Professional Services. If none fit, return a concise 1-3 word service name. Return JSON {"service": string|null}. Return null if there is not enough information to tell (e.g. an individual with only a name/gmail and no business).',
+          },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.warn(`[enrich-leads] AI classify ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+    const parsed = JSON.parse(content);
+    const service = parsed?.service;
+    if (typeof service !== "string") return null;
+    const trimmed = service.trim();
+    return trimmed ? trimmed : null;
+  } catch (err) {
+    console.warn("[enrich-leads] AI classify error:", err);
+    return null;
+  }
+}
+
 async function processContact(
-  contact: { id: string; website: string },
+  contact: {
+    id: string;
+    website: string | null;
+    email: string | null;
+    business_name: string | null;
+    industry: string | null;
+  },
   lovableApiKey: string | undefined,
 ): Promise<{
   mobile: string | null;
@@ -335,13 +416,54 @@ async function processContact(
   name: string | null;
   ownerAttributed: boolean;
   source: "jsonld" | "regex" | "ai" | "none";
+  resolvedWebsite: string | null;
+  siteFromEmail: boolean;
+  industry: string | null;
+  homepageText: string | null;
   pagesFetched: number;
   ms: number;
 }> {
   const start = Date.now();
-  const base = normalizeWebsite(contact.website);
+  let base = contact.website ? normalizeWebsite(contact.website) : null;
+  let siteFromEmail = false;
+  let resolvedWebsite: string | null = base;
+
+  // Derive site from a business email domain when no website is set.
+  if (!base && contact.email) {
+    const dom = emailDomain(contact.email);
+    if (dom && !isFreeMailDomain(dom)) {
+      const candidate = `https://${dom}`;
+      const probe = await fetchPage(candidate);
+      if (probe !== null) {
+        base = candidate;
+        resolvedWebsite = candidate;
+        siteFromEmail = true;
+      }
+    }
+  }
+
   if (!base) {
-    return { mobile: null, email: null, name: null, ownerAttributed: false, source: "none", pagesFetched: 0, ms: Date.now() - start };
+    // No site at all — still run industry classifier off business_name + email domain.
+    let industryOnly: string | null = null;
+    const needsIndustry =
+      !contact.industry || contact.industry.trim() === "" || contact.industry.trim().toLowerCase() === "other";
+    if (needsIndustry && lovableApiKey) {
+      const dom = emailDomain(contact.email);
+      industryOnly = await aiClassifyIndustry(
+        {
+          businessName: contact.business_name,
+          emailDomain: dom && !isFreeMailDomain(dom) ? dom : null,
+          homepageText: null,
+        },
+        lovableApiKey,
+      );
+    }
+    return {
+      mobile: null, email: null, name: null, ownerAttributed: false,
+      source: "none", resolvedWebsite: null, siteFromEmail: false,
+      industry: industryOnly, homepageText: null,
+      pagesFetched: 0, ms: Date.now() - start,
+    };
   }
   const host = new URL(base).host;
 
@@ -349,12 +471,16 @@ async function processContact(
   let pagesFetched = 0;
   let sawJsonLd = false;
   let sawRegex = false;
+  let homepageText: string | null = null;
 
   for (let i = 0; i < PATHS.length && pagesFetched < MAX_FETCHES; i++) {
     const url = base + PATHS[i];
     const html = await fetchPage(url);
     if (html === null) continue;
     pagesFetched++;
+    if (PATHS[i] === "/" && !homepageText) {
+      homepageText = stripHtml(html).slice(0, 4000);
+    }
     const before = { name: result.name, mobile: result.mobile };
     result = extractFromHtml(html, host, result, PATHS[i]);
     if (!before.name && result.name && result.ownerAttributed) sawJsonLd = true;
@@ -379,12 +505,32 @@ async function processContact(
   else if (sawJsonLd) source = "jsonld";
   else if (sawRegex || result.mobile || result.email) source = "regex";
 
+  // Industry classification — only when currently null or 'Other'.
+  let industry: string | null = null;
+  const needsIndustry =
+    !contact.industry || contact.industry.trim() === "" || contact.industry.trim().toLowerCase() === "other";
+  if (needsIndustry && lovableApiKey) {
+    const dom = emailDomain(contact.email);
+    industry = await aiClassifyIndustry(
+      {
+        businessName: contact.business_name,
+        emailDomain: dom && !isFreeMailDomain(dom) ? dom : null,
+        homepageText,
+      },
+      lovableApiKey,
+    );
+  }
+
   return {
     mobile: result.mobile,
     email: result.email,
     name: result.name,
     ownerAttributed: result.ownerAttributed,
     source,
+    resolvedWebsite,
+    siteFromEmail,
+    industry,
+    homepageText,
     pagesFetched,
     ms: Date.now() - start,
   };
@@ -427,15 +573,14 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker")
-    .not("website", "is", null)
-    .neq("website", "");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
   } else {
     query = query
       .eq("dm_enrich_attempted", false)
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)")
       .order("phone_type", { ascending: true }) // 'landline','mobile','unknown' — landlines first alphabetically anyway; JS sort below refines
       .order("created_at", { ascending: true })
       .limit(batchSize);
@@ -461,8 +606,7 @@ Deno.serve(async (req) => {
       .from("contacts")
       .select("id", { count: "exact", head: true })
       .eq("dm_enrich_attempted", false)
-      .not("website", "is", null)
-      .neq("website", "");
+      .or("and(website.not.is.null,website.neq.),and(email.not.is.null,email.neq.)");
     remaining = Math.max((count ?? 0) - sorted.length, 0);
   }
 
@@ -473,13 +617,32 @@ Deno.serve(async (req) => {
 
   const perContact = async (c: any) => {
     try {
-      const r = await processContact({ id: c.id, website: c.website }, LOVABLE_API_KEY);
+      const r = await processContact({
+        id: c.id,
+        website: c.website,
+        email: c.email,
+        business_name: c.business_name,
+        industry: c.industry,
+      }, LOVABLE_API_KEY);
+
+      // Source: 'email-domain' if site came from email, 'website' if we fetched an
+      // existing site, 'ai-classify' if we only ran the classifier, else 'website'.
+      const enrichSource = r.siteFromEmail
+        ? "email-domain"
+        : r.pagesFetched > 0
+        ? "website"
+        : "ai-classify";
 
       const update: Record<string, any> = {
         dm_enrich_attempted: true,
         dm_enriched_at: new Date().toISOString(),
-        dm_enrich_source: "website",
+        dm_enrich_source: enrichSource,
       };
+
+      // If we resolved a site from email, persist it to website.
+      if (r.siteFromEmail && r.resolvedWebsite && (!c.website || c.website === "")) {
+        update.website = r.resolvedWebsite;
+      }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
         update.dm_phone = r.mobile;
@@ -500,6 +663,17 @@ Deno.serve(async (req) => {
           : "Website mobile (may be general line — ask for owner)";
       }
 
+      // Industry classification write-back: only if current is null or 'Other'.
+      if (r.industry) {
+        const cur = (c.industry ?? "").trim().toLowerCase();
+        if (!cur || cur === "other") {
+          update.industry = r.industry.trim();
+          if (TRADE_TYPES_SET.has(r.industry.trim()) && (!c.trade_type || c.trade_type === "")) {
+            update.trade_type = r.industry.trim();
+          }
+        }
+      }
+
       const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
       if (upErr) {
         console.error(`[enrich-leads] update ${c.id} failed:`, upErr.message);
@@ -508,6 +682,9 @@ Deno.serve(async (req) => {
       const logLine = {
         contactId: c.id,
         website: c.website,
+        resolved_website: r.resolvedWebsite,
+        site_from_email: r.siteFromEmail,
+        industry: r.industry,
         pages: r.pagesFetched,
         ms: r.ms,
         mobile: r.mobile,
@@ -515,6 +692,7 @@ Deno.serve(async (req) => {
         name: r.name,
         owner_attributed: r.ownerAttributed,
         source: r.source,
+        enrich_source: enrichSource,
       };
       console.log(`[enrich-leads] ${JSON.stringify(logLine)}`);
       logs.push(logLine);

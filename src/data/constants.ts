@@ -48,6 +48,14 @@ export const INDUSTRIES = [
   "Dentists",
   "Chiropractors",
   "Real Estate",
+  "Physiotherapists",
+  "Accountants",
+  "Lawyers",
+  "Gyms & Fitness",
+  "Beauty & Salon",
+  "Cafe & Restaurant",
+  "Medical & Health",
+  "Professional Services",
 ];
 
 const INDUSTRY_ALIASES: Record<string, string> = {
