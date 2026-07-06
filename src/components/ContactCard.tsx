@@ -1,4 +1,4 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
@@ -13,6 +13,20 @@ const PHONE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: ty
   landline: { label: "Landline", color: "text-orange-400 bg-orange-500/15 border-orange-500/30", icon: Landmark },
   business_line: { label: "Business", color: "text-blue-400 bg-blue-500/15 border-blue-500/30", icon: Building2 },
   unknown: { label: "Unknown", color: "text-muted-foreground bg-accent border-border", icon: Phone },
+};
+
+const TIER_CONFIG: Record<string, { label: string; color: string }> = {
+  "Tier 1 - Hot": { label: "Hot", color: "text-red-300 bg-red-500/20 border-red-500/40" },
+  "Tier 2 - Warm": { label: "Warm", color: "text-amber-300 bg-amber-500/20 border-amber-500/40" },
+  "Tier 3 - Nurture": { label: "Nurture", color: "text-blue-300 bg-blue-500/20 border-blue-500/40" },
+  "Tier 4 - Long Shot": { label: "Long Shot", color: "text-slate-300 bg-slate-500/20 border-slate-500/40" },
+  "Tier 5 - New / No Reviews": { label: "New / No Reviews", color: "text-violet-300 bg-violet-500/20 border-violet-500/40" },
+};
+
+const POOL_CONFIG: Record<string, { label: string; color: string }> = {
+  cold: { label: "Cold", color: "text-slate-300 bg-slate-500/15 border-slate-500/30" },
+  warm: { label: "Warm", color: "text-green-300 bg-green-500/15 border-green-500/30" },
+  outbound: { label: "Outbound", color: "text-indigo-300 bg-indigo-500/15 border-indigo-500/30" },
 };
 
 interface ContactCardProps {
@@ -43,6 +57,19 @@ interface ContactCardProps {
     call_attempt_count?: number | null;
     voicemail_count?: number | null;
     ghl_contact_id?: string | null;
+    prospect_tier?: string | null;
+    lead_type?: string | null;
+    lead_channel?: string | null;
+    lead_source?: string | null;
+    google_rating?: number | null;
+    google_review_count?: number | null;
+    gbp_rating?: number | null;
+    review_count?: number | null;
+    business_size?: string | null;
+    buying_signal_strength?: string | null;
+    has_existing_agency?: boolean | null;
+    existing_agency_name?: string | null;
+    existing_agency_services?: string[] | null;
   };
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
@@ -95,6 +122,19 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         },
       ]
     : [];
+
+  const tierCfg = contact.prospect_tier ? TIER_CONFIG[contact.prospect_tier] : null;
+  const poolCfg = contact.lead_type ? POOL_CONFIG[contact.lead_type.toLowerCase()] : null;
+  const channelLabel = contact.lead_channel && contact.lead_channel.toLowerCase() !== "all" ? contact.lead_channel : null;
+  const poolLabel = poolCfg
+    ? channelLabel
+      ? `${poolCfg.label} · ${channelLabel.charAt(0).toUpperCase() + channelLabel.slice(1)}`
+      : poolCfg.label
+    : null;
+  const rating = contact.google_rating ?? contact.gbp_rating ?? null;
+  const reviewCount = contact.google_review_count ?? contact.review_count ?? 0;
+  const hasRating = reviewCount > 0;
+  const agencyServices = (contact.existing_agency_services || []).filter(Boolean);
 
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
@@ -149,6 +189,63 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
           </span>
         </div>
       </div>
+
+      {/* Intelligence badge row */}
+      {(tierCfg || poolLabel || contact.industry || hasRating || contact.business_size || contact.buying_signal_strength) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tierCfg && (
+            <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-mono font-bold px-2.5 py-1 rounded border ${tierCfg.color}`}>
+              <Zap className="h-3 w-3" />
+              {tierCfg.label}
+            </span>
+          )}
+          {poolCfg && poolLabel && (
+            <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${poolCfg.color}`}>
+              {poolLabel}
+            </span>
+          )}
+          {contact.industry && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-accent text-accent-foreground">
+              <Briefcase className="h-3 w-3" />
+              {contact.industry}
+            </span>
+          )}
+          {hasRating && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-300">
+              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+              {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
+            </span>
+          )}
+          {contact.business_size && (
+            <span className="inline-flex items-center text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-secondary text-secondary-foreground">
+              {contact.business_size}
+            </span>
+          )}
+          {contact.buying_signal_strength && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+              <Zap className="h-3 w-3" />
+              Signal: {contact.buying_signal_strength}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Existing agency callout */}
+      {contact.has_existing_agency && (
+        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-100">
+          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-300" />
+          <div>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
+            <p className="text-sm leading-snug">
+              Already with an agency{contact.existing_agency_name ? `: ${contact.existing_agency_name}` : ""}
+              {agencyServices.length > 0 && (
+                <span className="text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
+              )}
+              <span className="block text-xs text-fuchsia-200/70 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Business Phone with Type Badge */}
       <div className="space-y-2">
