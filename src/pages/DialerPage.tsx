@@ -2004,6 +2004,10 @@ export default function DialerPage() {
             setIndustries={setIndustries}
             states={states}
             setStates={setStates}
+            leadType={leadType}
+            setLeadType={setLeadType}
+            leadChannel={leadChannel}
+            setLeadChannel={setLeadChannel}
             contactOwner={contactOwner}
             setContactOwner={setContactOwner}
             salesReps={salesReps}
