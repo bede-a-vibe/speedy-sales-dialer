@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
@@ -30,6 +30,7 @@ const mainItems = [
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
+  { title: "Playbook", url: "/playbook", icon: BookOpen },
   { title: "Training", url: "/training", icon: GraduationCap },
 ];
 
