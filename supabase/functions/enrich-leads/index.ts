@@ -24,6 +24,15 @@ const UA =
 
 const PATHS = ["/", "/contact", "/contact-us", "/about", "/about-us"];
 const MAX_FETCHES = 4;
+// Deep-crawl parameters: homepage + up to 4 secondary owner-likely pages, cap 5.
+const DEEP_MAX_PAGES = 5;
+const DEEP_CANDIDATE_PATHS = [
+  "/about", "/about-us", "/our-team", "/team",
+  "/meet-the-team", "/meet-our-team", "/our-story",
+  "/contact", "/contact-us", "/staff", "/people",
+];
+const DEEP_LINK_HREF_RE = /\/(about|team|our-story|our-team|meet[-a-z]*|contact|staff|people)(\/|$|\?|#)/i;
+const DEEP_LINK_TEXT_RE = /\b(about|team|our story|meet (?:the |our )?team|contact|staff|people)\b/i;
 const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
@@ -176,6 +185,17 @@ const NAME_ROLE_RE =
 const HOMEOWNER_RE = /home[\s-]?owner/i;
 const OWNER_KEYWORD_RE = /\b(owner|director|founder|principal|ceo|managing\s+director)\b/i;
 
+// Extra name-source patterns (deep crawl). Each capture group holds the name.
+// Cleaned via cleanCandidateName; matches near a role word are preferred.
+const OWNER_LEAD_RE =
+  /\b(?:Owner|Director|Founder|Principal|Proprietor|Managing\s+Director)\s*[:\-\u2013\u2014]\s*([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})/g;
+const NAME_TRAIL_ROLE_RE =
+  /\b([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2}),\s+(?:Owner|Director|Founder|Principal|Proprietor|Managing\s+Director)\b/g;
+const MEET_NAME_RE = /\bMeet\s+([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})\b/g;
+const HI_IM_RE = /\b(?:Hi[,!]?\s+I['\u2019]m|I['\u2019]m)\s+([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){0,2})(?:\s+and\b|[,.!])/g;
+const HEADING_NAME_RE =
+  /<h[234][^>]*>\s*([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})\s*<\/h[234]>/g;
+
 // Reject any name whose tokens (case-insensitive) hit this stoplist — CMS accounts,
 // web agencies, generic marketing/trade words, and location words that show up as
 // junk "names" in scraped HTML.
@@ -211,9 +231,24 @@ function cleanCandidateName(raw: string): string | null {
   const tokens = name.split(/\s+/);
   if (tokens.length < 2 || tokens.length > 3) return null;
 
+  // Loosened Title-case token rule. Accept:
+  //   - Standard Title-case:            Ray, Glavinovic
+  //   - Apostrophes:                    O'Brien, D'Angelo
+  //   - Hyphenated:                     Jo-Anne, Smith-Jones
+  //   - Mc/Mac prefixes:                McDonald, MacLeod
+  // Still rejects: ALL-CAPS, single tokens, digits, punctuation-only tokens,
+  // and stoplist words (checked case-insensitively across each sub-part).
+  const TOKEN_RE =
+    /^(?:(?:Mc|Mac)[A-Z][a-z]+|[A-Z][a-z]+(?:['\u2019][A-Z]?[a-z]+)?(?:-[A-Z][a-z]+(?:['\u2019][A-Z]?[a-z]+)?)*)$/;
+
   for (const tok of tokens) {
-    if (!/^[A-Z][a-z]+$/.test(tok)) return null; // strict Title-case alpha
-    if (NAME_STOPLIST.has(tok.toLowerCase())) return null;
+    if (!TOKEN_RE.test(tok)) return null;
+    // Any sub-part (split on hyphen or apostrophe) hitting the stoplist rejects
+    // the whole token — catches "Home-Owner", "Team-Smith", etc.
+    const parts = tok.split(/[-'\u2019]/).filter(Boolean);
+    for (const part of parts) {
+      if (NAME_STOPLIST.has(part.toLowerCase())) return null;
+    }
   }
   return tokens.join(" ");
 }
@@ -461,6 +496,48 @@ function extractFromHtml(html: string, siteHost: string, prev: ExtractResult, ur
       out.name = cleaned;
       out.ownerAttributed = true;
       break;
+    }
+  }
+
+  // 4b. Extended name-source patterns (deep crawl uses these too).
+  //     Runs even after 4 to fill in a name if step 4 didn't match. Any hit
+  //     here is treated as owner-attributed.
+  if (!out.name) {
+    const extraSources: { re: RegExp; roleAdjacent: boolean }[] = [
+      { re: OWNER_LEAD_RE, roleAdjacent: true },
+      { re: NAME_TRAIL_ROLE_RE, roleAdjacent: true },
+      { re: MEET_NAME_RE, roleAdjacent: false },
+      { re: HI_IM_RE, roleAdjacent: false },
+    ];
+    const candidates: { name: string; roleAdjacent: boolean }[] = [];
+    for (const src of extraSources) {
+      src.re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = src.re.exec(text)) !== null) {
+        const idx = m.index;
+        const window = text.slice(Math.max(0, idx - 60), idx + m[0].length + 60);
+        if (HOMEOWNER_RE.test(window)) continue;
+        const cleaned = cleanCandidateName(m[1]);
+        if (!cleaned) continue;
+        candidates.push({ name: cleaned, roleAdjacent: src.roleAdjacent });
+      }
+    }
+    // Heading-adjacent team names (needs raw HTML — run against `html`).
+    HEADING_NAME_RE.lastIndex = 0;
+    let hm: RegExpExecArray | null;
+    while ((hm = HEADING_NAME_RE.exec(html)) !== null) {
+      const idx = hm.index;
+      const around = html.slice(Math.max(0, idx - 300), idx + hm[0].length + 300);
+      const cleaned = cleanCandidateName(hm[1]);
+      if (!cleaned) continue;
+      const roleAdjacent = OWNER_KEYWORD_RE.test(around) && !HOMEOWNER_RE.test(around);
+      if (roleAdjacent) candidates.push({ name: cleaned, roleAdjacent: true });
+    }
+    // Prefer role-adjacent hits.
+    const picked = candidates.find((c) => c.roleAdjacent) ?? candidates[0];
+    if (picked) {
+      out.name = picked.name;
+      out.ownerAttributed = true;
     }
   }
 
@@ -738,6 +815,117 @@ async function runInChunks<T, R>(items: T[], size: number, fn: (item: T) => Prom
   return out;
 }
 
+// Discover secondary pages likely to name the owner. Uses homepage nav links
+// (href/text matches /about|team|our-story|meet|contact|staff|people/i) PLUS
+// the common-path list. Same-host only. Deduped. Capped by caller.
+function discoverSecondaryPages(homepageHtml: string, base: string): string[] {
+  const found = new Set<string>();
+  let host = "";
+  try { host = new URL(base).host.toLowerCase(); } catch { return []; }
+
+  const anchorRe = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  let scanned = 0;
+  while ((m = anchorRe.exec(homepageHtml)) !== null && scanned < 400) {
+    scanned++;
+    const rawHref = m[1];
+    const inner = stripHtml(m[2] || "");
+    if (!rawHref) continue;
+    let abs: string;
+    try {
+      abs = new URL(rawHref, base).toString();
+    } catch { continue; }
+    let u: URL;
+    try { u = new URL(abs); } catch { continue; }
+    if (u.host.toLowerCase() !== host) continue;
+    if (!/^https?:$/.test(u.protocol)) continue;
+    const path = u.pathname;
+    if (path === "/" || path === "") continue;
+    if (!DEEP_LINK_HREF_RE.test(path) && !DEEP_LINK_TEXT_RE.test(inner)) continue;
+    // Strip query/hash — same page effectively.
+    const norm = `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "") || "/"}`;
+    if (norm === base || norm === base + "/") continue;
+    found.add(norm);
+  }
+  // Then append common candidate paths (may 404, which is fine).
+  for (const p of DEEP_CANDIDATE_PATHS) {
+    const norm = `${base}${p}`;
+    found.add(norm);
+  }
+  return Array.from(found);
+}
+
+// Deep crawl: homepage + up to 4 secondary owner-likely pages. Runs the SAME
+// extractor across every page. Only writes fields that are currently empty.
+// Fully defensive — never throws, safe when no pages resolve.
+async function processDeepCrawl(
+  contact: {
+    id: string;
+    website: string | null;
+    dm_name: string | null;
+    dm_phone: string | null;
+    dm_email: string | null;
+  },
+  lovableApiKey: string | undefined,
+): Promise<{
+  mobile: string | null;
+  email: string | null;
+  name: string | null;
+  pagesFetched: number;
+  ms: number;
+}> {
+  const start = Date.now();
+  const base = contact.website ? normalizeWebsite(contact.website) : null;
+  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start };
+
+  let host = "";
+  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start }; }
+
+  let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
+  let pagesFetched = 0;
+  let aboutText: string | null = null;
+
+  // 1. Homepage first (so we can discover its nav links).
+  const homepageHtml = await fetchPage(base + "/");
+  if (homepageHtml !== null) {
+    pagesFetched++;
+    result = extractFromHtml(homepageHtml, host, result, "/");
+  }
+
+  // 2. Secondary pages — nav links + common paths, capped at DEEP_MAX_PAGES total.
+  const secondary = homepageHtml ? discoverSecondaryPages(homepageHtml, base) : DEEP_CANDIDATE_PATHS.map((p) => base + p);
+  for (const url of secondary) {
+    if (pagesFetched >= DEEP_MAX_PAGES) break;
+    if (result.name && result.mobile && result.email) break;
+    let path = "/";
+    try { path = new URL(url).pathname; } catch { /* keep default */ }
+    let html: string | null = null;
+    try { html = await fetchPage(url); } catch { html = null; }
+    if (html === null) continue;
+    pagesFetched++;
+    try {
+      result = extractFromHtml(html, host, result, path);
+    } catch { /* never break the batch */ }
+    if (!aboutText && result.aboutTextForAi) aboutText = result.aboutTextForAi;
+  }
+
+  // AI fallback for name only — same guard as the legacy path.
+  if (!result.name && aboutText && lovableApiKey) {
+    try {
+      const aiName = await aiExtractName(aboutText, lovableApiKey);
+      if (aiName) result.name = aiName;
+    } catch { /* ignore */ }
+  }
+
+  return {
+    mobile: result.mobile,
+    email: result.email,
+    name: result.name,
+    pagesFetched,
+    ms: Date.now() - start,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -756,11 +944,98 @@ Deno.serve(async (req) => {
   }
   const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 50);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
+  const mode: "default" | "deep_crawl" = body?.mode === "deep_crawl" ? "deep_crawl" : "default";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // ── Deep-crawl mode ──
+  // Additive, isolated re-run: hits leads that already have a website but no
+  // dm_name, fetches the homepage plus up to 4 owner-likely secondary pages,
+  // and marks deep_crawl_attempted=true when done (even on no-find).
+  if (mode === "deep_crawl") {
+    let deepQuery = admin
+      .from("contacts")
+      .select("id, website, dm_name, dm_phone, dm_email");
+    if (forcedIds) {
+      deepQuery = deepQuery.in("id", forcedIds);
+    } else {
+      deepQuery = deepQuery
+        .not("website", "is", null)
+        .neq("website", "")
+        .is("dm_name", null)
+        .neq("deep_crawl_attempted", true)
+        .order("created_at", { ascending: true })
+        .limit(batchSize);
+    }
+    const { data: deepContacts, error: deepErr } = await deepQuery;
+    if (deepErr) return json({ error: `Deep select failed: ${deepErr.message}` }, 500);
+
+    let deepRemaining = 0;
+    if (!forcedIds) {
+      const { count } = await admin
+        .from("contacts")
+        .select("id", { count: "exact", head: true })
+        .not("website", "is", null)
+        .neq("website", "")
+        .is("dm_name", null)
+        .neq("deep_crawl_attempted", true);
+      deepRemaining = Math.max((count ?? 0) - (deepContacts?.length ?? 0), 0);
+    }
+
+    let d_names = 0, d_mobiles = 0, d_emails = 0;
+    const deepLogs: any[] = [];
+
+    const perDeep = async (c: any) => {
+      try {
+        const r = await processDeepCrawl({
+          id: c.id,
+          website: c.website,
+          dm_name: c.dm_name,
+          dm_phone: c.dm_phone,
+          dm_email: c.dm_email,
+        }, LOVABLE_API_KEY);
+
+        const update: Record<string, any> = {
+          deep_crawl_attempted: true,
+        };
+        if (r.name && (!c.dm_name || c.dm_name === "")) {
+          update.dm_name = r.name;
+          d_names++;
+        }
+        if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
+          update.dm_phone = r.mobile;
+          update.dm_phone_type = "mobile";
+          d_mobiles++;
+        }
+        if (r.email && (!c.dm_email || c.dm_email === "")) {
+          update.dm_email = r.email;
+          d_emails++;
+        }
+        const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+        if (upErr) console.error(`[enrich-leads/deep] update ${c.id} failed:`, upErr.message);
+        deepLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, name: r.name, mobile: r.mobile, email: r.email });
+      } catch (err: any) {
+        console.error(`[enrich-leads/deep] contact ${c.id} threw:`, err?.message ?? err);
+        await admin.from("contacts").update({ deep_crawl_attempted: true }).eq("id", c.id);
+        deepLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+    };
+
+    await runInChunks(deepContacts ?? [], CONCURRENCY, perDeep);
+
+    return json({
+      mode: "deep_crawl",
+      processed: deepContacts?.length ?? 0,
+      names_found: d_names,
+      mobiles_found: d_mobiles,
+      emails_found: d_emails,
+      remaining: deepRemaining,
+      logs: deepLogs,
+    });
+  }
 
   // Select batch
   let query = admin
