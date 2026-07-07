@@ -754,6 +754,8 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -799,6 +801,8 @@ export default function ContactsPage() {
     status: statusFilter,
     state: stateFilter,
     appointmentOutcome: appointmentOutcomeFilter,
+    lifecycleStage: lifecycleFilter,
+    ownerId: ownerFilter,
     search: debouncedSearch,
     page,
     pageSize: CONTACTS_PER_PAGE,
