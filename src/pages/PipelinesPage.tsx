@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
+import { DealBoard } from "@/components/pipelines/DealBoard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -226,7 +227,11 @@ export default function PipelinesPage() {
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   
   
-  const activeTab = searchParams.get("tab") === "history" ? "history" : "booked";
+  const tabParam = searchParams.get("tab");
+  const activeTab =
+    tabParam === "history" ? "history" :
+    tabParam === "booked" ? "booked" :
+    "board";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
@@ -621,9 +626,17 @@ export default function PipelinesPage() {
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>
+            <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
           </TabsList>
+          <TabsContent value="board" className="mt-4">
+            {bookedLoading ? (
+              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
+            ) : (
+              <DealBoard items={booked} reps={reps} repMap={repMap} />
+            )}
+          </TabsContent>
           <TabsContent value="booked" className="mt-4 space-y-4">
             {bookedLoading ? (
               <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
