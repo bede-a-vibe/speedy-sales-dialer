@@ -713,6 +713,33 @@ export type Database = {
         }
         Relationships: []
       }
+      enrichment_ai_budget: {
+        Row: {
+          calls_used: number
+          created_at: string
+          daily_cap: number
+          day: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          calls_used?: number
+          created_at?: string
+          daily_cap?: number
+          day?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          calls_used?: number
+          created_at?: string
+          daily_cap?: number
+          day?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ghl_import_exclude: {
         Row: {
           ghl_id: string
