@@ -951,6 +951,7 @@ async function processDeepCrawl(
     dm_email: string | null;
   },
   lovableApiKey: string | undefined,
+  allowAiName: boolean,
 ): Promise<{
   mobile: string | null;
   email: string | null;
@@ -958,13 +959,14 @@ async function processDeepCrawl(
   pagesFetched: number;
   ms: number;
   signals: PageSignals;
+  aiCalled: boolean;
 }> {
   const start = Date.now();
   const base = contact.website ? normalizeWebsite(contact.website) : null;
-  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() };
+  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false };
 
   let host = "";
-  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() }; }
+  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false }; }
 
   let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
   let pagesFetched = 0;
@@ -998,10 +1000,13 @@ async function processDeepCrawl(
     if (!aboutText && result.aboutTextForAi) aboutText = result.aboutTextForAi;
   }
 
-  // AI fallback for name only — same guard as the legacy path.
-  if (!result.name && aboutText && lovableApiKey) {
+  // AI fallback for name only — value-gated so we only spend AI credits on
+  // leads a rep is realistically going to call.
+  let aiCalled = false;
+  if (allowAiName && !result.name && aboutText && lovableApiKey) {
     try {
       const aiName = await aiExtractName(aboutText, lovableApiKey);
+      aiCalled = true;
       if (aiName) result.name = aiName;
     } catch { /* ignore */ }
   }
@@ -1013,6 +1018,7 @@ async function processDeepCrawl(
     pagesFetched,
     ms: Date.now() - start,
     signals,
+    aiCalled,
   };
 }
 
