@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, isPast, isToday, addHours } from "date-fns";
 import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Clock3, ExternalLink, Globe, MapPin, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -271,9 +272,10 @@ export function FollowUpTable({
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [repFilter, setRepFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("today");
   const [methodFilter, setMethodFilter] = useState<FollowUpMethod | "all">("all");
   const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
+  const navigate = useNavigate();
 
   const enriched = useMemo(
     () =>
@@ -303,7 +305,11 @@ export function FollowUpTable({
     }
     const order: Record<string, number> = { overdue: 0, today: 1, due_soon: 2, upcoming: 3 };
     return [...list].sort((a, b) => {
-      return (order[a.status] ?? 4) - (order[b.status] ?? 4);
+      const bucketDiff = (order[a.status] ?? 4) - (order[b.status] ?? 4);
+      if (bucketDiff !== 0) return bucketDiff;
+      const aTime = a.item.scheduled_for ? new Date(a.item.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.item.scheduled_for ? new Date(b.item.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+      return aTime - bTime;
     });
   }, [enriched, repFilter, statusFilter, methodFilter, ghlFilter]);
 
