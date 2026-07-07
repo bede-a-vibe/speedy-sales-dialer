@@ -70,7 +70,7 @@ export function DashboardQuickStats() {
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
 
   const followUpsDueToday = useMemo(
-    () => followUps.filter((item) => isPastOrToday(item.scheduled_for)).length,
+    () => followUps.filter((item) => isToday(item.scheduled_for)).length,
     [followUps],
   );
 
@@ -88,7 +88,7 @@ export function DashboardQuickStats() {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <QuickStat
         icon={<CalendarClock className="h-5 w-5" />}
-        label="Follow-ups Due"
+        label="Follow-ups Today"
         value={followUpsDueToday}
         href="/follow-ups"
       />

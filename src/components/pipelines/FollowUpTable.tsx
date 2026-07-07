@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, isPast, isToday, addHours } from "date-fns";
 import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Clock3, ExternalLink, Globe, MapPin, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -271,9 +272,10 @@ export function FollowUpTable({
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [repFilter, setRepFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("today");
   const [methodFilter, setMethodFilter] = useState<FollowUpMethod | "all">("all");
   const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
+  const navigate = useNavigate();
 
   const enriched = useMemo(
     () =>
@@ -303,7 +305,11 @@ export function FollowUpTable({
     }
     const order: Record<string, number> = { overdue: 0, today: 1, due_soon: 2, upcoming: 3 };
     return [...list].sort((a, b) => {
-      return (order[a.status] ?? 4) - (order[b.status] ?? 4);
+      const bucketDiff = (order[a.status] ?? 4) - (order[b.status] ?? 4);
+      if (bucketDiff !== 0) return bucketDiff;
+      const aTime = a.item.scheduled_for ? new Date(a.item.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.item.scheduled_for ? new Date(b.item.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+      return aTime - bTime;
     });
   }, [enriched, repFilter, statusFilter, methodFilter, ghlFilter]);
 
@@ -400,6 +406,7 @@ export function FollowUpTable({
 
           return (
           <Collapsible key={item.id} open={expandedId === item.id} onOpenChange={() => toggle(item.id)}>
+            <div className="relative">
             <CollapsibleTrigger asChild>
               <button
                 type="button"
@@ -413,7 +420,9 @@ export function FollowUpTable({
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold text-foreground truncate">{item.contacts?.business_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a") : "No date"}
+                    {item.scheduled_for ? (
+                      <><span className="font-semibold text-foreground">{format(new Date(item.scheduled_for), "HH:mm")}</span>{" · "}{format(new Date(item.scheduled_for), "MMM d, yyyy")}</>
+                    ) : "No date"}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{rep}</span>
@@ -434,6 +443,20 @@ export function FollowUpTable({
                 </div>
               </button>
             </CollapsibleTrigger>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="absolute right-2 top-2 h-7 px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/contacts/${item.contact_id}`);
+              }}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Call
+            </Button>
+            </div>
             <CollapsibleContent>
               <div className="px-1 pt-2">
                 <FollowUpActionPanel
@@ -511,16 +534,35 @@ export function FollowUpTable({
                           <FollowUpMethodBadge method={item.follow_up_method || "call"} />
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                          {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a") : "—"}
+                          {item.scheduled_for ? (
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-foreground">{format(new Date(item.scheduled_for), "HH:mm")}</span>
+                              <span className="text-[10px]">{format(new Date(item.scheduled_for), "MMM d, yyyy")}</span>
+                            </div>
+                          ) : "—"}
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{rep}</td>
                         <td className="px-4 py-3">
                           <StatusPill status={status} />
                         </td>
                         <td className="px-4 py-3">
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-7 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/contacts/${item.contact_id}`);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              Call
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     </CollapsibleTrigger>

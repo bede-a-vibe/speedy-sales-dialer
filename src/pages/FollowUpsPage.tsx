@@ -8,6 +8,17 @@ import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { loadAllStoredEmailDraftSuggestions } from "@/lib/emailDraftStore";
 import type { EmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
 import { toast } from "sonner";
+import { FollowUpTable } from "@/components/pipelines/FollowUpTable";
+import {
+  usePipelineItems,
+  useSalesReps,
+  useUpdatePipelineItem,
+  type FollowUpMethod,
+} from "@/hooks/usePipelineItems";
+
+function getRepLabel(displayName: string | null, email: string | null) {
+  return displayName?.trim() || email || "Unassigned";
+}
 
 type FollowUpContact = {
   id: string;
@@ -87,6 +98,45 @@ export default function FollowUpsPage() {
   const [taskCount, setTaskCount] = useState(0);
   const [forDate, setForDate] = useState<string | null>(null);
   const { data: ghlPipelines = [] } = useGHLPipelines();
+  const { data: dialerFollowUps = [] } = usePipelineItems("follow_up", "open");
+  const { data: reps = [] } = useSalesReps();
+  const updatePipelineItem = useUpdatePipelineItem();
+  const repMap = useMemo(
+    () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
+    [reps],
+  );
+
+  const handleDialerAssign = async (id: string, userId: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, assigned_user_id: userId });
+      toast.success("Rep updated.");
+    } catch {
+      toast.error("Failed to update rep.");
+    }
+  };
+  const handleDialerReschedule = async (id: string, iso: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, scheduled_for: iso });
+      toast.success("Follow-up rescheduled.");
+    } catch {
+      toast.error("Failed to reschedule.");
+    }
+  };
+  const handleDialerComplete = async (id: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, status: "completed", completed_at: new Date().toISOString() });
+      toast.success("Marked complete.");
+    } catch {
+      toast.error("Failed to complete.");
+    }
+  };
+  const handleDialerChangeMethod = async (id: string, method: FollowUpMethod) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
+    } catch {
+      toast.error("Failed to change method.");
+    }
+  };
   const defaultFollowUpPipeline = useMemo(
     () => findDefaultFollowUpPipeline(ghlPipelines),
     [ghlPipelines],
@@ -244,6 +294,29 @@ export default function FollowUpsPage() {
   return (
     <AppLayout title="Follow-Ups">
       <div className="max-w-4xl mx-auto space-y-4">
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Your follow-ups</h2>
+            <p className="text-xs text-muted-foreground">
+              Dialer callbacks scheduled from calls — worked in time order, defaulted to today.
+            </p>
+          </div>
+          <FollowUpTable
+            items={dialerFollowUps}
+            reps={reps}
+            repMap={repMap}
+            isSaving={updatePipelineItem.isPending}
+            onComplete={handleDialerComplete}
+            onAssign={handleDialerAssign}
+            onReschedule={handleDialerReschedule}
+            onChangeMethod={handleDialerChangeMethod}
+          />
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <h2 className="text-lg font-semibold text-foreground">GHL pipeline follow-ups</h2>
+          <p className="text-xs text-muted-foreground">Tasks synced from GoHighLevel.</p>
+        </div>
         <TwoPipelineGuide
           currentView="followups"
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
