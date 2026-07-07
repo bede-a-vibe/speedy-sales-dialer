@@ -2379,9 +2379,7 @@ export default function DialerPage() {
         )}
 
         {!session.isSessionActive && (
-          <div className="flex justify-end">
-            <DialerShortcutsPopover />
-          </div>
+          null
         )}
 
         {/* ── Active Session ── */}
