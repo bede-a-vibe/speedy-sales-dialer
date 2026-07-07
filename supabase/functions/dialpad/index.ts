@@ -1959,6 +1959,21 @@ async function applyTranscriptInsightsToContact(params: {
     }
   }
 
+  // 6. Feed the Objection Bank with any objections captured on this call.
+  if (Array.isArray(params.insights.objections) && params.insights.objections.length > 0) {
+    try {
+      await upsertObjectionsIntoBank(params.adminClient, {
+        objections: params.insights.objections,
+        contactId: params.contactId,
+        callLogId: params.callLogId ?? null,
+        ledToBooking: Boolean(params.insights.booked),
+        userId: params.userId,
+      });
+    } catch (err) {
+      console.error("[transcript-apply] Objection bank upsert threw:", err);
+    }
+  }
+
   return writes;
 }
 
