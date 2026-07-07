@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -9,7 +9,7 @@ import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryBu
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI, type DialpadCTIHandle, type CallRingingPayload } from "@/components/dialer/DialpadCTI";
-import { NativeCallBar, type NativeCallState } from "@/components/dialer/NativeCallBar";
+import { type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
