@@ -1929,7 +1929,7 @@ export default function DialerPage() {
             </div>
           </div>
         )}
-        <DailyTarget />
+        {!session.isSessionActive && <DailyTarget />}
 
         <Suspense fallback={<Dialog open={session.showSummary}><DialogContent className="sm:max-w-md"><PanelSkeleton height="h-56" /></DialogContent></Dialog>}>
           <SessionSummaryDialog
