@@ -109,6 +109,34 @@ export default function FollowUpsPage() {
   const { data: dialerFollowUps = [] } = usePipelineItems("follow_up", "open");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
+  const { user } = useAuth();
+  const { canViewAdmin } = useAdminAccess();
+  const dialpadCall = useDialpadCall();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
+  const [myWorkRepFilter, setMyWorkRepFilter] = useState<string>("me");
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setMyWorkRepFilter((prev) => (prev === "me" ? user.id : prev));
+  }, [user?.id]);
+
+  const placeDialpadCall = async (_contactId: string, phone: string) => {
+    if (!myDialpadSettings?.dialpad_user_id) {
+      toast.error("Connect your Dialpad number in Dialpad Settings first.");
+      return;
+    }
+    try {
+      await dialpadCall.mutateAsync({
+        phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        contact_id: _contactId,
+      });
+      toast.success(`Calling ${phone} via Dialpad…`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start the Dialpad call.");
+    }
+  };
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
     [reps],
