@@ -2378,10 +2378,6 @@ export default function DialerPage() {
           </div>
         )}
 
-        {!session.isSessionActive && (
-          null
-        )}
-
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
           <>
