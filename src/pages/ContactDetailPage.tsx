@@ -10,9 +10,9 @@ import { AppLayout } from "@/components/AppLayout";
 import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
 import { ManualTranscriptUpload } from "@/components/contacts/ManualTranscriptUpload";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
-import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
+import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
-import { Brain, UserPlus, Building2 as AgencyIcon } from "lucide-react";
+import { Brain, UserPlus, Megaphone } from "lucide-react";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -873,8 +873,8 @@ export default function ContactDetailPage() {
                     <TabsTrigger value="intel" className="text-xs">
                       <Brain className="mr-1.5 h-3.5 w-3.5" /> Intel
                     </TabsTrigger>
-                    <TabsTrigger value="agency" className="text-xs">
-                      <AgencyIcon className="mr-1.5 h-3.5 w-3.5" /> Agency
+                    <TabsTrigger value="marketing" className="text-xs">
+                      <Megaphone className="mr-1.5 h-3.5 w-3.5" /> Marketing
                     </TabsTrigger>
                   </TabsList>
                 </CardHeader>
@@ -904,14 +904,17 @@ export default function ContactDetailPage() {
                       contact={contact as unknown as Record<string, unknown>}
                     />
                   </TabsContent>
-                  <TabsContent value="agency" className="mt-0">
-                    <ExistingAgencyCapture
+                  <TabsContent value="marketing" className="mt-0">
+                    <MarketingCapture
                       contactId={contact.id}
                       ghlContactId={contact.ghl_contact_id}
+                      hasGoogleAds={(contact as unknown as { has_google_ads?: string | null }).has_google_ads ?? null}
+                      hasFacebookAds={(contact as unknown as { has_facebook_ads?: string | null }).has_facebook_ads ?? null}
                       hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
                       existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
                       existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
                       existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
+                      deepCrawlAttempted={(contact as unknown as { deep_crawl_attempted?: boolean | null }).deep_crawl_attempted ?? null}
                     />
                   </TabsContent>
                 </CardContent>
