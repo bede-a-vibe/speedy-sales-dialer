@@ -406,6 +406,7 @@ export function FollowUpTable({
 
           return (
           <Collapsible key={item.id} open={expandedId === item.id} onOpenChange={() => toggle(item.id)}>
+            <div className="relative">
             <CollapsibleTrigger asChild>
               <button
                 type="button"
@@ -419,7 +420,9 @@ export function FollowUpTable({
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold text-foreground truncate">{item.contacts?.business_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a") : "No date"}
+                    {item.scheduled_for ? (
+                      <><span className="font-semibold text-foreground">{format(new Date(item.scheduled_for), "HH:mm")}</span>{" · "}{format(new Date(item.scheduled_for), "MMM d, yyyy")}</>
+                    ) : "No date"}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{rep}</span>
@@ -440,6 +443,20 @@ export function FollowUpTable({
                 </div>
               </button>
             </CollapsibleTrigger>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="absolute right-2 top-2 h-7 px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/contacts/${item.contact_id}`);
+              }}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Call
+            </Button>
+            </div>
             <CollapsibleContent>
               <div className="px-1 pt-2">
                 <FollowUpActionPanel
