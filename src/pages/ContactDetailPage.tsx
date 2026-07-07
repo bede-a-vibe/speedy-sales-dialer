@@ -646,7 +646,7 @@ export default function ContactDetailPage() {
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" className="font-semibold" onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)} disabled={dialpadCall.isPending}>
+              <Button size="sm" variant="hero" className="font-semibold" onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)} disabled={dialpadCall.isPending}>
                 <Phone className="mr-1.5 h-3.5 w-3.5" />
                 {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
               </Button>

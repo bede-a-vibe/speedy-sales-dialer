@@ -1528,7 +1528,7 @@ export default function ContactsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {contacts.map((contact) => {
+                  {contacts.map((contact, rowIndex) => {
                     const isExpanded = expandedId === contact.id;
                     const integrityBadges = [getQueueReadinessBadge(contact), ...getContactIntegrityBadges(contact)];
                     const actionCue = getContactActionCue(contact);
@@ -1538,10 +1538,17 @@ export default function ContactsPage() {
                     if (!contact.state) missing.push("state");
                     if (!contact.email) missing.push("email");
                     const isSelected = selectedIds.has(contact.id);
+                    // Subtle fade-in stagger for the first ~12 rows on mount.
+                    // `motion-safe:` guards it behind prefers-reduced-motion.
+                    const staggerDelay = rowIndex < 12 ? `${rowIndex * 25}ms` : undefined;
 
                     return (
                       <React.Fragment key={contact.id}>
-                        <tr className={`cursor-pointer border-b border-border transition-colors hover:bg-muted/30 ${isSelected ? "bg-primary/5" : ""}`} onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
+                        <tr
+                          className={`cursor-pointer border-b border-border transition-colors hover:bg-muted/30 motion-safe:animate-fade-in ${isSelected ? "bg-primary/5" : ""}`}
+                          style={staggerDelay ? { animationDelay: staggerDelay, animationFillMode: "backwards" } : undefined}
+                          onClick={() => setExpandedId(isExpanded ? null : contact.id)}
+                        >
                           <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={isSelected}

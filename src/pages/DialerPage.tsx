@@ -1929,6 +1929,7 @@ export default function DialerPage() {
                 data-coach-step="start-session"
                 onClick={session.startDialing}
                 disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
+                variant="hero"
                 className="px-6 font-semibold"
               >
                 {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
@@ -1947,7 +1948,7 @@ export default function DialerPage() {
           ) : (
             <>
               {session.isSessionPaused ? (
-                <Button onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
+                <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
                   <Play className="mr-2 h-4 w-4" />
                   Resume Dialing
                 </Button>

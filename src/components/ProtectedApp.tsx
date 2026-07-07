@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "@/pages/DashboardPage";
 import { installDemoFetchInterceptor, setDemoModeActive } from "@/lib/demoMode";
+import { PageTransition } from "@/components/PageTransition";
 
 const DialerPage = lazy(() => import("@/pages/DialerPage"));
 const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
@@ -79,6 +80,7 @@ function ProtectedRoutes() {
   return (
     <Suspense fallback={<FullPageLoading />}>
       <DemoModeSync />
+      <PageTransition>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dialer" element={<DialerPage />} />
@@ -131,6 +133,7 @@ function ProtectedRoutes() {
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </PageTransition>
     </Suspense>
   );
 }

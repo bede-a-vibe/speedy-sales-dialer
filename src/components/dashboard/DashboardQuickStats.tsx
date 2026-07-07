@@ -43,7 +43,7 @@ function QuickStat({ icon, label, value, href, urgent }: QuickStatProps) {
     <button
       onClick={() => navigate(href)}
       className={cn(
-        "flex items-center gap-3 rounded-xl border p-4 text-left transition-all hover:shadow-md hover:border-primary/30",
+        "flex items-center gap-3 rounded-lg border p-4 text-left shadow-card transition-all duration-200 motion-safe:hover:-translate-y-px hover:shadow-md hover:border-primary/40",
         urgent && value > 0
           ? "border-destructive/30 bg-destructive/5"
           : "border-border bg-card",
@@ -56,7 +56,7 @@ function QuickStat({ icon, label, value, href, urgent }: QuickStatProps) {
         {icon}
       </div>
       <div>
-        <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
+        <p className="text-2xl font-bold font-mono text-foreground [font-variant-numeric:tabular-nums]">{value}</p>
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{label}</p>
       </div>
     </button>
