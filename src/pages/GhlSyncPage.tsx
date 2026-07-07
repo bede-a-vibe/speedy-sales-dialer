@@ -96,6 +96,50 @@ async function fetchLatestJob(): Promise<SyncJob | null> {
   return (data as SyncJob | null) ?? null;
 }
 
+type PushHealth = {
+  pending: number;
+  failed: number;
+  done: number;
+  recentFailures: Array<{
+    id: string;
+    contact_id: string;
+    last_error: string | null;
+    attempt_count: number;
+    updated_at: string;
+    business_name: string | null;
+  }>;
+};
+
+async function fetchPushHealth(): Promise<PushHealth> {
+  const [pendingRes, failedRes, doneRes, recentRes] = await Promise.all([
+    supabase.from("pending_ghl_pushes").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("pending_ghl_pushes").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    supabase.from("pending_ghl_pushes").select("id", { count: "exact", head: true }).eq("status", "done"),
+    supabase
+      .from("pending_ghl_pushes")
+      .select("id, contact_id, last_error, attempt_count, updated_at, contacts:contact_id(business_name)")
+      .eq("status", "failed")
+      .order("updated_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  const recent = (recentRes.data ?? []).map((r: any) => ({
+    id: r.id,
+    contact_id: r.contact_id,
+    last_error: r.last_error,
+    attempt_count: r.attempt_count,
+    updated_at: r.updated_at,
+    business_name: r.contacts?.business_name ?? null,
+  }));
+
+  return {
+    pending: pendingRes.count ?? 0,
+    failed: failedRes.count ?? 0,
+    done: doneRes.count ?? 0,
+    recentFailures: recent,
+  };
+}
+
 export default function GhlSyncPage() {
   const { toast } = useToast();
   const countsQuery = useQuery({
@@ -103,6 +147,34 @@ export default function GhlSyncPage() {
     queryFn: fetchCounts,
     refetchInterval: 10_000,
   });
+
+  const pushHealthQuery = useQuery({
+    queryKey: ["ghl-push-health"],
+    queryFn: fetchPushHealth,
+    refetchInterval: 15_000,
+  });
+
+  const [retrying, setRetrying] = useState(false);
+  const retryFailed = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const { error } = await supabase
+        .from("pending_ghl_pushes")
+        .update({ status: "pending", next_retry_at: new Date().toISOString(), last_error: null })
+        .eq("status", "failed");
+      if (error) throw error;
+      toast({ title: "Failed pushes re-queued", description: "They will retry on the next tick." });
+      await pushHealthQuery.refetch();
+    } catch (err) {
+      toast({
+        title: "Retry failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  }, [pushHealthQuery, toast]);
 
   const [batchSize, setBatchSize] = useState<number>(50);
   const [delayMs, setDelayMs] = useState<number>(6000);
@@ -250,6 +322,67 @@ export default function GhlSyncPage() {
               </div>
               <Progress value={linkedPct} />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sync health — pending_ghl_pushes */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-base">Sync health</CardTitle>
+              <CardDescription>Pending GHL pushes from Dialpad AI summaries</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retryFailed}
+                disabled={retrying || (pushHealthQuery.data?.failed ?? 0) === 0}
+              >
+                <RotateCcw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
+                Retry failed
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => pushHealthQuery.refetch()} disabled={pushHealthQuery.isFetching}>
+                <RefreshCw className={`h-4 w-4 ${pushHealthQuery.isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pushHealthQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading…</div>
+            ) : pushHealthQuery.isError ? (
+              <div className="text-sm text-destructive">Failed to load push health.</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <Stat label="Pending" value={pushHealthQuery.data?.pending ?? 0} accent="text-amber-600" />
+                  <Stat label="Failed" value={pushHealthQuery.data?.failed ?? 0} accent="text-destructive" />
+                  <Stat label="Done" value={pushHealthQuery.data?.done ?? 0} accent="text-emerald-600" />
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Recent failures</div>
+                  {(pushHealthQuery.data?.recentFailures.length ?? 0) === 0 ? (
+                    <div className="text-sm text-muted-foreground">No failures 🎉</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {pushHealthQuery.data!.recentFailures.map((f) => (
+                        <div key={f.id} className="p-3 rounded-md border border-destructive/20 bg-destructive/5 text-xs space-y-1">
+                          <div className="flex justify-between gap-3">
+                            <span className="font-medium">{f.business_name ?? f.contact_id.slice(0, 8)}</span>
+                            <span className="font-mono text-muted-foreground">
+                              {formatRelative(f.updated_at)} · attempt {f.attempt_count}
+                            </span>
+                          </div>
+                          <div className="text-destructive/90 break-words">
+                            {f.last_error ?? "No error message"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
