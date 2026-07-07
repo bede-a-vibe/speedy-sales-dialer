@@ -13,11 +13,14 @@ export default {
       },
     },
     fontFamily: {
-      sans: ['Inter', 'system-ui', 'sans-serif'],
-      mono: ['JetBrains Mono', 'monospace'],
+      sans: ['Hanken Grotesk Variable', 'Hanken Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
     },
     extend: {
       colors: {
+        "brand-navy": "hsl(var(--brand-navy))",
+        "brand-navy-2": "hsl(var(--brand-navy-2))",
+        positive: "hsl(var(--positive))",
         outcome: {
           "no-answer": "hsl(var(--outcome-no-answer))",
           voicemail: "hsl(var(--outcome-voicemail))",
@@ -75,6 +78,10 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        card: "0 1px 2px rgba(8,32,60,.05), 0 10px 26px -20px rgba(8,32,60,.22)",
+        glow: "0 6px 18px -6px rgba(0,175,225,.6)",
       },
       keyframes: {
         "accordion-down": {
