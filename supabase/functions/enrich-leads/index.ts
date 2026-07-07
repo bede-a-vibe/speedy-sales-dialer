@@ -1108,12 +1108,12 @@ Deno.serve(async (req) => {
         // ── Signals from raw HTML (ad-tech, ABN, years-in-business) ──
         try {
           const sig = r.signals;
-          if (sig.hasFacebookPixel && c.has_facebook_ads !== true) {
-            update.has_facebook_ads = true;
+          if (sig.hasFacebookPixel && c.has_facebook_ads !== "yes") {
+            update.has_facebook_ads = "yes";
             d_fb++;
           }
-          if (sig.hasGoogleAds && c.has_google_ads !== true) {
-            update.has_google_ads = true;
+          if (sig.hasGoogleAds && c.has_google_ads !== "yes") {
+            update.has_google_ads = "yes";
             d_gads++;
           }
           // ABN — only-if-empty, exactly 11 digits (validated in extractor).
