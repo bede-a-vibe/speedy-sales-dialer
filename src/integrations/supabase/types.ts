@@ -287,6 +287,7 @@ export type Database = {
           review_count: number | null
           state: string | null
           status: string
+          tags: string[]
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
@@ -366,6 +367,7 @@ export type Database = {
           review_count?: number | null
           state?: string | null
           status?: string
+          tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -445,6 +447,7 @@ export type Database = {
           review_count?: number | null
           state?: string | null
           status?: string
+          tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
