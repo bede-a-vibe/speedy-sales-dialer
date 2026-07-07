@@ -1127,8 +1127,9 @@ export default function DialerPage() {
     && (!requiresConversationProgress || conversationProgressFilled)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
-    && !createPipelineItem.isPending
-    && !dialpad.linkDialpadCallLog.isPending;
+    && !createPipelineItem.isPending;
+  // Note: dialpad.linkDialpadCallLog runs fire-and-forget in the background so
+  // the rep is never blocked waiting for the Dialpad call to finish linking.
 
   const isFastLogOutcome = (outcome: CallOutcome) => (
     outcome === "no_answer"
@@ -1154,7 +1155,7 @@ export default function DialerPage() {
       items.push("Fill out Conversation Progress (stages reached or exit reason)");
     }
     if (dialpad.isEndingCall) items.push("Wait for the active call to finish ending");
-    if (createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending) items.push("Saving the previous action");
+    if (createCallLog.isPending || createPipelineItem.isPending) items.push("Saving the previous action");
 
     return items;
   }, [
@@ -1172,7 +1173,6 @@ export default function DialerPage() {
     dialpad.isEndingCall,
     createCallLog.isPending,
     createPipelineItem.isPending,
-    dialpad.linkDialpadCallLog.isPending,
     isOnline,
   ]);
 
