@@ -19,13 +19,12 @@ import {
   REVIEW_COUNT_OPTIONS,
   PHONE_TYPE_OPTIONS,
   DM_STATUS_OPTIONS,
-  INDUSTRIES,
   AUSTRALIAN_STATES,
   AGENCY_SERVICES,
   LEAD_TYPES,
-  LEAD_CHANNELS,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
+import { useDialerFilterOptions } from "@/hooks/useDialerFilterOptions";
 
 export interface SalesRepOption {
   user_id: string;
@@ -176,8 +175,15 @@ export function AdvancedFilters({
   const cov: EnrichmentCoverage = enrichmentCoverage ?? {
     prospect_tier: 0, buying_signal_strength: 0, gbp_rating: 0, review_count: 0,
     work_type: 0, business_size: 0, dm_phone: 0,
-    has_google_ads_known: 0, has_facebook_ads_known: 0, total: 0,
+    has_google_ads_known: 0, has_facebook_ads_known: 0,
+    has_existing_agency: 0, total: 0,
   };
+  const { data: filterOptions } = useDialerFilterOptions();
+  const industryOptions = (filterOptions?.industries ?? []).map((o) => ({
+    value: o.value,
+    label: `${o.value} (${o.count.toLocaleString()})`,
+  }));
+  const channelOptions = filterOptions?.channels ?? [];
 
   const matchLabel =
     matchingContactCount === null
@@ -226,6 +232,7 @@ export function AdvancedFilters({
   const showGoogleAds = cov.has_google_ads_known > 0;
   const showFacebookAds = cov.has_facebook_ads_known > 0;
   const showDmPhone = cov.dm_phone > 0;
+  const showExistingAgency = cov.has_existing_agency > 0;
 
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 space-y-4">
@@ -346,8 +353,10 @@ export function AdvancedFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Channels</SelectItem>
-                {LEAD_CHANNELS.map((ch) => (
-                  <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                {channelOptions.map((ch) => (
+                  <SelectItem key={ch.value} value={ch.value}>
+                    {ch.value} ({ch.count.toLocaleString()})
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -375,7 +384,7 @@ export function AdvancedFilters({
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Business Service</label>
           <MultiSelect
-            options={INDUSTRIES}
+            options={industryOptions}
             selected={industries}
             onChange={setIndustries}
             placeholder="All Services"
@@ -606,6 +615,7 @@ export function AdvancedFilters({
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Agency status & exclusions
             </p>
+            {showExistingAgency ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Existing Agency</label>
@@ -639,6 +649,7 @@ export function AdvancedFilters({
                 />
               </div>
             </div>
+            ) : null}
 
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input

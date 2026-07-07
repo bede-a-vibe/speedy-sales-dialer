@@ -11,6 +11,7 @@ export type EnrichmentCoverage = {
   dm_phone: number;
   has_google_ads_known: number;
   has_facebook_ads_known: number;
+  has_existing_agency: number;
   total: number;
 };
 
@@ -24,6 +25,7 @@ const ZERO: EnrichmentCoverage = {
   dm_phone: 0,
   has_google_ads_known: 0,
   has_facebook_ads_known: 0,
+  has_existing_agency: 0,
   total: 0,
 };
 
@@ -68,6 +70,15 @@ export function useEnrichmentCoverage() {
         if (error) throw error;
         return count ?? 0;
       };
+      const countEqBool = async (column: string, value: boolean): Promise<number> => {
+        const { count, error } = await (supabase
+          .from("contacts")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .select("id", { count: "exact", head: true }) as any)
+          .eq(column, value);
+        if (error) throw error;
+        return count ?? 0;
+      };
       const countAll = async (): Promise<number> => {
         const { count, error } = await supabase
           .from("contacts")
@@ -87,6 +98,7 @@ export function useEnrichmentCoverage() {
         dm_phone,
         has_google_ads_known,
         has_facebook_ads_known,
+        has_existing_agency,
       ] = await Promise.all([
         countAll(),
         countNotNull("prospect_tier"),
@@ -98,6 +110,7 @@ export function useEnrichmentCoverage() {
         countNotNull("dm_phone"),
         countNeq("has_google_ads", "unknown"),
         countNeq("has_facebook_ads", "unknown"),
+        countEqBool("has_existing_agency", true),
       ]);
 
       return {
@@ -111,6 +124,7 @@ export function useEnrichmentCoverage() {
         dm_phone,
         has_google_ads_known,
         has_facebook_ads_known,
+        has_existing_agency,
       };
     },
     placeholderData: ZERO,

@@ -17,8 +17,10 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
+export type MultiSelectOption = string | { value: string; label: string };
+
 interface MultiSelectProps {
-  options: string[];
+  options: MultiSelectOption[];
   selected: string[];
   onChange: (selected: string[]) => void;
   placeholder?: string;
@@ -26,6 +28,13 @@ interface MultiSelectProps {
   disabled?: boolean;
   className?: string;
   maxDisplayed?: number;
+}
+
+function optValue(o: MultiSelectOption): string {
+  return typeof o === "string" ? o : o.value;
+}
+function optLabel(o: MultiSelectOption): string {
+  return typeof o === "string" ? o : o.label;
 }
 
 export function MultiSelect({
@@ -39,6 +48,11 @@ export function MultiSelect({
   maxDisplayed = 2,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const labelByValue = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of options) m.set(optValue(o), optLabel(o));
+    return m;
+  }, [options]);
 
   const handleToggle = (value: string) => {
     if (selected.includes(value)) {
@@ -55,9 +69,10 @@ export function MultiSelect({
 
   const displayText = React.useMemo(() => {
     if (selected.length === 0) return null;
-    if (selected.length <= maxDisplayed) return selected.join(", ");
-    return `${selected.slice(0, maxDisplayed).join(", ")} +${selected.length - maxDisplayed}`;
-  }, [selected, maxDisplayed]);
+    const labels = selected.map((v) => labelByValue.get(v) ?? v);
+    if (labels.length <= maxDisplayed) return labels.join(", ");
+    return `${labels.slice(0, maxDisplayed).join(", ")} +${labels.length - maxDisplayed}`;
+  }, [selected, maxDisplayed, labelByValue]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -100,12 +115,14 @@ export function MultiSelect({
             </CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
-                const isSelected = selected.includes(option);
+                const value = optValue(option);
+                const label = optLabel(option);
+                const isSelected = selected.includes(value);
                 return (
                   <CommandItem
-                    key={option}
-                    value={option}
-                    onSelect={() => handleToggle(option)}
+                    key={value}
+                    value={label}
+                    onSelect={() => handleToggle(value)}
                     className="text-xs"
                   >
                     <div
@@ -118,7 +135,7 @@ export function MultiSelect({
                     >
                       <Check className="h-3 w-3" />
                     </div>
-                    {option}
+                    {label}
                   </CommandItem>
                 );
               })}

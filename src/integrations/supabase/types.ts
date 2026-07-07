@@ -1050,6 +1050,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count:
         | {
             Args: {
