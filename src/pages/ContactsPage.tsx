@@ -774,7 +774,6 @@ export default function ContactsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
-  const [tagAction, setTagAction] = useState<"add" | "remove" | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [createForm, setCreateForm] = useState<{
     business_name: string;
@@ -1008,7 +1007,6 @@ export default function ContactsPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
       toast.success(`Tag "${tag}" ${mode === "add" ? "added to" : "removed from"} ${updated} contact(s).`);
-      setTagAction(null);
       setTagInput("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Tag update failed.");
