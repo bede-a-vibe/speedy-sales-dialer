@@ -1304,6 +1304,19 @@ export default function DialerPage() {
     setCaptureOpen(false);
   }, [session.currentContact?.id]);
 
+  // Auto-expand capture when the call actually connects — connected/conversation
+  // outcomes or any conversation-stage checkpoint reached.
+  useEffect(() => {
+    const connectedOutcomes: Array<string | null | undefined> = ["booked", "follow_up", "not_interested", "disqualified", "dnc"];
+    const outcomeConnected = connectedOutcomes.includes(session.selectedOutcome ?? null);
+    const stageReached =
+      conversationProgress.reachedConnection
+      || conversationProgress.reachedProblem
+      || conversationProgress.reachedSolution
+      || conversationProgress.reachedCommitment;
+    if (outcomeConnected || stageReached) setCaptureOpen(true);
+  }, [session.selectedOutcome, conversationProgress]);
+
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
   useEffect(() => {
