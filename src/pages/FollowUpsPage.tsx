@@ -294,6 +294,29 @@ export default function FollowUpsPage() {
   return (
     <AppLayout title="Follow-Ups">
       <div className="max-w-4xl mx-auto space-y-4">
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Your follow-ups</h2>
+            <p className="text-xs text-muted-foreground">
+              Dialer callbacks scheduled from calls — worked in time order, defaulted to today.
+            </p>
+          </div>
+          <FollowUpTable
+            items={dialerFollowUps}
+            reps={reps}
+            repMap={repMap}
+            isSaving={updatePipelineItem.isPending}
+            onComplete={handleDialerComplete}
+            onAssign={handleDialerAssign}
+            onReschedule={handleDialerReschedule}
+            onChangeMethod={handleDialerChangeMethod}
+          />
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <h2 className="text-lg font-semibold text-foreground">GHL pipeline follow-ups</h2>
+          <p className="text-xs text-muted-foreground">Tasks synced from GoHighLevel.</p>
+        </div>
         <TwoPipelineGuide
           currentView="followups"
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
