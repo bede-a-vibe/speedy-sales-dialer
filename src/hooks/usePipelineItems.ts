@@ -342,6 +342,7 @@ export function useCreatePipelineItem() {
       if (!context) return;
       if (context.previousList) queryClient.setQueryData(context.listKey, context.previousList);
       if (context.previousContactList) queryClient.setQueryData(context.contactKey, context.previousContactList);
+      console.error("[useCreatePipelineItem] Failed to create pipeline item:", _error);
     },
     onSettled: (_data, _error, payload) => {
       // Precise invalidation — just the two lists we touched, plus booked-range if relevant.
@@ -350,9 +351,6 @@ export function useCreatePipelineItem() {
       if (payload.pipeline_type === "booked") {
         queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
       }
-    },
-    onError: (error) => {
-      console.error("[useCreatePipelineItem] Failed to create pipeline item:", error);
     },
   });
 }
@@ -383,13 +381,11 @@ export function useUpdatePipelineItem() {
       if (context?.previous) {
         for (const [key, data] of context.previous) queryClient.setQueryData(key, data);
       }
+      console.error("[useUpdatePipelineItem] Failed to update pipeline item:", _error);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
       queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
-    },
-    onError: (error) => {
-      console.error("[useUpdatePipelineItem] Failed to update pipeline item:", error);
     },
   });
 }
