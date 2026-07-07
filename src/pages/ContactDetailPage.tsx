@@ -112,6 +112,8 @@ export default function ContactDetailPage() {
   const { data: callLogPages, fetchNextPage: fetchMoreLogs, hasNextPage: hasMoreLogs } = useContactCallLogs(id, 5, !!contact);
   const { data: notePages, fetchNextPage: fetchMoreNotes, hasNextPage: hasMoreNotes } = usePaginatedContactNotes(id);
   const { data: pipelineItems = [] } = useContactPipelineItems(id);
+  const dialpadCall = useDialpadCall();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
