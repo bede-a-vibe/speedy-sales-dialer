@@ -247,6 +247,53 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// ==== AU address extraction (additive) ====
+const AU_STATES = new Set(["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]);
+function titleCaseSuburb(s: string): string {
+  return s
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((w) => (w.length ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(" ");
+}
+function postcodeToState(pc: string): string | null {
+  const d = pc[0];
+  const map: Record<string, string> = {
+    "2": "NSW", "3": "VIC", "4": "QLD", "5": "SA",
+    "6": "WA", "7": "TAS", "0": "NT", "8": "VIC", "9": "QLD",
+  };
+  return map[d] ?? null;
+}
+function extractAuAddress(text: string): { state: string | null; city: string | null } {
+  try {
+    if (!text) return { state: null, city: null };
+    // Primary: SUBURB STATE POSTCODE
+    const re = /\b([A-Za-z][A-Za-z .'\-]{1,40}?)\s+(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\.?\s+(\d{4})\b/i;
+    const m = re.exec(text);
+    if (m) {
+      const suburbRaw = m[1].trim().replace(/[,.]+$/g, "").trim();
+      const state = m[2].toUpperCase();
+      // Reject obvious non-suburb tokens
+      const lower = suburbRaw.toLowerCase();
+      const bad = ["street", "road", "avenue", "highway", "suite", "unit", "level", "po box", "phone", "email", "abn", "acn"];
+      if (AU_STATES.has(state) && suburbRaw.length >= 2 && !bad.some((b) => lower.endsWith(b) || lower === b)) {
+        return { state, city: titleCaseSuburb(suburbRaw) };
+      }
+    }
+    // Fallback: bare 4-digit postcode near an address keyword
+    const kwRe = /\b(address|located|based|office|suite|unit|servicing|serving|shop|po\s*box|street|road|avenue)\b[^\n]{0,80}?\b(\d{4})\b/i;
+    const km = kwRe.exec(text);
+    if (km) {
+      const state = postcodeToState(km[2]);
+      if (state) return { state, city: null };
+    }
+  } catch {
+    /* never break enrichment */
+  }
+  return { state: null, city: null };
+}
+
 function normalizeWebsite(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
@@ -535,6 +582,8 @@ async function processContact(
   homepageText: string | null;
   pagesFetched: number;
   ms: number;
+  addrState: string | null;
+  addrCity: string | null;
 }> {
   const start = Date.now();
   let base = contact.website ? normalizeWebsite(contact.website) : null;
@@ -589,6 +638,7 @@ async function processContact(
       siteFromSearch: false,
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
+      addrState: null, addrCity: null,
     };
   }
   const host = new URL(base).host;
@@ -598,6 +648,7 @@ async function processContact(
   let sawJsonLd = false;
   let sawRegex = false;
   let homepageText: string | null = null;
+  let combinedText = "";
 
   for (let i = 0; i < PATHS.length && pagesFetched < MAX_FETCHES; i++) {
     const url = base + PATHS[i];
@@ -607,6 +658,9 @@ async function processContact(
     if (PATHS[i] === "/" && !homepageText) {
       homepageText = stripHtml(html).slice(0, 4000);
     }
+    try {
+      combinedText += " " + stripHtml(html).slice(0, 8000);
+    } catch { /* ignore */ }
     const before = { name: result.name, mobile: result.mobile };
     result = extractFromHtml(html, host, result, PATHS[i]);
     if (!before.name && result.name && result.ownerAttributed) sawJsonLd = true;
@@ -615,6 +669,15 @@ async function processContact(
     // Short-circuit if we have both a confident name and a mobile
     if (result.name && result.mobile) break;
   }
+
+  // AU address extraction — best-effort, never throws.
+  let addrState: string | null = null;
+  let addrCity: string | null = null;
+  try {
+    const addr = extractAuAddress(combinedText);
+    addrState = addr.state;
+    addrCity = addr.city;
+  } catch { /* ignore */ }
 
   // AI fallback for name only
   let usedAi = false;
@@ -660,6 +723,8 @@ async function processContact(
     homepageText,
     pagesFetched,
     ms: Date.now() - start,
+    addrState,
+    addrCity,
   };
 }
 
@@ -741,6 +806,8 @@ Deno.serve(async (req) => {
   let emails_found = 0;
   let names_found = 0;
   let websites_found = 0;
+  let states_found = 0;
+  let cities_found = 0;
   const logs: any[] = [];
 
   const perContact = async (c: any) => {
@@ -789,6 +856,14 @@ Deno.serve(async (req) => {
       if (r.name && (!c.dm_name || c.dm_name === "")) {
         update.dm_name = r.name;
         names_found++;
+      }
+      if (r.addrState && (!c.state || String(c.state).trim() === "")) {
+        update.state = r.addrState;
+        states_found++;
+      }
+      if (r.addrCity && (!c.city || String(c.city).trim() === "")) {
+        update.city = r.addrCity;
+        cities_found++;
       }
       if (r.mobile && (!c.dm_phone || c.dm_phone === "") && !c.best_route_to_decision_maker) {
         update.best_route_to_decision_maker = r.ownerAttributed
@@ -849,6 +924,8 @@ Deno.serve(async (req) => {
     emails_found,
     names_found,
     websites_found,
+    states_found,
+    cities_found,
     remaining,
     logs,
   });
