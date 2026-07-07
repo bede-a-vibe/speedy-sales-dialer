@@ -139,7 +139,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
   const agencyServices = (contact.existing_agency_services || []).filter(Boolean);
 
   return (
-    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4 shadow-card transition-all duration-200 motion-safe:hover:-translate-y-px hover:shadow-md hover:border-primary/40">
       {/* Follow-up Note Banner */}
       {contact.follow_up_note && (
         <div className="flex items-start gap-2.5 bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-200">
