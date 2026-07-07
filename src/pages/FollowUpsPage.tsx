@@ -8,6 +8,17 @@ import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { loadAllStoredEmailDraftSuggestions } from "@/lib/emailDraftStore";
 import type { EmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
 import { toast } from "sonner";
+import { FollowUpTable } from "@/components/pipelines/FollowUpTable";
+import {
+  usePipelineItems,
+  useSalesReps,
+  useUpdatePipelineItem,
+  type FollowUpMethod,
+} from "@/hooks/usePipelineItems";
+
+function getRepLabel(displayName: string | null, email: string | null) {
+  return displayName?.trim() || email || "Unassigned";
+}
 
 type FollowUpContact = {
   id: string;
