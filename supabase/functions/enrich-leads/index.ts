@@ -855,6 +855,86 @@ function discoverSecondaryPages(homepageHtml: string, base: string): string[] {
   return Array.from(found);
 }
 
+// ── Page-level signals extracted from RAW HTML (before stripHtml). ──
+// Detects ad-tech pixels, an ABN in the footer, and a founding year.
+// Purely additive; every step is try/catch-guarded by the caller.
+type PageSignals = {
+  hasFacebookPixel: boolean;
+  hasGoogleAds: boolean;
+  abn: string | null;         // 11-digit, no spaces
+  foundingYear: number | null; // 4-digit year, sanity-checked
+};
+
+function emptySignals(): PageSignals {
+  return { hasFacebookPixel: false, hasGoogleAds: false, abn: null, foundingYear: null };
+}
+
+function mergePageSignals(into: PageSignals, from: PageSignals) {
+  if (from.hasFacebookPixel) into.hasFacebookPixel = true;
+  if (from.hasGoogleAds) into.hasGoogleAds = true;
+  if (!into.abn && from.abn) into.abn = from.abn;
+  // Prefer the earliest plausible founding year across pages.
+  if (from.foundingYear && (!into.foundingYear || from.foundingYear < into.foundingYear)) {
+    into.foundingYear = from.foundingYear;
+  }
+}
+
+const FB_PIXEL_PATTERNS = [
+  /\bfbq\s*\(/i,
+  /connect\.facebook\.net\/[^"'\s]*\/fbevents\.js/i,
+  /facebook\.com\/tr\?id=/i,
+];
+const GOOGLE_ADS_PATTERNS = [
+  /googleadservices\.com\/pagead/i,
+  /gtag\/js\?id=AW-/i,
+  /["']AW-\d{5,}["']/,               // AW-1234567 conversion IDs in quotes
+  /googleads\.g\.doubleclick\.net/i,
+];
+const ABN_RE = /ABN[:\s]*([\d\s]{11,20})/i;
+// Common "since / established / est. / founded / serving ... since YEAR" patterns.
+const YEAR_PATTERNS = [
+  /\b(?:established|est\.?|founded|serving\s+[^.]*?since|proudly\s+serving\s+[^.]*?since|operating\s+since|trading\s+since|in\s+business\s+since|since)\s*(?:in\s+)?(\d{4})\b/i,
+];
+
+function extractPageSignals(html: string): PageSignals {
+  const s = emptySignals();
+  if (!html || typeof html !== "string") return s;
+  // Ad-tech detection — scan raw HTML (scripts, iframes, noscript pixels included).
+  try {
+    for (const re of FB_PIXEL_PATTERNS) {
+      if (re.test(html)) { s.hasFacebookPixel = true; break; }
+    }
+  } catch { /* ignore */ }
+  try {
+    for (const re of GOOGLE_ADS_PATTERNS) {
+      if (re.test(html)) { s.hasGoogleAds = true; break; }
+    }
+  } catch { /* ignore */ }
+  // ABN — strip spaces, must be exactly 11 digits.
+  try {
+    const m = html.match(ABN_RE);
+    if (m && m[1]) {
+      const digits = m[1].replace(/\s+/g, "");
+      if (/^\d{11}$/.test(digits)) s.abn = digits;
+    }
+  } catch { /* ignore */ }
+  // Founding year — sanity-check against 1900..currentYear.
+  try {
+    const currentYear = new Date().getFullYear();
+    for (const re of YEAR_PATTERNS) {
+      const m = html.match(re);
+      if (m && m[1]) {
+        const yr = Number(m[1]);
+        if (Number.isInteger(yr) && yr >= 1900 && yr <= currentYear) {
+          s.foundingYear = yr;
+          break;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return s;
+}
+
 // Deep crawl: homepage + up to 4 secondary owner-likely pages. Runs the SAME
 // extractor across every page. Only writes fields that are currently empty.
 // Fully defensive — never throws, safe when no pages resolve.
@@ -873,30 +953,34 @@ async function processDeepCrawl(
   name: string | null;
   pagesFetched: number;
   ms: number;
+  signals: PageSignals;
 }> {
   const start = Date.now();
   const base = contact.website ? normalizeWebsite(contact.website) : null;
-  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start };
+  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() };
 
   let host = "";
-  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start }; }
+  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() }; }
 
   let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
   let pagesFetched = 0;
   let aboutText: string | null = null;
+  const signals: PageSignals = emptySignals();
 
   // 1. Homepage first (so we can discover its nav links).
   const homepageHtml = await fetchPage(base + "/");
   if (homepageHtml !== null) {
     pagesFetched++;
     result = extractFromHtml(homepageHtml, host, result, "/");
+    try { mergePageSignals(signals, extractPageSignals(homepageHtml)); } catch { /* ignore */ }
   }
 
   // 2. Secondary pages — nav links + common paths, capped at DEEP_MAX_PAGES total.
   const secondary = homepageHtml ? discoverSecondaryPages(homepageHtml, base) : DEEP_CANDIDATE_PATHS.map((p) => base + p);
   for (const url of secondary) {
     if (pagesFetched >= DEEP_MAX_PAGES) break;
-    if (result.name && result.mobile && result.email) break;
+    // Note: don't early-exit on name/mobile/email alone — we still want to
+    // scan footer/head for ABN, ad pixels, and years-in-business.
     let path = "/";
     try { path = new URL(url).pathname; } catch { /* keep default */ }
     let html: string | null = null;
@@ -906,6 +990,7 @@ async function processDeepCrawl(
     try {
       result = extractFromHtml(html, host, result, path);
     } catch { /* never break the batch */ }
+    try { mergePageSignals(signals, extractPageSignals(html)); } catch { /* ignore */ }
     if (!aboutText && result.aboutTextForAi) aboutText = result.aboutTextForAi;
   }
 
@@ -923,6 +1008,7 @@ async function processDeepCrawl(
     name: result.name,
     pagesFetched,
     ms: Date.now() - start,
+    signals,
   };
 }
 
@@ -958,7 +1044,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email");
+      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -986,6 +1072,7 @@ Deno.serve(async (req) => {
     }
 
     let d_names = 0, d_mobiles = 0, d_emails = 0;
+    let d_fb = 0, d_gads = 0, d_abn = 0, d_years = 0, d_signal_bump = 0;
     const deepLogs: any[] = [];
 
     const perDeep = async (c: any) => {
@@ -1014,6 +1101,38 @@ Deno.serve(async (req) => {
           update.dm_email = r.email;
           d_emails++;
         }
+        // ── Signals from raw HTML (ad-tech, ABN, years-in-business) ──
+        try {
+          const sig = r.signals;
+          if (sig.hasFacebookPixel && c.has_facebook_ads !== true) {
+            update.has_facebook_ads = true;
+            d_fb++;
+          }
+          if (sig.hasGoogleAds && c.has_google_ads !== true) {
+            update.has_google_ads = true;
+            d_gads++;
+          }
+          // ABN — only-if-empty, exactly 11 digits (validated in extractor).
+          if (sig.abn && (!c.abn || c.abn === "")) {
+            update.abn = sig.abn;
+            d_abn++;
+          }
+          // Years-in-business — only-if-empty.
+          if (sig.foundingYear && (c.years_in_business === null || c.years_in_business === undefined)) {
+            const yrs = new Date().getFullYear() - sig.foundingYear;
+            if (yrs >= 0 && yrs <= 200) {
+              update.years_in_business = yrs;
+              d_years++;
+            }
+          }
+          // Buying-signal bump: NULL → 'Moderate' when EITHER ad flag detected.
+          // Never overwrite an existing value, and NEVER set 'None' (would exclude from queue).
+          if ((sig.hasFacebookPixel || sig.hasGoogleAds) &&
+              (c.buying_signal_strength === null || c.buying_signal_strength === undefined)) {
+            update.buying_signal_strength = "Moderate";
+            d_signal_bump++;
+          }
+        } catch { /* signals are best-effort */ }
         const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
         if (upErr) console.error(`[enrich-leads/deep] update ${c.id} failed:`, upErr.message);
         deepLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, name: r.name, mobile: r.mobile, email: r.email });
@@ -1032,6 +1151,11 @@ Deno.serve(async (req) => {
       names_found: d_names,
       mobiles_found: d_mobiles,
       emails_found: d_emails,
+      fb_pixels_found: d_fb,
+      google_ads_found: d_gads,
+      abns_found: d_abn,
+      years_in_business_found: d_years,
+      signal_bumps: d_signal_bump,
       remaining: deepRemaining,
       logs: deepLogs,
     });

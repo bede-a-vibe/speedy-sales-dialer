@@ -390,6 +390,7 @@ export type Database = {
           voicemail_count: number
           website: string | null
           work_type: string | null
+          years_in_business: number | null
         }
         Insert: {
           abn?: string | null
@@ -476,6 +477,7 @@ export type Database = {
           voicemail_count?: number
           website?: string | null
           work_type?: string | null
+          years_in_business?: number | null
         }
         Update: {
           abn?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           voicemail_count?: number
           website?: string | null
           work_type?: string | null
+          years_in_business?: number | null
         }
         Relationships: [
           {
