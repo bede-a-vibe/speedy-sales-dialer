@@ -134,6 +134,24 @@ export default function ContactDetailPage() {
   const directDecisionMakerPhone = contact?.dm_phone?.trim() || null;
   const hasDecisionMakerDial = Boolean(directDecisionMakerPhone);
 
+  const placeCall = async (phone: string | null) => {
+    if (!phone) return;
+    if (!myDialpadSettings?.dialpad_user_id) {
+      toast.error("Connect your Dialpad number in Dialpad Settings first.");
+      return;
+    }
+    try {
+      await dialpadCall.mutateAsync({
+        phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        contact_id. id,
+      });
+      toast.success(`Calling ${phone} via Dialpad…`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start the Dialpad call.");
+    }
+  };
+
   useEffect(() => {
     setNextStatus(currentStatusValue);
   }, [currentStatusValue, id]);
