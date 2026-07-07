@@ -1825,6 +1825,8 @@ export default function ContactsPage() {
           initialContact={followUpContact}
           initialPipelineType="follow_up"
         />
+
+        <DuplicatesDialog open={duplicatesOpen} onOpenChange={setDuplicatesOpen} />
       </div>
     </AppLayout>
   );
