@@ -1492,7 +1492,7 @@ export default function ContactsPage() {
         )}
 
         {isLoading ? (
-          <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
+          <ContactsTableSkeleton rows={10} />
         ) : contacts.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (
