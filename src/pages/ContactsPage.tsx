@@ -1507,6 +1507,13 @@ export default function ContactsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="w-10 px-3 py-2.5">
+                      <Checkbox
+                        checked={contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id))}
+                        onCheckedChange={(v) => v ? selectVisible() : clearSelection()}
+                        aria-label="Select all on page"
+                      />
+                    </th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
@@ -1514,6 +1521,7 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lifecycle</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Owner</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Data</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
                     <th className="w-36 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
@@ -1525,10 +1533,22 @@ export default function ContactsPage() {
                     const integrityBadges = [getQueueReadinessBadge(contact), ...getContactIntegrityBadges(contact)];
                     const actionCue = getContactActionCue(contact);
                     const autoRepairPlan = getAutoRepairPlan(contact);
+                    const missing: string[] = [];
+                    if (!contact.owner_id) missing.push("owner");
+                    if (!contact.state) missing.push("state");
+                    if (!contact.email) missing.push("email");
+                    const isSelected = selectedIds.has(contact.id);
 
                     return (
                       <React.Fragment key={contact.id}>
-                        <tr className="cursor-pointer border-b border-border transition-colors hover:bg-muted/30" onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
+                        <tr className={`cursor-pointer border-b border-border transition-colors hover:bg-muted/30 ${isSelected ? "bg-primary/5" : ""}`} onClick={() => setExpandedId(isExpanded ? null : contact.id)}>
+                          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelect(contact.id)}
+                              aria-label={`Select ${contact.business_name}`}
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <Link to={`/contacts/${contact.id}`} className="font-medium text-foreground hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
                               {contact.business_name}
@@ -1563,6 +1583,18 @@ export default function ContactsPage() {
                               const rep = reps.find((r) => r.user_id === contact.owner_id);
                               return rep ? (rep.display_name || rep.email || "—") : contact.owner_id ? "Unknown rep" : "—";
                             })()}
+                          </td>
+                          <td className="px-4 py-3">
+                            {missing.length === 0 ? (
+                              <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-700" title="No missing standard fields">OK</span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-700"
+                                title={`Missing: ${missing.join(", ")}`}
+                              >
+                                <AlertTriangle className="h-3 w-3" />Missing {missing.length}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1.5">
@@ -1627,7 +1659,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={10} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={12} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
