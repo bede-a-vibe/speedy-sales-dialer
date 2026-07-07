@@ -1054,6 +1054,54 @@ Deno.serve(async (req) => {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+  // ── Daily AI-call budget (Australia/Melbourne) ──
+  // Bounds Lovable AI credit spend. Free extraction (scrape, regex, ad-tech,
+  // ABN, address, years, ABR, DDG) ALWAYS runs — only the AI name-fallback
+  // is capped by this budget.
+  const melbTodayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+  let budgetRow: { id: string; day: string; calls_used: number; daily_cap: number } | null = null;
+  try {
+    const { data } = await admin
+      .from("enrichment_ai_budget")
+      .select("id, day, calls_used, daily_cap")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    budgetRow = data as any;
+  } catch (e) {
+    console.warn("[enrich-leads] budget read failed:", (e as any)?.message ?? e);
+  }
+  let dailyCap = budgetRow?.daily_cap ?? 500;
+  let callsUsedToday = budgetRow?.day === melbTodayIso ? (budgetRow?.calls_used ?? 0) : 0;
+  const remainingBudget = Math.max(0, dailyCap - callsUsedToday);
+  // Shared, mutable per-batch counter. Read/updated by every parallel worker
+  // BEFORE it calls the AI, so the batch never exceeds `remainingBudget`.
+  const batchAiState = { made: 0, limit: remainingBudget };
+  const tryReserveAi = (): boolean => {
+    if (batchAiState.made >= batchAiState.limit) return false;
+    batchAiState.made++;
+    return true;
+  };
+  console.log(
+    `[enrich-leads] AI budget — cap=${dailyCap} used_today=${callsUsedToday} remaining=${remainingBudget} (Melbourne day ${melbTodayIso})`,
+  );
+
+  const persistBudget = async (aiCallsThisBatch: number) => {
+    if (!budgetRow?.id) return;
+    try {
+      // Reset counter if day rolled over during the batch.
+      const newUsed = budgetRow.day === melbTodayIso
+        ? callsUsedToday + aiCallsThisBatch
+        : aiCallsThisBatch;
+      await admin
+        .from("enrichment_ai_budget")
+        .update({ day: melbTodayIso, calls_used: newUsed, updated_at: new Date().toISOString() })
+        .eq("id", budgetRow.id);
+    } catch (e) {
+      console.warn("[enrich-leads] budget persist failed:", (e as any)?.message ?? e);
+    }
+  };
+
   // ── Deep-crawl mode ──
   // Additive, isolated re-run: hits leads that already have a website but no
   // dm_name, fetches the homepage plus up to 4 owner-likely secondary pages,
