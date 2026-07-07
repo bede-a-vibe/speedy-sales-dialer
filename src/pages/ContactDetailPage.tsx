@@ -671,6 +671,10 @@ export default function ContactDetailPage() {
                   <ExternalLink className="h-3.5 w-3.5" /> GMB
                 </a>
               )}
+              <Button size="sm" variant="outline" onClick={() => setNewTaskOpen(true)} className="ml-auto">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                New task
+              </Button>
             </div>
 
             {hasDecisionMakerDial && (
