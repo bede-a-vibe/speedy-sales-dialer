@@ -452,6 +452,14 @@ export default function ContactDetailPage() {
                     <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
                   </span>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs"
+                  onClick={openDetailsDialog}
+                >
+                  <Pencil className="h-3 w-3" /> Edit details
+                </Button>
               </div>
             </div>
           </div>
