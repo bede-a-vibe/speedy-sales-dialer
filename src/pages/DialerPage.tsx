@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
@@ -59,6 +60,8 @@ import {
   GBP_RATING_OPTIONS,
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
+  LEAD_TYPES,
+  LEAD_CHANNELS,
 } from "@/data/constants";
 import type { DqReason, DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
@@ -356,6 +359,7 @@ export default function DialerPage() {
   const isCoach = useIsCoach();
   const [coachTourOpen, setCoachTourOpen] = useState(false);
   const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
 
   // Auto-launch the tour the first time a coach lands on the dialer.
   useEffect(() => {
@@ -1828,172 +1832,266 @@ export default function DialerPage() {
           />
         </Suspense>
 
-        {/* ── Filters & Controls ── */}
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            data-coach-step="filters-button"
-            variant={showAdvancedFilters ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="relative gap-1.5"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
+        {/* ── Pre-session HERO vs Active-session control strip ── */}
+        {!session.isSessionActive ? (
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-card motion-safe:animate-fade-in">
+            <div className="mx-auto max-w-2xl space-y-6 text-center">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Ready to dial</p>
+              <div>
+                <p className="font-mono text-6xl font-black text-foreground [font-variant-numeric:tabular-nums]" data-coach-step="queue-counter">
+                  {session.queue.isLoading ? "…" : queueLeadCount}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  leads ready ·{" "}
+                  <span className="font-medium text-foreground">
+                    {LEAD_TYPES.find((lt) => lt.value === leadType)?.label.split(" — ")[0] ?? "Cold"}
+                  </span>{" "}
+                  · {leadChannel ? leadChannel : "All channels"}
+                </p>
+                {queueFocusLabel && (
+                  <Badge variant="secondary" className="mt-3 font-mono text-[10px] uppercase tracking-widest">
+                    {queueFocusLabel}
+                  </Badge>
+                )}
+              </div>
 
-          {dialpadCTIClientId && (
-            <Button
-              variant={showDialpadCTI ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowDialpadCTI(!showDialpadCTI)}
-              className="gap-1.5"
-            >
-              <Headphones className="h-3.5 w-3.5" />
-              {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
-            </Button>
-          )}
-
-          <div className="flex flex-1 flex-wrap items-center gap-3">
-            <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
-              {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
-            </span>
-            {queueFocusLabel && (
-              <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
-                {queueFocusLabel}
-              </Badge>
-            )}
-            {queueGuidance && !session.isSessionActive && (
-              <span className="text-xs text-muted-foreground">
-                {queueGuidance}
-              </span>
-            )}
-            {dialpad.myDialpadSettings ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-primary">
-                  <Phone className="mr-1 inline h-3 w-3" />
-                  {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
-                </span>
-                {dialpad.callerIdOptions.length > 1 && (
-                  <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
-                    <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
-                      <SelectValue placeholder="Caller ID" />
-                    </SelectTrigger>
+              <div className="mx-auto grid max-w-lg grid-cols-1 gap-3 text-left sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lead pool</label>
+                  <Select value={leadType} onValueChange={setLeadType}>
+                    <SelectTrigger className="h-9 border-border bg-background text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Auto (default)</SelectItem>
-                      {dialpad.callerIdOptions.map((opt) => (
-                        <SelectItem key={opt.number} value={opt.number}>
-                          {opt.label} — {opt.number}
-                        </SelectItem>
+                      {LEAD_TYPES.map((lt) => (
+                        <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Channel</label>
+                  <Select value={leadChannel || "__all__"} onValueChange={(v) => setLeadChannel(v === "__all__" ? "" : v)}>
+                    <SelectTrigger className="h-9 border-border bg-background text-sm"><SelectValue placeholder="All channels" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All channels</SelectItem>
+                      {LEAD_CHANNELS.map((ch) => (
+                        <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Warnings surface here so the rep sees blockers without opening drawers */}
+              <div className="mx-auto max-w-lg space-y-2 text-left">
+                {!dialpad.hasDialpadAssignment && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    No active Dialpad assignment — ask an admin to assign your user before starting a session.
+                  </div>
+                )}
+                {!isOnline && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    You're offline. Reconnect before starting a session.
+                  </div>
+                )}
+                {dialpad.hasDialpadAssignment && isOnline && startReadinessOpenItems.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                    {startReadinessOpenItems.length} pre-flight item{startReadinessOpenItems.length === 1 ? "" : "s"} recommended — open <span className="font-medium">Filters &amp; tools → Setup</span> to review.
+                  </div>
+                )}
+                {dialpad.myDialpadSettings && (
+                  <p className="px-1 text-[11px] font-mono text-muted-foreground">
+                    <Phone className="mr-1 inline h-3 w-3" />
+                    Calling from {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+                    {selectedCallerId ? ` · caller ID ${selectedCallerId}` : ""}
+                  </p>
+                )}
+                {queueGuidance && (
+                  <p className="px-1 text-[11px] text-muted-foreground">{queueGuidance}</p>
                 )}
               </div>
-            ) : (
-              <span className="text-xs font-mono text-destructive">
-                No active Dialpad assignment — ask an admin to assign your user before starting a session.
-              </span>
-            )}
-            {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
-              <span className="text-xs font-mono text-muted-foreground">
-                Dialpad status refresh paused briefly after rate limiting.
-              </span>
-            )}
-            {!isOnline && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
-              </div>
-            )}
-            {session.isSessionActive && (
-              <>
-                <span className="text-xs font-mono text-primary">
-                  {session.callCount} calls · {session.skippedCount} skipped{session.queue.isPrefetching ? " · loading next leads" : ""}{session.isSessionPaused ? " · paused" : ""}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Active {session.formatDuration(session.totalDialingMs)}
-                  {session.totalDialingMs > 60000 && (
-                    <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
-                  )}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Paused {session.formatDuration(session.totalPausedMs)}
-                </span>
-              </>
-            )}
-          </div>
 
-          {!session.isSessionActive ? (
-            <>
-              <Button
-                data-coach-step="start-session"
-                onClick={session.startDialing}
-                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
-                variant="hero"
-                className="px-6 font-semibold"
-              >
-                {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
-                {session.isStartingSession ? "Starting..." : "Start Dialing"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => void recoverQueueSafely()}
-                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
-                className="px-6 font-semibold"
-              >
-                {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
-              </Button>
-            </>
-          ) : (
-            <>
-              {session.isSessionPaused ? (
-                <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
-                  <Play className="mr-2 h-4 w-4" />
-                  Resume Dialing
-                </Button>
-              ) : (
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
-                  variant="secondary"
-                  onClick={() => session.pauseSession(async () => {
-                    if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
-                      try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
-                    }
-                  })}
-                  disabled={!isOnline || dialpad.isEndingCall}
-                  className="px-6 font-semibold"
+                  data-coach-step="start-session"
+                  onClick={session.startDialing}
+                  disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
+                  variant="hero"
+                  size="lg"
+                  className="px-8 font-semibold"
                 >
-                  <Pause className="mr-2 h-4 w-4" />
-                  Pause Dialing
+                  {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
+                  {session.isStartingSession ? "Starting..." : "Start Dialing"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void recoverQueueSafely()}
+                  disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
+                >
+                  {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                  {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Secondary row: drawer trigger + shortcuts + status + utilities */}
+            <div className="mx-auto mt-6 flex max-w-2xl flex-wrap items-center justify-center gap-2 border-t border-border pt-4">
+              <Button
+                data-coach-step="filters-button"
+                variant={activeFilterCount > 0 ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setFiltersDrawerOpen(true)}
+                className="relative gap-1.5"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Filters &amp; tools
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <DialerShortcutsPopover />
+              <Button variant="outline" size="sm" className="gap-1.5" disabled={!isOnline} onClick={() => setManualOpen(true)}>
+                <PhoneCall className="h-3.5 w-3.5" /> Manual Dial
+              </Button>
+              {dialpadCTIClientId && (
+                <Button
+                  variant={showDialpadCTI ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                  className="gap-1.5"
+                >
+                  <Headphones className="h-3.5 w-3.5" />
+                  {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
                 </Button>
               )}
-              <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
-                Stop Session
-              </Button>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-mono",
+                  isOnline ? "border-border text-muted-foreground" : "border-destructive/40 bg-destructive/10 text-destructive",
+                )}
+              >
+                {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                {isOnline ? "Online" : "Offline"}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-4">
+            {dialpadCTIClientId && (
               <Button
-                variant="outline"
-                onClick={() => void recoverQueueSafely()}
-                disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
+                variant={showDialpadCTI ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                className="gap-1.5"
+              >
+                <Headphones className="h-3.5 w-3.5" />
+                {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+              </Button>
+            )}
+
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
+                {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
+              </span>
+              {queueFocusLabel && (
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
+                  {queueFocusLabel}
+                </Badge>
+              )}
+              {dialpad.myDialpadSettings ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-primary">
+                    <Phone className="mr-1 inline h-3 w-3" />
+                    {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+                  </span>
+                  {dialpad.callerIdOptions.length > 1 && (
+                    <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
+                      <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
+                        <SelectValue placeholder="Caller ID" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Auto (default)</SelectItem>
+                        {dialpad.callerIdOptions.map((opt) => (
+                          <SelectItem key={opt.number} value={opt.number}>
+                            {opt.label} — {opt.number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs font-mono text-destructive">
+                  No active Dialpad assignment — ask an admin to assign your user before starting a session.
+                </span>
+              )}
+              {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
+                <span className="text-xs font-mono text-muted-foreground">
+                  Dialpad status refresh paused briefly after rate limiting.
+                </span>
+              )}
+              {!isOnline && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
+                </div>
+              )}
+              <span className="text-xs font-mono text-primary">
+                {session.callCount} calls · {session.skippedCount} skipped{session.queue.isPrefetching ? " · loading next leads" : ""}{session.isSessionPaused ? " · paused" : ""}
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                Active {session.formatDuration(session.totalDialingMs)}
+                {session.totalDialingMs > 60000 && (
+                  <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
+                )}
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                Paused {session.formatDuration(session.totalPausedMs)}
+              </span>
+            </div>
+
+            {session.isSessionPaused ? (
+              <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
+                <Play className="mr-2 h-4 w-4" />
+                Resume Dialing
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => session.pauseSession(async () => {
+                  if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
+                    try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
+                  }
+                })}
+                disabled={!isOnline || dialpad.isEndingCall}
                 className="px-6 font-semibold"
               >
-                {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+                <Pause className="mr-2 h-4 w-4" />
+                Pause Dialing
               </Button>
-            </>
-          )}
+            )}
+            <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
+              Stop Session
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void recoverQueueSafely()}
+              disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
+              className="px-6 font-semibold"
+            >
+              {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+              {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+            </Button>
+            <Button variant="outline" className="border-border" disabled={!isOnline} onClick={() => setManualOpen(true)}>
+              <PhoneCall className="mr-2 h-4 w-4" />
+              Manual Dial
+            </Button>
+          </div>
+        )}
 
-          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-border" disabled={!isOnline}>
-                <PhoneCall className="mr-2 h-4 w-4" />
-                Manual Dial
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+        {/* Manual Dial dialog — shared between pre- and in-session */}
+        <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+          <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Manual Dial</DialogTitle>
                 <DialogDescription>Place a Dialpad call directly to any phone number.</DialogDescription>
@@ -2059,181 +2157,212 @@ export default function DialerPage() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
 
-        {showAdvancedFilters && (
-          <AdvancedFilters
-            industries={industries}
-            setIndustries={setIndustries}
-            states={states}
-            setStates={setStates}
-            leadType={leadType}
-            setLeadType={setLeadType}
-            leadChannel={leadChannel}
-            setLeadChannel={setLeadChannel}
-            leadSource={leadSource}
-            setLeadSource={setLeadSource}
-            callRecency={callRecency}
-            setCallRecency={setCallRecency}
-            contactOwner={contactOwner}
-            setContactOwner={setContactOwner}
-            salesReps={salesReps}
-            tradeTypes={tradeTypes}
-            setTradeTypes={setTradeTypes}
-            workType={workType}
-            setWorkType={setWorkType}
-            businessSize={businessSize}
-            setBusinessSize={setBusinessSize}
-            prospectTier={prospectTier}
-            setProspectTier={setProspectTier}
-            minGbpRating={minGbpRating}
-            setMinGbpRating={setMinGbpRating}
-            minReviewCount={minReviewCount}
-            setMinReviewCount={setMinReviewCount}
-            hasGoogleAds={hasGoogleAds}
-            setHasGoogleAds={setHasGoogleAds}
-            hasFacebookAds={hasFacebookAds}
-            setHasFacebookAds={setHasFacebookAds}
-            buyingSignalStrength={buyingSignalStrength}
-            setBuyingSignalStrength={setBuyingSignalStrength}
-            phoneType={phoneType}
-            setPhoneType={setPhoneType}
-            hasDmPhone={hasDmPhone}
-            setHasDmPhone={setHasDmPhone}
-            hasExistingAgency={hasExistingAgency}
-            setHasExistingAgency={setHasExistingAgency}
-            existingAgencyServices={existingAgencyServices}
-            setExistingAgencyServices={setExistingAgencyServices}
-            includeDisqualified={includeDisqualified}
-            setIncludeDisqualified={setIncludeDisqualified}
-            selectedPreset={selectedPreset}
-            onPresetChange={applyDialerPreset}
-            onReset={resetAdvancedFilters}
-            disabled={session.isSessionActive}
-            matchingContactCount={session.isSessionActive ? null : queueLeadCount}
-            enrichmentCoverage={enrichmentCoverage.data}
-            currentFilters={currentFilterSnapshot}
-            onApplySmartList={applySmartList}
-          />
-        )}
+        {/* ── Filters & tools drawer — everything that used to clutter the pre-call view ── */}
+        <Sheet open={filtersDrawerOpen} onOpenChange={setFiltersDrawerOpen}>
+          <SheetContent side="right" className="w-full overflow-y-auto p-6 sm:max-w-2xl">
+            <SheetHeader className="border-b border-border pb-4 text-left">
+              <SheetTitle>Filters &amp; tools</SheetTitle>
+              <SheetDescription>
+                Tune the queue, save presets and smart lists, run practice scenarios, and review pre-flight — every change flows into the same state as before and updates the &ldquo;leads ready&rdquo; count live.
+              </SheetDescription>
+            </SheetHeader>
 
-        {activeFilterSummary.length > 0 && !session.isSessionActive && (
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue targeting</p>
-                <p className="text-sm text-foreground">Current lead filters that will shape the next dial session.</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={resetAdvancedFilters} className="text-muted-foreground">
-                Clear all
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {activeFilterSummary.map((item) => (
-                <Button
-                  key={item.key}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={item.clear}
-                  className="h-auto gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-                >
-                  <span>{item.label}</span>
-                  <span className="text-[10px] text-muted-foreground">×</span>
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!session.isSessionActive && (
-          <div className="space-y-3">
-            {/* Compact pre-session status strip — one line, expandable */}
-            <CollapsiblePanel
-              title="Pre-flight"
-              subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
-              badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
-              badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
-              icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
-              defaultOpen={startReadinessOpenItems.length > 0}
-            >
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {startReadinessItems.map((item) => (
-                      <div
-                        key={item.label}
-                        className={cn(
-                          "rounded-md border px-3 py-2 text-xs",
-                          item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
-                        )}
+            <div className="space-y-8 pt-6">
+              {activeFilterSummary.length > 0 && (
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Active filters</h4>
+                    <Button variant="ghost" size="sm" onClick={resetAdvancedFilters} className="h-7 text-xs text-muted-foreground">
+                      Clear all
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {activeFilterSummary.map((item) => (
+                      <Button
+                        key={item.key}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={item.clear}
+                        className="h-auto gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                       >
-                        <div className="flex items-start gap-2">
-                          {item.label === "Network" ? (
-                            item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                          ) : item.ready ? (
-                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                          ) : (
-                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                          )}
-                          <div>
-                            <p className="font-semibold text-foreground">{item.label}</p>
-                            <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
-                          </div>
+                        <span>{item.label}</span>
+                        <span className="text-[10px] text-muted-foreground">×</span>
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Filters, presets &amp; smart lists</h3>
+                <AdvancedFilters
+                  industries={industries}
+                  setIndustries={setIndustries}
+                  states={states}
+                  setStates={setStates}
+                  leadType={leadType}
+                  setLeadType={setLeadType}
+                  leadChannel={leadChannel}
+                  setLeadChannel={setLeadChannel}
+                  leadSource={leadSource}
+                  setLeadSource={setLeadSource}
+                  callRecency={callRecency}
+                  setCallRecency={setCallRecency}
+                  contactOwner={contactOwner}
+                  setContactOwner={setContactOwner}
+                  salesReps={salesReps}
+                  tradeTypes={tradeTypes}
+                  setTradeTypes={setTradeTypes}
+                  workType={workType}
+                  setWorkType={setWorkType}
+                  businessSize={businessSize}
+                  setBusinessSize={setBusinessSize}
+                  prospectTier={prospectTier}
+                  setProspectTier={setProspectTier}
+                  minGbpRating={minGbpRating}
+                  setMinGbpRating={setMinGbpRating}
+                  minReviewCount={minReviewCount}
+                  setMinReviewCount={setMinReviewCount}
+                  hasGoogleAds={hasGoogleAds}
+                  setHasGoogleAds={setHasGoogleAds}
+                  hasFacebookAds={hasFacebookAds}
+                  setHasFacebookAds={setHasFacebookAds}
+                  buyingSignalStrength={buyingSignalStrength}
+                  setBuyingSignalStrength={setBuyingSignalStrength}
+                  phoneType={phoneType}
+                  setPhoneType={setPhoneType}
+                  hasDmPhone={hasDmPhone}
+                  setHasDmPhone={setHasDmPhone}
+                  hasExistingAgency={hasExistingAgency}
+                  setHasExistingAgency={setHasExistingAgency}
+                  existingAgencyServices={existingAgencyServices}
+                  setExistingAgencyServices={setExistingAgencyServices}
+                  includeDisqualified={includeDisqualified}
+                  setIncludeDisqualified={setIncludeDisqualified}
+                  selectedPreset={selectedPreset}
+                  onPresetChange={applyDialerPreset}
+                  onReset={resetAdvancedFilters}
+                  disabled={session.isSessionActive}
+                  matchingContactCount={session.isSessionActive ? null : queueLeadCount}
+                  enrichmentCoverage={enrichmentCoverage.data}
+                  currentFilters={currentFilterSnapshot}
+                  onApplySmartList={applySmartList}
+                />
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Tools</h3>
+                <div className="space-y-3">
+                  {isCoach && (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => { setScenarioOpen(true); setFiltersDrawerOpen(false); }}
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      Practice scenarios (coach mode)
+                    </Button>
+                  )}
+                  <SalesToolkit
+                    contactIndustry={null}
+                    businessName={null}
+                    city={null}
+                    state={null}
+                    attemptCount={0}
+                  />
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Setup</h3>
+                <div className="space-y-3">
+                  <CollapsiblePanel
+                    title="Pre-flight"
+                    subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
+                    badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
+                    badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
+                    icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                    defaultOpen={startReadinessOpenItems.length > 0}
+                  >
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {startReadinessItems.map((item) => (
+                            <div
+                              key={item.label}
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-xs",
+                                item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
+                              )}
+                            >
+                              <div className="flex items-start gap-2">
+                                {item.label === "Network" ? (
+                                  item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                                ) : item.ready ? (
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                                ) : (
+                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                                )}
+                                <div>
+                                  <p className="font-semibold text-foreground">{item.label}</p>
+                                  <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
-                    <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
-                      {queueSupervisorSummary.label}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {queueSupervisorSummary.checkpoints.map((item) => (
-                      <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                        <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
+                          <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
+                            {queueSupervisorSummary.label}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {queueSupervisorSummary.checkpoints.map((item) => (
+                            <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                              <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {startReadinessOpenItems.length > 0 && (
-                <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
-                  <p className="font-medium">Recommended before you start</p>
-                  <ul className="mt-2 space-y-1.5">
-                    {startReadinessOpenItems.map((item) => (
-                      <li key={item.label} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-                        <span>{item.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </CollapsiblePanel>
+                    </div>
+                    {startReadinessOpenItems.length > 0 && (
+                      <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
+                        <p className="font-medium">Recommended before you start</p>
+                        <ul className="mt-2 space-y-1.5">
+                          {startReadinessOpenItems.map((item) => (
+                            <li key={item.label} className="flex items-start gap-2">
+                              <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                              <span>{item.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CollapsiblePanel>
 
-          </div>
-        )}
-
-        {!session.isSessionActive && (
-          <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
-            <TwoPipelineGuide
-              currentView="dialer"
-              calendarName={selectedGhlCalendar?.name ?? null}
-              bookedPipelineName={selectedGhlPipeline?.name ?? null}
-              bookedStageName={selectedGhlStage?.name ?? null}
-              followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-              followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
-            />
-          </CollapsiblePanel>
-        )}
+                  <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
+                    <TwoPipelineGuide
+                      currentView="dialer"
+                      calendarName={selectedGhlCalendar?.name ?? null}
+                      bookedPipelineName={selectedGhlPipeline?.name ?? null}
+                      bookedStageName={selectedGhlStage?.name ?? null}
+                      followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+                      followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+                    />
+                  </CollapsiblePanel>
+                </div>
+              </section>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {session.isSessionActive && (
           <div className="flex items-center justify-between gap-3">
@@ -2245,12 +2374,6 @@ export default function DialerPage() {
                 compact
               />
             </div>
-            <DialerShortcutsPopover />
-          </div>
-        )}
-
-        {!session.isSessionActive && (
-          <div className="flex justify-end">
             <DialerShortcutsPopover />
           </div>
         )}
