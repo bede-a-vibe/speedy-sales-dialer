@@ -8,7 +8,8 @@ import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryBu
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
-import { DialpadCTI } from "@/components/dialer/DialpadCTI";
+import { DialpadCTI, type DialpadCTIHandle, type CallRingingPayload } from "@/components/dialer/DialpadCTI";
+import { NativeCallBar, type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
