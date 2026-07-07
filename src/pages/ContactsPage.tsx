@@ -955,7 +955,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, sortBy]);
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy]);
 
   useEffect(() => {
     if (page > totalPages) {
