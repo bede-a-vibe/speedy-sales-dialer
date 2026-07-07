@@ -2066,6 +2066,10 @@ export default function DialerPage() {
             setLeadType={setLeadType}
             leadChannel={leadChannel}
             setLeadChannel={setLeadChannel}
+            leadSource={leadSource}
+            setLeadSource={setLeadSource}
+            callRecency={callRecency}
+            setCallRecency={setCallRecency}
             contactOwner={contactOwner}
             setContactOwner={setContactOwner}
             salesReps={salesReps}
