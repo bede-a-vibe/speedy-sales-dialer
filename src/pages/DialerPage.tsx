@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -2826,13 +2826,13 @@ export default function DialerPage() {
               <div data-coach-step="decision-maker-capture">
               <CollapsiblePanel
                 title="Capture details"
-                subtitle={captureOpen ? "Decision maker · Intelligence · Agency" : "Open when the call connects"}
+                subtitle={captureOpen ? "Decision Maker · Intelligence · Marketing" : "Open when the call connects"}
                 icon={<UserCheck className="h-4 w-4" />}
                 badge={
                   (session.currentContact as any).dm_name
                     ? "DM captured"
                     : ((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null)
-                      ? "Agency"
+                      ? "Marketing"
                       : undefined
                 }
                 open={captureOpen}
@@ -2856,6 +2856,10 @@ export default function DialerPage() {
                       >
                         {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
                       </Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="marketing" className="gap-1.5 data-[state=active]:bg-muted">
+                      <Megaphone className="h-3.5 w-3.5" />
+                      Marketing
                     </TabsTrigger>
                   </TabsList>
 
@@ -2889,13 +2893,19 @@ export default function DialerPage() {
                       }
                       contact={session.currentContact as unknown as Record<string, unknown>}
                     />
-                    <ExistingAgencyCapture
+                  </TabsContent>
+
+                  <TabsContent value="marketing" className="pt-3 mt-0">
+                    <MarketingCapture
                       contactId={session.currentContact.id}
                       ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
+                      hasGoogleAds={(session.currentContact as Record<string, unknown>).has_google_ads as string | null}
+                      hasFacebookAds={(session.currentContact as Record<string, unknown>).has_facebook_ads as string | null}
                       hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
                       existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
                       existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
                       existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
+                      deepCrawlAttempted={(session.currentContact as Record<string, unknown>).deep_crawl_attempted as boolean | null}
                     />
                   </TabsContent>
                 </Tabs>
