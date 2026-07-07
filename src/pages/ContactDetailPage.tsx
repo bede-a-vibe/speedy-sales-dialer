@@ -495,9 +495,10 @@ export default function ContactDetailPage() {
 
   return (
     <AppLayout title={contact.business_name}>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-          <div className="flex items-center gap-3 lg:flex-1 lg:min-w-0">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* HEADER — identity + what-to-do-now */}
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate("/contacts")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -520,11 +521,11 @@ export default function ContactDetailPage() {
                   <Badge variant="outline" className="text-xs uppercase tracking-wide">Tier {prospectTier}</Badge>
                 )}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Owner</span>
                   <Select value={ownerUserId ?? "unassigned"} onValueChange={handleOwnerChange}>
-                    <SelectTrigger className="h-6 w-[160px] border-border bg-card text-xs">
+                    <SelectTrigger className="h-7 w-[160px] border-border bg-card text-xs">
                       <SelectValue placeholder="Unassigned">{ownerName ?? "Unassigned"}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -540,7 +541,7 @@ export default function ContactDetailPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Lifecycle</span>
                   <Select value={lifecycleStage} onValueChange={(v) => handleLifecycleChange(v as LifecycleStage)}>
-                    <SelectTrigger className="h-6 w-[130px] border-border bg-card text-xs capitalize">
+                    <SelectTrigger className="h-7 w-[130px] border-border bg-card text-xs capitalize">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -554,7 +555,7 @@ export default function ContactDetailPage() {
                       value={lifecycleReason ?? "other"}
                       onValueChange={(v) => handleLifecycleChange("lost", v)}
                     >
-                      <SelectTrigger className="h-6 w-[150px] border-border bg-card text-xs">
+                      <SelectTrigger className="h-7 w-[150px] border-border bg-card text-xs">
                         <SelectValue placeholder="Reason" />
                       </SelectTrigger>
                       <SelectContent>
@@ -574,20 +575,10 @@ export default function ContactDetailPage() {
                       : "No next action"}
                   </span>
                 </span>
-                {contact.contact_person ? (
-                  <span>{contact.contact_person}</span>
-                ) : (
-                  <span>No contact person captured yet</span>
-                )}
-                {(contact.city || contact.state) && (
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
-                  </span>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 gap-1 px-2 text-xs"
+                  className="h-7 gap-1 px-2 text-xs"
                   onClick={openDetailsDialog}
                 >
                   <Pencil className="h-3 w-3" /> Edit details
@@ -596,236 +587,42 @@ export default function ContactDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[360px]">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <PhoneCall className="h-4 w-4" />
-                  <span className="text-xs uppercase tracking-widest">Calls</span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{contact.call_attempt_count ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Last {latestCall ? formatTimestamp(latestCall.created_at, "dd MMM") : "not recorded"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <StickyNote className="h-4 w-4" />
-                  <span className="text-xs uppercase tracking-widest">Notes</span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{allNotes.length}</p>
-                <p className="text-xs text-muted-foreground">Latest {latestNote ? formatTimestamp(latestNote.created_at, "dd MMM") : "not added"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span className="text-xs uppercase tracking-widest">Pipeline</span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{pipelineItems.length}</p>
-                <p className="text-xs text-muted-foreground">{nextPipelineItem?.scheduled_for ? formatTimestamp(nextPipelineItem.scheduled_for, "dd MMM") : "No upcoming slot"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  <span className="text-xs uppercase tracking-widest">DNC</span>
-                </div>
-                <p className="mt-2 text-sm font-semibold text-foreground">{contact.is_dnc ? "Blocked" : "Callable"}</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <Switch checked={contact.is_dnc} onCheckedChange={handleToggleDnc} />
-                  {contact.is_dnc ? <ShieldOff className="h-4 w-4 text-destructive" /> : <Shield className="h-4 w-4 text-muted-foreground/40" />}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Primary call actions — the "what to do now" */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="hero"
+              className="font-semibold"
+              onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)}
+              disabled={dialpadCall.isPending}
+            >
+              <Phone className="mr-1.5 h-3.5 w-3.5" />
+              {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
+            </Button>
+            {hasDecisionMakerDial && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono"
+                onClick={() => placeCall(contact.phone)}
+                disabled={dialpadCall.isPending}
+              >
+                <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
+                {contact.phone}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => setNewTaskOpen(true)} className="ml-auto">
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              New task
+            </Button>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="hero" className="font-semibold" onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)} disabled={dialpadCall.isPending}>
-                <Phone className="mr-1.5 h-3.5 w-3.5" />
-                {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
-              </Button>
-              {hasDecisionMakerDial && (
-                <Button size="sm" variant="outline" className="font-mono" onClick={() => placeCall(contact.phone)} disabled={dialpadCall.isPending}>
-                  <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
-                  {contact.phone}
-                </Button>
-              )}
-              {contact.email && (
-                <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-                  <Mail className="h-3.5 w-3.5" /> {contact.email}
-                </a>
-              )}
-              {websiteUrl && (
-                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-                  <Globe className="h-3.5 w-3.5" /> Website
-                </a>
-              )}
-              {gmbUrl && (
-                <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-                  <ExternalLink className="h-3.5 w-3.5" /> GMB
-                </a>
-              )}
-              <Button size="sm" variant="outline" onClick={() => setNewTaskOpen(true)} className="ml-auto">
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                New task
-              </Button>
-            </div>
-
-            {hasDecisionMakerDial && (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
-                  {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
-                  <button
-                    onClick={() => placeCall(directDecisionMakerPhone)}
-                    disabled={dialpadCall.isPending}
-                    className="font-mono text-emerald-700 hover:underline dark:text-emerald-300 disabled:opacity-50"
-                  >
-                    {directDecisionMakerPhone}
-                  </button>
-                  {contact.dm_phone_type && (
-                    <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Last call</p>
-                <p className="mt-1 text-sm text-foreground">
-                  {latestCall
-                    ? `${OUTCOME_CONFIG[latestCall.outcome as CallOutcome]?.label || latestCall.outcome} · ${formatTimestamp(latestCall.created_at)}`
-                    : "No calls recorded yet"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Latest note</p>
-                <p className="mt-1 text-sm text-foreground line-clamp-2">
-                  {latestNote?.content || "No notes added yet"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Next pipeline step</p>
-                <p className="mt-1 text-sm text-foreground line-clamp-2">
-                  {nextPipelineItem
-                    ? `${nextPipelineItem.pipeline_type} · ${nextPipelineItem.scheduled_for ? formatTimestamp(nextPipelineItem.scheduled_for) : nextPipelineItem.status}`
-                    : "No pipeline items yet"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Capture panels — feature parity with the Dialer page so reps can
-            view AND edit every field from Contacts → contact detail. */}
-        <ActivityTimeline contactId={id} />
-
-        <div className="space-y-4">
-          <CollapsiblePanel
-            title="Decision Maker"
-            subtitle="Owner / marketing manager · gatekeeper intel"
-            icon={<UserPlus className="h-4 w-4" />}
-            defaultOpen
-          >
-            <DecisionMakerCapture
-              contactId={contact.id}
-              businessName={contact.business_name || ""}
-              ghlContactId={contact.ghl_contact_id}
-              existingDmName={contact.dm_name}
-              existingDmTitle={(contact as unknown as { dm_role?: string | null }).dm_role ?? null}
-              existingDmPhone={contact.dm_phone}
-              existingDmPhoneType={contact.dm_phone_type}
-              existingDmEmail={contact.dm_email}
-              existingDmLinkedin={(contact as unknown as { dm_linkedin?: string | null }).dm_linkedin ?? null}
-              existingGatekeeperName={contact.gatekeeper_name}
-              existingGatekeeperNotes={(contact as unknown as { gatekeeper_notes?: string | null }).gatekeeper_notes ?? null}
-              existingBestRouteToDecisionMaker={contact.best_route_to_decision_maker}
-              existingBestTimeToCall={contact.best_time_to_call}
-              onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact", id] })}
-            />
-          </CollapsiblePanel>
-
-          <CollapsiblePanel
-            title="Existing Agency"
-            subtitle="Do they already pay an agency? What services?"
-            icon={<AgencyIcon className="h-4 w-4" />}
-          >
-            <ExistingAgencyCapture
-              contactId={contact.id}
-              ghlContactId={contact.ghl_contact_id}
-              hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
-              existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
-              existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
-              existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
-            />
-          </CollapsiblePanel>
-
-          <CollapsiblePanel
-            title="Contact Intelligence"
-            subtitle="GHL custom fields · auto-saves as you type"
-            icon={<Brain className="h-4 w-4" />}
-            badge={contact.ghl_contact_id ? "GHL synced" : "Local only"}
-            badgeVariant={contact.ghl_contact_id ? "secondary" : "outline"}
-          >
-            <ContactIntelligencePanel
-              contactId={contact.id}
-              ghlContactId={contact.ghl_contact_id}
-              contact={contact as unknown as Record<string, unknown>}
-            />
-          </CollapsiblePanel>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-                  Call History
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {allCallLogs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No calls recorded yet.</p>
-                ) : (
-                  <>
-                    {allCallLogs.map((log) => {
-                      const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
-                      return (
-                        <div key={log.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px] font-mono">
-                                {config?.label || log.outcome}
-                              </Badge>
-                              <span className="text-[10px] text-muted-foreground font-mono">
-                                {formatTimestamp(log.created_at)}
-                              </span>
-                            </div>
-                            {log.notes && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {hasMoreLogs && (
-                      <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetchMoreLogs()}>
-                        Load more
-                      </Button>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <ManualTranscriptUpload contact={contact} />
+        {/* TWO-COLUMN RECORD */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* LEFT — dominant narrative */}
+          <div className="space-y-6 lg:col-span-2">
+            <ActivityTimeline contactId={id} />
 
             <Card>
               <CardHeader className="pb-3">
@@ -875,13 +672,257 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
 
-          <div className="space-y-6">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-                  Quick Status Update
+                  Call History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {allCallLogs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No calls recorded yet.</p>
+                ) : (
+                  <>
+                    {allCallLogs.map((log) => {
+                      const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
+                      return (
+                        <div key={log.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[10px] font-mono">
+                                {config?.label || log.outcome}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {formatTimestamp(log.created_at)}
+                              </span>
+                            </div>
+                            {log.notes && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {hasMoreLogs && (
+                      <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetchMoreLogs()}>
+                        Load more
+                      </Button>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* RIGHT RAIL — key facts + capture + quick actions */}
+          <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+            {/* Contact details */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
+                  Contact details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div>
+                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Contact person</p>
+                  <p className="text-foreground">{contact.contact_person || <span className="text-muted-foreground italic">Not captured yet</span>}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Phone</p>
+                  <button
+                    onClick={() => placeCall(contact.phone)}
+                    disabled={dialpadCall.isPending || !contact.phone}
+                    className="font-mono text-foreground hover:underline disabled:opacity-50"
+                  >
+                    <Phone className="mr-1.5 inline h-3.5 w-3.5" /> {contact.phone || "—"}
+                  </button>
+                </div>
+                {(contact.email || contact.dm_email) && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Email</p>
+                    <a href={`mailto:${contact.email || contact.dm_email}`} className="flex items-center gap-1.5 text-foreground hover:underline break-all">
+                      <Mail className="h-3.5 w-3.5 shrink-0" /> {contact.email || contact.dm_email}
+                    </a>
+                  </div>
+                )}
+                {(contact.city || contact.state) && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Location</p>
+                    <p className="flex items-center gap-1.5 text-foreground">
+                      <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
+                    </p>
+                  </div>
+                )}
+                {(websiteUrl || gmbUrl) && (
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    {websiteUrl && (
+                      <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <Globe className="h-3.5 w-3.5" /> Website
+                      </a>
+                    )}
+                    {gmbUrl && (
+                      <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="h-3.5 w-3.5" /> GMB
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {hasDecisionMakerDial && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
+                      {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
+                      <button
+                        onClick={() => placeCall(directDecisionMakerPhone)}
+                        disabled={dialpadCall.isPending}
+                        className="font-mono text-emerald-700 hover:underline dark:text-emerald-300 disabled:opacity-50"
+                      >
+                        {directDecisionMakerPhone}
+                      </button>
+                      {contact.dm_phone_type && (
+                        <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {(contact as any).has_existing_agency && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+                    <p className="text-[11px] uppercase tracking-widest text-amber-700 dark:text-amber-300">Existing agency</p>
+                    <p className="mt-1 text-foreground">
+                      {(contact as any).existing_agency_name || "Yes"}
+                      {((contact as any).existing_agency_services?.length ?? 0) > 0 && (
+                        <span className="text-muted-foreground"> · {(contact as any).existing_agency_services.join(", ")}</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {/* Mini stat strip */}
+                <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Calls</p>
+                    <p className="font-mono text-base font-semibold text-foreground">{contact.call_attempt_count ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Notes</p>
+                    <p className="font-mono text-base font-semibold text-foreground">{allNotes.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Pipeline</p>
+                    <p className="font-mono text-base font-semibold text-foreground">{pipelineItems.length}</p>
+                  </div>
+                </div>
+
+                {/* DNC */}
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <div className="flex items-center gap-2">
+                    {contact.is_dnc ? <ShieldOff className="h-4 w-4 text-destructive" /> : <Shield className="h-4 w-4 text-muted-foreground/40" />}
+                    <span className="text-xs text-foreground">{contact.is_dnc ? "Do not call" : "Callable"}</span>
+                  </div>
+                  <Switch checked={contact.is_dnc} onCheckedChange={handleToggleDnc} />
+                </div>
+
+                {/* Detail dl */}
+                <dl className="space-y-2 border-t border-border pt-3 text-xs">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Last outcome</dt>
+                    <dd className="font-mono text-foreground text-right">
+                      {contact.last_outcome
+                        ? (OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome)
+                        : "—"}
+                    </dd>
+                  </div>
+                  {contact.latest_appointment_outcome && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Appt. outcome</dt>
+                      <dd className="font-mono text-foreground text-right">
+                        {getAppointmentOutcomeLabel(contact.latest_appointment_outcome as AppointmentOutcomeValue)}
+                      </dd>
+                    </div>
+                  )}
+                  {contact.follow_up_note && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Follow-up note</dt>
+                      <dd className="text-foreground text-right max-w-[160px]">{contact.follow_up_note}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Created</dt>
+                    <dd className="font-mono text-foreground">{formatTimestamp(contact.created_at, "dd MMM yyyy")}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Updated</dt>
+                    <dd className="font-mono text-foreground">{formatTimestamp(contact.updated_at, "dd MMM yyyy")}</dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
+
+            {/* Consolidated capture card — three tabs */}
+            <Card>
+              <Tabs defaultValue="dm">
+                <CardHeader className="pb-2">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="dm" className="text-xs">
+                      <UserPlus className="mr-1.5 h-3.5 w-3.5" /> DM
+                    </TabsTrigger>
+                    <TabsTrigger value="intel" className="text-xs">
+                      <Brain className="mr-1.5 h-3.5 w-3.5" /> Intel
+                    </TabsTrigger>
+                    <TabsTrigger value="agency" className="text-xs">
+                      <AgencyIcon className="mr-1.5 h-3.5 w-3.5" /> Agency
+                    </TabsTrigger>
+                  </TabsList>
+                </CardHeader>
+                <CardContent>
+                  <TabsContent value="dm" className="mt-0">
+                    <DecisionMakerCapture
+                      contactId={contact.id}
+                      businessName={contact.business_name || ""}
+                      ghlContactId={contact.ghl_contact_id}
+                      existingDmName={contact.dm_name}
+                      existingDmTitle={(contact as unknown as { dm_role?: string | null }).dm_role ?? null}
+                      existingDmPhone={contact.dm_phone}
+                      existingDmPhoneType={contact.dm_phone_type}
+                      existingDmEmail={contact.dm_email}
+                      existingDmLinkedin={(contact as unknown as { dm_linkedin?: string | null }).dm_linkedin ?? null}
+                      existingGatekeeperName={contact.gatekeeper_name}
+                      existingGatekeeperNotes={(contact as unknown as { gatekeeper_notes?: string | null }).gatekeeper_notes ?? null}
+                      existingBestRouteToDecisionMaker={contact.best_route_to_decision_maker}
+                      existingBestTimeToCall={contact.best_time_to_call}
+                      onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact", id] })}
+                    />
+                  </TabsContent>
+                  <TabsContent value="intel" className="mt-0">
+                    <ContactIntelligencePanel
+                      contactId={contact.id}
+                      ghlContactId={contact.ghl_contact_id}
+                      contact={contact as unknown as Record<string, unknown>}
+                    />
+                  </TabsContent>
+                  <TabsContent value="agency" className="mt-0">
+                    <ExistingAgencyCapture
+                      contactId={contact.id}
+                      ghlContactId={contact.ghl_contact_id}
+                      hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
+                      existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
+                      existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
+                      existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
+                    />
+                  </TabsContent>
+                </CardContent>
+              </Tabs>
+            </Card>
+
+            {/* Quick status update */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
+                  Quick status
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -899,43 +940,77 @@ export default function ContactDetailPage() {
                 {nextStatus === "booked" && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Booking Date *</Label>
+                      <Label className="text-xs text-muted-foreground">Date *</Label>
                       <Input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="border-border bg-card" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Booking Time</Label>
+                      <Label className="text-xs text-muted-foreground">Time</Label>
                       <Input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)} className="border-border bg-card" />
                     </div>
                   </div>
                 )}
                 {nextStatus === "follow_up" && (
                   <p className="rounded border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                    This also creates a follow-up task scheduled in 2 days.
+                    Also creates a follow-up task in 2 days.
                   </p>
                 )}
                 {nextStatus === "dnc" && (
                   <p className="rounded border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-muted-foreground">
-                    This marks the contact as do not call without overwriting its existing status.
+                    Marks as do not call without overwriting existing status.
                   </p>
                 )}
                 <Button
                   onClick={handleStatusUpdate}
                   disabled={updateContact.isPending || createPipelineItem.isPending || nextStatus === currentStatusValue}
                   className="w-full"
+                  size="sm"
                 >
-                  {updateContact.isPending || createPipelineItem.isPending ? "Saving…" : "Update Status"}
+                  {updateContact.isPending || createPipelineItem.isPending ? "Saving…" : "Update status"}
                 </Button>
               </CardContent>
             </Card>
 
-            <EmailDraftSuggestionCard
-              suggestion={draftSuggestion}
-              status={draftSuggestionStatus}
-              onGenerate={handleGenerateDraftSuggestion}
-              onClear={handleClearDraftSuggestion}
-              disabled={!contact.email && !contact.dm_email}
-            />
+            {/* Quick actions — expanders */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
+                  Quick actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setNewTaskOpen(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> New task
+                </Button>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full justify-start">
+                      <Mail className="mr-1.5 h-3.5 w-3.5" /> Draft follow-up email
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <EmailDraftSuggestionCard
+                      suggestion={draftSuggestion}
+                      status={draftSuggestionStatus}
+                      onGenerate={handleGenerateDraftSuggestion}
+                      onClear={handleClearDraftSuggestion}
+                      disabled={!contact.email && !contact.dm_email}
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
+                      More · Upload transcript
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <ManualTranscriptUpload contact={contact} />
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
 
+            {/* Pipeline */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
@@ -948,7 +1023,7 @@ export default function ContactDetailPage() {
                 ) : (
                   pipelineItems.map((item: any) => (
                     <div key={item.id} className="rounded-lg border border-border p-3 space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={item.pipeline_type === "booked" ? "default" : "secondary"} className="text-[10px]">
                           {item.pipeline_type}
                         </Badge>
@@ -973,57 +1048,7 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-                  Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Call Attempts</dt>
-                    <dd className="font-mono font-medium text-foreground">{contact.call_attempt_count}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Last Outcome</dt>
-                    <dd className="font-mono text-foreground text-right">
-                      {contact.last_outcome
-                        ? (OUTCOME_CONFIG[contact.last_outcome as CallOutcome]?.label || contact.last_outcome)
-                        : "—"}
-                    </dd>
-                  </div>
-                  {contact.latest_appointment_outcome && (
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Appt. Outcome</dt>
-                      <dd className="font-mono text-foreground text-right">
-                        {getAppointmentOutcomeLabel(contact.latest_appointment_outcome as AppointmentOutcomeValue)}
-                      </dd>
-                    </div>
-                  )}
-                  {contact.follow_up_note && (
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Follow-up Note</dt>
-                      <dd className="text-foreground text-xs max-w-[200px] text-right">{contact.follow_up_note}</dd>
-                    </div>
-                  )}
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Created</dt>
-                    <dd className="font-mono text-xs text-foreground">
-                      {formatTimestamp(contact.created_at, "dd MMM yyyy")}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Updated</dt>
-                    <dd className="font-mono text-xs text-foreground">
-                      {formatTimestamp(contact.updated_at, "dd MMM yyyy")}
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
+          </aside>
         </div>
       </div>
 
