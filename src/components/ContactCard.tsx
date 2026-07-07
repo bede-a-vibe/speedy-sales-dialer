@@ -277,7 +277,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {(contact.voicemail_count ?? 0) > 0 && (
-            <span className="font-mono text-amber-400 bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
+            <span className="font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
               {contact.voicemail_count} VM{(contact.voicemail_count ?? 0) !== 1 ? 's' : ''}
             </span>
           )}
@@ -329,16 +329,16 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
       {isBusinessRoutedNumber && (
         <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 space-y-3">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-sky-300" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-300">Business Line Workflow</p>
+            <Building2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-300">Business Line Workflow</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {businessLineWorkflowItems.map((item) => {
               const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
               return (
                 <div key={item.label} className="rounded-md border border-sky-500/20 bg-background/60 px-3 py-2">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-200/80">
-                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-400' : 'text-sky-300/70'}`} />
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-200/80">
+                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-700 dark:text-green-300' : 'text-sky-700/70 dark:text-sky-300/70'}`} />
                     {item.label}
                   </div>
                   <p className="mt-1 text-sm text-foreground">{item.value}</p>
@@ -347,7 +347,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             })}
           </div>
           {!contact.dm_phone && (
-            <p className="text-xs text-sky-100/85">
+            <p className="text-xs text-sky-900/85 dark:text-sky-100/85">
               Best next step: use this call to confirm the correct decision maker and capture a direct mobile or extension before requeueing.
             </p>
           )}
@@ -358,8 +358,8 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
       {hasDM ? (
         <div className="bg-green-500/10 border border-green-500/25 rounded-md p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-green-400" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-green-400">Decision Maker</p>
+            <UserCheck className="h-4 w-4 text-green-700 dark:text-green-300" />
+            <p className="text-[10px] uppercase tracking-widest font-mono text-green-800 dark:text-green-300">Decision Maker</p>
           </div>
           <div className="space-y-1.5">
             {contact.dm_name && (
@@ -374,7 +374,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => onCallDM?.(contact.dm_phone!)}
-                  className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-300 hover:bg-green-500/30 transition-colors text-sm font-mono"
+                  className="flex items-center gap-2 bg-green-500/15 dark:bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-800 dark:text-green-300 hover:bg-green-500/25 dark:hover:bg-green-500/30 transition-colors text-sm font-mono"
                 >
                   <Smartphone className="h-3.5 w-3.5" />
                   {contact.dm_phone}
