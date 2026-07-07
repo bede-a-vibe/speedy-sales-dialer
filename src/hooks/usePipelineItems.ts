@@ -137,6 +137,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_recorded_at,
           outcome_notes,
           deal_value,
+          monthly_recurring_value,
+          deal_stage,
           follow_up_method,
           reschedule_count,
           created_at,
@@ -150,7 +152,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
             state,
             website,
             gmb_link,
-            ghl_contact_id
+            ghl_contact_id,
+            lead_type
           )
         `)
         .eq("pipeline_type", type)
@@ -205,6 +208,8 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_recorded_at,
           outcome_notes,
           deal_value,
+          monthly_recurring_value,
+          deal_stage,
           follow_up_method,
           reschedule_count,
           created_at,
@@ -218,7 +223,8 @@ export function useContactPipelineItems(contactId?: string) {
             state,
             website,
             gmb_link,
-            ghl_contact_id
+            ghl_contact_id,
+            lead_type
           )
         `)
         .eq("contact_id", contactId!)
