@@ -1081,6 +1081,21 @@ export default function ContactDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        contact={contact ? {
+          id: contact.id,
+          business_name: contact.business_name,
+          contact_person: contact.contact_person ?? null,
+          phone: contact.phone ?? null,
+        } : null}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+          queryClient.invalidateQueries({ queryKey: ["pipeline-items", "contact", id] });
+        }}
+      />
     </AppLayout>
   );
 }
