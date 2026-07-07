@@ -8,6 +8,7 @@ import {
   CalendarClock,
   GraduationCap,
   BarChart3,
+  BookOpen,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -103,6 +104,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { title: "Contacts", to: "/contacts", icon: Users },
       { title: "Pipelines", to: "/pipelines", icon: CalendarClock },
       { title: "My Work / Follow-ups", to: "/follow-ups", icon: CalendarClock },
+      { title: "Playbook", to: "/playbook", icon: BookOpen },
       { title: "Training", to: "/training", icon: GraduationCap },
     ];
     const admin = canViewAdmin
