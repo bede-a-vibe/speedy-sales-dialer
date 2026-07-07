@@ -216,6 +216,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          agreed_next_steps: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
           best_time_to_call: string | null
@@ -223,6 +224,7 @@ export type Database = {
           business_name: string
           business_size: string | null
           buying_signal_strength: string | null
+          buying_timeline: string | null
           call_attempt_count: number
           city: string | null
           contact_person: string | null
@@ -262,6 +264,7 @@ export type Database = {
           industry: string
           is_archived: boolean
           is_dnc: boolean
+          key_quote: string | null
           last_call_sentiment: string | null
           last_called_at: string | null
           last_outcome: Database["public"]["Enums"]["call_outcome"] | null
@@ -296,6 +299,7 @@ export type Database = {
           work_type: string | null
         }
         Insert: {
+          agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
           best_time_to_call?: string | null
@@ -303,6 +307,7 @@ export type Database = {
           business_name: string
           business_size?: string | null
           buying_signal_strength?: string | null
+          buying_timeline?: string | null
           call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
@@ -342,6 +347,7 @@ export type Database = {
           industry: string
           is_archived?: boolean
           is_dnc?: boolean
+          key_quote?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -376,6 +382,7 @@ export type Database = {
           work_type?: string | null
         }
         Update: {
+          agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
           best_time_to_call?: string | null
@@ -383,6 +390,7 @@ export type Database = {
           business_name?: string
           business_size?: string | null
           buying_signal_strength?: string | null
+          buying_timeline?: string | null
           call_attempt_count?: number
           city?: string | null
           contact_person?: string | null
@@ -422,6 +430,7 @@ export type Database = {
           industry?: string
           is_archived?: boolean
           is_dnc?: boolean
+          key_quote?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -519,6 +528,7 @@ export type Database = {
           id: string
           sync_error: string | null
           sync_status: string
+          transcript: string | null
           transcript_synced_at: string | null
           updated_at: string
           user_id: string
@@ -532,6 +542,7 @@ export type Database = {
           id?: string
           sync_error?: string | null
           sync_status?: string
+          transcript?: string | null
           transcript_synced_at?: string | null
           updated_at?: string
           user_id: string
@@ -545,6 +556,7 @@ export type Database = {
           id?: string
           sync_error?: string | null
           sync_status?: string
+          transcript?: string | null
           transcript_synced_at?: string | null
           updated_at?: string
           user_id?: string
@@ -1176,6 +1188,7 @@ export type Database = {
         | "dialpad_summary"
         | "dialpad_transcript"
         | "ai_summary"
+        | "call_transcript"
       phone_number_quality: "unconfirmed" | "confirmed" | "suspect" | "dead"
       pipeline_status: "open" | "completed" | "canceled"
       pipeline_type: "follow_up" | "booked"
@@ -1331,6 +1344,7 @@ export const Constants = {
         "dialpad_summary",
         "dialpad_transcript",
         "ai_summary",
+        "call_transcript",
       ],
       phone_number_quality: ["unconfirmed", "confirmed", "suspect", "dead"],
       pipeline_status: ["open", "completed", "canceled"],

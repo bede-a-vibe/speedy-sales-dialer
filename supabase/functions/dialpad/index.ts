@@ -1486,12 +1486,403 @@ async function requeueFailedPendingGhlPushes(params: {
   return { requeued: ids.length };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Transcript → Prospect record extraction pipeline
+// ─────────────────────────────────────────────────────────────────────────
+
+const SAMPLE_HVAC_TRANSCRIPT = `Rep (Sarah, Speedy Sales): Good afternoon, this is Sarah from Speedy Growth — could I grab Mike, the owner?
+Receptionist: He's mid-job right now, love. What's this regarding?
+Rep: We help HVAC operators around Melbourne fill their quiet weeks with extra service jobs — should only take Mike 90 seconds to hear whether it's a fit. If he's on the tools, happy to try his mobile.
+Receptionist: Alright, I'll grab him — hold the line.
+Mike (Owner): Mike here, what's up?
+Rep: Mike, Sarah from Speedy Growth — do me a favour, the honest one — how are the phones this week compared to summer?
+Mike: Yeah look, been a bit patchy. Referrals keep the lights on but we've got two vans sitting on Thursday and Friday.
+Rep: That's exactly why I called. We run Google campaigns for HVAC crews that plug those gap days with breakdown and service jobs — no residential tyre-kickers. What's it worth to you to fill each idle van day?
+Mike: Depends. We already get enough work from referrals, mate — not sure we need to pay for leads on top.
+Rep: Totally hear you — referrals are the best leads on earth. The problem is they're lumpy — great in June, gone in August. Our clients keep referrals rolling AND stop the August slump. Would it be crazy to see the exact search volume in your service area before you decide?
+Mike: Nah, that's fair. What's the number sit at?
+Rep: Around 2,400 HVAC searches a month within 25km of Ringwood, and the top three ranked spots are absorbing about 68% of it — none of them are you yet. Budget-wise we usually start blokes like you at $1,500/mo for ads plus our $2k management. Where are you sitting on marketing spend right now?
+Mike: Basically zero. Van signage and word of mouth.
+Rep: Perfect starting point. Look, rather than pitch you cold, let's book 15 minutes with our HVAC lead — he'll show you the exact keywords, current top-ranked competitors, and the number of jobs a realistic first 60 days looks like. If it's not a fit you get the report anyway. Tuesday 2pm work, or is Wednesday morning easier?
+Mike: Tuesday 2 works. Send it to mike@ringwoodhvac.com.au.
+Rep: Booked. You'll get a calendar invite in the next five minutes. One favour — bring your average job value so we can put a real dollar figure on this for you.
+Mike: Yeah no worries, cheers Sarah.
+Rep: Cheers Mike, talk Tuesday.`;
+
+const TRANSCRIPT_EXTRACTION_SYSTEM_PROMPT = `You are a senior sales operations analyst reviewing a recorded outbound sales call for a digital-marketing agency selling to Australian blue-collar trades businesses (HVAC, plumbing, electrical, roofing, etc.).
+You are trained in "Fanatical Prospecting" (Jeb Blount) and "Cold Calling Sucks (And That's Why It Works)" (Farrokh & Cegelski).
+Your job is to extract structured intelligence from the transcript so the CRM can update the prospect record automatically.
+
+Return ONLY a single valid JSON object matching this exact schema — do not wrap it in prose, markdown, or code fences:
+{
+  "call_summary": string,              // 2–3 sentences. Australian English. Plain, factual, no hype.
+  "call_sentiment": "positive" | "neutral" | "negative",
+  "dm_name": string | null,            // decision-maker name if identified
+  "dm_role": string | null,            // e.g. "Owner", "Operations Manager"
+  "buying_signal_strength": "High" | "Medium" | "Low" | "None",
+  "budget_indication": string | null,  // free-text summary of budget signals (e.g. "$1.5k/mo capacity", "no current spend")
+  "buying_timeline": string | null,    // e.g. "Immediate", "Next 30 days", "Next quarter", "Unknown"
+  "objections": [                       // 0 or more; only real objections raised by the prospect
+    { "objection": string, "how_handled": string }
+  ],
+  "agreed_next_steps": string | null,  // exact next step both parties agreed to (with time/date if given)
+  "key_quote": string | null,          // one short verbatim quote from the prospect that captures intent or hesitation
+  "recommended_lifecycle_stage": "new" | "attempting" | "connected" | "qualified" | "booked" | "won" | "lost",
+  "booked": boolean                     // true only if a specific meeting/appointment was agreed
+}
+
+Rules:
+- Never invent facts. If a field cannot be determined, use null (or [] for objections).
+- "recommended_lifecycle_stage" is forward-only guidance — pick the highest stage clearly supported by the transcript.
+- If a meeting was booked, "booked" MUST be true and "recommended_lifecycle_stage" MUST be at least "booked".
+- Keep every string concise (under 240 chars) and free of markdown.`;
+
+function coerceInsightString(value: unknown, maxLength = 500): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+}
+
+function coerceInsightEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  if (typeof value !== "string") return null;
+  const normalised = value.trim();
+  const match = allowed.find((v) => v.toLowerCase() === normalised.toLowerCase());
+  return match ?? null;
+}
+
+type TranscriptInsights = {
+  call_summary: string | null;
+  call_sentiment: "positive" | "neutral" | "negative" | null;
+  dm_name: string | null;
+  dm_role: string | null;
+  buying_signal_strength: "High" | "Medium" | "Low" | "None" | null;
+  budget_indication: string | null;
+  buying_timeline: string | null;
+  objections: Array<{ objection: string; how_handled: string }>;
+  agreed_next_steps: string | null;
+  key_quote: string | null;
+  recommended_lifecycle_stage: "new" | "attempting" | "connected" | "qualified" | "booked" | "won" | "lost" | null;
+  booked: boolean;
+};
+
+function validateTranscriptInsights(raw: unknown): TranscriptInsights | null {
+  if (!isRecord(raw)) return null;
+
+  const objections: Array<{ objection: string; how_handled: string }> = [];
+  if (Array.isArray(raw.objections)) {
+    for (const item of raw.objections) {
+      if (!isRecord(item)) continue;
+      const objection = coerceInsightString(item.objection, 300);
+      const howHandled = coerceInsightString(item.how_handled, 500);
+      if (objection && howHandled) {
+        objections.push({ objection, how_handled: howHandled });
+      } else if (objection) {
+        objections.push({ objection, how_handled: "(not addressed)" });
+      }
+    }
+  }
+
+  const insights: TranscriptInsights = {
+    call_summary: coerceInsightString(raw.call_summary, 1200),
+    call_sentiment: coerceInsightEnum(raw.call_sentiment, ["positive", "neutral", "negative"] as const),
+    dm_name: coerceInsightString(raw.dm_name, 200),
+    dm_role: coerceInsightString(raw.dm_role, 200),
+    buying_signal_strength: coerceInsightEnum(raw.buying_signal_strength, ["High", "Medium", "Low", "None"] as const),
+    budget_indication: coerceInsightString(raw.budget_indication, 300),
+    buying_timeline: coerceInsightString(raw.buying_timeline, 200),
+    objections,
+    agreed_next_steps: coerceInsightString(raw.agreed_next_steps, 400),
+    key_quote: coerceInsightString(raw.key_quote, 400),
+    recommended_lifecycle_stage: coerceInsightEnum(
+      raw.recommended_lifecycle_stage,
+      ["new", "attempting", "connected", "qualified", "booked", "won", "lost"] as const,
+    ),
+    booked: raw.booked === true,
+  };
+
+  // Consistency: booked=true forces lifecycle >= booked.
+  if (insights.booked && insights.recommended_lifecycle_stage) {
+    const rankOrder = ["new", "attempting", "connected", "qualified", "booked", "won", "lost"];
+    if (rankOrder.indexOf(insights.recommended_lifecycle_stage) < rankOrder.indexOf("booked")) {
+      insights.recommended_lifecycle_stage = "booked";
+    }
+  }
+
+  return insights;
+}
+
+async function extractTranscriptInsights(params: {
+  transcript: string;
+  businessName?: string | null;
+  phoneNumber?: string | null;
+}): Promise<TranscriptInsights | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.warn("[transcript-extraction] LOVABLE_API_KEY missing — skipping extraction");
+    return null;
+  }
+
+  const userPrompt = [
+    "Extract the structured intelligence from the following sales call transcript.",
+    params.businessName ? `Prospect business: ${params.businessName}` : null,
+    params.phoneNumber ? `Phone: ${params.phoneNumber}` : null,
+    "",
+    "Transcript:",
+    params.transcript,
+  ].filter(Boolean).join("\n");
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: TRANSCRIPT_EXTRACTION_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.error(`[transcript-extraction] Gateway ${response.status}: ${body.slice(0, 500)}`);
+      return null;
+    }
+
+    const result = await response.json().catch(() => null);
+    const content = result?.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Model returned text — try to extract a JSON block.
+      const match = content.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      try {
+        parsed = JSON.parse(match[0]);
+      } catch {
+        return null;
+      }
+    }
+
+    return validateTranscriptInsights(parsed);
+  } catch (err) {
+    console.error("[transcript-extraction] Request failed:", err);
+    return null;
+  }
+}
+
+function buildTranscriptSummaryNote(insights: TranscriptInsights, opts?: { source?: string }) {
+  const lines: string[] = ["📞 Call Summary (auto-extracted)"];
+
+  if (insights.call_summary) lines.push("", insights.call_summary);
+  if (insights.call_sentiment) lines.push("", `Sentiment: ${insights.call_sentiment}`);
+  if (insights.buying_signal_strength) lines.push(`Buying signal: ${insights.buying_signal_strength}`);
+  if (insights.buying_timeline) lines.push(`Timeline: ${insights.buying_timeline}`);
+  if (insights.budget_indication) lines.push(`Budget: ${insights.budget_indication}`);
+  if (insights.dm_name || insights.dm_role) {
+    lines.push(`Decision maker: ${[insights.dm_name, insights.dm_role].filter(Boolean).join(" — ")}`);
+  }
+  if (insights.key_quote) lines.push("", `Prospect quote: "${insights.key_quote}"`);
+
+  if (insights.objections.length > 0) {
+    lines.push("", "Objections:");
+    for (const o of insights.objections) {
+      lines.push(`• ${o.objection} → ${o.how_handled}`);
+    }
+  }
+
+  if (insights.agreed_next_steps) lines.push("", `Agreed next steps: ${insights.agreed_next_steps}`);
+  if (insights.recommended_lifecycle_stage) lines.push("", `Suggested lifecycle stage: ${insights.recommended_lifecycle_stage}${insights.booked ? " (meeting booked)" : ""}`);
+
+  if (opts?.source) lines.push("", `— ${opts.source}`);
+
+  return lines.join("\n");
+}
+
+async function applyTranscriptInsightsToContact(params: {
+  adminClient: ReturnType<typeof createClient>;
+  contactId: string;
+  userId: string;
+  dialpadCallId: string;
+  transcript: string;
+  insights: TranscriptInsights;
+  dialpadCallsRowId?: string | null;
+  source?: string;
+}) {
+  const writes = {
+    note_written: false,
+    fields_written: [] as string[],
+    lifecycle_advanced_to: null as string | null,
+    transcript_stored: false,
+  };
+
+  // 1. Append call-summary note (source = call_transcript).
+  try {
+    await upsertContactNote(params.adminClient, {
+      contactId: params.contactId,
+      createdBy: params.userId,
+      dialpadCallId: params.dialpadCallId,
+      source: "call_transcript",
+      content: buildTranscriptSummaryNote(params.insights, { source: params.source ?? "AI transcript analysis" }),
+    });
+    writes.note_written = true;
+  } catch (err) {
+    console.error("[transcript-apply] Failed to write summary note:", err);
+  }
+
+  // 2. Fetch current contact to enforce fill-if-empty semantics.
+  const { data: current, error: currentErr } = await params.adminClient
+    .from("contacts")
+    .select("dm_name, dm_role, buying_signal_strength, budget_indication, buying_timeline, last_call_sentiment, key_quote, agreed_next_steps")
+    .eq("id", params.contactId)
+    .maybeSingle();
+
+  if (currentErr) {
+    console.error("[transcript-apply] Failed to load contact for fill-if-empty:", currentErr.message);
+  } else if (current) {
+    const fillIfEmpty: Record<string, string> = {};
+    const map: Array<[keyof typeof current, string | null]> = [
+      ["dm_name", params.insights.dm_name],
+      ["dm_role", params.insights.dm_role],
+      ["buying_signal_strength", params.insights.buying_signal_strength],
+      ["budget_indication", params.insights.budget_indication],
+      ["buying_timeline", params.insights.buying_timeline],
+      ["last_call_sentiment", params.insights.call_sentiment],
+      ["key_quote", params.insights.key_quote],
+      ["agreed_next_steps", params.insights.agreed_next_steps],
+    ];
+
+    for (const [field, value] of map) {
+      if (!value) continue;
+      const existing = current[field];
+      if (existing === null || existing === undefined || (typeof existing === "string" && existing.trim() === "")) {
+        fillIfEmpty[field as string] = value;
+      }
+    }
+
+    if (Object.keys(fillIfEmpty).length > 0) {
+      const { error: updateErr } = await params.adminClient
+        .from("contacts")
+        .update(fillIfEmpty)
+        .eq("id", params.contactId);
+
+      if (updateErr) {
+        console.error("[transcript-apply] Fill-if-empty update failed:", updateErr.message);
+      } else {
+        writes.fields_written = Object.keys(fillIfEmpty);
+      }
+    }
+  }
+
+  // 3. Forward-only lifecycle advance via existing RPC. Booked forces >= 'booked'.
+  let targetStage = params.insights.recommended_lifecycle_stage;
+  if (params.insights.booked) targetStage = targetStage ?? "booked";
+  if (targetStage) {
+    const { error: rpcErr } = await params.adminClient.rpc("advance_contact_lifecycle", {
+      _contact_id: params.contactId,
+      _target: targetStage,
+      _reason: "transcript_extraction",
+    });
+    if (rpcErr) {
+      console.error("[transcript-apply] advance_contact_lifecycle failed:", rpcErr.message);
+    } else {
+      writes.lifecycle_advanced_to = targetStage;
+    }
+  }
+
+  // 4. Persist the raw transcript on the dialpad_calls row (new column).
+  try {
+    let query = params.adminClient.from("dialpad_calls").update({ transcript: params.transcript });
+    query = params.dialpadCallsRowId
+      ? query.eq("id", params.dialpadCallsRowId)
+      : query.eq("dialpad_call_id", params.dialpadCallId);
+    const { error: tErr } = await query;
+    if (tErr) {
+      console.error("[transcript-apply] Failed to store raw transcript:", tErr.message);
+    } else {
+      writes.transcript_stored = true;
+    }
+  } catch (err) {
+    console.error("[transcript-apply] Transcript store threw:", err);
+  }
+
+  return writes;
+}
+
+// Safe wrapper — never throws, always returns a summary. Used by the real
+// webhook path and by the test action so nothing breaks before the Dialpad key
+// or the AI gateway is fully live.
+async function runTranscriptExtractionPipeline(params: {
+  adminClient: ReturnType<typeof createClient>;
+  contactId: string;
+  userId: string;
+  dialpadCallId: string;
+  transcript: string | null | undefined;
+  businessName?: string | null;
+  phoneNumber?: string | null;
+  dialpadCallsRowId?: string | null;
+  source?: string;
+}) {
+  if (!params.transcript || params.transcript.trim().length < 40) {
+    return { skipped: true as const, reason: "no_transcript" as const };
+  }
+
+  if (!Deno.env.get("LOVABLE_API_KEY")) {
+    return { skipped: true as const, reason: "no_lovable_api_key" as const };
+  }
+
+  try {
+    const insights = await extractTranscriptInsights({
+      transcript: params.transcript,
+      businessName: params.businessName,
+      phoneNumber: params.phoneNumber,
+    });
+
+    if (!insights) {
+      return { skipped: false as const, ok: false as const, reason: "extraction_failed" as const };
+    }
+
+    const writes = await applyTranscriptInsightsToContact({
+      adminClient: params.adminClient,
+      contactId: params.contactId,
+      userId: params.userId,
+      dialpadCallId: params.dialpadCallId,
+      transcript: params.transcript,
+      insights,
+      dialpadCallsRowId: params.dialpadCallsRowId,
+      source: params.source,
+    });
+
+    return { skipped: false as const, ok: true as const, insights, writes };
+  } catch (err) {
+    console.error("[transcript-pipeline] Unexpected failure:", err);
+    return { skipped: false as const, ok: false as const, reason: "unexpected_error" as const, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 
 async function processPendingTranscriptSyncs(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
   limit?: number;
 }) {
+  if (!params.apiKey) {
+    // Safe no-op until DIALPAD_API_KEY is configured. Prevents crashes on the
+    // scheduled cron path before the real Dialpad key is available.
+    return { processed: 0, synced: 0, failed: 0, skipped: 0, errors: [] as string[], reason: "DIALPAD_API_KEY not configured" };
+  }
+  // Extract-then-apply pipeline runs opportunistically after each successful
+  // transcript sync (see runTranscriptExtractionPipeline). The pipeline itself
+  // no-ops when LOVABLE_API_KEY is missing, so the outer loop stays healthy.
   const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
   const staleBefore = new Date(Date.now() - 2 * 60_000).toISOString();
 
@@ -2563,6 +2954,35 @@ async function syncWebhookPayload(params: {
     });
   }
 
+  // ── Transcript → Prospect record extraction ─────────────────────────
+  // Runs whenever we have a real transcript. Safely no-ops if the AI
+  // gateway key is missing, so pre-key deployments stay healthy.
+  if (transcriptEligibleCall.eligible && hasTranscript && transcript) {
+    try {
+      // Business name lookup for a richer prompt (optional).
+      const { data: contactRow } = await adminClient
+        .from("contacts")
+        .select("business_name, phone")
+        .eq("id", trackedCall.contact_id)
+        .maybeSingle();
+
+      const pipelineResult = await runTranscriptExtractionPipeline({
+        adminClient,
+        contactId: trackedCall.contact_id,
+        userId: trackedCall.user_id,
+        dialpadCallId,
+        transcript,
+        businessName: contactRow?.business_name ?? null,
+        phoneNumber: payload.external_number ?? contactRow?.phone ?? null,
+        dialpadCallsRowId: trackedCall.id,
+        source: "Dialpad transcript",
+      });
+      console.log(`[syncWebhookPayload] Transcript extraction pipeline: ${JSON.stringify(pipelineResult).slice(0, 400)}`);
+    } catch (extractionErr) {
+      console.error("[syncWebhookPayload] Transcript extraction failed (non-fatal):", extractionErr);
+    }
+  }
+
   // ── AI Summary Processing & GHL Push ──────────────────────────────────
   let aiResult: { aiGenerated: boolean; ghlNotePushed: boolean; ghlFieldsPushed: boolean; fieldsExtracted?: number } | null = null;
   if (transcriptEligibleCall.eligible && hasTranscript && transcript && talkTimeSeconds != null && talkTimeSeconds > 15) {
@@ -2635,8 +3055,21 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const DIALPAD_API_KEY = Deno.env.get("DIALPAD_API_KEY");
-  if (!DIALPAD_API_KEY) {
+  // DIALPAD_API_KEY may be unset in staging / pre-launch — actions that talk
+  // to Dialpad still fail loudly below, but the transcript-extraction test
+  // action and other Dialpad-independent paths can proceed without it.
+  const DIALPAD_API_KEY = Deno.env.get("DIALPAD_API_KEY") ?? "";
+  const DIALPAD_KEY_OPTIONAL_ACTIONS = new Set(["test_transcript_extraction"]);
+  let peekedAction: string | null = null;
+  if (req.method === "POST") {
+    try {
+      const peekBody = await req.clone().json();
+      if (peekBody && typeof peekBody.action === "string") peekedAction = peekBody.action;
+    } catch {
+      peekedAction = null;
+    }
+  }
+  if (!DIALPAD_API_KEY && !(peekedAction && DIALPAD_KEY_OPTIONAL_ACTIONS.has(peekedAction))) {
     return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
   }
 
@@ -3663,6 +4096,52 @@ Deno.serve(async (req) => {
         const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
         const result = await processPendingTranscriptSyncs({ adminClient, apiKey: DIALPAD_API_KEY, limit });
         return jsonResponse({ ok: true, ...result }, 200);
+      }
+
+      case "test_transcript_extraction": {
+        // Staging action: runs the full extract+apply pipeline against an
+        // inline sample HVAC transcript so the wiring can be verified end-to-end
+        // BEFORE the real Dialpad API key / webhook / transcripts are live.
+        const contactId = typeof params.contact_id === "string" ? params.contact_id.trim() : "";
+        if (!contactId) {
+          return jsonResponse({ error: "contact_id is required" }, 400);
+        }
+
+        const { data: contactRow, error: contactErr } = await adminClient
+          .from("contacts")
+          .select("id, business_name, phone")
+          .eq("id", contactId)
+          .maybeSingle();
+        if (contactErr) {
+          return jsonResponse({ error: contactErr.message }, 500);
+        }
+        if (!contactRow) {
+          return jsonResponse({ error: "contact not found" }, 404);
+        }
+
+        const transcript = typeof params.transcript === "string" && params.transcript.trim().length > 40
+          ? params.transcript
+          : SAMPLE_HVAC_TRANSCRIPT;
+        const syntheticDialpadCallId = `test_${contactId}_${Date.now()}`;
+
+        const pipelineResult = await runTranscriptExtractionPipeline({
+          adminClient,
+          contactId,
+          userId: user.id,
+          dialpadCallId: syntheticDialpadCallId,
+          transcript,
+          businessName: contactRow.business_name,
+          phoneNumber: contactRow.phone,
+          source: "Sample transcript (staging test)",
+        });
+
+        return jsonResponse({
+          ok: true,
+          sample_used: transcript === SAMPLE_HVAC_TRANSCRIPT,
+          synthetic_dialpad_call_id: syntheticDialpadCallId,
+          transcript_length: transcript.length,
+          pipeline: pipelineResult,
+        }, 200);
       }
 
       default:
