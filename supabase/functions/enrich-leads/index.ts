@@ -211,9 +211,24 @@ function cleanCandidateName(raw: string): string | null {
   const tokens = name.split(/\s+/);
   if (tokens.length < 2 || tokens.length > 3) return null;
 
+  // Loosened Title-case token rule. Accept:
+  //   - Standard Title-case:            Ray, Glavinovic
+  //   - Apostrophes:                    O'Brien, D'Angelo
+  //   - Hyphenated:                     Jo-Anne, Smith-Jones
+  //   - Mc/Mac prefixes:                McDonald, MacLeod
+  // Still rejects: ALL-CAPS, single tokens, digits, punctuation-only tokens,
+  // and stoplist words (checked case-insensitively across each sub-part).
+  const TOKEN_RE =
+    /^(?:(?:Mc|Mac)[A-Z][a-z]+|[A-Z][a-z]+(?:['\u2019][A-Z]?[a-z]+)?(?:-[A-Z][a-z]+(?:['\u2019][A-Z]?[a-z]+)?)*)$/;
+
   for (const tok of tokens) {
-    if (!/^[A-Z][a-z]+$/.test(tok)) return null; // strict Title-case alpha
-    if (NAME_STOPLIST.has(tok.toLowerCase())) return null;
+    if (!TOKEN_RE.test(tok)) return null;
+    // Any sub-part (split on hyphen or apostrophe) hitting the stoplist rejects
+    // the whole token — catches "Home-Owner", "Team-Smith", etc.
+    const parts = tok.split(/[-'\u2019]/).filter(Boolean);
+    for (const part of parts) {
+      if (NAME_STOPLIST.has(part.toLowerCase())) return null;
+    }
   }
   return tokens.join(" ");
 }
