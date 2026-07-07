@@ -377,10 +377,27 @@ async function updateContactFields(
   contactId: string,
   customFields: Array<{ id: string; field_value: unknown }>,
 ) {
-  // Resolve field keys to GHL IDs before sending
-  const resolved = customFields
-    .map((f) => ({ id: resolveFieldId(f.id), field_value: f.field_value }))
-    .filter((f) => f.id); // drop any that resolved to empty
+  // Resolve field keys to GHL IDs before sending. Any keys that don't map
+  // to a known GHL custom-field ID are skipped with a warning — the GHL
+  // custom field must be created in the location first.
+  const resolved: Array<{ id: string; field_value: unknown }> = [];
+  for (const f of customFields) {
+    if (!f.id) continue;
+    const mapped = GHL_FIELD_KEY_TO_ID[f.id];
+    if (mapped) {
+      resolved.push({ id: mapped, field_value: f.field_value });
+      continue;
+    }
+    // If the input already looks like a raw GHL ID (not a "contact.*" key), pass through.
+    if (!f.id.startsWith("contact.")) {
+      resolved.push({ id: f.id, field_value: f.field_value });
+      continue;
+    }
+    console.warn(`[GHL updateContactFields] Skipping unmapped custom field key "${f.id}" — create it in the GHL location and add its ID to GHL_FIELD_KEY_TO_ID.`);
+  }
+  if (resolved.length === 0) {
+    return { skipped: customFields.length, note: "No mappable custom fields" };
+  }
   return ghlFetch(`/contacts/${contactId}`, apiKey, {
     method: "PUT",
     body: { customFields: resolved },
