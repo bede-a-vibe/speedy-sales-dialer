@@ -14,6 +14,8 @@ import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { Brain, UserPlus, Building2 as AgencyIcon } from "lucide-react";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -145,6 +147,7 @@ export default function ContactDetailPage() {
   const [editCity, setEditCity] = useState("");
   const [editState, setEditState] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const openDetailsDialog = () => {
     if (!contact) return;
@@ -668,6 +671,10 @@ export default function ContactDetailPage() {
                   <ExternalLink className="h-3.5 w-3.5" /> GMB
                 </a>
               )}
+              <Button size="sm" variant="outline" onClick={() => setNewTaskOpen(true)} className="ml-auto">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                New task
+              </Button>
             </div>
 
             {hasDecisionMakerDial && (
@@ -1074,6 +1081,21 @@ export default function ContactDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        contact={contact ? {
+          id: contact.id,
+          business_name: contact.business_name,
+          contact_person: contact.contact_person ?? null,
+          phone: contact.phone ?? null,
+        } : null}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+          queryClient.invalidateQueries({ queryKey: ["pipeline-items", "contact", id] });
+        }}
+      />
     </AppLayout>
   );
 }

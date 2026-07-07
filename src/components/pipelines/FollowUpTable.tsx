@@ -97,6 +97,13 @@ interface FollowUpTableProps {
   onAssign: (id: string, userId: string) => Promise<void>;
   onReschedule: (id: string, iso: string) => Promise<void>;
   onChangeMethod: (id: string, method: FollowUpMethod) => Promise<void>;
+  /** When provided, the Call button places a Dialpad call instead of navigating. */
+  onDialpadCall?: (contactId: string, phone: string) => void;
+  isCalling?: boolean;
+  /** Hide the filters bar (useful when the parent already applies filtering). */
+  hideFilters?: boolean;
+  /** Override the default status filter (e.g. "all" when parent slices). */
+  defaultStatusFilter?: StatusFilter;
 }
 
 // ---------- Expanded action panel ----------
@@ -268,14 +275,27 @@ export function FollowUpTable({
   onAssign,
   onReschedule,
   onChangeMethod,
+  onDialpadCall,
+  isCalling,
+  hideFilters,
+  defaultStatusFilter,
 }: FollowUpTableProps) {
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [repFilter, setRepFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("today");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(defaultStatusFilter ?? "today");
   const [methodFilter, setMethodFilter] = useState<FollowUpMethod | "all">("all");
   const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
   const navigate = useNavigate();
+
+  const handleCallClick = (item: PipelineItemWithRelations) => {
+    const phone = item.contacts?.phone;
+    if (onDialpadCall && phone) {
+      onDialpadCall(item.contact_id, phone);
+    } else {
+      navigate(`/contacts/${item.contact_id}`);
+    }
+  };
 
   const enriched = useMemo(
     () =>
@@ -335,6 +355,8 @@ export function FollowUpTable({
           <SelectItem value="all">All methods</SelectItem>
           <SelectItem value="call">Call</SelectItem>
           <SelectItem value="email">Email</SelectItem>
+          <SelectItem value="sms">SMS</SelectItem>
+          <SelectItem value="task">Task</SelectItem>
           <SelectItem value="prospecting">Prospecting</SelectItem>
         </SelectContent>
       </Select>
@@ -384,7 +406,7 @@ export function FollowUpTable({
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        {filtersBar}
+        {hideFilters ? null : filtersBar}
         <div className="py-20 text-center text-sm text-muted-foreground">No open follow-ups.</div>
       </div>
     );
@@ -394,7 +416,7 @@ export function FollowUpTable({
   if (isMobile) {
     return (
       <div className="space-y-3">
-        {filtersBar}
+        {hideFilters ? null : filtersBar}
         {filtered.map(({ item, status, rep }) => {
           const ghlCue = getGhlMirrorCue({
             pipelineType: item.pipeline_type,
@@ -450,8 +472,9 @@ export function FollowUpTable({
               className="absolute right-2 top-2 h-7 px-2"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/contacts/${item.contact_id}`);
+                handleCallClick(item);
               }}
+              disabled={isCalling}
             >
               <Phone className="h-3.5 w-3.5" />
               Call
@@ -479,7 +502,7 @@ export function FollowUpTable({
   // ---- Desktop: table layout ----
   return (
     <div className="space-y-3">
-      {filtersBar}
+      {hideFilters ? null : filtersBar}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -553,8 +576,9 @@ export function FollowUpTable({
                               className="h-7 px-2"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/contacts/${item.contact_id}`);
+                                handleCallClick(item);
                               }}
+                              disabled={isCalling}
                             >
                               <Phone className="h-3.5 w-3.5" />
                               Call

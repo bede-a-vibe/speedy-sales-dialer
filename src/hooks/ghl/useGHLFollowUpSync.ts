@@ -33,7 +33,12 @@ export function useGHLFollowUpSync() {
     } = params;
 
     const { ghlUserId } = params;
-    const methodLabel = method === "email" ? "Email" : method === "prospecting" ? "Prospecting" : "Call";
+    const methodLabel =
+      method === "email" ? "Email" :
+      method === "prospecting" ? "Prospecting" :
+      method === "sms" ? "SMS" :
+      method === "task" ? "Task" :
+      "Call";
 
     // 1) Task — best-effort, fire and continue
     try {

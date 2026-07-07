@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, AlertTriangle, CalendarCheck, PhoneCall } from "lucide-react";
+import { CalendarClock, AlertTriangle, CalendarCheck, PhoneCall, ListTodo } from "lucide-react";
 import { usePipelineItems } from "@/hooks/usePipelineItems";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,6 +74,11 @@ export function DashboardQuickStats() {
     [followUps],
   );
 
+  const overdueTasks = useMemo(
+    () => followUps.filter((item) => isPast(item.scheduled_for)).length,
+    [followUps],
+  );
+
   const overdueAppointments = useMemo(
     () => booked.filter((item) => isPast(item.scheduled_for)).length,
     [booked],
@@ -85,12 +90,19 @@ export function DashboardQuickStats() {
   );
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       <QuickStat
         icon={<CalendarClock className="h-5 w-5" />}
         label="Follow-ups Today"
         value={followUpsDueToday}
         href="/follow-ups"
+      />
+      <QuickStat
+        icon={<ListTodo className="h-5 w-5" />}
+        label="Overdue Tasks"
+        value={overdueTasks}
+        href="/follow-ups"
+        urgent
       />
       <QuickStat
         icon={<AlertTriangle className="h-5 w-5" />}

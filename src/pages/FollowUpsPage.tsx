@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Copy, Mail, Phone, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Copy, Mail, Phone, Plus, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
@@ -14,10 +14,166 @@ import {
   useSalesReps,
   useUpdatePipelineItem,
   type FollowUpMethod,
+  type PipelineItemWithRelations,
 } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminAccess } from "@/hooks/useUserRole";
+import { useDialpadCall } from "@/hooks/useDialpad";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
+}
+
+type BucketKey = "overdue" | "today" | "upcoming";
+
+function classifyBucket(iso: string | null): BucketKey | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
+  const endToday = new Date(startToday);
+  endToday.setHours(23, 59, 59, 999);
+  const in7 = new Date(startToday);
+  in7.setDate(in7.getDate() + 7);
+  in7.setHours(23, 59, 59, 999);
+  if (d < startToday) return "overdue";
+  if (d <= endToday) return "today";
+  if (d <= in7) return "upcoming";
+  return null;
+}
+
+function MyWorkSection(props: {
+  items: PipelineItemWithRelations[];
+  reps: { user_id: string; display_name: string | null; email: string | null }[];
+  repMap: Map<string, string>;
+  repFilter: string;
+  onRepFilterChange: (value: string) => void;
+  canPickAnyRep: boolean;
+  currentUserId: string | null;
+  isSaving: boolean;
+  onComplete: (id: string) => Promise<void>;
+  onAssign: (id: string, userId: string) => Promise<void>;
+  onReschedule: (id: string, iso: string) => Promise<void>;
+  onChangeMethod: (id: string, method: FollowUpMethod) => Promise<void>;
+  onDialpadCall: (contactId: string, phone: string) => void;
+  isCalling: boolean;
+  onNewTask: () => void;
+}) {
+  const {
+    items, reps, repMap, repFilter, onRepFilterChange, canPickAnyRep, currentUserId,
+    isSaving, onComplete, onAssign, onReschedule, onChangeMethod, onDialpadCall, isCalling, onNewTask,
+  } = props;
+
+  const scoped = useMemo(() => {
+    if (repFilter === "all") return items;
+    const target = repFilter === "me" ? currentUserId : repFilter;
+    if (!target) return items;
+    return items.filter((i) => i.assigned_user_id === target);
+  }, [items, repFilter, currentUserId]);
+
+  const buckets = useMemo(() => {
+    const map: Record<BucketKey, PipelineItemWithRelations[]> = { overdue: [], today: [], upcoming: [] };
+    for (const item of scoped) {
+      const b = classifyBucket(item.scheduled_for);
+      if (b) map[b].push(item);
+    }
+    return map;
+  }, [scoped]);
+
+  const sectionMeta: Record<BucketKey, { title: string; description: string; tone: string }> = {
+    overdue: {
+      title: "Overdue",
+      description: "Past their scheduled time — clear these first.",
+      tone: "border-destructive/40 bg-destructive/5",
+    },
+    today: {
+      title: "Today",
+      description: "Due before end of day.",
+      tone: "border-primary/40 bg-primary/5",
+    },
+    upcoming: {
+      title: "Upcoming (next 7 days)",
+      description: "Ahead of today but within the week.",
+      tone: "border-border bg-card",
+    },
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">My work</h2>
+          <p className="text-xs text-muted-foreground">
+            Your open tasks — overdue, today, and the week ahead.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={repFilter} onValueChange={onRepFilterChange}>
+            <SelectTrigger className="w-[220px] bg-background">
+              <SelectValue placeholder="Rep" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="me">Just me</SelectItem>
+              {canPickAnyRep ? <SelectItem value="all">All reps</SelectItem> : null}
+              {canPickAnyRep
+                ? reps.map((rep) => (
+                    <SelectItem key={rep.user_id} value={rep.user_id}>
+                      {getRepLabel(rep.display_name, rep.email)}
+                    </SelectItem>
+                  ))
+                : null}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={onNewTask}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New task
+          </Button>
+        </div>
+      </div>
+
+      {(Object.keys(sectionMeta) as BucketKey[]).map((key) => {
+        const meta = sectionMeta[key];
+        const bucketItems = buckets[key];
+        return (
+          <div key={key} className={`rounded-xl border ${meta.tone} p-3`}>
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{meta.title}</h3>
+                <p className="text-[11px] text-muted-foreground">{meta.description}</p>
+              </div>
+              <span className="rounded-md bg-background/80 px-2 py-0.5 font-mono text-xs text-foreground">
+                {bucketItems.length}
+              </span>
+            </div>
+            {bucketItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-background/60 p-4 text-center text-xs text-muted-foreground">
+                Nothing here.
+              </div>
+            ) : (
+              <FollowUpTable
+                items={bucketItems}
+                reps={reps}
+                repMap={repMap}
+                isSaving={isSaving}
+                onComplete={onComplete}
+                onAssign={onAssign}
+                onReschedule={onReschedule}
+                onChangeMethod={onChangeMethod}
+                onDialpadCall={onDialpadCall}
+                isCalling={isCalling}
+                hideFilters
+                defaultStatusFilter="all"
+              />
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
 }
 
 type FollowUpContact = {
@@ -101,6 +257,34 @@ export default function FollowUpsPage() {
   const { data: dialerFollowUps = [] } = usePipelineItems("follow_up", "open");
   const { data: reps = [] } = useSalesReps();
   const updatePipelineItem = useUpdatePipelineItem();
+  const { user } = useAuth();
+  const { canViewAdmin } = useAdminAccess();
+  const dialpadCall = useDialpadCall();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
+  const [myWorkRepFilter, setMyWorkRepFilter] = useState<string>("me");
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setMyWorkRepFilter((prev) => (prev === "me" ? user.id : prev));
+  }, [user?.id]);
+
+  const placeDialpadCall = async (_contactId: string, phone: string) => {
+    if (!myDialpadSettings?.dialpad_user_id) {
+      toast.error("Connect your Dialpad number in Dialpad Settings first.");
+      return;
+    }
+    try {
+      await dialpadCall.mutateAsync({
+        phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        contact_id: _contactId,
+      });
+      toast.success(`Calling ${phone} via Dialpad…`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start the Dialpad call.");
+    }
+  };
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
     [reps],
@@ -294,24 +478,28 @@ export default function FollowUpsPage() {
   return (
     <AppLayout title="Follow-Ups">
       <div className="max-w-4xl mx-auto space-y-4">
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Your follow-ups</h2>
-            <p className="text-xs text-muted-foreground">
-              Dialer callbacks scheduled from calls — worked in time order, defaulted to today.
-            </p>
-          </div>
-          <FollowUpTable
-            items={dialerFollowUps}
-            reps={reps}
-            repMap={repMap}
-            isSaving={updatePipelineItem.isPending}
-            onComplete={handleDialerComplete}
-            onAssign={handleDialerAssign}
-            onReschedule={handleDialerReschedule}
-            onChangeMethod={handleDialerChangeMethod}
-          />
-        </div>
+        <MyWorkSection
+          items={dialerFollowUps}
+          reps={reps}
+          repMap={repMap}
+          repFilter={myWorkRepFilter}
+          onRepFilterChange={setMyWorkRepFilter}
+          canPickAnyRep={canViewAdmin}
+          currentUserId={user?.id ?? null}
+          isSaving={updatePipelineItem.isPending}
+          onComplete={handleDialerComplete}
+          onAssign={handleDialerAssign}
+          onReschedule={handleDialerReschedule}
+          onChangeMethod={handleDialerChangeMethod}
+          onDialpadCall={placeDialpadCall}
+          isCalling={dialpadCall.isPending}
+          onNewTask={() => setNewTaskOpen(true)}
+        />
+
+        <NewTaskDialog
+          open={newTaskOpen}
+          onOpenChange={setNewTaskOpen}
+        />
 
         <div className="pt-4 border-t border-border">
           <h2 className="text-lg font-semibold text-foreground">GHL pipeline follow-ups</h2>
