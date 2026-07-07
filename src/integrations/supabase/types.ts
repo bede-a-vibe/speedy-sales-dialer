@@ -770,6 +770,72 @@ export type Database = {
         }
         Relationships: []
       }
+      objection_bank: {
+        Row: {
+          booked_count: number
+          call_log_id: string | null
+          category: string
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          example_responses: Json
+          id: string
+          led_to_booking: boolean | null
+          normalized_text: string | null
+          objection_text: string
+          source: string
+          times_seen: number
+          updated_at: string
+        }
+        Insert: {
+          booked_count?: number
+          call_log_id?: string | null
+          category: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          example_responses?: Json
+          id?: string
+          led_to_booking?: boolean | null
+          normalized_text?: string | null
+          objection_text: string
+          source?: string
+          times_seen?: number
+          updated_at?: string
+        }
+        Update: {
+          booked_count?: number
+          call_log_id?: string | null
+          category?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          example_responses?: Json
+          id?: string
+          led_to_booking?: boolean | null
+          normalized_text?: string | null
+          objection_text?: string
+          source?: string
+          times_seen?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objection_bank_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objection_bank_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_ghl_pushes: {
         Row: {
           ai_fields: Json | null
