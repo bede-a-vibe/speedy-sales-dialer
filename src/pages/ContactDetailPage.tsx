@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  ArrowLeft, Phone, Mail, Globe, MapPin, ExternalLink, Shield, ShieldOff,
+  ArrowLeft, Phone, Mail, Globe, MapPin, ExternalLink, Shield, ShieldOff, Pencil,
   Calendar, Send, Loader2, Building2, StickyNote, PhoneCall,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -17,6 +17,10 @@ import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipel
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { ghlUpdateContact } from "@/lib/ghl";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
@@ -122,6 +126,61 @@ export default function ContactDetailPage() {
   const [bookingTime, setBookingTime] = useState("10:00");
   const [draftSuggestion, setDraftSuggestion] = useState<EmailDraftSuggestion | null>(null);
   const [draftSuggestionStatus, setDraftSuggestionStatus] = useState<EmailDraftSuggestionStatus>("idle");
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editContactPerson, setEditContactPerson] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  const openDetailsDialog = () => {
+    if (!contact) return;
+    setEditContactPerson(contact.contact_person ?? "");
+    setEditCity(contact.city ?? "");
+    setEditState(contact.state ?? "");
+    setDetailsDialogOpen(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!contact) return;
+    const nextContactPerson = editContactPerson.trim();
+    const nextCity = editCity.trim();
+    const nextState = editState.trim();
+    setSavingDetails(true);
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        contact_person: nextContactPerson || null,
+        city: nextCity || null,
+        state: nextState || null,
+      });
+
+      // Push to GHL standard fields (contactName / firstName+lastName / city / state).
+      if (contact.ghl_contact_id) {
+        try {
+          const parts = nextContactPerson.split(/\s+/).filter(Boolean);
+          const firstName = parts[0] ?? "";
+          const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+          await ghlUpdateContact(contact.ghl_contact_id, {
+            firstName,
+            lastName,
+            city: nextCity,
+            state: nextState,
+          });
+        } catch (ghlErr) {
+          console.warn("[ContactDetail] GHL contact update failed:", ghlErr);
+          toast.warning("Saved locally, but GHL did not update.");
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      setDetailsDialogOpen(false);
+      toast.success("Contact details updated.");
+    } catch {
+      toast.error("Failed to update details");
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   const allCallLogs = useMemo(() => callLogPages?.pages.flatMap((p) => p.items) ?? [], [callLogPages]);
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
@@ -393,6 +452,14 @@ export default function ContactDetailPage() {
                     <MapPin className="h-3.5 w-3.5" /> {[contact.city, contact.state].filter(Boolean).join(", ")}
                   </span>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs"
+                  onClick={openDetailsDialog}
+                >
+                  <Pencil className="h-3 w-3" /> Edit details
+                </Button>
               </div>
             </div>
           </div>
@@ -764,6 +831,61 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit contact details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-contact-person" className="text-xs text-muted-foreground">
+                Contact person
+              </Label>
+              <Input
+                id="edit-contact-person"
+                value={editContactPerson}
+                onChange={(e) => setEditContactPerson(e.target.value)}
+                placeholder="e.g. John Smith"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-city" className="text-xs text-muted-foreground">City / Suburb</Label>
+                <Input
+                  id="edit-city"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="e.g. Helensvale"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-state" className="text-xs text-muted-foreground">State</Label>
+                <Input
+                  id="edit-state"
+                  value={editState}
+                  onChange={(e) => setEditState(e.target.value.toUpperCase())}
+                  placeholder="e.g. QLD"
+                />
+              </div>
+            </div>
+            {!contact.ghl_contact_id && (
+              <p className="text-[11px] text-muted-foreground">
+                No GHL link yet — changes save locally only.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)} disabled={savingDetails}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDetails} disabled={savingDetails}>
+              {savingDetails ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

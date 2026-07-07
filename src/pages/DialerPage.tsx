@@ -2338,6 +2338,7 @@ export default function DialerPage() {
                   existingDmName={(session.currentContact as any).dm_name}
                   existingDmTitle={(session.currentContact as any).dm_title}
                   existingDmPhone={(session.currentContact as any).dm_phone}
+                  existingDmPhoneType={(session.currentContact as any).dm_phone_type}
                   existingDmEmail={(session.currentContact as any).dm_email}
                   existingDmLinkedin={(session.currentContact as any).dm_linkedin}
                   existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
@@ -2371,6 +2372,7 @@ export default function DialerPage() {
 
               <ExistingAgencyCapture
                 contactId={session.currentContact.id}
+                ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
                 hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
                 existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
                 existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}

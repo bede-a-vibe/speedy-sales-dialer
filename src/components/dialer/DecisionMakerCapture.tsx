@@ -17,6 +17,7 @@ interface DecisionMakerCaptureProps {
   existingDmName?: string | null;
   existingDmTitle?: string | null;
   existingDmPhone?: string | null;
+  existingDmPhoneType?: string | null;
   existingDmEmail?: string | null;
   existingDmLinkedin?: string | null;
   existingGatekeeperName?: string | null;
@@ -29,7 +30,9 @@ interface DecisionMakerCaptureProps {
 // GHL field keys for DM/gatekeeper data
 const GHL_DM_FIELD_MAP: Record<string, string> = {
   dm_name: "contact.decision_maker_name",
+  dm_role: "contact.decision_maker_role",
   dm_phone: "contact.decision_maker_direct_line",
+  dm_phone_type: "contact.decision_maker_phone_type",
   dm_email: "contact.decision_maker_email",
   dm_linkedin: "contact.decision_maker_linkedin",
   gatekeeper_name: "contact.gatekeeper_name",
@@ -122,6 +125,7 @@ export function DecisionMakerCapture({
   existingDmName,
   existingDmTitle,
   existingDmPhone,
+  existingDmPhoneType,
   existingDmEmail,
   existingDmLinkedin,
   existingGatekeeperName,
@@ -144,6 +148,7 @@ export function DecisionMakerCapture({
   const [dmName, setDmName] = useState(existingDmName || "");
   const [dmTitle, setDmTitle] = useState(existingDmTitle || "");
   const [dmPhone, setDmPhone] = useState(existingDmPhone || "");
+  const [dmPhoneType, setDmPhoneType] = useState(existingDmPhoneType || "");
   const [dmEmail, setDmEmail] = useState(existingDmEmail || "");
   const [dmLinkedin, setDmLinkedin] = useState(existingDmLinkedin || "");
 
@@ -157,6 +162,7 @@ export function DecisionMakerCapture({
     setDmName(existingDmName || "");
     setDmTitle(existingDmTitle || "");
     setDmPhone(existingDmPhone || "");
+    setDmPhoneType(existingDmPhoneType || "");
     setDmEmail(existingDmEmail || "");
     setDmLinkedin(existingDmLinkedin || "");
     setGatekeeperName(existingGatekeeperName || "");
@@ -170,6 +176,7 @@ export function DecisionMakerCapture({
     existingDmName,
     existingDmTitle,
     existingDmPhone,
+    existingDmPhoneType,
     existingDmEmail,
     existingDmLinkedin,
     existingGatekeeperName,
@@ -221,6 +228,7 @@ export function DecisionMakerCapture({
         dm_name: nextDmName || null,
         dm_role: dmTitle || null,
         dm_phone: nextDmPhone || null,
+        dm_phone_type: dmPhoneType || null,
         dm_email: nextDmEmail || null,
         dm_linkedin: nextDmLinkedin || null,
         gatekeeper_name: nextGatekeeperName || null,
@@ -241,7 +249,9 @@ export function DecisionMakerCapture({
         try {
           const ghlFields: Record<string, string> = {};
           if (nextDmName) ghlFields["contact.decision_maker_name"] = nextDmName;
+          if (dmTitle) ghlFields["contact.decision_maker_role"] = dmTitle;
           if (nextDmPhone) ghlFields["contact.decision_maker_direct_line"] = nextDmPhone;
+          if (dmPhoneType) ghlFields["contact.decision_maker_phone_type"] = dmPhoneType;
           if (nextDmEmail) ghlFields["contact.decision_maker_email"] = nextDmEmail;
           if (nextDmLinkedin) ghlFields["contact.decision_maker_linkedin"] = nextDmLinkedin;
           if (nextGatekeeperName) ghlFields["contact.gatekeeper_name"] = nextGatekeeperName;
@@ -272,7 +282,7 @@ export function DecisionMakerCapture({
     } finally {
       setIsSaving(false);
     }
-  }, [contactId, dmName, dmTitle, dmPhone, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved]);
+  }, [contactId, dmName, dmTitle, dmPhone, dmPhoneType, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved]);
 
   return (
     <Card className="border-border bg-card/50">
@@ -375,6 +385,16 @@ export function DecisionMakerCapture({
                   className="h-8 text-xs"
                   type="tel"
                 />
+                <Select value={dmPhoneType || "unknown"} onValueChange={(v) => setDmPhoneType(v === "unknown" ? "" : v)}>
+                  <SelectTrigger className="h-7 text-[11px]">
+                    <SelectValue placeholder="Phone type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unknown">Unknown</SelectItem>
+                    <SelectItem value="mobile">Mobile</SelectItem>
+                    <SelectItem value="landline">Landline</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
