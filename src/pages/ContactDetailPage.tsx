@@ -9,7 +9,6 @@ import {
 import { AppLayout } from "@/components/AppLayout";
 import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
 import { ManualTranscriptUpload } from "@/components/contacts/ManualTranscriptUpload";
-import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
@@ -60,6 +59,8 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
