@@ -399,7 +399,13 @@ export default function DialerPage() {
   const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
 
   // Dialpad CTI Client ID from environment variable
-  const dialpadCTIClientId = (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_DIALPAD_CTI_CLIENT_ID ?? null;
+  // Non-secret, origin-restricted public Dialpad CTI Client ID (allow-listed to
+  // speedydialer.com, www.speedydialer.com, and the id-preview lovable.app origin).
+  // Safe to commit — Dialpad rejects it from any other origin. Env var overrides.
+  const DEFAULT_DIALPAD_CTI_CLIENT_ID = "hbhxaRmhSjrSTYGh8T4NwpGNd";
+  const dialpadCTIClientId =
+    (import.meta as unknown as { env: Record<string, string | undefined> }).env
+      .VITE_DIALPAD_CTI_CLIENT_ID ?? DEFAULT_DIALPAD_CTI_CLIENT_ID;
 
   // Advanced dialer filters
   const [tradeTypes, setTradeTypes] = useState<string[]>(() => storedFilters?.tradeTypes ?? []);
