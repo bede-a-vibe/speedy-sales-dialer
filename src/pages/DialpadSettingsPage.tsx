@@ -284,6 +284,23 @@ export default function DialpadSettingsPage() {
             </Table>
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="pt-4">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Radio className="h-5 w-5" />
+                Caller ID Rotation
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Assign up to 8 outbound caller ID numbers per rep. The dialer rotates every 50 dials so no single number gets spam-flagged. Inert until at least one number is added.
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <CallerIdRotationManager profiles={profiles.map((p) => ({ user_id: p.user_id, display_name: p.display_name, email: p.email }))} />
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
