@@ -20,7 +20,8 @@
     --secondary-foreground: 212 76% 13%;
 
     --muted: 206 33% 96%;
-    --muted-foreground: 210 14% 49%;
+    /* Bumped from 49% → 38% lightness (cool slate) for WCAG AA contrast on the #f4f7fa canvas. */
+    --muted-foreground: 212 16% 38%;
 
     --accent: 197 76% 94%;
     --accent-foreground: 195 100% 35%;
