@@ -61,7 +61,12 @@ const TAB_GROUPS: TabGroupDef[] = [
   },
 ];
 
-export default function ReportsPage() {
+interface ReportsBodyProps {
+  initialTab?: string;
+  initialGroup?: string;
+}
+
+export function ReportsBody({ initialTab, initialGroup }: ReportsBodyProps = {}) {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
@@ -69,8 +74,8 @@ export default function ReportsPage() {
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
   const [hourlyDate, setHourlyDate] = useState(today);
-  const [activeGroup, setActiveGroup] = useState("performance");
-  const [activeTab, setActiveTab] = useState("sop-diagnostic");
+  const [activeGroup, setActiveGroup] = useState(initialGroup ?? "performance");
+  const [activeTab, setActiveTab] = useState(initialTab ?? "sop-diagnostic");
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
@@ -161,7 +166,7 @@ export default function ReportsPage() {
   }, [metrics.repComparison, callLogs]);
 
   return (
-    <AppLayout title="Reports">
+    <>
       <ReportsToolbar
         dateFrom={dateFrom}
         dateTo={dateTo}
