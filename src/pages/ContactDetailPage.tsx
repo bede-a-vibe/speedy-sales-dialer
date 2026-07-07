@@ -592,6 +592,63 @@ export default function ContactDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Capture panels — feature parity with the Dialer page so reps can
+            view AND edit every field from Contacts → contact detail. */}
+        <div className="space-y-4">
+          <CollapsiblePanel
+            title="Decision Maker"
+            subtitle="Owner / marketing manager · gatekeeper intel"
+            icon={<UserPlus className="h-4 w-4" />}
+            defaultOpen
+          >
+            <DecisionMakerCapture
+              contactId={contact.id}
+              businessName={contact.business_name || ""}
+              ghlContactId={contact.ghl_contact_id}
+              existingDmName={contact.dm_name}
+              existingDmTitle={(contact as unknown as { dm_role?: string | null }).dm_role ?? null}
+              existingDmPhone={contact.dm_phone}
+              existingDmPhoneType={contact.dm_phone_type}
+              existingDmEmail={contact.dm_email}
+              existingDmLinkedin={(contact as unknown as { dm_linkedin?: string | null }).dm_linkedin ?? null}
+              existingGatekeeperName={contact.gatekeeper_name}
+              existingGatekeeperNotes={(contact as unknown as { gatekeeper_notes?: string | null }).gatekeeper_notes ?? null}
+              existingBestRouteToDecisionMaker={contact.best_route_to_decision_maker}
+              existingBestTimeToCall={contact.best_time_to_call}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact", id] })}
+            />
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            title="Existing Agency"
+            subtitle="Do they already pay an agency? What services?"
+            icon={<AgencyIcon className="h-4 w-4" />}
+          >
+            <ExistingAgencyCapture
+              contactId={contact.id}
+              ghlContactId={contact.ghl_contact_id}
+              hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
+              existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
+              existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
+              existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
+            />
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            title="Contact Intelligence"
+            subtitle="GHL custom fields · auto-saves as you type"
+            icon={<Brain className="h-4 w-4" />}
+            badge={contact.ghl_contact_id ? "GHL synced" : "Local only"}
+            badgeVariant={contact.ghl_contact_id ? "secondary" : "outline"}
+          >
+            <ContactIntelligencePanel
+              contactId={contact.id}
+              ghlContactId={contact.ghl_contact_id}
+              contact={contact as unknown as Record<string, unknown>}
+            />
+          </CollapsiblePanel>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             <Card>
