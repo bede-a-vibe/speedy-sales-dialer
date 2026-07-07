@@ -37,6 +37,8 @@ export type DialerFilterPreset = "all" | "hot_today" | "dm_direct" | "dm_capture
 export type DialerFilterSnapshot = {
   leadType: string;
   leadChannel: string;
+  leadSource: string;
+  callRecency: string;
   industries: string[];
   states: string[];
   contactOwner: string;
@@ -65,6 +67,10 @@ interface AdvancedFiltersProps {
   setLeadType: (v: string) => void;
   leadChannel: string;
   setLeadChannel: (v: string) => void;
+  leadSource: string;
+  setLeadSource: (v: string) => void;
+  callRecency: string;
+  setCallRecency: (v: string) => void;
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
@@ -145,6 +151,8 @@ export function AdvancedFilters({
   states, setStates,
   leadType, setLeadType,
   leadChannel, setLeadChannel,
+  leadSource, setLeadSource,
+  callRecency, setCallRecency,
   contactOwner, setContactOwner,
   salesReps,
   workType, setWorkType,
@@ -184,6 +192,7 @@ export function AdvancedFilters({
     label: `${o.value} (${o.count.toLocaleString()})`,
   }));
   const channelOptions = filterOptions?.channels ?? [];
+  const sourceOptions = filterOptions?.sources ?? [];
 
   const matchLabel =
     matchingContactCount === null
