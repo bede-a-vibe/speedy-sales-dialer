@@ -19,7 +19,7 @@ import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
-import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
+import { usePaginatedContactNotes, useAddContactNote } from "@/hooks/useContactNotes";
 import { useContactPipelineItems, useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline";
 import { useUpdateContact } from "@/hooks/useContacts";
@@ -125,6 +125,7 @@ export default function ContactDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const updateContact = useUpdateContact();
+  const addNote = useAddContactNote();
   const createPipelineItem = useCreatePipelineItem();
 
   const { data: contact, isLoading, error } = useContact(id);
@@ -376,20 +377,18 @@ export default function ContactDetailPage() {
 
   const handleAddNote = async () => {
     if (!newNote.trim() || !id || !user?.id) return;
+    const draft = newNote.trim();
+    // Clear the composer immediately so it feels instant; the optimistic note
+    // is already visible in the timeline via useAddContactNote's cache patch.
+    setNewNote("");
     setSavingNote(true);
     try {
-      const { error } = await supabase.from("contact_notes").insert({
-        contact_id: id,
-        content: newNote.trim(),
-        created_by: user.id,
-        source: "manual" as const,
-      });
-      if (error) throw error;
-      setNewNote("");
-      queryClient.invalidateQueries({ queryKey: ["contact-notes-paginated", id] });
+      await addNote.mutateAsync({ contactId: id, content: draft, createdBy: user.id });
       toast.success("Note added");
     } catch {
       toast.error("Failed to add note");
+      // Restore the composer so the rep doesn't lose their text.
+      setNewNote(draft);
     } finally {
       setSavingNote(false);
     }
