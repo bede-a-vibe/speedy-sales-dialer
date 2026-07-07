@@ -944,11 +944,98 @@ Deno.serve(async (req) => {
   }
   const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 50);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
+  const mode: "default" | "deep_crawl" = body?.mode === "deep_crawl" ? "deep_crawl" : "default";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // ── Deep-crawl mode ──
+  // Additive, isolated re-run: hits leads that already have a website but no
+  // dm_name, fetches the homepage plus up to 4 owner-likely secondary pages,
+  // and marks deep_crawl_attempted=true when done (even on no-find).
+  if (mode === "deep_crawl") {
+    let deepQuery = admin
+      .from("contacts")
+      .select("id, website, dm_name, dm_phone, dm_email");
+    if (forcedIds) {
+      deepQuery = deepQuery.in("id", forcedIds);
+    } else {
+      deepQuery = deepQuery
+        .not("website", "is", null)
+        .neq("website", "")
+        .is("dm_name", null)
+        .neq("deep_crawl_attempted", true)
+        .order("created_at", { ascending: true })
+        .limit(batchSize);
+    }
+    const { data: deepContacts, error: deepErr } = await deepQuery;
+    if (deepErr) return json({ error: `Deep select failed: ${deepErr.message}` }, 500);
+
+    let deepRemaining = 0;
+    if (!forcedIds) {
+      const { count } = await admin
+        .from("contacts")
+        .select("id", { count: "exact", head: true })
+        .not("website", "is", null)
+        .neq("website", "")
+        .is("dm_name", null)
+        .neq("deep_crawl_attempted", true);
+      deepRemaining = Math.max((count ?? 0) - (deepContacts?.length ?? 0), 0);
+    }
+
+    let d_names = 0, d_mobiles = 0, d_emails = 0;
+    const deepLogs: any[] = [];
+
+    const perDeep = async (c: any) => {
+      try {
+        const r = await processDeepCrawl({
+          id: c.id,
+          website: c.website,
+          dm_name: c.dm_name,
+          dm_phone: c.dm_phone,
+          dm_email: c.dm_email,
+        }, LOVABLE_API_KEY);
+
+        const update: Record<string, any> = {
+          deep_crawl_attempted: true,
+        };
+        if (r.name && (!c.dm_name || c.dm_name === "")) {
+          update.dm_name = r.name;
+          d_names++;
+        }
+        if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
+          update.dm_phone = r.mobile;
+          update.dm_phone_type = "mobile";
+          d_mobiles++;
+        }
+        if (r.email && (!c.dm_email || c.dm_email === "")) {
+          update.dm_email = r.email;
+          d_emails++;
+        }
+        const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+        if (upErr) console.error(`[enrich-leads/deep] update ${c.id} failed:`, upErr.message);
+        deepLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, name: r.name, mobile: r.mobile, email: r.email });
+      } catch (err: any) {
+        console.error(`[enrich-leads/deep] contact ${c.id} threw:`, err?.message ?? err);
+        await admin.from("contacts").update({ deep_crawl_attempted: true }).eq("id", c.id);
+        deepLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+    };
+
+    await runInChunks(deepContacts ?? [], CONCURRENCY, perDeep);
+
+    return json({
+      mode: "deep_crawl",
+      processed: deepContacts?.length ?? 0,
+      names_found: d_names,
+      mobiles_found: d_mobiles,
+      emails_found: d_emails,
+      remaining: deepRemaining,
+      logs: deepLogs,
+    });
+  }
 
   // Select batch
   let query = admin
