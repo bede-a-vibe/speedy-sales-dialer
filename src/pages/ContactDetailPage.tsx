@@ -126,6 +126,61 @@ export default function ContactDetailPage() {
   const [bookingTime, setBookingTime] = useState("10:00");
   const [draftSuggestion, setDraftSuggestion] = useState<EmailDraftSuggestion | null>(null);
   const [draftSuggestionStatus, setDraftSuggestionStatus] = useState<EmailDraftSuggestionStatus>("idle");
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editContactPerson, setEditContactPerson] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  const openDetailsDialog = () => {
+    if (!contact) return;
+    setEditContactPerson(contact.contact_person ?? "");
+    setEditCity(contact.city ?? "");
+    setEditState(contact.state ?? "");
+    setDetailsDialogOpen(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!contact) return;
+    const nextContactPerson = editContactPerson.trim();
+    const nextCity = editCity.trim();
+    const nextState = editState.trim();
+    setSavingDetails(true);
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        contact_person: nextContactPerson || null,
+        city: nextCity || null,
+        state: nextState || null,
+      });
+
+      // Push to GHL standard fields (contactName / firstName+lastName / city / state).
+      if (contact.ghl_contact_id) {
+        try {
+          const parts = nextContactPerson.split(/\s+/).filter(Boolean);
+          const firstName = parts[0] ?? "";
+          const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+          await ghlUpdateContact(contact.ghl_contact_id, {
+            firstName,
+            lastName,
+            city: nextCity,
+            state: nextState,
+          });
+        } catch (ghlErr) {
+          console.warn("[ContactDetail] GHL contact update failed:", ghlErr);
+          toast.warning("Saved locally, but GHL did not update.");
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      setDetailsDialogOpen(false);
+      toast.success("Contact details updated.");
+    } catch {
+      toast.error("Failed to update details");
+    } finally {
+      setSavingDetails(false);
+    }
+  };
 
   const allCallLogs = useMemo(() => callLogPages?.pages.flatMap((p) => p.items) ?? [], [callLogPages]);
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
