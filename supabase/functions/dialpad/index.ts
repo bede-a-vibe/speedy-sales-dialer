@@ -1601,7 +1601,72 @@ type TranscriptInsights = {
   key_quote: string | null;
   recommended_lifecycle_stage: "new" | "attempting" | "connected" | "qualified" | "booked" | "won" | "lost" | null;
   booked: boolean;
+  nepq_scorecard: NepqScorecard | null;
 };
+
+const NEPQ_STAGES = [
+  "connection",
+  "situation",
+  "problem_awareness",
+  "solution_awareness",
+  "consequence",
+  "transition",
+  "presentation",
+  "commitment",
+] as const;
+type NepqStage = typeof NEPQ_STAGES[number];
+
+export type NepqScorecard = {
+  nepq_scores: Record<NepqStage, number>;
+  overall_score: number;
+  broke_down_at: NepqStage | "none";
+  what_went_well: string[];
+  coaching_tips: Array<{ stage: NepqStage; tip: string }>;
+  booking_blocker: string;
+};
+
+function clampInt(value: unknown, min: number, max: number, fallback = 0): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function validateNepqScorecard(raw: unknown): NepqScorecard | null {
+  if (!isRecord(raw)) return null;
+  const rawScores = isRecord(raw.nepq_scores) ? raw.nepq_scores : {};
+  const nepq_scores = {} as Record<NepqStage, number>;
+  for (const stage of NEPQ_STAGES) nepq_scores[stage] = clampInt(rawScores[stage], 0, 5, 0);
+
+  const overall_score = clampInt(raw.overall_score, 0, 100, 0);
+  const brokeRaw = coerceInsightString(raw.broke_down_at, 40) ?? "none";
+  const brokeMatch = ([...NEPQ_STAGES, "none"] as const).find((s) => s.toLowerCase() === brokeRaw.toLowerCase());
+  const broke_down_at = (brokeMatch ?? "none") as NepqScorecard["broke_down_at"];
+
+  const what_went_well: string[] = [];
+  if (Array.isArray(raw.what_went_well)) {
+    for (const item of raw.what_went_well) {
+      const s = coerceInsightString(item, 200);
+      if (s) what_went_well.push(s);
+      if (what_went_well.length >= 6) break;
+    }
+  }
+
+  const coaching_tips: Array<{ stage: NepqStage; tip: string }> = [];
+  if (Array.isArray(raw.coaching_tips)) {
+    for (const item of raw.coaching_tips) {
+      if (!isRecord(item)) continue;
+      const tip = coerceInsightString(item.tip, 400);
+      const stageStr = coerceInsightString(item.stage, 40)?.toLowerCase();
+      const stage = NEPQ_STAGES.find((s) => s === stageStr);
+      if (tip && stage) coaching_tips.push({ stage, tip });
+      if (coaching_tips.length >= 8) break;
+    }
+  }
+
+  const booking_blocker = coerceInsightString(raw.booking_blocker, 400) ?? "";
+
+  return { nepq_scores, overall_score, broke_down_at, what_went_well, coaching_tips, booking_blocker };
+}
 
 function validateTranscriptInsights(raw: unknown): TranscriptInsights | null {
   if (!isRecord(raw)) return null;
@@ -1636,6 +1701,7 @@ function validateTranscriptInsights(raw: unknown): TranscriptInsights | null {
       ["new", "attempting", "connected", "qualified", "booked", "won", "lost"] as const,
     ),
     booked: raw.booked === true,
+    nepq_scorecard: validateNepqScorecard(raw.nepq_scorecard),
   };
 
   // Consistency: booked=true forces lifecycle >= booked.
