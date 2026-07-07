@@ -406,7 +406,7 @@ export function FollowUpTable({
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        {filtersBar}
+        {hideFilters ? null : filtersBar}
         <div className="py-20 text-center text-sm text-muted-foreground">No open follow-ups.</div>
       </div>
     );
@@ -416,7 +416,7 @@ export function FollowUpTable({
   if (isMobile) {
     return (
       <div className="space-y-3">
-        {filtersBar}
+        {hideFilters ? null : filtersBar}
         {filtered.map(({ item, status, rep }) => {
           const ghlCue = getGhlMirrorCue({
             pipelineType: item.pipeline_type,
@@ -502,7 +502,7 @@ export function FollowUpTable({
   // ---- Desktop: table layout ----
   return (
     <div className="space-y-3">
-      {filtersBar}
+      {hideFilters ? null : filtersBar}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
