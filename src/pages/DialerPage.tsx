@@ -15,7 +15,7 @@ import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
-import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
+import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
