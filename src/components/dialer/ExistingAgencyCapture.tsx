@@ -4,10 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AGENCY_SERVICES } from "@/data/constants";
 import { useUpdateContact } from "@/hooks/useContacts";
+import { ghlUpdateContactFields } from "@/lib/ghl";
 import { cn } from "@/lib/utils";
 
 interface ExistingAgencyCaptureProps {
   contactId: string;
+  ghlContactId?: string | null;
   hasExistingAgency: boolean | null;
   existingAgencyName: string | null;
   existingAgencyServices: string[];
@@ -22,6 +24,7 @@ interface ExistingAgencyCaptureProps {
  */
 export function ExistingAgencyCapture({
   contactId,
+  ghlContactId,
   hasExistingAgency,
   existingAgencyName,
   existingAgencyServices,
@@ -46,11 +49,24 @@ export function ExistingAgencyCapture({
     setNotes(existingAgencyNotes ?? "");
   }, [contactId, hasExistingAgency, existingAgencyName, existingAgencyServices, existingAgencyNotes]);
 
-  const persist = async (patch: Record<string, unknown>, label: string) => {
+  const persist = async (
+    patch: Record<string, unknown>,
+    label: string,
+    ghlFields?: Record<string, string>,
+  ) => {
     setSaving(label);
     try {
       await updateContact.mutateAsync({ id: contactId, ...patch });
       setSavedAt(Date.now());
+      if (ghlContactId && ghlFields && Object.keys(ghlFields).length > 0) {
+        try {
+          await ghlUpdateContactFields(ghlContactId, ghlFields);
+        } catch (err) {
+          // Non-fatal — local save succeeded. The GHL custom fields may not
+          // exist yet in the location; the edge function logs a warning.
+          console.warn("[ExistingAgencyCapture] GHL push failed", err);
+        }
+      }
     } finally {
       setSaving(null);
     }
@@ -59,7 +75,11 @@ export function ExistingAgencyCapture({
   const toggleService = (val: string) => {
     const next = services.includes(val) ? services.filter((s) => s !== val) : [...services, val];
     setServices(next);
-    void persist({ existing_agency_services: next }, "services");
+    void persist(
+      { existing_agency_services: next },
+      "services",
+      { "contact.existing_agency_services": next.join(", ") },
+    );
   };
 
   return (
@@ -97,6 +117,12 @@ export function ExistingAgencyCapture({
                   ...(opt !== "yes" ? { existing_agency_services: [], existing_agency_name: null } : {}),
                 },
                 "agency status",
+                {
+                  "contact.has_existing_agency": opt,
+                  ...(opt !== "yes"
+                    ? { "contact.existing_agency_name": "", "contact.existing_agency_services": "" }
+                    : {}),
+                },
               );
             }}
             className={cn(
@@ -143,7 +169,11 @@ export function ExistingAgencyCapture({
             <Input
               value={agencyName}
               onChange={(e) => setAgencyName(e.target.value)}
-              onBlur={() => persist({ existing_agency_name: agencyName || null }, "agency name")}
+              onBlur={() => persist(
+                { existing_agency_name: agencyName || null },
+                "agency name",
+                { "contact.existing_agency_name": agencyName },
+              )}
               placeholder="e.g. King Kong, WebFX"
               className="h-8 text-xs"
             />
