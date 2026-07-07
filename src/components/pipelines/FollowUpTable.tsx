@@ -472,8 +472,9 @@ export function FollowUpTable({
               className="absolute right-2 top-2 h-7 px-2"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/contacts/${item.contact_id}`);
+                handleCallClick(item);
               }}
+              disabled={isCalling}
             >
               <Phone className="h-3.5 w-3.5" />
               Call
@@ -575,8 +576,9 @@ export function FollowUpTable({
                               className="h-7 px-2"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/contacts/${item.contact_id}`);
+                                handleCallClick(item);
                               }}
+                              disabled={isCalling}
                             >
                               <Phone className="h-3.5 w-3.5" />
                               Call
