@@ -766,11 +766,13 @@ async function processContact(
   // AI fallback for name only — value-gated so only reachable / high-value
   // leads spend AI credits. Free extraction above already ran for everyone.
   let usedAi = false;
+  let aiCalled = false;
   if (allowAiName && !result.name && result.aboutTextForAi && lovableApiKey) {
+    aiCalled = true;
     const aiName = await aiExtractName(result.aboutTextForAi, lovableApiKey);
-    usedAi = true;
     if (aiName) {
       result.name = aiName;
+      usedAi = true;
     }
   }
 
@@ -810,7 +812,7 @@ async function processContact(
     ms: Date.now() - start,
     addrState,
     addrCity,
-    aiCalled: usedAi,
+    aiCalled,
   };
 }
 
