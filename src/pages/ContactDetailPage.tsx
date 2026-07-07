@@ -28,6 +28,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
+import {
+  LIFECYCLE_STAGES,
+  LIFECYCLE_STAGE_COLORS,
+  LIFECYCLE_STAGE_LABELS,
+  LIFECYCLE_LOST_REASONS,
+  type LifecycleStage,
+} from "@/data/constants";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 import {
@@ -202,16 +209,19 @@ export default function ContactDetailPage() {
       .find((item: any) => new Date(item.scheduled_for).getTime() >= now - 24 * 60 * 60 * 1000) ?? null;
   }, [pipelineItems]);
   const ownerUserId = useMemo(() => {
+    if (contact?.owner_id) return contact.owner_id;
     const withAssignee = [...pipelineItems]
       .filter((item: any) => item.assigned_user_id)
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return withAssignee[0]?.assigned_user_id ?? null;
-  }, [pipelineItems]);
+  }, [contact?.owner_id, pipelineItems]);
   const ownerName = useMemo(() => {
     if (!ownerUserId) return null;
     const rep = salesReps.find((r) => r.user_id === ownerUserId);
     return rep?.display_name || rep?.email || "Unknown rep";
   }, [ownerUserId, salesReps]);
+  const lifecycleStage = ((contact as unknown as { lifecycle_stage?: string | null })?.lifecycle_stage as LifecycleStage) || "new";
+  const lifecycleReason = (contact as unknown as { lifecycle_reason?: string | null })?.lifecycle_reason ?? null;
   const prospectTier = (contact as unknown as { prospect_tier?: string | null })?.prospect_tier ?? null;
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
