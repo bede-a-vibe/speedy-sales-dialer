@@ -98,6 +98,45 @@ export default function FollowUpsPage() {
   const [taskCount, setTaskCount] = useState(0);
   const [forDate, setForDate] = useState<string | null>(null);
   const { data: ghlPipelines = [] } = useGHLPipelines();
+  const { data: dialerFollowUps = [] } = usePipelineItems("follow_up", "open");
+  const { data: reps = [] } = useSalesReps();
+  const updatePipelineItem = useUpdatePipelineItem();
+  const repMap = useMemo(
+    () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
+    [reps],
+  );
+
+  const handleDialerAssign = async (id: string, userId: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, assigned_user_id: userId });
+      toast.success("Rep updated.");
+    } catch {
+      toast.error("Failed to update rep.");
+    }
+  };
+  const handleDialerReschedule = async (id: string, iso: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, scheduled_for: iso });
+      toast.success("Follow-up rescheduled.");
+    } catch {
+      toast.error("Failed to reschedule.");
+    }
+  };
+  const handleDialerComplete = async (id: string) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, status: "completed", completed_at: new Date().toISOString() });
+      toast.success("Marked complete.");
+    } catch {
+      toast.error("Failed to complete.");
+    }
+  };
+  const handleDialerChangeMethod = async (id: string, method: FollowUpMethod) => {
+    try {
+      await updatePipelineItem.mutateAsync({ id, follow_up_method: method });
+    } catch {
+      toast.error("Failed to change method.");
+    }
+  };
   const defaultFollowUpPipeline = useMemo(
     () => findDefaultFollowUpPipeline(ghlPipelines),
     [ghlPipelines],
