@@ -18,7 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
-import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipelineItems";
+import { useContactPipelineItems, useCreatePipelineItem, useSalesReps } from "@/hooks/usePipelineItems";
+import { ActivityTimeline } from "@/components/contacts/ActivityTimeline";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -121,6 +122,7 @@ export default function ContactDetailPage() {
   const { data: callLogPages, fetchNextPage: fetchMoreLogs, hasNextPage: hasMoreLogs } = useContactCallLogs(id, 5, !!contact);
   const { data: notePages, fetchNextPage: fetchMoreNotes, hasNextPage: hasMoreNotes } = usePaginatedContactNotes(id);
   const { data: pipelineItems = [] } = useContactPipelineItems(id);
+  const { data: salesReps = [] } = useSalesReps();
   const dialpadCall = useDialpadCall();
   const { data: myDialpadSettings } = useMyDialpadSettings();
 
@@ -192,6 +194,25 @@ export default function ContactDetailPage() {
   const websiteUrl = normaliseExternalUrl(contact?.website);
   const gmbUrl = normaliseExternalUrl(contact?.gmb_link);
   const nextPipelineItem = pipelineItems.find((item: any) => item.scheduled_for && item.status !== "completed") ?? pipelineItems[0];
+  const nextFollowUp = useMemo(() => {
+    const now = Date.now();
+    return [...pipelineItems]
+      .filter((item: any) => item.pipeline_type === "follow_up" && item.status === "open" && item.scheduled_for)
+      .sort((a: any, b: any) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
+      .find((item: any) => new Date(item.scheduled_for).getTime() >= now - 24 * 60 * 60 * 1000) ?? null;
+  }, [pipelineItems]);
+  const ownerUserId = useMemo(() => {
+    const withAssignee = [...pipelineItems]
+      .filter((item: any) => item.assigned_user_id)
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return withAssignee[0]?.assigned_user_id ?? null;
+  }, [pipelineItems]);
+  const ownerName = useMemo(() => {
+    if (!ownerUserId) return null;
+    const rep = salesReps.find((r) => r.user_id === ownerUserId);
+    return rep?.display_name || rep?.email || "Unknown rep";
+  }, [ownerUserId, salesReps]);
+  const prospectTier = (contact as unknown as { prospect_tier?: string | null })?.prospect_tier ?? null;
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
