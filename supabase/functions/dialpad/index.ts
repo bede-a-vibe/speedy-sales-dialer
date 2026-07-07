@@ -3121,6 +3121,7 @@ async function syncWebhookPayload(params: {
         businessName: contactRow?.business_name ?? null,
         phoneNumber: payload.external_number ?? contactRow?.phone ?? null,
         dialpadCallsRowId: trackedCall.id,
+        callLogId: resolvedCallLogId ?? null,
         source: "Dialpad transcript",
       });
       console.log(`[syncWebhookPayload] Transcript extraction pipeline: ${JSON.stringify(pipelineResult).slice(0, 400)}`);
