@@ -97,6 +97,13 @@ interface FollowUpTableProps {
   onAssign: (id: string, userId: string) => Promise<void>;
   onReschedule: (id: string, iso: string) => Promise<void>;
   onChangeMethod: (id: string, method: FollowUpMethod) => Promise<void>;
+  /** When provided, the Call button places a Dialpad call instead of navigating. */
+  onDialpadCall?: (contactId: string, phone: string) => void;
+  isCalling?: boolean;
+  /** Hide the filters bar (useful when the parent already applies filtering). */
+  hideFilters?: boolean;
+  /** Override the default status filter (e.g. "all" when parent slices). */
+  defaultStatusFilter?: StatusFilter;
 }
 
 // ---------- Expanded action panel ----------
