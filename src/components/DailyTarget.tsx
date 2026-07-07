@@ -4,10 +4,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { deriveAllTargets } from "@/lib/performanceTargets";
 import { Target } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_DAILY_TARGET = 50;
 
-export function DailyTarget() {
+interface DailyTargetProps {
+  /** Slim single-line progress bar for in-session strips. */
+  compact?: boolean;
+  className?: string;
+}
+
+export function DailyTarget({ compact = false, className }: DailyTargetProps = {}) {
   const { user } = useAuth();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
   const { data: targets = [] } = usePerformanceTargets();
@@ -25,8 +32,29 @@ export function DailyTarget() {
   const pct = Math.min(Math.round((todaysCalls / dailyTarget) * 100), 100);
   const isComplete = todaysCalls >= dailyTarget;
 
+  if (compact) {
+    return (
+      <div className={cn("flex items-center gap-2.5", className)} title={`Daily target: ${todaysCalls}/${dailyTarget}`}>
+        <Target className="h-3 w-3 text-primary shrink-0" />
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium whitespace-nowrap">Daily</span>
+        <span className="font-mono text-[11px] font-bold text-foreground tabular-nums whitespace-nowrap">
+          {todaysCalls}/{dailyTarget}
+        </span>
+        <div className="min-w-[80px] flex-1 h-1 rounded-full bg-secondary overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              isComplete ? "bg-[hsl(var(--outcome-booked))]" : "bg-primary",
+            )}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-card border border-border rounded-lg p-4">
+    <div className={cn("bg-card border border-border rounded-lg p-4", className)}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-primary" />
