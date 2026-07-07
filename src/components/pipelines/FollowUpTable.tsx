@@ -517,16 +517,35 @@ export function FollowUpTable({
                           <FollowUpMethodBadge method={item.follow_up_method || "call"} />
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                          {item.scheduled_for ? format(new Date(item.scheduled_for), "MMM d, yyyy h:mm a") : "—"}
+                          {item.scheduled_for ? (
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-foreground">{format(new Date(item.scheduled_for), "HH:mm")}</span>
+                              <span className="text-[10px]">{format(new Date(item.scheduled_for), "MMM d, yyyy")}</span>
+                            </div>
+                          ) : "—"}
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{rep}</td>
                         <td className="px-4 py-3">
                           <StatusPill status={status} />
                         </td>
                         <td className="px-4 py-3">
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-7 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/contacts/${item.contact_id}`);
+                              }}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              Call
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     </CollapsibleTrigger>
