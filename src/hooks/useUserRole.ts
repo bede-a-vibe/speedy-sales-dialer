@@ -7,7 +7,8 @@ export function useUserRole() {
 
   return useQuery({
     queryKey: ["user-role", user?.id],
-    staleTime: 30_000,
+    // Roles rarely change during a session; treat as slow-changing reference data.
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!user) return [] as string[];
       const { data, error } = await supabase
