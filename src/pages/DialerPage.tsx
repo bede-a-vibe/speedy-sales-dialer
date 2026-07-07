@@ -3140,29 +3140,24 @@ export default function DialerPage() {
       {isCoach && (
         <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
       )}
-      {/* Docked Softphone — fixed bottom-left, clear of the right-side outcome rail.
-          The DialpadCTI iframe stays mounted for the entire session; showDialpadCTI
-          only toggles visibility (CSS collapse) so the live call & Dialpad auth
-          are never dropped. */}
+      {/* Docked Softphone — fixed bottom-right (clear of the left sidebar).
+          Outcome buttons sit at the top of the sticky right rail, so the bottom-right
+          corner stays clear. Iframe stays mounted for the entire session; showDialpadCTI
+          only toggles visibility (CSS collapse) so the live call & Dialpad auth are
+          never dropped. Auto-expands on session start, collapses on session end,
+          but manual toggle always wins for the current state. */}
       {dialpadCTIClientId && (
         <div
-          className="fixed z-40 left-4 bottom-4 w-[380px] max-w-[calc(100vw-2rem)] sm:w-[380px]"
+          className={cn(
+            "fixed z-40 bottom-4 sm:right-4 sm:left-auto left-2 right-2 sm:w-[380px] sm:max-w-none max-w-[calc(100vw-1rem)]",
+            "flex flex-col items-end gap-2",
+          )}
           data-dialpad-dock
         >
-          {!showDialpadCTI && (
-            <button
-              type="button"
-              onClick={() => setShowDialpadCTI(true)}
-              className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-medium shadow-lg hover:opacity-90"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              Dialpad
-            </button>
-          )}
           <div
             aria-hidden={!showDialpadCTI}
             className={cn(
-              "transition-all duration-200 shadow-2xl rounded-lg",
+              "w-full sm:w-[380px] transition-all duration-200 shadow-2xl rounded-lg",
               showDialpadCTI
                 ? "opacity-100 visible"
                 : "opacity-0 invisible h-0 overflow-hidden pointer-events-none",
@@ -3181,6 +3176,16 @@ export default function DialerPage() {
               }) : null}
             />
           </div>
+          {!showDialpadCTI && (
+            <button
+              type="button"
+              onClick={() => setShowDialpadCTI(true)}
+              className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-medium shadow-lg hover:opacity-90"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Dialpad
+            </button>
+          )}
         </div>
       )}
     </AppLayout>
