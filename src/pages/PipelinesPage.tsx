@@ -28,6 +28,7 @@ import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
+import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -485,7 +486,7 @@ export default function PipelinesPage() {
 
   const renderHistory = () => {
     if (historyLoading) {
-      return <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>;
+      return <ListRowsSkeleton rows={6} />;
     }
 
     return (
@@ -632,14 +633,14 @@ export default function PipelinesPage() {
           </TabsList>
           <TabsContent value="board" className="mt-4">
             {bookedLoading ? (
-              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
+              <DealBoardSkeleton columns={4} cards={3} />
             ) : (
               <DealBoard items={booked} reps={reps} repMap={repMap} />
             )}
           </TabsContent>
           <TabsContent value="booked" className="mt-4 space-y-4">
             {bookedLoading ? (
-              <div className="animate-pulse py-20 text-center text-sm font-mono text-muted-foreground">Loading...</div>
+              <DealBoardSkeleton columns={3} cards={2} />
             ) : (
               <>
                 <BookedPipelineBoard

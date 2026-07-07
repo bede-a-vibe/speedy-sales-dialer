@@ -5,6 +5,7 @@ import { usePipelineItems } from "@/hooks/usePipelineItems";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { StatTilesSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function isToday(dateStr: string | null) {
   if (!dateStr) return false;
@@ -65,9 +66,10 @@ function QuickStat({ icon, label, value, href, urgent }: QuickStatProps) {
 
 export function DashboardQuickStats() {
   const { user } = useAuth();
-  const { data: followUps = [] } = usePipelineItems("follow_up", "open");
-  const { data: booked = [] } = usePipelineItems("booked", "open");
-  const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
+  const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
+  const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
+  const { data: todaysCalls = 0, isLoading: callsLoading } = useTodayCallCount(user?.id);
+  const isLoading = followUpsLoading || bookedLoading || callsLoading;
 
   const followUpsDueToday = useMemo(
     () => followUps.filter((item) => isToday(item.scheduled_for)).length,
@@ -88,6 +90,10 @@ export function DashboardQuickStats() {
     () => booked.filter((item) => isToday(item.scheduled_for)).length,
     [booked],
   );
+
+  if (isLoading) {
+    return <StatTilesSkeleton count={5} />;
+  }
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

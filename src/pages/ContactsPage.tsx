@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
+import { ContactsTableSkeleton } from "@/components/skeletons/PageSkeletons";
 
 const CONTACTS_PER_PAGE = 100;
 
@@ -1492,7 +1493,7 @@ export default function ContactsPage() {
         )}
 
         {isLoading ? (
-          <div className="animate-pulse py-20 text-center text-sm text-muted-foreground">Loading...</div>
+          <ContactsTableSkeleton rows={10} />
         ) : contacts.length === 0 ? (
           <div className="py-20 text-center text-sm text-muted-foreground">No contacts found.</div>
         ) : (

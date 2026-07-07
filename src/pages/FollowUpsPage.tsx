@@ -21,6 +21,7 @@ import { useAdminAccess } from "@/hooks/useUserRole";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -730,7 +731,7 @@ export default function FollowUpsPage() {
           </div>
         ) : null}
 
-        {loading ? <div className="text-sm text-muted-foreground">Loading follow-ups…</div> : null}
+        {loading ? <ListRowsSkeleton rows={6} /> : null}
         {error ? <div className="text-sm text-destructive">{error}</div> : null}
 
         {!loading && !error && (
