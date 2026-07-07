@@ -14,6 +14,8 @@ import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { Brain, UserPlus, Building2 as AgencyIcon } from "lucide-react";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
