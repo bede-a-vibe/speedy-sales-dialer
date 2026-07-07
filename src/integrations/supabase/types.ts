@@ -260,6 +260,7 @@ export type Database = {
           has_google_ads: string | null
           id: string
           industry: string
+          is_archived: boolean
           is_dnc: boolean
           last_call_sentiment: string | null
           last_called_at: string | null
@@ -275,6 +276,7 @@ export type Database = {
           lifecycle_reason: string | null
           lifecycle_stage: string
           meeting_booked_date: string | null
+          merged_into_contact_id: string | null
           next_followup_date: string | null
           owner_id: string | null
           phone: string
@@ -285,6 +287,7 @@ export type Database = {
           review_count: number | null
           state: string | null
           status: string
+          tags: string[]
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
@@ -337,6 +340,7 @@ export type Database = {
           has_google_ads?: string | null
           id?: string
           industry: string
+          is_archived?: boolean
           is_dnc?: boolean
           last_call_sentiment?: string | null
           last_called_at?: string | null
@@ -352,6 +356,7 @@ export type Database = {
           lifecycle_reason?: string | null
           lifecycle_stage?: string
           meeting_booked_date?: string | null
+          merged_into_contact_id?: string | null
           next_followup_date?: string | null
           owner_id?: string | null
           phone: string
@@ -362,6 +367,7 @@ export type Database = {
           review_count?: number | null
           state?: string | null
           status?: string
+          tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -414,6 +420,7 @@ export type Database = {
           has_google_ads?: string | null
           id?: string
           industry?: string
+          is_archived?: boolean
           is_dnc?: boolean
           last_call_sentiment?: string | null
           last_called_at?: string | null
@@ -429,6 +436,7 @@ export type Database = {
           lifecycle_reason?: string | null
           lifecycle_stage?: string
           meeting_booked_date?: string | null
+          merged_into_contact_id?: string | null
           next_followup_date?: string | null
           owner_id?: string | null
           phone?: string
@@ -439,6 +447,7 @@ export type Database = {
           review_count?: number | null
           state?: string | null
           status?: string
+          tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -446,7 +455,15 @@ export type Database = {
           website?: string | null
           work_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_merged_into_contact_id_fkey"
+            columns: ["merged_into_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dialer_lead_locks: {
         Row: {
@@ -1068,6 +1085,14 @@ export type Database = {
           status: string
         }[]
       }
+      find_exact_phone_duplicate_groups: {
+        Args: never
+        Returns: {
+          contact_count: number
+          contact_ids: string[]
+          normalized_phone: string
+        }[]
+      }
       get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count:
         | {
@@ -1155,6 +1180,10 @@ export type Database = {
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
+      merge_contacts: {
+        Args: { _losers: string[]; _master: string }
+        Returns: Json
+      }
       preview_dialer_leads:
         | {
             Args: {
