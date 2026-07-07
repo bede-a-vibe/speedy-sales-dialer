@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Brain,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
