@@ -385,3 +385,26 @@ export const AGENCY_SERVICES = [
 ];
 
 export type AgencyService = typeof AGENCY_SERVICES[number]["value"];
+
+// ─── Deal-board stages (for booked pipeline_items in the Kanban view) ───────
+// Clean, forward-flowing sales stages. Each carries a win-probability used
+// for the weighted forecast at the top of the deal board.
+export const DEAL_STAGES = [
+  { value: "booked",   label: "Booked",   color: "text-amber-700 bg-amber-500/10 border-amber-500/40",       order: 1, winProbability: 0.2 },
+  { value: "showed",   label: "Showed",   color: "text-sky-700 bg-sky-500/10 border-sky-500/40",             order: 2, winProbability: 0.4 },
+  { value: "proposal", label: "Proposal", color: "text-violet-700 bg-violet-500/10 border-violet-500/40",    order: 3, winProbability: 0.6 },
+  { value: "won",      label: "Won",      color: "text-emerald-700 bg-emerald-500/10 border-emerald-500/40", order: 4, winProbability: 1.0 },
+  { value: "lost",     label: "Lost",     color: "text-rose-700 bg-rose-500/10 border-rose-500/40",          order: 5, winProbability: 0.0 },
+] as const;
+
+export type DealStage = typeof DEAL_STAGES[number]["value"];
+
+export const DEAL_STAGE_LABELS: Record<DealStage, string> = DEAL_STAGES.reduce(
+  (acc, s) => ({ ...acc, [s.value]: s.label }),
+  {} as Record<DealStage, string>,
+);
+
+export const DEAL_STAGE_WIN_PROBABILITY: Record<DealStage, number> = DEAL_STAGES.reduce(
+  (acc, s) => ({ ...acc, [s.value]: s.winProbability }),
+  {} as Record<DealStage, number>,
+);
