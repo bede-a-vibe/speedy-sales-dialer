@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
+import { LIFECYCLE_STAGES, LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
 import { supabase } from "@/integrations/supabase/client";
@@ -753,6 +754,8 @@ export default function ContactsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -798,6 +801,8 @@ export default function ContactsPage() {
     status: statusFilter,
     state: stateFilter,
     appointmentOutcome: appointmentOutcomeFilter,
+    lifecycleStage: lifecycleFilter,
+    ownerId: ownerFilter,
     search: debouncedSearch,
     page,
     pageSize: CONTACTS_PER_PAGE,
@@ -950,7 +955,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, sortBy]);
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -1179,6 +1184,27 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
+            <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stages</SelectItem>
+              {LIFECYCLE_STAGES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Owners</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {reps.map((rep) => (
+                <SelectItem key={rep.user_id} value={rep.user_id}>
+                  {rep.display_name || rep.email || "Unknown rep"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
             <SelectTrigger className="w-[210px] border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
             <SelectContent>
@@ -1282,6 +1308,8 @@ export default function ContactsPage() {
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lifecycle</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Owner</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
                     <th className="w-36 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
@@ -1316,6 +1344,22 @@ export default function ContactsPage() {
                             </button>
                           </td>
                           <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const stage = (contact.lifecycle_stage as LifecycleStage) || "new";
+                              return (
+                                <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest border ${LIFECYCLE_STAGE_COLORS[stage] || ""}`}>
+                                  {LIFECYCLE_STAGE_LABELS[stage] || stage}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {(() => {
+                              const rep = reps.find((r) => r.user_id === contact.owner_id);
+                              return rep ? (rep.display_name || rep.email || "—") : contact.owner_id ? "Unknown rep" : "—";
+                            })()}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1.5">
                               {integrityBadges.slice(0, 2).map((badge) => (
@@ -1379,7 +1423,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={8} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={10} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>

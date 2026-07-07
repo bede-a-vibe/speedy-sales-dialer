@@ -215,6 +215,8 @@ export type PaginatedContactsFilters = {
   status?: string;
   state?: string;
   appointmentOutcome?: string;
+  lifecycleStage?: string;
+  ownerId?: string;
   search?: string;
   page?: number;
   pageSize?: number;
@@ -231,6 +233,8 @@ async function fetchPaginatedContacts({
   status,
   state,
   appointmentOutcome,
+  lifecycleStage,
+  ownerId,
   search,
   page = 1,
   pageSize = 100,
@@ -274,6 +278,16 @@ async function fetchPaginatedContacts({
   }
   if (appointmentOutcome && appointmentOutcome !== "all") {
     query = query.eq("latest_appointment_outcome", appointmentOutcome as AppointmentOutcomeValue);
+  }
+  if (lifecycleStage && lifecycleStage !== "all") {
+    query = query.eq("lifecycle_stage", lifecycleStage);
+  }
+  if (ownerId && ownerId !== "all") {
+    if (ownerId === "unassigned") {
+      query = query.is("owner_id", null);
+    } else {
+      query = query.eq("owner_id", ownerId);
+    }
   }
   if (search && search.trim().length > 0) {
     const s = search.trim();

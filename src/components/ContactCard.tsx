@@ -1,5 +1,6 @@
 import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
+import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
@@ -70,6 +71,7 @@ interface ContactCardProps {
     has_existing_agency?: boolean | null;
     existing_agency_name?: string | null;
     existing_agency_services?: string[] | null;
+    lifecycle_stage?: string | null;
   };
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
@@ -184,6 +186,11 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         </div>
         <div className="flex items-center gap-2">
           {headerActions}
+          {contact.lifecycle_stage && (
+            <span className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${LIFECYCLE_STAGE_COLORS[contact.lifecycle_stage as LifecycleStage] || "bg-accent text-accent-foreground border-border"}`}>
+              {LIFECYCLE_STAGE_LABELS[contact.lifecycle_stage as LifecycleStage] || contact.lifecycle_stage}
+            </span>
+          )}
           <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
             {contact.industry}
           </span>

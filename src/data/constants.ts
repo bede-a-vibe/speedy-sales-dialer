@@ -336,6 +336,46 @@ export const DNC_REASONS = [
 
 export type DncReason = typeof DNC_REASONS[number]["value"];
 
+// ── Contact Lifecycle Spine ─────────────────────────────────────────
+// One canonical funnel that sits ABOVE the granular call dispositions.
+// prospect_tier (value) and lead_type (pool) are SEPARATE dimensions.
+
+export const LIFECYCLE_STAGES = [
+  { value: "new",        label: "New",        color: "text-slate-700  bg-slate-500/10  border-slate-500/30",  description: "Never contacted." },
+  { value: "attempting", label: "Attempting", color: "text-blue-700   bg-blue-500/10   border-blue-500/30",   description: "Dialing but no conversation yet." },
+  { value: "connected",  label: "Connected",  color: "text-cyan-700   bg-cyan-500/10   border-cyan-500/30",   description: "Talked to a human." },
+  { value: "qualified",  label: "Qualified",  color: "text-violet-700 bg-violet-500/10 border-violet-500/30", description: "Decision maker + buying signal." },
+  { value: "booked",     label: "Booked",     color: "text-amber-700  bg-amber-500/10  border-amber-500/30",  description: "Appointment on the calendar." },
+  { value: "won",        label: "Won",        color: "text-emerald-700 bg-emerald-500/10 border-emerald-500/30", description: "Closed-won deal." },
+  { value: "lost",       label: "Lost",       color: "text-rose-700   bg-rose-500/10   border-rose-500/30",   description: "Not interested / DNC / disqualified." },
+] as const;
+
+export type LifecycleStage = typeof LIFECYCLE_STAGES[number]["value"];
+
+export const LIFECYCLE_STAGE_LABELS: Record<LifecycleStage, string> = LIFECYCLE_STAGES.reduce(
+  (acc, s) => ({ ...acc, [s.value]: s.label }),
+  {} as Record<LifecycleStage, string>,
+);
+
+export const LIFECYCLE_STAGE_COLORS: Record<LifecycleStage, string> = LIFECYCLE_STAGES.reduce(
+  (acc, s) => ({ ...acc, [s.value]: s.color }),
+  {} as Record<LifecycleStage, string>,
+);
+
+// Reason codes shown when a contact is set to Lost. Reuses existing NEPQ
+// disposition vocab so nothing new to memorise.
+export const LIFECYCLE_LOST_REASONS = [
+  { value: "dnc",              label: "Do Not Call" },
+  { value: "not_interested",   label: "Not interested" },
+  { value: "wrong_number",     label: "Wrong number" },
+  { value: "disqualified",     label: "Disqualified (DQ)" },
+  { value: "no_budget",        label: "No budget" },
+  { value: "already_has_agency", label: "Already has an agency" },
+  { value: "other",            label: "Other" },
+] as const;
+
+export type LifecycleLostReason = typeof LIFECYCLE_LOST_REASONS[number]["value"];
+
 export const AGENCY_SERVICES = [
   { value: "seo" as const, label: "SEO" },
   { value: "google_ads" as const, label: "Google Ads" },

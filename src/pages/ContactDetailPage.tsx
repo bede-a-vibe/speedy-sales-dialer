@@ -28,6 +28,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
+import {
+  LIFECYCLE_STAGES,
+  LIFECYCLE_STAGE_COLORS,
+  LIFECYCLE_STAGE_LABELS,
+  LIFECYCLE_LOST_REASONS,
+  type LifecycleStage,
+} from "@/data/constants";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
 import {
@@ -202,16 +209,19 @@ export default function ContactDetailPage() {
       .find((item: any) => new Date(item.scheduled_for).getTime() >= now - 24 * 60 * 60 * 1000) ?? null;
   }, [pipelineItems]);
   const ownerUserId = useMemo(() => {
+    if (contact?.owner_id) return contact.owner_id;
     const withAssignee = [...pipelineItems]
       .filter((item: any) => item.assigned_user_id)
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return withAssignee[0]?.assigned_user_id ?? null;
-  }, [pipelineItems]);
+  }, [contact?.owner_id, pipelineItems]);
   const ownerName = useMemo(() => {
     if (!ownerUserId) return null;
     const rep = salesReps.find((r) => r.user_id === ownerUserId);
     return rep?.display_name || rep?.email || "Unknown rep";
   }, [ownerUserId, salesReps]);
+  const lifecycleStage = ((contact as unknown as { lifecycle_stage?: string | null })?.lifecycle_stage as LifecycleStage) || "new";
+  const lifecycleReason = (contact as unknown as { lifecycle_reason?: string | null })?.lifecycle_reason ?? null;
   const prospectTier = (contact as unknown as { prospect_tier?: string | null })?.prospect_tier ?? null;
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
@@ -329,6 +339,35 @@ export default function ContactDetailPage() {
       toast.success(contact.is_dnc ? "Removed from DNC" : "Marked as DNC");
     } catch {
       toast.error("Failed to update DNC status");
+    }
+  };
+
+  const handleLifecycleChange = async (nextStage: LifecycleStage, reason?: string | null) => {
+    if (!contact) return;
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        lifecycle_stage: nextStage,
+        lifecycle_reason: nextStage === "lost" ? reason ?? lifecycleReason ?? null : null,
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      toast.success(`Lifecycle set to ${LIFECYCLE_STAGE_LABELS[nextStage]}`);
+    } catch {
+      toast.error("Failed to update lifecycle stage");
+    }
+  };
+
+  const handleOwnerChange = async (nextOwnerId: string) => {
+    if (!contact) return;
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        owner_id: nextOwnerId === "unassigned" ? null : nextOwnerId,
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      toast.success("Owner updated");
+    } catch {
+      toast.error("Failed to update owner");
     }
   };
 
@@ -466,15 +505,63 @@ export default function ContactDetailPage() {
                 <Badge variant={currentStatusValue === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
                   {currentStatusValue}
                 </Badge>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] uppercase tracking-widest font-mono border ${LIFECYCLE_STAGE_COLORS[lifecycleStage] || ""}`}
+                  title={lifecycleReason ? `Reason: ${lifecycleReason.replace(/_/g, " ")}` : undefined}
+                >
+                  {LIFECYCLE_STAGE_LABELS[lifecycleStage]}
+                  {lifecycleReason && <span className="ml-1 opacity-70">· {lifecycleReason.replace(/_/g, " ")}</span>}
+                </Badge>
                 {prospectTier && (
                   <Badge variant="outline" className="text-xs uppercase tracking-wide">Tier {prospectTier}</Badge>
                 )}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Owner</span>
-                  <span className="text-foreground">{ownerName ?? "Unassigned"}</span>
-                </span>
+                  <Select value={ownerUserId ?? "unassigned"} onValueChange={handleOwnerChange}>
+                    <SelectTrigger className="h-6 w-[160px] border-border bg-card text-xs">
+                      <SelectValue placeholder="Unassigned">{ownerName ?? "Unassigned"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {salesReps.map((rep) => (
+                        <SelectItem key={rep.user_id} value={rep.user_id}>
+                          {rep.display_name || rep.email || "Unknown rep"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Lifecycle</span>
+                  <Select value={lifecycleStage} onValueChange={(v) => handleLifecycleChange(v as LifecycleStage)}>
+                    <SelectTrigger className="h-6 w-[130px] border-border bg-card text-xs capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LIFECYCLE_STAGES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {lifecycleStage === "lost" && (
+                    <Select
+                      value={lifecycleReason ?? "other"}
+                      onValueChange={(v) => handleLifecycleChange("lost", v)}
+                    >
+                      <SelectTrigger className="h-6 w-[150px] border-border bg-card text-xs">
+                        <SelectValue placeholder="Reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LIFECYCLE_LOST_REASONS.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5" />
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Next</span>
