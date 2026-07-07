@@ -590,8 +590,14 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
         <span className={`rounded px-2 py-1 font-mono ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}>
-          {contact.status}
+          Status: {contact.status}
         </span>
+        <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+          Stage: {getContactStage(contact)}
+        </span>
+        {contact.state && (
+          <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">{contact.state}</span>
+        )}
         {contact.is_dnc && <span className="rounded bg-destructive/10 px-2 py-1 font-mono text-destructive">Do Not Call</span>}
         <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
           {PHONE_TYPE_LABELS[(contact.phone_type as keyof typeof PHONE_TYPE_LABELS) || "unknown"] || "Unknown"}
