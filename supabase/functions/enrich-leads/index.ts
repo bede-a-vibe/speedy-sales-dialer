@@ -806,6 +806,8 @@ Deno.serve(async (req) => {
   let emails_found = 0;
   let names_found = 0;
   let websites_found = 0;
+  let states_found = 0;
+  let cities_found = 0;
   const logs: any[] = [];
 
   const perContact = async (c: any) => {
@@ -854,6 +856,14 @@ Deno.serve(async (req) => {
       if (r.name && (!c.dm_name || c.dm_name === "")) {
         update.dm_name = r.name;
         names_found++;
+      }
+      if (r.addrState && (!c.state || String(c.state).trim() === "")) {
+        update.state = r.addrState;
+        states_found++;
+      }
+      if (r.addrCity && (!c.city || String(c.city).trim() === "")) {
+        update.city = r.addrCity;
+        cities_found++;
       }
       if (r.mobile && (!c.dm_phone || c.dm_phone === "") && !c.best_route_to_decision_maker) {
         update.best_route_to_decision_maker = r.ownerAttributed
@@ -914,6 +924,8 @@ Deno.serve(async (req) => {
     emails_found,
     names_found,
     websites_found,
+    states_found,
+    cities_found,
     remaining,
     logs,
   });
