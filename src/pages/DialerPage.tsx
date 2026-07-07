@@ -157,6 +157,74 @@ const loadSessionSummaryDialog = () =>
 const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
 const SessionSummaryDialog = lazy(loadSessionSummaryDialog);
 
+/**
+ * Compact call-status pill rendered inside the ContactCard header. Replaces the
+ * standalone NativeCallBar — same postMessage-driven state, no duplicated business
+ * name. Timer only ticks while connected.
+ */
+function CallStatusPill({
+  state,
+  connectedAt,
+  dialpadAuthenticated,
+}: {
+  state: NativeCallState;
+  connectedAt: number | null;
+  dialpadAuthenticated: boolean;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (state !== "connected" || !connectedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(id);
+  }, [state, connectedAt]);
+
+  if (state === "idle") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest",
+          dialpadAuthenticated ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300",
+        )}
+        title={dialpadAuthenticated ? "Dialpad connected" : "Sign in to Dialpad"}
+      >
+        {dialpadAuthenticated ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+        Ready
+      </span>
+    );
+  }
+
+  const label =
+    state === "dialing" ? "Calling" :
+    state === "ringing" ? "Ringing" :
+    state === "connected" ? "Connected" :
+    "Ended";
+  const tone =
+    state === "connected" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200" :
+    state === "ringing" ? "border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200 animate-pulse" :
+    state === "dialing" ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 animate-pulse" :
+    "border-border bg-muted text-muted-foreground";
+  const Icon =
+    state === "dialing" ? Loader2 :
+    state === "ringing" ? Radio :
+    state === "connected" ? Phone :
+    PhoneOff;
+
+  const timer = state === "connected" && connectedAt ? (() => {
+    const total = Math.max(0, Math.floor((now - connectedAt) / 1000));
+    const mm = String(Math.floor(total / 60)).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  })() : null;
+
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest", tone)}>
+      <Icon className={cn("h-3 w-3", state === "dialing" && "animate-spin")} />
+      {label}
+      {timer && <span className="tabular-nums normal-case tracking-normal">{timer}</span>}
+    </span>
+  );
+}
+
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
   const next = new Date(date);
