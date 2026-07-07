@@ -18,14 +18,14 @@ export function AppLayout({ children, title }: AppLayoutProps) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-12 flex items-center border-b border-border px-4 bg-card/50 backdrop-blur-sm shrink-0">
-            <SidebarTrigger className="mr-3 text-muted-foreground hover:text-foreground" />
+          <header className="h-14 flex items-center border-b border-border px-5 bg-card/70 backdrop-blur-sm shrink-0">
+            <SidebarTrigger className="mr-4 text-muted-foreground hover:text-foreground" />
             {title && (
-              <h2 className="text-sm font-semibold text-foreground tracking-tight">{title}</h2>
+              <h2 className="text-base font-semibold text-foreground tracking-tight">{title}</h2>
             )}
-            <div className="ml-auto flex items-center gap-3">
-              <span className="text-[10px] font-mono text-muted-foreground">{user?.email}</span>
+            <div className="ml-auto flex items-center gap-4">
               <ThemeToggle />
+              <span className="hidden sm:inline text-[11px] font-mono text-muted-foreground">{user?.email}</span>
               <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
