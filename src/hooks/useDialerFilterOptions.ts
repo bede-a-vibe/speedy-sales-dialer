@@ -7,9 +7,10 @@ export type DialerFilterOptions = {
   industries: DialerFilterOption[];
   channels: DialerFilterOption[];
   states: DialerFilterOption[];
+  sources: DialerFilterOption[];
 };
 
-const EMPTY: DialerFilterOptions = { industries: [], channels: [], states: [] };
+const EMPTY: DialerFilterOptions = { industries: [], channels: [], states: [], sources: [] };
 
 /**
  * Distinct industry / channel / state values (with counts) present in the
@@ -29,6 +30,7 @@ export function useDialerFilterOptions() {
         industries: d.industries ?? [],
         channels: d.channels ?? [],
         states: d.states ?? [],
+        sources: d.sources ?? [],
       };
     },
     placeholderData: EMPTY,
