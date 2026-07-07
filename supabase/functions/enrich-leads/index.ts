@@ -1044,7 +1044,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email");
+      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1072,6 +1072,7 @@ Deno.serve(async (req) => {
     }
 
     let d_names = 0, d_mobiles = 0, d_emails = 0;
+    let d_fb = 0, d_gads = 0, d_abn = 0, d_years = 0, d_signal_bump = 0;
     const deepLogs: any[] = [];
 
     const perDeep = async (c: any) => {
@@ -1100,6 +1101,38 @@ Deno.serve(async (req) => {
           update.dm_email = r.email;
           d_emails++;
         }
+        // ── Signals from raw HTML (ad-tech, ABN, years-in-business) ──
+        try {
+          const sig = r.signals;
+          if (sig.hasFacebookPixel && c.has_facebook_ads !== true) {
+            update.has_facebook_ads = true;
+            d_fb++;
+          }
+          if (sig.hasGoogleAds && c.has_google_ads !== true) {
+            update.has_google_ads = true;
+            d_gads++;
+          }
+          // ABN — only-if-empty, exactly 11 digits (validated in extractor).
+          if (sig.abn && (!c.abn || c.abn === "")) {
+            update.abn = sig.abn;
+            d_abn++;
+          }
+          // Years-in-business — only-if-empty.
+          if (sig.foundingYear && (c.years_in_business === null || c.years_in_business === undefined)) {
+            const yrs = new Date().getFullYear() - sig.foundingYear;
+            if (yrs >= 0 && yrs <= 200) {
+              update.years_in_business = yrs;
+              d_years++;
+            }
+          }
+          // Buying-signal bump: NULL → 'Moderate' when EITHER ad flag detected.
+          // Never overwrite an existing value, and NEVER set 'None' (would exclude from queue).
+          if ((sig.hasFacebookPixel || sig.hasGoogleAds) &&
+              (c.buying_signal_strength === null || c.buying_signal_strength === undefined)) {
+            update.buying_signal_strength = "Moderate";
+            d_signal_bump++;
+          }
+        } catch { /* signals are best-effort */ }
         const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
         if (upErr) console.error(`[enrich-leads/deep] update ${c.id} failed:`, upErr.message);
         deepLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, name: r.name, mobile: r.mobile, email: r.email });
@@ -1118,6 +1151,11 @@ Deno.serve(async (req) => {
       names_found: d_names,
       mobiles_found: d_mobiles,
       emails_found: d_emails,
+      fb_pixels_found: d_fb,
+      google_ads_found: d_gads,
+      abns_found: d_abn,
+      years_in_business_found: d_years,
+      signal_bumps: d_signal_bump,
       remaining: deepRemaining,
       logs: deepLogs,
     });
