@@ -34,6 +34,8 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
+import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -591,12 +593,41 @@ export default function DialerPage() {
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
+
+  // Fetch dialpad settings early so caller-id rotation can compute the effective
+  // outbound number BEFORE we hand it to the dialer, CTI, and manual call flows.
+  const { data: myDialpadSettingsEarly } = useMyDialpadSettings();
+  const callerIdRotation = useCallerIdRotation(myDialpadSettingsEarly?.user_id);
+  // If a pool exists, its rotated number OVERRIDES the manual selector.
+  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
+
   const dialpad = useDialerDialpad({
     isDialing: session.isDialing,
     isSessionPaused: session.isSessionPaused,
     currentContact: session.currentContact,
-    selectedCallerId,
+    selectedCallerId: effectiveCallerId,
   });
+
+  // Bump the per-rep rotation counter whenever a new call is actually placed.
+  const lastIncrementedCallIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!callerIdRotation.hasPool) return;
+    const callId = dialpad.activeDialpadCallId;
+    if (!callId) return;
+    if (lastIncrementedCallIdRef.current === callId) return;
+    lastIncrementedCallIdRef.current = callId;
+    void callerIdRotation.incrementCounter();
+  }, [dialpad.activeDialpadCallId, callerIdRotation]);
+
+  const rotationBadge = callerIdRotation.hasPool ? (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-mono text-primary">
+      <Radio className="h-3 w-3" />
+      {callerIdRotation.activeNumber}
+      <span className="text-muted-foreground">
+        · rotates every {callerIdRotation.rotationInterval} dials · number {callerIdRotation.activeIndex + 1} of {callerIdRotation.poolSize}
+      </span>
+    </span>
+  ) : null;
 
   // --- Active-call rehydration (run once when contact becomes available) ---
   // If the rep tabbed away (e.g. to GHL to manually book), rehydrate any in-flight
@@ -1903,9 +1934,10 @@ export default function DialerPage() {
                   <p className="px-1 text-[11px] font-mono text-muted-foreground">
                     <Phone className="mr-1 inline h-3 w-3" />
                     Calling from {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
-                    {selectedCallerId ? ` · caller ID ${selectedCallerId}` : ""}
+                    {effectiveCallerId ? ` · caller ID ${effectiveCallerId}` : ""}
                   </p>
                 )}
+                {rotationBadge && <div className="px-1">{rotationBadge}</div>}
                 {queueGuidance && (
                   <p className="px-1 text-[11px] text-muted-foreground">{queueGuidance}</p>
                 )}
@@ -2006,7 +2038,8 @@ export default function DialerPage() {
                     <Phone className="mr-1 inline h-3 w-3" />
                     {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
                   </span>
-                  {dialpad.callerIdOptions.length > 1 && (
+                  {rotationBadge}
+                  {!callerIdRotation.hasPool && dialpad.callerIdOptions.length > 1 && (
                     <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
                       <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
                         <SelectValue placeholder="Caller ID" />
@@ -2114,8 +2147,9 @@ export default function DialerPage() {
                         await dialpad.dialpadCall.mutateAsync({
                           phone: manualPhone.trim(),
                           dialpad_user_id: dialpad.myDialpadSettings.dialpad_user_id,
-                          caller_id: selectedCallerId || undefined,
+                          caller_id: effectiveCallerId || undefined,
                         });
+                        if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                         toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                         setManualOpen(false);
                         setManualPhone("");
@@ -2137,8 +2171,9 @@ export default function DialerPage() {
                       await dialpad.dialpadCall.mutateAsync({
                         phone: manualPhone.trim(),
                         dialpad_user_id: dialpad.myDialpadSettings!.dialpad_user_id,
-                        caller_id: selectedCallerId || undefined,
+                        caller_id: effectiveCallerId || undefined,
                       });
+                      if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                       toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                       setManualOpen(false);
                       setManualPhone("");
@@ -2578,7 +2613,7 @@ export default function DialerPage() {
                 onToggleVisible={() => setShowDialpadCTI((v) => !v)}
                 phoneNumber={session.currentContact?.phone ?? null}
                 autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
-                outboundCallerId={selectedCallerId || null}
+                outboundCallerId={effectiveCallerId || null}
                 customData={session.currentContact ? JSON.stringify({
                   contact_id: session.currentContact.id,
                   business_name: session.currentContact.business_name,

@@ -12,9 +12,13 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { CallerIdRotationManager } from "@/components/admin/CallerIdRotationManager";
+import { useIsAdmin } from "@/hooks/useUserRole";
+import { Radio } from "lucide-react";
 
 export default function DialpadSettingsPage() {
   const { data: settings = [], isLoading } = useAllDialpadSettings();
+  const isAdmin = useIsAdmin();
   const upsert = useUpsertDialpadSettings();
   const deleteMutation = useDeleteDialpadSettings();
 
@@ -280,6 +284,23 @@ export default function DialpadSettingsPage() {
             </Table>
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="pt-4">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Radio className="h-5 w-5" />
+                Caller ID Rotation
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Assign up to 8 outbound caller ID numbers per rep. The dialer rotates every 50 dials so no single number gets spam-flagged. Inert until at least one number is added.
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <CallerIdRotationManager profiles={profiles.map((p) => ({ user_id: p.user_id, display_name: p.display_name, email: p.email }))} />
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
