@@ -24,6 +24,15 @@ const UA =
 
 const PATHS = ["/", "/contact", "/contact-us", "/about", "/about-us"];
 const MAX_FETCHES = 4;
+// Deep-crawl parameters: homepage + up to 4 secondary owner-likely pages, cap 5.
+const DEEP_MAX_PAGES = 5;
+const DEEP_CANDIDATE_PATHS = [
+  "/about", "/about-us", "/our-team", "/team",
+  "/meet-the-team", "/meet-our-team", "/our-story",
+  "/contact", "/contact-us", "/staff", "/people",
+];
+const DEEP_LINK_HREF_RE = /\/(about|team|our-story|our-team|meet[-a-z]*|contact|staff|people)(\/|$|\?|#)/i;
+const DEEP_LINK_TEXT_RE = /\b(about|team|our story|meet (?:the |our )?team|contact|staff|people)\b/i;
 const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
@@ -175,6 +184,17 @@ const NAME_ROLE_RE =
   /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}),?\s+(Owner|Director|Founder|Managing\s+Director|Principal|CEO)\b/g;
 const HOMEOWNER_RE = /home[\s-]?owner/i;
 const OWNER_KEYWORD_RE = /\b(owner|director|founder|principal|ceo|managing\s+director)\b/i;
+
+// Extra name-source patterns (deep crawl). Each capture group holds the name.
+// Cleaned via cleanCandidateName; matches near a role word are preferred.
+const OWNER_LEAD_RE =
+  /\b(?:Owner|Director|Founder|Principal|Proprietor|Managing\s+Director)\s*[:\-\u2013\u2014]\s*([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})/g;
+const NAME_TRAIL_ROLE_RE =
+  /\b([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2}),\s+(?:Owner|Director|Founder|Principal|Proprietor|Managing\s+Director)\b/g;
+const MEET_NAME_RE = /\bMeet\s+([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})\b/g;
+const HI_IM_RE = /\b(?:Hi[,!]?\s+I['\u2019]m|I['\u2019]m)\s+([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){0,2})(?:\s+and\b|[,.!])/g;
+const HEADING_NAME_RE =
+  /<h[234][^>]*>\s*([A-Z][A-Za-z''\-]+(?:\s+[A-Z][A-Za-z''\-]+){1,2})\s*<\/h[234]>/g;
 
 // Reject any name whose tokens (case-insensitive) hit this stoplist — CMS accounts,
 // web agencies, generic marketing/trade words, and location words that show up as
