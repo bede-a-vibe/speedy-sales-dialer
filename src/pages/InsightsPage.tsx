@@ -7,6 +7,7 @@ import { ReportsBody } from "@/pages/ReportsPage";
 import { AnalyticsBody } from "@/pages/AnalyticsPage";
 import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { TargetsBody } from "@/pages/TargetsPage";
+import { TeamCoachingPanel } from "@/components/insights/TeamCoachingPanel";
 
 const TABS = ["overview", "funnel", "team", "targets"] as const;
 type InsightsTab = (typeof TABS)[number];
@@ -61,6 +62,8 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <AnalyticsBody initialTab="reps" />
             <Separator className="my-4" />
             <ReportsBody initialGroup="team-timing" initialTab="rep-comparison" />
+            <Separator className="my-4" />
+            <TeamCoachingPanel />
           </TabsContent>
 
           <TabsContent value="targets" className="space-y-6">
