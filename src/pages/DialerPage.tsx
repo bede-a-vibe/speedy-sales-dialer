@@ -35,6 +35,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
 import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -592,18 +593,22 @@ export default function DialerPage() {
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
+
+  // Fetch dialpad settings early so caller-id rotation can compute the effective
+  // outbound number BEFORE we hand it to the dialer, CTI, and manual call flows.
+  const { data: myDialpadSettingsEarly } = useMyDialpadSettings();
+  const callerIdRotation = useCallerIdRotation(myDialpadSettingsEarly?.user_id);
+  // If a pool exists, its rotated number OVERRIDES the manual selector.
+  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
+
   const dialpad = useDialerDialpad({
     isDialing: session.isDialing,
     isSessionPaused: session.isSessionPaused,
     currentContact: session.currentContact,
-    selectedCallerId,
+    selectedCallerId: effectiveCallerId,
   });
 
-  // Caller ID rotation — inert until a pool is added for this rep.
-  const callerIdRotation = useCallerIdRotation(dialpad.myDialpadSettings?.user_id);
-  // If a pool exists, its rotated number OVERRIDES the manual selector.
-  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
-  // Bump the per-rep counter whenever a new call is actually placed.
+  // Bump the per-rep rotation counter whenever a new call is actually placed.
   const lastIncrementedCallIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!callerIdRotation.hasPool) return;
