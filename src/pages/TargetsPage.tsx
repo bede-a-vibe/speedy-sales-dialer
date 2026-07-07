@@ -51,7 +51,7 @@ function getFormNumericValue(val: string): number | undefined {
   return Number(val);
 }
 
-export default function TargetsPage() {
+export function TargetsBody() {
   const { data: targets = [], isLoading } = usePerformanceTargets();
   const { data: reps = [] } = useSalesReps();
   const upsertTarget = useUpsertPerformanceTarget();
@@ -369,7 +369,7 @@ export default function TargetsPage() {
   }
 
   return (
-    <AppLayout title="Targets">
+    <>
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -663,6 +663,14 @@ export default function TargetsPage() {
         )}
         {isAdmin && <CallOpenersManager />}
       </div>
+    </>
+  );
+}
+
+export default function TargetsPage() {
+  return (
+    <AppLayout title="Targets">
+      <TargetsBody />
     </AppLayout>
   );
 }

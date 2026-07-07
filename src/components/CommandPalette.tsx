@@ -8,9 +8,6 @@ import {
   CalendarClock,
   GraduationCap,
   BarChart3,
-  TrendingUp,
-  GitBranch,
-  Target,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -110,10 +107,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     ];
     const admin = canViewAdmin
       ? [
-          { title: "Reports", to: "/reports", icon: BarChart3 },
-          { title: "Analytics", to: "/analytics", icon: TrendingUp },
-          { title: "Call Funnel", to: "/reports/funnel", icon: GitBranch },
-          { title: "Targets", to: "/targets", icon: Target },
+          { title: "Insights · Overview", to: "/insights?tab=overview", icon: BarChart3 },
+          { title: "Insights · Funnel", to: "/insights?tab=funnel", icon: BarChart3 },
+          { title: "Insights · Team", to: "/insights?tab=team", icon: BarChart3 },
+          { title: "Insights · Targets", to: "/insights?tab=targets", icon: BarChart3 },
           { title: "GHL Sync", to: "/admin/ghl-sync", icon: RefreshCw },
           { title: "Dialpad Settings", to: "/dialpad-settings", icon: Settings },
         ]

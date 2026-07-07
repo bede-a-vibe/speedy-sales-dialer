@@ -72,7 +72,7 @@ function dayDiff(from: string, to: string) {
   return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
 }
 
-export default function CallFunnelPage() {
+export function CallFunnelBody() {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
@@ -299,7 +299,7 @@ export default function CallFunnelPage() {
   };
 
   return (
-    <AppLayout title="Call Funnel">
+    <>
       <ReportsToolbar
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -465,6 +465,14 @@ export default function CallFunnelPage() {
         onSave={handleSaveSegment}
         canShare={!!user}
       />
+    </>
+  );
+}
+
+export default function CallFunnelPage() {
+  return (
+    <AppLayout title="Call Funnel">
+      <CallFunnelBody />
     </AppLayout>
   );
 }

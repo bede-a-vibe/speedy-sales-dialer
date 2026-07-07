@@ -16,14 +16,18 @@ import { LeadTrackerTab } from "@/components/analytics/LeadTrackerTab";
 
 const ALL_REPS = "all";
 
-export default function AnalyticsPage() {
+interface AnalyticsBodyProps {
+  initialTab?: string;
+}
+
+export function AnalyticsBody({ initialTab }: AnalyticsBodyProps = {}) {
   const today = new Date().toISOString().split("T")[0];
   const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
   const [dateFrom, setDateFrom] = useState(thirtyAgo);
   const [dateTo, setDateTo] = useState(today);
   const [repId, setRepId] = useState(ALL_REPS);
-  const [tab, setTab] = useState("summary");
+  const [tab, setTab] = useState(initialTab ?? "summary");
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
@@ -57,7 +61,7 @@ export default function AnalyticsPage() {
   );
 
   return (
-    <AppLayout title="Analytics">
+    <>
       <ReportsToolbar
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -105,6 +109,14 @@ export default function AnalyticsPage() {
           </TabsContent>
         </Tabs>
       </div>
+    </>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <AppLayout title="Analytics">
+      <AnalyticsBody />
     </AppLayout>
   );
 }
