@@ -1298,6 +1298,12 @@ export default function DialerPage() {
     setNativeConnectedAt(null);
   }, []);
 
+  // Reset capture disclosure whenever the active contact changes — every new
+  // lead starts lean, opens only if the rep actually connects.
+  useEffect(() => {
+    setCaptureOpen(false);
+  }, [session.currentContact?.id]);
+
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
   useEffect(() => {
