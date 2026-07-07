@@ -9,6 +9,11 @@ import {
 import { AppLayout } from "@/components/AppLayout";
 import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
 import { ManualTranscriptUpload } from "@/components/contacts/ManualTranscriptUpload";
+import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
+import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
+import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
+import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
+import { Brain, UserPlus, Building2 as AgencyIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
