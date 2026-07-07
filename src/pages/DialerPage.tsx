@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
@@ -2462,67 +2463,12 @@ export default function DialerPage() {
                 </div>
               )}
 
-              <div data-coach-step="decision-maker-capture">
+              {/* Live talk aid — script/opener visible by default, right under the card */}
               <CollapsiblePanel
-                title="Decision Maker"
-                subtitle="Capture DM name, route, and gatekeeper notes"
-                badge={(session.currentContact as any).dm_name ? "Captured" : "Capture"}
-                badgeVariant={(session.currentContact as any).dm_name ? "secondary" : "outline"}
-                icon={<UserCheck className="h-4 w-4" />}
-              >
-                <DecisionMakerCapture
-                  contactId={session.currentContact.id}
-                  businessName={session.currentContact.business_name || ""}
-                  ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
-                  existingDmName={(session.currentContact as any).dm_name}
-                  existingDmTitle={(session.currentContact as any).dm_title}
-                  existingDmPhone={(session.currentContact as any).dm_phone}
-                  existingDmPhoneType={(session.currentContact as any).dm_phone_type}
-                  existingDmEmail={(session.currentContact as any).dm_email}
-                  existingDmLinkedin={(session.currentContact as any).dm_linkedin}
-                  existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
-                  existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                  existingBestRouteToDecisionMaker={
-                    (session.currentContact as any).best_route_to_decision_maker
-                    ?? (session.currentContact as any).best_route_to_dm
-                  }
-                  existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
-                />
-              </CollapsiblePanel>
-              </div>
-
-              {/* GHL Custom Fields — full intelligence capture during the call */}
-              <CollapsiblePanel
-                title="Contact Intelligence"
-                subtitle="GHL custom fields · auto-saves as you type"
-                icon={<Brain className="h-4 w-4" />}
-                badge={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL synced" : "Local only"}
-                badgeVariant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
-              >
-                <ContactIntelligencePanel
-                  contactId={session.currentContact.id}
-                  ghlContactId={
-                    ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
-                    ?? ghlLink.getCachedGHLId(session.currentContact.id)
-                  }
-                  contact={session.currentContact as unknown as Record<string, unknown>}
-                />
-              </CollapsiblePanel>
-
-              <ExistingAgencyCapture
-                contactId={session.currentContact.id}
-                ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
-                hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
-                existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
-                existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
-                existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
-              />
-
-              {/* Sales Toolkit — Scripts, Objections, Voicemails */}
-              <CollapsiblePanel
-                title="Sales Toolkit"
+                title="Live Talk Aid"
                 subtitle="Scripts · Objections · Voicemails"
                 icon={<NotebookPen className="h-4 w-4" />}
+                defaultOpen
               >
                 <SalesToolkit
                   contactIndustry={session.currentContact?.industry ?? null}
@@ -2532,6 +2478,98 @@ export default function DialerPage() {
                   attemptCount={session.currentContact?.call_attempt_count ?? 0}
                 />
               </CollapsiblePanel>
+
+              {/* Consolidated capture — three tabs, one card. Deep fields one click away. */}
+              <div
+                data-coach-step="decision-maker-capture"
+                className="rounded-lg border border-border bg-card"
+              >
+                <Tabs defaultValue="dm" className="w-full">
+                  <div className="border-b border-border px-3 pt-3">
+                    <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
+                      <TabsTrigger
+                        value="dm"
+                        className="gap-1.5 data-[state=active]:bg-muted"
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Decision Maker
+                        {(session.currentContact as any).dm_name && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
+                            captured
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="intel"
+                        className="gap-1.5 data-[state=active]:bg-muted"
+                      >
+                        <Brain className="h-3.5 w-3.5" />
+                        Intelligence
+                        <Badge
+                          variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
+                          className="ml-1 h-4 px-1.5 text-[9px]"
+                        >
+                          {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
+                        </Badge>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="agency"
+                        className="gap-1.5 data-[state=active]:bg-muted"
+                      >
+                        Agency
+                        {((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null) && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
+                            has one
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  <TabsContent value="dm" className="p-4 pt-3 mt-0">
+                    <DecisionMakerCapture
+                      contactId={session.currentContact.id}
+                      businessName={session.currentContact.business_name || ""}
+                      ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
+                      existingDmName={(session.currentContact as any).dm_name}
+                      existingDmTitle={(session.currentContact as any).dm_title}
+                      existingDmPhone={(session.currentContact as any).dm_phone}
+                      existingDmPhoneType={(session.currentContact as any).dm_phone_type}
+                      existingDmEmail={(session.currentContact as any).dm_email}
+                      existingDmLinkedin={(session.currentContact as any).dm_linkedin}
+                      existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
+                      existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
+                      existingBestRouteToDecisionMaker={
+                        (session.currentContact as any).best_route_to_decision_maker
+                        ?? (session.currentContact as any).best_route_to_dm
+                      }
+                      existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="intel" className="p-4 pt-3 mt-0">
+                    <ContactIntelligencePanel
+                      contactId={session.currentContact.id}
+                      ghlContactId={
+                        ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
+                        ?? ghlLink.getCachedGHLId(session.currentContact.id)
+                      }
+                      contact={session.currentContact as unknown as Record<string, unknown>}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="agency" className="p-4 pt-3 mt-0">
+                    <ExistingAgencyCapture
+                      contactId={session.currentContact.id}
+                      ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
+                      hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
+                      existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
+                      existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
+                      existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </div>
 
               {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
               <DialpadCTI
