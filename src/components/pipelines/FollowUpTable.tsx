@@ -335,6 +335,8 @@ export function FollowUpTable({
           <SelectItem value="all">All methods</SelectItem>
           <SelectItem value="call">Call</SelectItem>
           <SelectItem value="email">Email</SelectItem>
+          <SelectItem value="sms">SMS</SelectItem>
+          <SelectItem value="task">Task</SelectItem>
           <SelectItem value="prospecting">Prospecting</SelectItem>
         </SelectContent>
       </Select>
