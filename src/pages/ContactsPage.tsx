@@ -765,6 +765,7 @@ export default function ContactsPage() {
   const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dataHealthMode, setDataHealthMode] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
   const [bookingDate, setBookingDate] = useState("");
