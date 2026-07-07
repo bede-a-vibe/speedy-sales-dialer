@@ -3312,6 +3312,9 @@ Deno.serve(async (req) => {
   const DIALPAD_KEY_OPTIONAL_ACTIONS = new Set([
     "test_transcript_extraction",
     "process_pending_transcript_syncs",
+    // record_cti_call only writes to our own dialpad_calls table (no Dialpad
+    // REST call), so it must work even when DIALPAD_API_KEY is unset.
+    "record_cti_call",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
