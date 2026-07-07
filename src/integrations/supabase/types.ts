@@ -1000,6 +1000,7 @@ export type Database = {
             Args: {
               _business_size?: string
               _buying_signal_strength?: string
+              _call_recency?: string
               _claim_size?: number
               _contact_owner?: string
               _dnc_reasons?: string[]
@@ -1013,6 +1014,7 @@ export type Database = {
               _include_dnc?: boolean
               _industries?: string[]
               _lead_channel?: string
+              _lead_source?: string
               _lead_type?: string
               _lock_minutes?: number
               _min_gbp_rating?: number
@@ -1102,6 +1104,7 @@ export type Database = {
             Args: {
               _business_size?: string
               _buying_signal_strength?: string
+              _call_recency?: string
               _contact_owner?: string
               _dnc_reasons?: string[]
               _dq_reasons?: string[]
@@ -1114,6 +1117,7 @@ export type Database = {
               _include_dnc?: boolean
               _industries?: string[]
               _lead_channel?: string
+              _lead_source?: string
               _lead_type?: string
               _min_gbp_rating?: number
               _min_review_count?: number

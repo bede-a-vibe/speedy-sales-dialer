@@ -37,6 +37,8 @@ export type DialerFilterPreset = "all" | "hot_today" | "dm_direct" | "dm_capture
 export type DialerFilterSnapshot = {
   leadType: string;
   leadChannel: string;
+  leadSource: string;
+  callRecency: string;
   industries: string[];
   states: string[];
   contactOwner: string;
@@ -65,6 +67,10 @@ interface AdvancedFiltersProps {
   setLeadType: (v: string) => void;
   leadChannel: string;
   setLeadChannel: (v: string) => void;
+  leadSource: string;
+  setLeadSource: (v: string) => void;
+  callRecency: string;
+  setCallRecency: (v: string) => void;
   contactOwner: string;
   setContactOwner: (v: string) => void;
   salesReps: SalesRepOption[];
@@ -145,6 +151,8 @@ export function AdvancedFilters({
   states, setStates,
   leadType, setLeadType,
   leadChannel, setLeadChannel,
+  leadSource, setLeadSource,
+  callRecency, setCallRecency,
   contactOwner, setContactOwner,
   salesReps,
   workType, setWorkType,
@@ -184,6 +192,7 @@ export function AdvancedFilters({
     label: `${o.value} (${o.count.toLocaleString()})`,
   }));
   const channelOptions = filterOptions?.channels ?? [];
+  const sourceOptions = filterOptions?.sources ?? [];
 
   const matchLabel =
     matchingContactCount === null
@@ -432,6 +441,37 @@ export function AdvancedFilters({
               {PHONE_TYPE_OPTIONS.map((t) => (
                 <SelectItem key={t} value={t}>{PHONE_TYPE_LABELS[t] || t}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Lead Source</label>
+          <Select value={leadSource} onValueChange={setLeadSource} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              {sourceOptions.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.value} ({s.count.toLocaleString()})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Call Recency</label>
+          <Select value={callRecency} onValueChange={setCallRecency} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="Any time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any time</SelectItem>
+              <SelectItem value="never">Never called</SelectItem>
+              <SelectItem value="30">Not called in 30 days</SelectItem>
+              <SelectItem value="60">Not called in 60 days</SelectItem>
+              <SelectItem value="90">Not called in 90 days</SelectItem>
             </SelectContent>
           </Select>
         </div>

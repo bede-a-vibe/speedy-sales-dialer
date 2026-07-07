@@ -50,6 +50,8 @@ export type DialerFilterOptions = {
   dncReasons?: string[];
   leadType?: string;
   leadChannel?: string;
+  leadSource?: string;
+  callRecency?: string;
 };
 
 type RollingDialerQueueOptions = {
@@ -138,6 +140,8 @@ async function claimDialerLeads({
     _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
     _lead_type: filters?.leadType && filters.leadType !== "all" ? filters.leadType : null,
     _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
+    _lead_source: filters?.leadSource && filters.leadSource !== "all" ? filters.leadSource : null,
+    _call_recency: filters?.callRecency && filters.callRecency !== "all" ? filters.callRecency : null,
   });
 }
 
@@ -199,6 +203,8 @@ async function getDialerQueueCount({
     _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
     _lead_type: filters?.leadType && filters.leadType !== "all" ? filters.leadType : null,
     _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
+    _lead_source: filters?.leadSource && filters.leadSource !== "all" ? filters.leadSource : null,
+    _call_recency: filters?.callRecency && filters.callRecency !== "all" ? filters.callRecency : null,
   });
 }
 

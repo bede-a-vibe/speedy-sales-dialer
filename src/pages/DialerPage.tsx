@@ -271,6 +271,8 @@ type StoredDialerFilters = {
   selectedPreset?: DialerFilterPreset;
   leadType?: string;
   leadChannel?: string;
+  leadSource?: string;
+  callRecency?: string;
 };
 
 function readStoredDialerFilters(): StoredDialerFilters | null {
@@ -409,6 +411,8 @@ export default function DialerPage() {
   // Lead pool separation — default 'cold' so existing cold-calling flow is unchanged.
   const [leadType, setLeadType] = useState<string>(() => storedFilters?.leadType ?? "cold");
   const [leadChannel, setLeadChannel] = useState<string>(() => storedFilters?.leadChannel ?? "all");
+  const [leadSource, setLeadSource] = useState<string>(() => storedFilters?.leadSource ?? "all");
+  const [callRecency, setCallRecency] = useState<string>(() => storedFilters?.callRecency ?? "all");
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -430,7 +434,9 @@ export default function DialerPage() {
     includeDisqualified,
     leadType,
     leadChannel,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel]);
+    leadSource,
+    callRecency,
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -473,11 +479,15 @@ export default function DialerPage() {
     // Preserve the cold-calling default on reset.
     setLeadType("cold");
     setLeadChannel("all");
+    setLeadSource("all");
+    setCallRecency("all");
   }, []);
 
   const currentFilterSnapshot: DialerFilterSnapshot = useMemo(() => ({
     leadType,
     leadChannel,
+    leadSource,
+    callRecency,
     industries,
     states,
     contactOwner,
@@ -495,11 +505,13 @@ export default function DialerPage() {
     hasExistingAgency,
     existingAgencyServices,
     includeDisqualified,
-  }), [leadType, leadChannel, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, hasExistingAgency, existingAgencyServices, includeDisqualified]);
+  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, hasExistingAgency, existingAgencyServices, includeDisqualified]);
 
   const applySmartList = useCallback((f: Partial<DialerFilterSnapshot>) => {
     if (f.leadType !== undefined) setLeadType(f.leadType);
     if (f.leadChannel !== undefined) setLeadChannel(f.leadChannel);
+    if (f.leadSource !== undefined) setLeadSource(f.leadSource);
+    if (f.callRecency !== undefined) setCallRecency(f.callRecency);
     if (f.industries !== undefined) setIndustries(f.industries);
     if (f.states !== undefined) setStates(f.states);
     if (f.contactOwner !== undefined) setContactOwner(f.contactOwner);
@@ -542,6 +554,8 @@ export default function DialerPage() {
           selectedPreset,
           leadType,
           leadChannel,
+          leadSource,
+          callRecency,
         } satisfies StoredDialerFilters),
       );
     } catch {
@@ -566,6 +580,8 @@ export default function DialerPage() {
     selectedPreset,
     leadType,
     leadChannel,
+    leadSource,
+    callRecency,
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
@@ -2050,6 +2066,10 @@ export default function DialerPage() {
             setLeadType={setLeadType}
             leadChannel={leadChannel}
             setLeadChannel={setLeadChannel}
+            leadSource={leadSource}
+            setLeadSource={setLeadSource}
+            callRecency={callRecency}
+            setCallRecency={setCallRecency}
             contactOwner={contactOwner}
             setContactOwner={setContactOwner}
             salesReps={salesReps}
