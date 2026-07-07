@@ -1224,6 +1224,17 @@ export default function DialerPage() {
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
 
+  // Auto-expand the docked softphone when a session starts, collapse when it ends.
+  // Only fires on the transition — rep can manually toggle mid-session without being fought.
+  const prevSessionActiveRef = useRef(session.isSessionActive);
+  useEffect(() => {
+    const prev = prevSessionActiveRef.current;
+    if (prev !== session.isSessionActive) {
+      setShowDialpadCTI(session.isSessionActive);
+      prevSessionActiveRef.current = session.isSessionActive;
+    }
+  }, [session.isSessionActive]);
+
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
   useEffect(() => {
