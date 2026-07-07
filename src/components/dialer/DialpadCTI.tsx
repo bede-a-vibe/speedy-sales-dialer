@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Phone, PhoneOff, Minimize2, Maximize2, Wifi, WifiOff, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,10 +8,23 @@ import { cn } from "@/lib/utils";
 interface DialpadCTIProps {
   /** The Dialpad CTI Client ID (provided by Dialpad after setup) */
   clientId: string | null;
-  /** Whether the CTI panel should be visible */
-  visible: boolean;
-  /** Toggle visibility */
-  onToggleVisible: () => void;
+  /** Whether the CTI panel chrome (header/buttons) should be visible. Ignored when `headless` is true. */
+  visible?: boolean;
+  /** Toggle visibility (only meaningful when the chrome is rendered). */
+  onToggleVisible?: () => void;
+  /**
+   * Headless mode: render ONLY the raw Dialpad iframe with no chrome, no header,
+   * no minimise controls. The parent decides where the iframe sits (typically off
+   * screen so it becomes a hidden WebRTC audio carrier) and drives call state via
+   * `onCallRinging` + the imperative `hangUpAll()` handle.
+   *
+   * IMPORTANT: The iframe MUST remain mounted for the lifetime of the session.
+   * Do NOT wrap the returned element in `display: none` — browsers can suspend
+   * hidden iframes, which kills the live WebRTC audio track and drops the call.
+   * Hide with `opacity: 0`, `pointer-events: none`, or off-screen positioning
+   * (`position: fixed; left: -9999px`) so the iframe stays live but invisible.
+   */
+  headless?: boolean;
   /** Phone number to dial (E.164 format) */
   phoneNumber?: string | null;
   /** Whether to auto-initiate the call when phoneNumber changes */
@@ -24,6 +37,13 @@ interface DialpadCTIProps {
   onCallRinging?: (payload: CallRingingPayload) => void;
   /** Callback when user auth state changes in the CTI */
   onAuthChange?: (authenticated: boolean, userId?: number) => void;
+}
+
+/** Imperative handle exposed via ref so a native call bar can drive the CTI. */
+export interface DialpadCTIHandle {
+  hangUpAll: () => void;
+  initiateCall: (phoneNumber: string, callerId?: string, customData?: string) => void;
+  isAuthenticated: () => boolean;
 }
 
 export interface CallRingingPayload {
@@ -63,17 +83,18 @@ const CTI_TARGET_ORIGIN = "https://dialpad.com";
 
 // ── Component ──
 
-export function DialpadCTI({
+export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function DialpadCTI({
   clientId,
-  visible,
+  visible = true,
   onToggleVisible,
+  headless = false,
   phoneNumber,
   autoInitiateCall = false,
   outboundCallerId,
   customData,
   onCallRinging,
   onAuthChange,
-}: DialpadCTIProps) {
+}, ref) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isMinimised, setIsMinimised] = useState(false);
