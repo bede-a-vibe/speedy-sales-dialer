@@ -599,6 +599,31 @@ export default function DialerPage() {
     selectedCallerId,
   });
 
+  // Caller ID rotation — inert until a pool is added for this rep.
+  const callerIdRotation = useCallerIdRotation(dialpad.myDialpadSettings?.user_id);
+  // If a pool exists, its rotated number OVERRIDES the manual selector.
+  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
+  // Bump the per-rep counter whenever a new call is actually placed.
+  const lastIncrementedCallIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!callerIdRotation.hasPool) return;
+    const callId = dialpad.activeDialpadCallId;
+    if (!callId) return;
+    if (lastIncrementedCallIdRef.current === callId) return;
+    lastIncrementedCallIdRef.current = callId;
+    void callerIdRotation.incrementCounter();
+  }, [dialpad.activeDialpadCallId, callerIdRotation]);
+
+  const rotationBadge = callerIdRotation.hasPool ? (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-mono text-primary">
+      <Radio className="h-3 w-3" />
+      {callerIdRotation.activeNumber}
+      <span className="text-muted-foreground">
+        · rotates every {callerIdRotation.rotationInterval} dials · number {callerIdRotation.activeIndex + 1} of {callerIdRotation.poolSize}
+      </span>
+    </span>
+  ) : null;
+
   // --- Active-call rehydration (run once when contact becomes available) ---
   // If the rep tabbed away (e.g. to GHL to manually book), rehydrate any in-flight
   // outcome / progress / follow-up state for the SAME contact when they return.
