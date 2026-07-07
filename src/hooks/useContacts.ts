@@ -245,7 +245,8 @@ async function fetchPaginatedContacts({
 
   let query = supabase
     .from("contacts")
-    .select("*", { count: "exact" });
+    .select("*", { count: "exact" })
+    .eq("is_archived", false);
 
   if (sortBy === "operational") {
     query = query
@@ -883,5 +884,115 @@ export function useClearOwnDialerLeadLocks() {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
     },
+  });
+}
+
+// ---------- Bulk actions ----------
+
+function invalidateContactQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["contacts"] });
+  queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
+  queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+  queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
+  queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
+  queryClient.invalidateQueries({ queryKey: ["duplicate-groups"] });
+}
+
+const BULK_CHUNK_SIZE = 200;
+
+async function chunkedUpdate(ids: string[], updates: Partial<Contact>) {
+  for (let i = 0; i < ids.length; i += BULK_CHUNK_SIZE) {
+    const slice = ids.slice(i, i + BULK_CHUNK_SIZE);
+    const { error } = await supabase.from("contacts").update(updates).in("id", slice);
+    if (error) throw error;
+  }
+}
+
+export function useBulkUpdateContacts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Partial<Contact> }) => {
+      await chunkedUpdate(ids, updates);
+      return ids.length;
+    },
+    onSuccess: () => invalidateContactQueries(queryClient),
+  });
+}
+
+/**
+ * Fetch all contact IDs matching the given filters (used for "select all matching filter").
+ * Ignores pagination.
+ */
+export async function fetchAllMatchingContactIds(filters: PaginatedContactsFilters): Promise<string[]> {
+  const { industry, status, state, appointmentOutcome, lifecycleStage, ownerId, search } = filters;
+  const ids: string[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    let q = supabase.from("contacts").select("id").eq("is_archived", false).range(from, from + pageSize - 1);
+    if (industry && industry !== "all") q = q.eq("industry", industry);
+    if (status && status !== "all") {
+      if (status === "dnc") q = q.eq("is_dnc", true);
+      else q = q.eq("status", status);
+    }
+    if (state && state !== "all") q = q.ilike("state", state);
+    if (appointmentOutcome && appointmentOutcome !== "all") {
+      q = q.eq("latest_appointment_outcome", appointmentOutcome as AppointmentOutcomeValue);
+    }
+    if (lifecycleStage && lifecycleStage !== "all") q = q.eq("lifecycle_stage", lifecycleStage);
+    if (ownerId && ownerId !== "all") {
+      if (ownerId === "unassigned") q = q.is("owner_id", null);
+      else q = q.eq("owner_id", ownerId);
+    }
+    if (search && search.trim().length > 0) {
+      const s = search.trim();
+      q = q.or(
+        `business_name.ilike.%${s}%,phone.ilike.%${s}%,contact_person.ilike.%${s}%,email.ilike.%${s}%`,
+      );
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data ?? []) as { id: string }[];
+    ids.push(...rows.map((r) => r.id));
+    if (rows.length < pageSize) break;
+    from += pageSize;
+    if (ids.length >= 20000) break; // safety cap
+  }
+  return ids;
+}
+
+// ---------- Duplicate detection & merge ----------
+
+export type DuplicateGroup = {
+  normalized_phone: string;
+  contact_ids: string[];
+  contact_count: number;
+};
+
+export function useDuplicateGroups(enabled: boolean) {
+  return useQuery({
+    queryKey: ["duplicate-groups"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("find_exact_phone_duplicate_groups" as never);
+      if (error) throw error;
+      return (data ?? []) as DuplicateGroup[];
+    },
+  });
+}
+
+export function useMergeContacts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ masterId, loserIds }: { masterId: string; loserIds: string[] }) => {
+      const { data, error } = await supabase.rpc("merge_contacts" as never, {
+        _master: masterId,
+        _losers: loserIds,
+      } as never);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => invalidateContactQueries(queryClient),
   });
 }
