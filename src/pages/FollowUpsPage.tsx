@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Copy, Mail, Phone, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Clock3, Copy, Mail, Phone, Plus, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
@@ -14,7 +14,15 @@ import {
   useSalesReps,
   useUpdatePipelineItem,
   type FollowUpMethod,
+  type PipelineItemWithRelations,
 } from "@/hooks/usePipelineItems";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminAccess } from "@/hooks/useUserRole";
+import { useDialpadCall } from "@/hooks/useDialpad";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
