@@ -786,6 +786,7 @@ export type Database = {
           contact_id: string
           created_at: string
           created_by: string
+          deal_stage: string | null
           deal_value: number | null
           follow_up_method: string
           id: string
@@ -809,6 +810,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           created_by: string
+          deal_stage?: string | null
           deal_value?: number | null
           follow_up_method?: string
           id?: string
@@ -832,6 +834,7 @@ export type Database = {
           contact_id?: string
           created_at?: string
           created_by?: string
+          deal_stage?: string | null
           deal_value?: number | null
           follow_up_method?: string
           id?: string
