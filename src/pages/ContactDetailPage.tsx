@@ -505,15 +505,63 @@ export default function ContactDetailPage() {
                 <Badge variant={currentStatusValue === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
                   {currentStatusValue}
                 </Badge>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] uppercase tracking-widest font-mono border ${LIFECYCLE_STAGE_COLORS[lifecycleStage] || ""}`}
+                  title={lifecycleReason ? `Reason: ${lifecycleReason.replace(/_/g, " ")}` : undefined}
+                >
+                  {LIFECYCLE_STAGE_LABELS[lifecycleStage]}
+                  {lifecycleReason && <span className="ml-1 opacity-70">· {lifecycleReason.replace(/_/g, " ")}</span>}
+                </Badge>
                 {prospectTier && (
                   <Badge variant="outline" className="text-xs uppercase tracking-wide">Tier {prospectTier}</Badge>
                 )}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Owner</span>
-                  <span className="text-foreground">{ownerName ?? "Unassigned"}</span>
-                </span>
+                  <Select value={ownerUserId ?? "unassigned"} onValueChange={handleOwnerChange}>
+                    <SelectTrigger className="h-6 w-[160px] border-border bg-card text-xs">
+                      <SelectValue placeholder="Unassigned">{ownerName ?? "Unassigned"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {salesReps.map((rep) => (
+                        <SelectItem key={rep.user_id} value={rep.user_id}>
+                          {rep.display_name || rep.email || "Unknown rep"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Lifecycle</span>
+                  <Select value={lifecycleStage} onValueChange={(v) => handleLifecycleChange(v as LifecycleStage)}>
+                    <SelectTrigger className="h-6 w-[130px] border-border bg-card text-xs capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LIFECYCLE_STAGES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {lifecycleStage === "lost" && (
+                    <Select
+                      value={lifecycleReason ?? "other"}
+                      onValueChange={(v) => handleLifecycleChange("lost", v)}
+                    >
+                      <SelectTrigger className="h-6 w-[150px] border-border bg-card text-xs">
+                        <SelectValue placeholder="Reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LIFECYCLE_LOST_REASONS.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5" />
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Next</span>
