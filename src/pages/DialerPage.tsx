@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
@@ -59,6 +60,8 @@ import {
   GBP_RATING_OPTIONS,
   REVIEW_COUNT_OPTIONS,
   AUSTRALIAN_STATES,
+  LEAD_TYPES,
+  LEAD_CHANNELS,
 } from "@/data/constants";
 import type { DqReason, DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
