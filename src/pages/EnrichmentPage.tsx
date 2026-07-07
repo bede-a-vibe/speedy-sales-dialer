@@ -235,6 +235,61 @@ function CoverageRow(props: { label: string; count: number; total: number }) {
   );
 }
 
+function AiBudgetCard(props: {
+  budget: { day: string; calls_used: number; daily_cap: number } | null;
+}) {
+  const { budget } = props;
+  const used = budget?.calls_used ?? 0;
+  const cap = Math.max(1, budget?.daily_cap ?? 500);
+  const melbToday = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Australia/Melbourne",
+  });
+  const isToday = budget?.day === melbToday;
+  const displayUsed = isToday ? used : 0;
+  const pct = Math.min(100, Math.round((displayUsed / cap) * 100));
+  const cost = (displayUsed * 0.002).toFixed(2);
+  const capped = displayUsed >= cap;
+
+  return (
+    <Card className={cn("relative overflow-hidden", capped && "border-amber-500/40")}>
+      {capped && (
+        <div className="absolute top-0 right-0">
+          <Badge
+            variant="outline"
+            className="m-2 border-amber-500/40 bg-amber-50 text-amber-700 text-[10px] font-mono uppercase"
+          >
+            Cap reached — running free-only
+          </Badge>
+        </div>
+      )}
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm">AI budget (today)</CardTitle>
+        </div>
+        <CardDescription className="text-xs">
+          Resets midnight (Melbourne)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono text-2xl font-bold text-foreground tabular-nums">
+            {displayUsed.toLocaleString()}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            / {cap.toLocaleString()}
+          </span>
+        </div>
+        <Progress value={pct} className="h-1.5" />
+        <p className="text-xs text-muted-foreground">
+          ≈ ${cost} today{" "}
+          <span className="text-muted-foreground/60">(estimated; Gemini Flash)</span>
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------- page ----------
 export default function EnrichmentPage() {
   const { data, isLoading, isFetching, dataUpdatedAt } = useEnrichmentDashboard();
