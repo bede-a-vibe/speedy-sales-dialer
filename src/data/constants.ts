@@ -341,13 +341,13 @@ export type DncReason = typeof DNC_REASONS[number]["value"];
 // prospect_tier (value) and lead_type (pool) are SEPARATE dimensions.
 
 export const LIFECYCLE_STAGES = [
-  { value: "new",        label: "New",        color: "text-slate-700  bg-slate-500/10  border-slate-500/30",  description: "Never contacted." },
-  { value: "attempting", label: "Attempting", color: "text-blue-700   bg-blue-500/10   border-blue-500/30",   description: "Dialing but no conversation yet." },
-  { value: "connected",  label: "Connected",  color: "text-cyan-700   bg-cyan-500/10   border-cyan-500/30",   description: "Talked to a human." },
-  { value: "qualified",  label: "Qualified",  color: "text-violet-700 bg-violet-500/10 border-violet-500/30", description: "Decision maker + buying signal." },
-  { value: "booked",     label: "Booked",     color: "text-amber-700  bg-amber-500/10  border-amber-500/30",  description: "Appointment on the calendar." },
-  { value: "won",        label: "Won",        color: "text-emerald-700 bg-emerald-500/10 border-emerald-500/30", description: "Closed-won deal." },
-  { value: "lost",       label: "Lost",       color: "text-rose-700   bg-rose-500/10   border-rose-500/30",   description: "Not interested / DNC / disqualified." },
+  { value: "new",        label: "New",        color: "text-slate-700  dark:text-slate-200  bg-slate-500/10  dark:bg-slate-400/15  border-slate-500/30  dark:border-slate-400/40",  description: "Never contacted." },
+  { value: "attempting", label: "Attempting", color: "text-blue-700   dark:text-blue-200   bg-blue-500/10   dark:bg-blue-400/15   border-blue-500/30   dark:border-blue-400/40",   description: "Dialing but no conversation yet." },
+  { value: "connected",  label: "Connected",  color: "text-cyan-700   dark:text-cyan-200   bg-cyan-500/10   dark:bg-cyan-400/15   border-cyan-500/30   dark:border-cyan-400/40",   description: "Talked to a human." },
+  { value: "qualified",  label: "Qualified",  color: "text-violet-700 dark:text-violet-200 bg-violet-500/10 dark:bg-violet-400/15 border-violet-500/30 dark:border-violet-400/40", description: "Decision maker + buying signal." },
+  { value: "booked",     label: "Booked",     color: "text-amber-700  dark:text-amber-200  bg-amber-500/10  dark:bg-amber-400/15  border-amber-500/30  dark:border-amber-400/40",  description: "Appointment on the calendar." },
+  { value: "won",        label: "Won",        color: "text-emerald-700 dark:text-emerald-200 bg-emerald-500/10 dark:bg-emerald-400/15 border-emerald-500/30 dark:border-emerald-400/40", description: "Closed-won deal." },
+  { value: "lost",       label: "Lost",       color: "text-rose-700   dark:text-rose-200   bg-rose-500/10   dark:bg-rose-400/15   border-rose-500/30   dark:border-rose-400/40",   description: "Not interested / DNC / disqualified." },
 ] as const;
 
 export type LifecycleStage = typeof LIFECYCLE_STAGES[number]["value"];
@@ -390,11 +390,11 @@ export type AgencyService = typeof AGENCY_SERVICES[number]["value"];
 // Clean, forward-flowing sales stages. Each carries a win-probability used
 // for the weighted forecast at the top of the deal board.
 export const DEAL_STAGES = [
-  { value: "booked",   label: "Booked",   color: "text-amber-700 bg-amber-500/10 border-amber-500/40",       order: 1, winProbability: 0.2 },
-  { value: "showed",   label: "Showed",   color: "text-sky-700 bg-sky-500/10 border-sky-500/40",             order: 2, winProbability: 0.4 },
-  { value: "proposal", label: "Proposal", color: "text-violet-700 bg-violet-500/10 border-violet-500/40",    order: 3, winProbability: 0.6 },
-  { value: "won",      label: "Won",      color: "text-emerald-700 bg-emerald-500/10 border-emerald-500/40", order: 4, winProbability: 1.0 },
-  { value: "lost",     label: "Lost",     color: "text-rose-700 bg-rose-500/10 border-rose-500/40",          order: 5, winProbability: 0.0 },
+  { value: "booked",   label: "Booked",   color: "text-amber-700 dark:text-amber-200 bg-amber-500/10 dark:bg-amber-400/15 border-amber-500/40 dark:border-amber-400/40",       order: 1, winProbability: 0.2 },
+  { value: "showed",   label: "Showed",   color: "text-sky-700 dark:text-sky-200 bg-sky-500/10 dark:bg-sky-400/15 border-sky-500/40 dark:border-sky-400/40",                   order: 2, winProbability: 0.4 },
+  { value: "proposal", label: "Proposal", color: "text-violet-700 dark:text-violet-200 bg-violet-500/10 dark:bg-violet-400/15 border-violet-500/40 dark:border-violet-400/40", order: 3, winProbability: 0.6 },
+  { value: "won",      label: "Won",      color: "text-emerald-700 dark:text-emerald-200 bg-emerald-500/10 dark:bg-emerald-400/15 border-emerald-500/40 dark:border-emerald-400/40", order: 4, winProbability: 1.0 },
+  { value: "lost",     label: "Lost",     color: "text-rose-700 dark:text-rose-200 bg-rose-500/10 dark:bg-rose-400/15 border-rose-500/40 dark:border-rose-400/40",             order: 5, winProbability: 0.0 },
 ] as const;
 
 export type DealStage = typeof DEAL_STAGES[number]["value"];
