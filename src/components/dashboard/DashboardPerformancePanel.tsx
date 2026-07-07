@@ -73,9 +73,7 @@ export function DashboardPerformancePanel() {
       </div>
 
       {isLoading ? (
-        <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground animate-pulse">
-          Loading today&apos;s performance…
-        </div>
+        <PerformancePanelSkeleton />
       ) : (
         <>
           <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
