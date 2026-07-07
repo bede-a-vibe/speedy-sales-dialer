@@ -2046,13 +2046,13 @@ export default function DialerPage() {
               </Button>
               {dialpadCTIClientId && (
                 <Button
-                  variant={showDialpadCTI ? "secondary" : "outline"}
+                  variant={dialpadRevealed ? "secondary" : "outline"}
                   size="sm"
-                  onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                  onClick={() => setDialpadRevealed((v) => !v)}
                   className="gap-1.5"
                 >
                   <Headphones className="h-3.5 w-3.5" />
-                  {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+                  {dialpadRevealed ? "Hide Dialpad" : "Open Dialpad"}
                 </Button>
               )}
               <span
@@ -2070,13 +2070,13 @@ export default function DialerPage() {
           <div className="flex flex-wrap items-center gap-4">
             {dialpadCTIClientId && (
               <Button
-                variant={showDialpadCTI ? "secondary" : "outline"}
+                variant={dialpadRevealed ? "secondary" : "outline"}
                 size="sm"
-                onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                onClick={() => setDialpadRevealed((v) => !v)}
                 className="gap-1.5"
               >
                 <Headphones className="h-3.5 w-3.5" />
-                {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+                {dialpadRevealed ? "Hide Dialpad" : "Open Dialpad"}
               </Button>
             )}
 
