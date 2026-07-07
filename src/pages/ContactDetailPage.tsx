@@ -342,6 +342,35 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleLifecycleChange = async (nextStage: LifecycleStage, reason?: string | null) => {
+    if (!contact) return;
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        lifecycle_stage: nextStage,
+        lifecycle_reason: nextStage === "lost" ? reason ?? lifecycleReason ?? null : null,
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      toast.success(`Lifecycle set to ${LIFECYCLE_STAGE_LABELS[nextStage]}`);
+    } catch {
+      toast.error("Failed to update lifecycle stage");
+    }
+  };
+
+  const handleOwnerChange = async (nextOwnerId: string) => {
+    if (!contact) return;
+    try {
+      await updateContact.mutateAsync({
+        id: contact.id,
+        owner_id: nextOwnerId === "unassigned" ? null : nextOwnerId,
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      toast.success("Owner updated");
+    } catch {
+      toast.error("Failed to update owner");
+    }
+  };
+
   const handleAddNote = async () => {
     if (!newNote.trim() || !id || !user?.id) return;
     setSavingNote(true);
