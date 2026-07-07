@@ -1934,9 +1934,10 @@ export default function DialerPage() {
                   <p className="px-1 text-[11px] font-mono text-muted-foreground">
                     <Phone className="mr-1 inline h-3 w-3" />
                     Calling from {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
-                    {selectedCallerId ? ` · caller ID ${selectedCallerId}` : ""}
+                    {effectiveCallerId ? ` · caller ID ${effectiveCallerId}` : ""}
                   </p>
                 )}
+                {rotationBadge && <div className="px-1">{rotationBadge}</div>}
                 {queueGuidance && (
                   <p className="px-1 text-[11px] text-muted-foreground">{queueGuidance}</p>
                 )}
@@ -2037,7 +2038,8 @@ export default function DialerPage() {
                     <Phone className="mr-1 inline h-3 w-3" />
                     {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
                   </span>
-                  {dialpad.callerIdOptions.length > 1 && (
+                  {rotationBadge}
+                  {!callerIdRotation.hasPool && dialpad.callerIdOptions.length > 1 && (
                     <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
                       <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
                         <SelectValue placeholder="Caller ID" />
@@ -2145,8 +2147,9 @@ export default function DialerPage() {
                         await dialpad.dialpadCall.mutateAsync({
                           phone: manualPhone.trim(),
                           dialpad_user_id: dialpad.myDialpadSettings.dialpad_user_id,
-                          caller_id: selectedCallerId || undefined,
+                          caller_id: effectiveCallerId || undefined,
                         });
+                        if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                         toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                         setManualOpen(false);
                         setManualPhone("");
@@ -2168,8 +2171,9 @@ export default function DialerPage() {
                       await dialpad.dialpadCall.mutateAsync({
                         phone: manualPhone.trim(),
                         dialpad_user_id: dialpad.myDialpadSettings!.dialpad_user_id,
-                        caller_id: selectedCallerId || undefined,
+                        caller_id: effectiveCallerId || undefined,
                       });
+                      if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                       toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                       setManualOpen(false);
                       setManualPhone("");
@@ -2609,7 +2613,7 @@ export default function DialerPage() {
                 onToggleVisible={() => setShowDialpadCTI((v) => !v)}
                 phoneNumber={session.currentContact?.phone ?? null}
                 autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
-                outboundCallerId={selectedCallerId || null}
+                outboundCallerId={effectiveCallerId || null}
                 customData={session.currentContact ? JSON.stringify({
                   contact_id: session.currentContact.id,
                   business_name: session.currentContact.business_name,
