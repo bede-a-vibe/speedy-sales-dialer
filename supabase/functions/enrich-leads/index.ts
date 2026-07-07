@@ -1163,14 +1163,20 @@ Deno.serve(async (req) => {
           c.has_google_ads === "yes" ||
           c.has_facebook_ads === "yes";
         if (worthAi) d_ai_eligible++;
+        // Cap gate: reserve a slot in the shared batch counter BEFORE calling
+        // AI. Free extraction still runs when allowAi=false.
+        const allowAi = worthAi && tryReserveAi();
         const r = await processDeepCrawl({
           id: c.id,
           website: c.website,
           dm_name: c.dm_name,
           dm_phone: c.dm_phone,
           dm_email: c.dm_email,
-        }, LOVABLE_API_KEY, worthAi);
+        }, LOVABLE_API_KEY, allowAi);
         if (r.aiCalled) d_ai_calls++;
+        // If we reserved but AI wasn't actually called (e.g. no aboutText, no key),
+        // release the slot so another lead can use it.
+        if (allowAi && !r.aiCalled && batchAiState.made > 0) batchAiState.made--;
 
         const update: Record<string, any> = {
           deep_crawl_attempted: true,
@@ -1233,6 +1239,7 @@ Deno.serve(async (req) => {
     await runInChunks(deepContacts ?? [], DEEP_CONCURRENCY, perDeep);
 
     console.log(`[enrich-leads/deep] AI name calls: ${d_ai_calls} of ${deepContacts?.length ?? 0} leads (${d_ai_eligible} eligible by value gate)`);
+    await persistBudget(d_ai_calls);
 
     return json({
       mode: "deep_crawl",
@@ -1247,6 +1254,7 @@ Deno.serve(async (req) => {
       signal_bumps: d_signal_bump,
       remaining: deepRemaining,
       ai_name_calls: d_ai_calls,
+      ai_budget: { daily_cap: dailyCap, used_before: callsUsedToday, remaining_before: remainingBudget, used_this_batch: d_ai_calls },
       logs: deepLogs,
     });
   }
@@ -1321,6 +1329,7 @@ Deno.serve(async (req) => {
         c.has_google_ads === "yes" ||
         c.has_facebook_ads === "yes";
       if (worthAi) ai_name_eligible++;
+      const allowAi = worthAi && tryReserveAi();
       const r = await processContact({
         id: c.id,
         website: c.website,
@@ -1329,8 +1338,9 @@ Deno.serve(async (req) => {
         industry: c.industry,
         city: c.city,
         state: c.state,
-      }, LOVABLE_API_KEY, worthAi);
+      }, LOVABLE_API_KEY, allowAi);
       if (r.aiCalled) ai_name_calls++;
+      if (allowAi && !r.aiCalled && batchAiState.made > 0) batchAiState.made--;
 
       // Source: 'search-website' if discovered via DDG, 'email-domain' if from
       // email domain, 'website' if we fetched an existing site, else 'ai-classify'.
@@ -1429,6 +1439,7 @@ Deno.serve(async (req) => {
   await runInChunks(sorted, CONCURRENCY, perContact);
 
   console.log(`[enrich-leads] AI name calls: ${ai_name_calls} of ${sorted.length} leads (${ai_name_eligible} eligible by value gate)`);
+  await persistBudget(ai_name_calls);
 
   return json({
     processed: sorted.length,
@@ -1440,6 +1451,7 @@ Deno.serve(async (req) => {
     cities_found,
     remaining,
     ai_name_calls,
+    ai_budget: { daily_cap: dailyCap, used_before: callsUsedToday, remaining_before: remainingBudget, used_this_batch: ai_name_calls },
     logs,
   });
 });
