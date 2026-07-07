@@ -1,40 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 220 20% 14%;
+    --background: 210 37% 97%;
+    --foreground: 212 76% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 14%;
+    --card-foreground: 212 76% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 14%;
+    --popover-foreground: 212 76% 13%;
 
-    --primary: 220 65% 48%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 191 100% 47%;
+    --primary-foreground: 205 79% 11%;
 
-    --secondary: 220 14% 94%;
-    --secondary-foreground: 220 20% 30%;
+    --secondary: 204 42% 95%;
+    --secondary-foreground: 212 76% 13%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 206 33% 96%;
+    --muted-foreground: 210 14% 49%;
 
-    --accent: 220 14% 93%;
-    --accent-foreground: 220 20% 14%;
+    --accent: 197 76% 94%;
+    --accent-foreground: 195 100% 35%;
 
-    --destructive: 0 68% 52%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 89%;
-    --input: 220 14% 89%;
-    --ring: 220 65% 48%;
+    --border: 205 31% 89%;
+    --input: 207 36% 90%;
+    --ring: 192 100% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.85rem;
+
+    --brand-navy: 212 67% 13%;
+    --brand-navy-2: 213 71% 11%;
+    --positive: 84 100% 29%;
 
     /* Outcome colors — muted, professional */
     --outcome-no-answer: 220 12% 62%;
@@ -55,8 +57,59 @@
     --sidebar-border: 220 14% 22%;
     --sidebar-ring: 220 65% 48%;
 
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-sans: 'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: 215 46% 10%;
+    --foreground: 208 35% 93%;
+
+    --card: 211 40% 13%;
+    --card-foreground: 208 35% 93%;
+
+    --popover: 211 40% 13%;
+    --popover-foreground: 208 35% 93%;
+
+    --primary: 192 82% 54%;
+    --primary-foreground: 205 79% 11%;
+
+    --secondary: 213 41% 16%;
+    --secondary-foreground: 208 35% 93%;
+
+    --muted: 213 41% 16%;
+    --muted-foreground: 209 21% 59%;
+
+    --accent: 200 60% 22%;
+    --accent-foreground: 193 100% 75%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 212 35% 23%;
+    --input: 212 35% 23%;
+    --ring: 192 82% 54%;
+
+    --brand-navy: 212 67% 13%;
+    --brand-navy-2: 213 71% 11%;
+    --positive: 84 72% 59%;
+
+    --outcome-no-answer: 220 8% 55%;
+    --outcome-voicemail: 35 65% 55%;
+    --outcome-not-interested: 0 60% 60%;
+    --outcome-dnc: 0 70% 55%;
+    --outcome-follow-up: 205 70% 55%;
+    --outcome-booked: 152 55% 48%;
+    --outcome-wrong-number: 270 45% 65%;
+
+    --sidebar-background: 213 71% 11%;
+    --sidebar-foreground: 210 20% 75%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 212 67% 13%;
+    --sidebar-accent: 212 45% 18%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 212 40% 20%;
+    --sidebar-ring: 192 82% 54%;
   }
 }
 
