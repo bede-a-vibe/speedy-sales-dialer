@@ -3301,10 +3301,10 @@ export default function DialerPage() {
             </p>
             {queueGuidance && !session.queue.isLoading && (
               <div className="mt-4 max-w-2xl rounded-md border border-sky-500/25 bg-sky-500/10 px-4 py-3 text-left">
-                <p className="text-[10px] uppercase tracking-widest font-mono text-sky-300">
+                <p className="text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-300">
                   {queueFocusLabel ?? "Queue guidance"}
                 </p>
-                <p className="mt-1 text-sm text-sky-50/90">{queueGuidance}</p>
+                <p className="mt-1 text-sm text-sky-900 dark:text-sky-50/90">{queueGuidance}</p>
               </div>
             )}
             {activeFilterSummary.length > 0 && !session.queue.isLoading && (

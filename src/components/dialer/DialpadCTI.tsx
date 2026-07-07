@@ -267,7 +267,7 @@ export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function
           <p className="text-sm text-muted-foreground">
             Dialpad CTI not configured
           </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
+          <p className="mt-1 text-xs text-muted-foreground">
             Set <code className="rounded bg-muted px-1 py-0.5 text-[10px]">VITE_DIALPAD_CTI_CLIENT_ID</code> in
             your environment to enable embedded calling.
           </p>

@@ -3,31 +3,31 @@ import { getGhlContactUrl } from "@/lib/ghlUrls";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
-  confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
+  confirmed: { label: "Confirmed", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30", icon: Phone },
   unconfirmed: { label: "Unconfirmed", color: "text-muted-foreground bg-accent border-border", icon: Phone },
-  suspect: { label: "Suspect", color: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30", icon: AlertTriangle },
-  dead: { label: "Dead", color: "text-red-400 bg-red-500/15 border-red-500/30", icon: PhoneOff },
+  suspect: { label: "Suspect", color: "text-amber-700 dark:text-yellow-300 bg-yellow-500/10 dark:bg-yellow-500/15 border-yellow-500/30", icon: AlertTriangle },
+  dead: { label: "Dead", color: "text-rose-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border-red-500/30", icon: PhoneOff },
 };
 
 const PHONE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
-  mobile: { label: "Mobile", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Smartphone },
-  landline: { label: "Landline", color: "text-orange-400 bg-orange-500/15 border-orange-500/30", icon: Landmark },
-  business_line: { label: "Business", color: "text-blue-400 bg-blue-500/15 border-blue-500/30", icon: Building2 },
+  mobile: { label: "Mobile", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30", icon: Smartphone },
+  landline: { label: "Landline", color: "text-orange-700 dark:text-orange-300 bg-orange-500/10 dark:bg-orange-500/15 border-orange-500/30", icon: Landmark },
+  business_line: { label: "Business", color: "text-blue-700 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-500/15 border-blue-500/30", icon: Building2 },
   unknown: { label: "Unknown", color: "text-muted-foreground bg-accent border-border", icon: Phone },
 };
 
 const TIER_CONFIG: Record<string, { label: string; color: string }> = {
-  "Tier 1 - Hot": { label: "Hot", color: "text-red-300 bg-red-500/20 border-red-500/40" },
-  "Tier 2 - Warm": { label: "Warm", color: "text-amber-300 bg-amber-500/20 border-amber-500/40" },
-  "Tier 3 - Nurture": { label: "Nurture", color: "text-blue-300 bg-blue-500/20 border-blue-500/40" },
-  "Tier 4 - Long Shot": { label: "Long Shot", color: "text-slate-300 bg-slate-500/20 border-slate-500/40" },
-  "Tier 5 - New / No Reviews": { label: "New / No Reviews", color: "text-violet-300 bg-violet-500/20 border-violet-500/40" },
+  "Tier 1 - Hot": { label: "Hot", color: "text-rose-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20 border-red-500/30 dark:border-red-500/40" },
+  "Tier 2 - Warm": { label: "Warm", color: "text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/30 dark:border-amber-500/40" },
+  "Tier 3 - Nurture": { label: "Nurture", color: "text-blue-700 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-500/20 border-blue-500/30 dark:border-blue-500/40" },
+  "Tier 4 - Long Shot": { label: "Long Shot", color: "text-slate-700 dark:text-slate-300 bg-slate-500/10 dark:bg-slate-500/20 border-slate-500/30 dark:border-slate-500/40" },
+  "Tier 5 - New / No Reviews": { label: "New / No Reviews", color: "text-violet-700 dark:text-violet-300 bg-violet-500/10 dark:bg-violet-500/20 border-violet-500/30 dark:border-violet-500/40" },
 };
 
 const POOL_CONFIG: Record<string, { label: string; color: string }> = {
-  cold: { label: "Cold", color: "text-slate-300 bg-slate-500/15 border-slate-500/30" },
-  warm: { label: "Warm", color: "text-green-300 bg-green-500/15 border-green-500/30" },
-  outbound: { label: "Outbound", color: "text-indigo-300 bg-indigo-500/15 border-indigo-500/30" },
+  cold: { label: "Cold", color: "text-slate-700 dark:text-slate-300 bg-slate-500/10 dark:bg-slate-500/15 border-slate-500/30" },
+  warm: { label: "Warm", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30" },
+  outbound: { label: "Outbound", color: "text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 dark:bg-indigo-500/15 border-indigo-500/30" },
 };
 
 interface ContactCardProps {
@@ -142,10 +142,10 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
     <div className="bg-card border border-border rounded-lg p-5 space-y-4 shadow-card transition-all duration-200 motion-safe:hover:-translate-y-px hover:shadow-md hover:border-primary/40">
       {/* Follow-up Note Banner */}
       {contact.follow_up_note && (
-        <div className="flex items-start gap-2.5 bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-200">
-          <MessageSquareText className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
+        <div className="flex items-start gap-2.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-900 dark:text-amber-100">
+          <MessageSquareText className="h-4 w-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-amber-400 mb-0.5">Follow-up Note</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-amber-800 dark:text-amber-300 mb-0.5">Follow-up Note</p>
             <p className="text-sm leading-snug">{contact.follow_up_note}</p>
           </div>
         </div>
@@ -153,21 +153,21 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
 
       {/* Gatekeeper Warning Banner */}
       {contact.gatekeeper_name && isBusinessRoutedNumber && (
-        <div className="flex items-start gap-2.5 bg-orange-500/15 border border-orange-500/30 rounded-md px-3.5 py-2.5 text-orange-200">
-          <Shield className="h-4 w-4 mt-0.5 shrink-0 text-orange-400" />
+        <div className="flex items-start gap-2.5 bg-orange-500/10 dark:bg-orange-500/15 border border-orange-500/30 rounded-md px-3.5 py-2.5 text-orange-900 dark:text-orange-100">
+          <Shield className="h-4 w-4 mt-0.5 shrink-0 text-orange-700 dark:text-orange-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-orange-400 mb-0.5">Gatekeeper</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-orange-800 dark:text-orange-300 mb-0.5">Gatekeeper</p>
             <p className="text-sm leading-snug">
               <span className="font-semibold">{contact.gatekeeper_name}</span>
               {bestRouteToDecisionMaker && (
-                <span className="ml-2 text-orange-300/70">
+                <span className="ml-2 text-orange-800/80 dark:text-orange-300/80">
                   <Clock className="h-3 w-3 inline mr-1" />
                   Route: {bestRouteToDecisionMaker}
                 </span>
               )}
             </p>
             {contact.gatekeeper_notes && (
-              <p className="mt-1 text-xs leading-snug text-orange-100/85">{contact.gatekeeper_notes}</p>
+              <p className="mt-1 text-xs leading-snug text-orange-900/90 dark:text-orange-100/90">{contact.gatekeeper_notes}</p>
             )}
           </div>
         </div>
@@ -218,8 +218,8 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {hasRating && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-300">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-amber-800 dark:text-yellow-300">
+              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
               {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
             </span>
           )}
@@ -229,7 +229,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {contact.buying_signal_strength && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Zap className="h-3 w-3" />
               Signal: {contact.buying_signal_strength}
             </span>
@@ -239,16 +239,16 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
 
       {/* Existing agency callout */}
       {contact.has_existing_agency && (
-        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-100">
-          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-300" />
+        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-900 dark:text-fuchsia-100">
+          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-700 dark:text-fuchsia-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-800 dark:text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
             <p className="text-sm leading-snug">
               Already with an agency{contact.existing_agency_name ? `: ${contact.existing_agency_name}` : ""}
               {agencyServices.length > 0 && (
-                <span className="text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
+                <span className="text-fuchsia-800/80 dark:text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
               )}
-              <span className="block text-xs text-fuchsia-200/70 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
+              <span className="block text-xs text-fuchsia-800/80 dark:text-fuchsia-200/80 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
             </p>
           </div>
         </div>
@@ -277,7 +277,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {(contact.voicemail_count ?? 0) > 0 && (
-            <span className="font-mono text-amber-400 bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
+            <span className="font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
               {contact.voicemail_count} VM{(contact.voicemail_count ?? 0) !== 1 ? 's' : ''}
             </span>
           )}
@@ -329,16 +329,16 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
       {isBusinessRoutedNumber && (
         <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 space-y-3">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-sky-300" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-300">Business Line Workflow</p>
+            <Building2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-300">Business Line Workflow</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {businessLineWorkflowItems.map((item) => {
               const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
               return (
                 <div key={item.label} className="rounded-md border border-sky-500/20 bg-background/60 px-3 py-2">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-200/80">
-                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-400' : 'text-sky-300/70'}`} />
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-200/80">
+                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-700 dark:text-green-300' : 'text-sky-700/70 dark:text-sky-300/70'}`} />
                     {item.label}
                   </div>
                   <p className="mt-1 text-sm text-foreground">{item.value}</p>
@@ -347,7 +347,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             })}
           </div>
           {!contact.dm_phone && (
-            <p className="text-xs text-sky-100/85">
+            <p className="text-xs text-sky-900/85 dark:text-sky-100/85">
               Best next step: use this call to confirm the correct decision maker and capture a direct mobile or extension before requeueing.
             </p>
           )}
@@ -358,8 +358,8 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
       {hasDM ? (
         <div className="bg-green-500/10 border border-green-500/25 rounded-md p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-green-400" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-green-400">Decision Maker</p>
+            <UserCheck className="h-4 w-4 text-green-700 dark:text-green-300" />
+            <p className="text-[10px] uppercase tracking-widest font-mono text-green-800 dark:text-green-300">Decision Maker</p>
           </div>
           <div className="space-y-1.5">
             {contact.dm_name && (
@@ -374,7 +374,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => onCallDM?.(contact.dm_phone!)}
-                  className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-300 hover:bg-green-500/30 transition-colors text-sm font-mono"
+                  className="flex items-center gap-2 bg-green-500/15 dark:bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-800 dark:text-green-300 hover:bg-green-500/25 dark:hover:bg-green-500/30 transition-colors text-sm font-mono"
                 >
                   <Smartphone className="h-3.5 w-3.5" />
                   {contact.dm_phone}

@@ -131,14 +131,14 @@ function CoverageHint({ count, total }: { count: number; total: number }) {
   if (total === 0) return null;
   if (count === 0) {
     return (
-      <p className="text-[10px] leading-tight text-muted-foreground/70">
+      <p className="text-[10px] leading-tight text-muted-foreground">
         No contacts have this set yet
       </p>
     );
   }
   if (count < total * 0.05) {
     return (
-      <p className="text-[10px] leading-tight text-muted-foreground/70">
+      <p className="text-[10px] leading-tight text-muted-foreground">
         Only {count.toLocaleString()} contacts have this set
       </p>
     );
@@ -669,7 +669,7 @@ export function AdvancedFilters({
                     <SelectItem value="no">No agency</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] leading-tight text-muted-foreground/70">
+                <p className="text-[10px] leading-tight text-muted-foreground">
                   Businesses already paying an agency are actively investing in growth.
                 </p>
               </div>

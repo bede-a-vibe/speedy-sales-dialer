@@ -486,7 +486,7 @@ function TableView({
                         <X className="h-3 w-3" />
                       </button>
                     </div>
-                    <div className="text-[9px] font-normal text-muted-foreground/70 mt-0.5">
+                    <div className="text-[9px] font-normal text-muted-foreground mt-0.5">
                       {STAT_CATEGORY_LABEL[stat.category]}
                     </div>
                   </TableHead>
@@ -648,7 +648,7 @@ function SegmentTableView({
                         <X className="h-3 w-3" />
                       </button>
                     </div>
-                    <div className="text-[9px] font-normal text-muted-foreground/70 mt-0.5">
+                    <div className="text-[9px] font-normal text-muted-foreground mt-0.5">
                       {STAT_CATEGORY_LABEL[stat.category]}
                     </div>
                   </TableHead>
@@ -690,7 +690,7 @@ function SegmentTableView({
                         </div>
                         <div className="text-[11px] text-muted-foreground truncate">{summary}</div>
                         {typeof row.matchingContacts === "number" ? (
-                          <div className="text-[10px] text-muted-foreground/70 font-mono">
+                          <div className="text-[10px] text-muted-foreground font-mono">
                             {row.matchingContacts.toLocaleString()} contacts in pool
                           </div>
                         ) : null}
@@ -880,7 +880,7 @@ function BenchmarkTableView({
                         <X className="h-3 w-3" />
                       </button>
                     </div>
-                    <div className="text-[9px] font-normal text-muted-foreground/70 mt-0.5">
+                    <div className="text-[9px] font-normal text-muted-foreground mt-0.5">
                       {STAT_CATEGORY_LABEL[stat.category]}
                     </div>
                   </TableHead>

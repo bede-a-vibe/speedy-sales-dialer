@@ -356,7 +356,7 @@ export function TargetsBody() {
           const def = PERFORMANCE_TARGET_METRIC_DEFINITIONS[t.metric_key];
           return (
             <div key={t.metric_key} className="flex justify-between text-sm">
-              <span className={def.isDerived ? "text-muted-foreground/70 italic text-xs" : "text-muted-foreground text-xs"}>
+              <span className={def.isDerived ? "text-muted-foreground italic text-xs" : "text-muted-foreground text-xs"}>
                 {def.label}
                 {def.isDerived && <Badge variant="outline" className="ml-1 text-[9px] px-1 py-0 align-middle">auto</Badge>}
               </span>
