@@ -3,31 +3,31 @@ import { getGhlContactUrl } from "@/lib/ghlUrls";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
-  confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
+  confirmed: { label: "Confirmed", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30", icon: Phone },
   unconfirmed: { label: "Unconfirmed", color: "text-muted-foreground bg-accent border-border", icon: Phone },
-  suspect: { label: "Suspect", color: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30", icon: AlertTriangle },
-  dead: { label: "Dead", color: "text-red-400 bg-red-500/15 border-red-500/30", icon: PhoneOff },
+  suspect: { label: "Suspect", color: "text-amber-700 dark:text-yellow-300 bg-yellow-500/10 dark:bg-yellow-500/15 border-yellow-500/30", icon: AlertTriangle },
+  dead: { label: "Dead", color: "text-rose-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border-red-500/30", icon: PhoneOff },
 };
 
 const PHONE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
-  mobile: { label: "Mobile", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Smartphone },
-  landline: { label: "Landline", color: "text-orange-400 bg-orange-500/15 border-orange-500/30", icon: Landmark },
-  business_line: { label: "Business", color: "text-blue-400 bg-blue-500/15 border-blue-500/30", icon: Building2 },
+  mobile: { label: "Mobile", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30", icon: Smartphone },
+  landline: { label: "Landline", color: "text-orange-700 dark:text-orange-300 bg-orange-500/10 dark:bg-orange-500/15 border-orange-500/30", icon: Landmark },
+  business_line: { label: "Business", color: "text-blue-700 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-500/15 border-blue-500/30", icon: Building2 },
   unknown: { label: "Unknown", color: "text-muted-foreground bg-accent border-border", icon: Phone },
 };
 
 const TIER_CONFIG: Record<string, { label: string; color: string }> = {
-  "Tier 1 - Hot": { label: "Hot", color: "text-red-300 bg-red-500/20 border-red-500/40" },
-  "Tier 2 - Warm": { label: "Warm", color: "text-amber-300 bg-amber-500/20 border-amber-500/40" },
-  "Tier 3 - Nurture": { label: "Nurture", color: "text-blue-300 bg-blue-500/20 border-blue-500/40" },
-  "Tier 4 - Long Shot": { label: "Long Shot", color: "text-slate-300 bg-slate-500/20 border-slate-500/40" },
-  "Tier 5 - New / No Reviews": { label: "New / No Reviews", color: "text-violet-300 bg-violet-500/20 border-violet-500/40" },
+  "Tier 1 - Hot": { label: "Hot", color: "text-rose-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20 border-red-500/30 dark:border-red-500/40" },
+  "Tier 2 - Warm": { label: "Warm", color: "text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/30 dark:border-amber-500/40" },
+  "Tier 3 - Nurture": { label: "Nurture", color: "text-blue-700 dark:text-blue-300 bg-blue-500/10 dark:bg-blue-500/20 border-blue-500/30 dark:border-blue-500/40" },
+  "Tier 4 - Long Shot": { label: "Long Shot", color: "text-slate-700 dark:text-slate-300 bg-slate-500/10 dark:bg-slate-500/20 border-slate-500/30 dark:border-slate-500/40" },
+  "Tier 5 - New / No Reviews": { label: "New / No Reviews", color: "text-violet-700 dark:text-violet-300 bg-violet-500/10 dark:bg-violet-500/20 border-violet-500/30 dark:border-violet-500/40" },
 };
 
 const POOL_CONFIG: Record<string, { label: string; color: string }> = {
-  cold: { label: "Cold", color: "text-slate-300 bg-slate-500/15 border-slate-500/30" },
-  warm: { label: "Warm", color: "text-green-300 bg-green-500/15 border-green-500/30" },
-  outbound: { label: "Outbound", color: "text-indigo-300 bg-indigo-500/15 border-indigo-500/30" },
+  cold: { label: "Cold", color: "text-slate-700 dark:text-slate-300 bg-slate-500/10 dark:bg-slate-500/15 border-slate-500/30" },
+  warm: { label: "Warm", color: "text-green-700 dark:text-green-300 bg-green-500/10 dark:bg-green-500/15 border-green-500/30" },
+  outbound: { label: "Outbound", color: "text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 dark:bg-indigo-500/15 border-indigo-500/30" },
 };
 
 interface ContactCardProps {
