@@ -1811,6 +1811,90 @@ function buildTranscriptSummaryNote(insights: TranscriptInsights, opts?: { sourc
   return lines.join("\n");
 }
 
+// -------- Objection Bank helpers --------
+function categorizeObjection(text: string): string {
+  const t = text.toLowerCase();
+  if (/(agency|already (have|work)|referral|competitor|using someone|current provider)/.test(t)) return "competitor";
+  if (/(budget|afford|expensive|price|cost|money|cheap)/.test(t)) return "price";
+  if (/(busy|bad time|call.*back|later|another time|not now|next (week|month|quarter))/.test(t)) return "timing";
+  if (/(partner|boss|manager|wife|husband|team|board|owner|talk to|check with|need to (ask|discuss))/.test(t)) return "authority";
+  if (/(send.*email|not interested|no thanks|remove me|take me off)/.test(t)) return "smokescreen";
+  if (/(think about|thinking|consider|need to think|didn't work|tried before|doing fine|we're good|nothing.*broken|scared|worried|risky)/.test(t)) return "fear";
+  if (/(who are you|what.*about|how did you get|where.*from|number|list|source)/.test(t)) return "logistical";
+  return "other";
+}
+
+function normalizeObjectionText(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+async function upsertObjectionsIntoBank(
+  adminClient: ReturnType<typeof createClient>,
+  params: {
+    objections: Array<{ objection: string; how_handled: string }>;
+    contactId: string;
+    callLogId: string | null;
+    ledToBooking: boolean;
+    userId: string;
+  },
+) {
+  for (const item of params.objections) {
+    const text = (item.objection ?? "").trim();
+    if (!text || text.length < 4) continue;
+    const normalized = normalizeObjectionText(text);
+    const category = categorizeObjection(text);
+    const howHandled = (item.how_handled ?? "").trim();
+
+    // Look for near-duplicate (any source). Prefer framework rows so they accumulate stats.
+    const { data: existingRows } = await adminClient
+      .from("objection_bank")
+      .select("id, example_responses, times_seen, booked_count, source")
+      .eq("normalized_text", normalized)
+      .limit(2);
+
+    const existing = (existingRows ?? []).sort((a: any, b: any) => {
+      if (a.source === b.source) return 0;
+      return a.source === "framework" ? -1 : 1;
+    })[0] as any | undefined;
+
+    if (existing) {
+      const responses = Array.isArray(existing.example_responses) ? [...existing.example_responses] : [];
+      if (howHandled && howHandled !== "(not addressed)") {
+        const already = responses.some(
+          (r: any) => normalizeObjectionText(String(r?.response ?? "")) === normalizeObjectionText(howHandled),
+        );
+        if (!already && responses.length < 12) {
+          responses.push({ response: howHandled, source: "call" });
+        }
+      }
+      await adminClient
+        .from("objection_bank")
+        .update({
+          example_responses: responses,
+          times_seen: (existing.times_seen ?? 1) + 1,
+          booked_count: (existing.booked_count ?? 0) + (params.ledToBooking ? 1 : 0),
+        })
+        .eq("id", existing.id);
+    } else {
+      const responses = howHandled && howHandled !== "(not addressed)"
+        ? [{ response: howHandled, source: "call" }]
+        : [];
+      await adminClient.from("objection_bank").insert({
+        objection_text: text,
+        category,
+        source: "call",
+        example_responses: responses,
+        contact_id: params.contactId,
+        call_log_id: params.callLogId,
+        led_to_booking: params.ledToBooking,
+        times_seen: 1,
+        booked_count: params.ledToBooking ? 1 : 0,
+        created_by: params.userId,
+      });
+    }
+  }
+}
+
 async function applyTranscriptInsightsToContact(params: {
   adminClient: ReturnType<typeof createClient>;
   contactId: string;
