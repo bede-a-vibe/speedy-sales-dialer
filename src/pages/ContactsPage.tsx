@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus, Copy, MoreHorizontal, AlertTriangle } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
 import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
-import { useUpdateContact, useCreateContact, usePaginatedContacts, type ContactsSortOption } from "@/hooks/useContacts";
+import { useUpdateContact, useCreateContact, usePaginatedContacts, useBulkUpdateContacts, fetchAllMatchingContactIds, type ContactsSortOption } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -21,6 +21,9 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { DuplicatesDialog } from "@/components/contacts/DuplicatesDialog";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { LIFECYCLE_STAGES, LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -768,6 +771,11 @@ export default function ContactsPage() {
   const [newStatus, setNewStatus] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [followUpContact, setFollowUpContact] = useState<Contact | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [tagAction, setTagAction] = useState<"add" | "remove" | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [createForm, setCreateForm] = useState<{
     business_name: string;
     contact_person: string;
@@ -903,9 +911,138 @@ export default function ContactsPage() {
   const updateContact = useUpdateContact();
   const createContact = useCreateContact();
   const createPipelineItem = useCreatePipelineItem();
+  const bulkUpdate = useBulkUpdateContacts();
   const { data: reps = [] } = useSalesReps();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Reset selection when filters or page change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, focusFilter, page]);
+
+  const activeFilters = useMemo(() => ({
+    industry: industryFilter,
+    status: statusFilter,
+    state: stateFilter,
+    appointmentOutcome: appointmentOutcomeFilter,
+    lifecycleStage: lifecycleFilter,
+    ownerId: ownerFilter,
+    search: debouncedSearch,
+  }), [industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, debouncedSearch]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectVisible = () => {
+    setSelectedIds(new Set(contacts.map((c) => c.id)));
+  };
+
+  const selectAllMatching = async () => {
+    setBulkBusy(true);
+    try {
+      const ids = await fetchAllMatchingContactIds(activeFilters);
+      setSelectedIds(new Set(ids));
+      toast.success(`Selected ${ids.length} contact(s) matching filters.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to select all.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const runBulkUpdate = async (updates: Partial<Contact>, label: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`${label} for ${ids.length} contact(s)?`)) return;
+    setBulkBusy(true);
+    try {
+      await bulkUpdate.mutateAsync({ ids, updates });
+      toast.success(`${label} · ${ids.length} contact(s) updated.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk update failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkAssignOwner = (ownerId: string | null) =>
+    runBulkUpdate({ owner_id: ownerId }, ownerId ? "Assign owner" : "Clear owner");
+  const bulkSetLifecycle = (stage: string) =>
+    runBulkUpdate({ lifecycle_stage: stage } as Partial<Contact>, `Set lifecycle → ${stage}`);
+  const bulkSetDnc = (value: boolean) =>
+    runBulkUpdate({ is_dnc: value } as Partial<Contact>, value ? "Mark DNC" : "Un-mark DNC");
+
+  const bulkTag = async (mode: "add" | "remove") => {
+    const tag = tagInput.trim();
+    if (!tag) { toast.error("Enter a tag first."); return; }
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`${mode === "add" ? "Add" : "Remove"} tag "${tag}" on ${ids.length} contact(s)?`)) return;
+    setBulkBusy(true);
+    try {
+      // Fetch existing tags, mutate, then write back in chunks
+      const chunkSize = 200;
+      let updated = 0;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const slice = ids.slice(i, i + chunkSize);
+        const { data: rows, error: fetchErr } = await supabase.from("contacts").select("id, tags").in("id", slice);
+        if (fetchErr) throw fetchErr;
+        await Promise.all((rows ?? []).map(async (row: { id: string; tags: string[] | null }) => {
+          const current = row.tags ?? [];
+          const next = mode === "add"
+            ? Array.from(new Set([...current, tag]))
+            : current.filter((t) => t !== tag);
+          if (next.length === current.length && mode === "add" && current.includes(tag)) return;
+          const { error: upErr } = await supabase.from("contacts").update({ tags: next }).eq("id", row.id);
+          if (upErr) throw upErr;
+          updated += 1;
+        }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
+      toast.success(`Tag "${tag}" ${mode === "add" ? "added to" : "removed from"} ${updated} contact(s).`);
+      setTagAction(null);
+      setTagInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Tag update failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkAddFollowUp = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !user) return;
+    if (!window.confirm(`Create a follow-up task for ${ids.length} contact(s)?`)) return;
+    setBulkBusy(true);
+    const scheduled = getDefaultManualFollowUpScheduledFor().toISOString();
+    try {
+      let created = 0;
+      for (const id of ids) {
+        await createPipelineItem.mutateAsync({
+          contact_id: id,
+          pipeline_type: "follow_up",
+          assigned_user_id: user.id,
+          created_by: user.id,
+          scheduled_for: scheduled,
+          notes: "Created from bulk action",
+        });
+        created += 1;
+      }
+      toast.success(`Created ${created} follow-up task(s).`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create follow-ups.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const resetCreateForm = () => {
     setCreateForm({
@@ -1223,8 +1360,77 @@ export default function ContactsPage() {
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setDuplicatesOpen(true)} className="border-border">
+              <Copy className="mr-1.5 h-3.5 w-3.5" />Duplicates
+            </Button>
           </div>
         </div>
+
+        {/* Bulk action toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+            <span className="text-xs font-medium text-foreground">
+              {selectedIds.size} selected
+            </span>
+            <Button size="sm" variant="ghost" onClick={selectAllMatching} disabled={bulkBusy}>Select all matching filter</Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={bulkBusy}>
+                  Assign owner <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="max-h-72 overflow-y-auto">
+                <DropdownMenuItem onClick={() => bulkAssignOwner(null)}>Unassign</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {reps.map((rep) => (
+                  <DropdownMenuItem key={rep.user_id} onClick={() => bulkAssignOwner(rep.user_id)}>
+                    {rep.display_name || rep.email || rep.user_id}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={bulkBusy}>
+                  Set lifecycle <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {LIFECYCLE_STAGES.map((s) => (
+                  <DropdownMenuItem key={s.value} onClick={() => bulkSetLifecycle(s.value)}>{s.label}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" variant="outline" onClick={bulkAddFollowUp} disabled={bulkBusy}>
+              <CalendarPlus className="mr-1 h-3.5 w-3.5" /> Add follow-up task
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={bulkBusy}>
+                  Tags <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64 p-2 space-y-2">
+                <DropdownMenuLabel>Set or clear a tag</DropdownMenuLabel>
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="tag-name"
+                  className="h-8"
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1" onClick={() => bulkTag("add")} disabled={bulkBusy || !tagInput.trim()}>Add</Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => bulkTag("remove")} disabled={bulkBusy || !tagInput.trim()}>Remove</Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" variant="outline" onClick={() => bulkSetDnc(true)} disabled={bulkBusy}>Mark DNC</Button>
+            <Button size="sm" variant="ghost" onClick={() => bulkSetDnc(false)} disabled={bulkBusy}>Un-DNC</Button>
+          </div>
+        )}
 
         {!isLoading && allPageContacts.length > 0 && (
           <>
