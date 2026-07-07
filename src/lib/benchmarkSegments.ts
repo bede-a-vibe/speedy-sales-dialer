@@ -325,7 +325,8 @@ export function useSegmentsStore() {
       if (error) throw error;
       return (data ?? []).map((r) => teamRowToSegment(r as unknown as TeamRow));
     },
-    staleTime: 60_000,
+    // Team benchmark segments are edited rarely — treat as slow-changing reference data.
+    staleTime: 5 * 60_000,
   });
 
   const teamSegments = teamQuery.data ?? [];

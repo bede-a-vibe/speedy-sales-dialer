@@ -815,12 +815,44 @@ export function useUpdateContact() {
       const { error } = await supabase.from("contacts").update(updates).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    onMutate: async ({ id, ...updates }) => {
+      // Cancel any in-flight refetches so they don't overwrite the optimistic state.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["contact", id] }),
+        queryClient.cancelQueries({ queryKey: ["contacts-paginated"] }),
+      ]);
+
+      const previousDetail = queryClient.getQueryData<Contact>(["contact", id]);
+      const previousPaginated = queryClient.getQueriesData<PaginatedContactsResult>({ queryKey: ["contacts-paginated"] });
+
+      if (previousDetail) {
+        queryClient.setQueryData<Contact>(["contact", id], { ...previousDetail, ...(updates as Partial<Contact>) });
+      }
+
+      queryClient.setQueriesData<PaginatedContactsResult>({ queryKey: ["contacts-paginated"] }, (data) => {
+        if (!data) return data;
+        return {
+          ...data,
+          contacts: data.contacts.map((c) => (c.id === id ? { ...c, ...(updates as Partial<Contact>) } : c)),
+        };
+      });
+
+      return { previousDetail, previousPaginated };
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(["contact", variables.id], context.previousDetail);
+      }
+      if (context?.previousPaginated) {
+        for (const [key, data] of context.previousPaginated) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      // Reconcile against the server once the write returns.
+      queryClient.invalidateQueries({ queryKey: ["contact", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
-      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["uncalled-contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["dialer-contacts"] });
     },
   });
 }
@@ -915,7 +947,39 @@ export function useBulkUpdateContacts() {
       await chunkedUpdate(ids, updates);
       return ids.length;
     },
-    onSuccess: () => invalidateContactQueries(queryClient),
+    onMutate: async ({ ids, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ["contacts-paginated"] });
+      const idSet = new Set(ids);
+      const previousPaginated = queryClient.getQueriesData<PaginatedContactsResult>({ queryKey: ["contacts-paginated"] });
+      const previousDetails: Array<[readonly unknown[], Contact | undefined]> = ids.map((id) => [
+        ["contact", id],
+        queryClient.getQueryData<Contact>(["contact", id]),
+      ]);
+
+      queryClient.setQueriesData<PaginatedContactsResult>({ queryKey: ["contacts-paginated"] }, (data) => {
+        if (!data) return data;
+        return {
+          ...data,
+          contacts: data.contacts.map((c) => (idSet.has(c.id) ? { ...c, ...(updates as Partial<Contact>) } : c)),
+        };
+      });
+
+      for (const id of ids) {
+        const prev = queryClient.getQueryData<Contact>(["contact", id]);
+        if (prev) queryClient.setQueryData<Contact>(["contact", id], { ...prev, ...(updates as Partial<Contact>) });
+      }
+
+      return { previousPaginated, previousDetails };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousPaginated) {
+        for (const [key, data] of context.previousPaginated) queryClient.setQueryData(key, data);
+      }
+      if (context?.previousDetails) {
+        for (const [key, data] of context.previousDetails) if (data !== undefined) queryClient.setQueryData(key, data);
+      }
+    },
+    onSettled: () => invalidateContactQueries(queryClient),
   });
 }
 

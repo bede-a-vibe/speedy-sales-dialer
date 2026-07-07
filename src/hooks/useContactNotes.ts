@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, type QueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -111,5 +111,96 @@ export function useAllContactNotes() {
       return (data ?? []) as ContactNote[];
     },
     refetchInterval: SYNC_REFRESH_INTERVAL_MS,
+  });
+}
+
+type AddContactNoteInput = {
+  contactId: string;
+  content: string;
+  createdBy: string;
+  source?: string;
+};
+
+/**
+ * Optimistic contact-note insert.
+ *
+ * Prepends a temp-id row to every notes cache that the ActivityTimeline /
+ * ContactDetailPage read from, then reconciles onSettled. On error the
+ * previous snapshots are restored so the UI never gets stuck with a ghost.
+ */
+export function useAddContactNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contactId, content, createdBy, source = "manual" }: AddContactNoteInput) => {
+      const { data, error } = await supabase
+        .from("contact_notes")
+        .insert({ contact_id: contactId, content, created_by: createdBy, source: source as any })
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as ContactNote;
+    },
+    onMutate: async ({ contactId, content, createdBy, source = "manual" }) => {
+      const flatKey = getContactNotesQueryKey(contactId);
+      const paginatedKey = getPaginatedContactNotesQueryKey(contactId);
+      const allKey = ["contact-notes-all"] as const;
+
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: flatKey }),
+        queryClient.cancelQueries({ queryKey: paginatedKey }),
+        queryClient.cancelQueries({ queryKey: allKey }),
+      ]);
+
+      const tempId = `optimistic-${crypto.randomUUID()}`;
+      const nowIso = new Date().toISOString();
+      const optimisticNote = {
+        id: tempId,
+        contact_id: contactId,
+        content,
+        created_by: createdBy,
+        source,
+        created_at: nowIso,
+        updated_at: nowIso,
+      } as unknown as ContactNote;
+
+      const previousFlat = queryClient.getQueryData<ContactNote[]>(flatKey);
+      const previousPaginated = queryClient.getQueryData<InfiniteData<ContactNotesPage>>(paginatedKey);
+      const previousAll = queryClient.getQueryData<ContactNote[]>(allKey);
+
+      if (previousFlat) {
+        queryClient.setQueryData<ContactNote[]>(flatKey, [optimisticNote, ...previousFlat]);
+      }
+      if (previousPaginated && previousPaginated.pages.length > 0) {
+        const [firstPage, ...restPages] = previousPaginated.pages;
+        queryClient.setQueryData<InfiniteData<ContactNotesPage>>(paginatedKey, {
+          ...previousPaginated,
+          pages: [
+            {
+              ...firstPage,
+              items: [optimisticNote, ...firstPage.items],
+              totalCount: firstPage.totalCount + 1,
+            },
+            ...restPages,
+          ],
+        });
+      }
+      if (previousAll) {
+        queryClient.setQueryData<ContactNote[]>(allKey, [optimisticNote, ...previousAll]);
+      }
+
+      return { tempId, flatKey, paginatedKey, allKey, previousFlat, previousPaginated, previousAll };
+    },
+    onError: (_error, _variables, context) => {
+      if (!context) return;
+      if (context.previousFlat) queryClient.setQueryData(context.flatKey, context.previousFlat);
+      if (context.previousPaginated) queryClient.setQueryData(context.paginatedKey, context.previousPaginated);
+      if (context.previousAll) queryClient.setQueryData(context.allKey, context.previousAll);
+    },
+    onSettled: (_data, _error, { contactId }) => {
+      // Precise invalidation — only the three note caches, nothing broader.
+      queryClient.invalidateQueries({ queryKey: getContactNotesQueryKey(contactId) });
+      queryClient.invalidateQueries({ queryKey: getPaginatedContactNotesQueryKey(contactId) });
+      queryClient.invalidateQueries({ queryKey: ["contact-notes-all"] });
+    },
   });
 }

@@ -183,6 +183,8 @@ export function useSalesReps() {
       if (error) throw error;
       return (data ?? []) as SalesRepOption[];
     },
+    // Reps rarely change; avoid re-fetching every tab focus / navigation.
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -290,12 +292,65 @@ export function useCreatePipelineItem() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
-      queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ["pipeline-items"] });
+      const tempId = `optimistic-${crypto.randomUUID()}`;
+      const nowIso = new Date().toISOString();
+      const optimisticItem: PipelineItemWithRelations = {
+        id: tempId,
+        contact_id: payload.contact_id,
+        source_call_log_id: payload.source_call_log_id ?? null,
+        pipeline_type: payload.pipeline_type,
+        assigned_user_id: payload.assigned_user_id,
+        created_by: payload.created_by,
+        scheduled_for: payload.scheduled_for ?? null,
+        notes: payload.notes ?? "",
+        status: payload.status ?? "open",
+        completed_at: null,
+        appointment_outcome: null,
+        outcome_recorded_at: null,
+        outcome_notes: "",
+        deal_value: null,
+        monthly_recurring_value: null,
+        deal_stage: null,
+        follow_up_method: (payload.follow_up_method ?? "call") as FollowUpMethod,
+        ghl_opportunity_id: null,
+        ghl_pipeline_id: null,
+        ghl_stage_id: null,
+        reschedule_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso,
+        contacts: null,
+      };
+
+      const listKey = ["pipeline-items", payload.pipeline_type, payload.status ?? "open"] as const;
+      const contactKey = ["pipeline-items", "contact", payload.contact_id] as const;
+
+      const previousList = queryClient.getQueryData<PipelineItemWithRelations[]>(listKey);
+      const previousContactList = queryClient.getQueryData<PipelineItemWithRelations[]>(contactKey);
+
+      if (previousList) {
+        queryClient.setQueryData<PipelineItemWithRelations[]>(listKey, [optimisticItem, ...previousList]);
+      }
+      if (previousContactList) {
+        queryClient.setQueryData<PipelineItemWithRelations[]>(contactKey, [optimisticItem, ...previousContactList]);
+      }
+
+      return { tempId, listKey, contactKey, previousList, previousContactList };
     },
-    onError: (error) => {
-      console.error("[useCreatePipelineItem] Failed to create pipeline item:", error);
+    onError: (_error, _payload, context) => {
+      if (!context) return;
+      if (context.previousList) queryClient.setQueryData(context.listKey, context.previousList);
+      if (context.previousContactList) queryClient.setQueryData(context.contactKey, context.previousContactList);
+      console.error("[useCreatePipelineItem] Failed to create pipeline item:", _error);
+    },
+    onSettled: (_data, _error, payload) => {
+      // Precise invalidation — just the two lists we touched, plus booked-range if relevant.
+      queryClient.invalidateQueries({ queryKey: ["pipeline-items", payload.pipeline_type, payload.status ?? "open"] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline-items", "contact", payload.contact_id] });
+      if (payload.pipeline_type === "booked") {
+        queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
+      }
     },
   });
 }
@@ -309,12 +364,28 @@ export function useUpdatePipelineItem() {
       const { error } = await supabase.from("pipeline_items").update(dbUpdates).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, ...updates }) => {
+      await queryClient.cancelQueries({ queryKey: ["pipeline-items"] });
+
+      const previous = queryClient.getQueriesData<PipelineItemWithRelations[]>({ queryKey: ["pipeline-items"] });
+      const patch = updates as Partial<PipelineItemWithRelations>;
+
+      queryClient.setQueriesData<PipelineItemWithRelations[]>({ queryKey: ["pipeline-items"] }, (list) => {
+        if (!list) return list;
+        return list.map((item) => (item.id === id ? { ...item, ...patch, updated_at: new Date().toISOString() } : item));
+      });
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) queryClient.setQueryData(key, data);
+      }
+      console.error("[useUpdatePipelineItem] Failed to update pipeline item:", _error);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
       queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
-    },
-    onError: (error) => {
-      console.error("[useUpdatePipelineItem] Failed to update pipeline item:", error);
     },
   });
 }
