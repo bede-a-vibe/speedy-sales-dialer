@@ -650,6 +650,7 @@ async function processContact(
     state: string | null;
   },
   lovableApiKey: string | undefined,
+  allowAiName: boolean,
 ): Promise<{
   mobile: string | null;
   email: string | null;
@@ -665,6 +666,7 @@ async function processContact(
   ms: number;
   addrState: string | null;
   addrCity: string | null;
+  aiCalled: boolean;
 }> {
   const start = Date.now();
   let base = contact.website ? normalizeWebsite(contact.website) : null;
@@ -720,6 +722,7 @@ async function processContact(
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
       addrState: null, addrCity: null,
+      aiCalled: false,
     };
   }
   const host = new URL(base).host;
@@ -760,13 +763,14 @@ async function processContact(
     addrCity = addr.city;
   } catch { /* ignore */ }
 
-  // AI fallback for name only
+  // AI fallback for name only — value-gated so only reachable / high-value
+  // leads spend AI credits. Free extraction above already ran for everyone.
   let usedAi = false;
-  if (!result.name && result.aboutTextForAi && lovableApiKey) {
+  if (allowAiName && !result.name && result.aboutTextForAi && lovableApiKey) {
     const aiName = await aiExtractName(result.aboutTextForAi, lovableApiKey);
+    usedAi = true;
     if (aiName) {
       result.name = aiName;
-      usedAi = true;
     }
   }
 
@@ -806,6 +810,7 @@ async function processContact(
     ms: Date.now() - start,
     addrState,
     addrCity,
+    aiCalled: usedAi,
   };
 }
 
