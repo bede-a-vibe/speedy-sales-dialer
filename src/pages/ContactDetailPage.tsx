@@ -831,6 +831,61 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit contact details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-contact-person" className="text-xs text-muted-foreground">
+                Contact person
+              </Label>
+              <Input
+                id="edit-contact-person"
+                value={editContactPerson}
+                onChange={(e) => setEditContactPerson(e.target.value)}
+                placeholder="e.g. John Smith"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-city" className="text-xs text-muted-foreground">City / Suburb</Label>
+                <Input
+                  id="edit-city"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="e.g. Helensvale"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-state" className="text-xs text-muted-foreground">State</Label>
+                <Input
+                  id="edit-state"
+                  value={editState}
+                  onChange={(e) => setEditState(e.target.value.toUpperCase())}
+                  placeholder="e.g. QLD"
+                />
+              </div>
+            </div>
+            {!contact.ghl_contact_id && (
+              <p className="text-[11px] text-muted-foreground">
+                No GHL link yet — changes save locally only.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)} disabled={savingDetails}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDetails} disabled={savingDetails}>
+              {savingDetails ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
