@@ -12,9 +12,13 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { CallerIdRotationManager } from "@/components/admin/CallerIdRotationManager";
+import { useIsAdmin } from "@/hooks/useUserRole";
+import { Radio } from "lucide-react";
 
 export default function DialpadSettingsPage() {
   const { data: settings = [], isLoading } = useAllDialpadSettings();
+  const isAdmin = useIsAdmin();
   const upsert = useUpsertDialpadSettings();
   const deleteMutation = useDeleteDialpadSettings();
 
