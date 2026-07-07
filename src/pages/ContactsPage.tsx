@@ -1295,34 +1295,10 @@ export default function ContactsPage() {
     <AppLayout title="Contacts">
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative max-w-sm flex-1">
+          <div className="relative max-w-sm flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="border-border bg-card pl-9" />
           </div>
-          <Select value={industryFilter} onValueChange={setIndustryFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Industry" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All Industries</SelectItem>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={stateFilter} onValueChange={setStateFilter}>
-            <SelectTrigger className="w-[220px] border-border bg-card"><SelectValue placeholder="Australian state" /></SelectTrigger>
-            <SelectContent>{AUSTRALIAN_STATE_OPTIONS.map((state) => <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px] border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              {CONTACT_STATUS_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={appointmentOutcomeFilter} onValueChange={setAppointmentOutcomeFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Appt. Outcome" /></SelectTrigger>
-            <SelectContent>
-              {APPOINTMENT_OUTCOME_FILTER_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
             <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
             <SelectContent>
@@ -1333,7 +1309,7 @@ export default function ContactsPage() {
             </SelectContent>
           </Select>
           <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
+            <SelectTrigger className="w-[170px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Owners</SelectItem>
               <SelectItem value="unassigned">Unassigned</SelectItem>
@@ -1344,16 +1320,94 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
-            <SelectTrigger className="w-[210px] border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
-            <SelectContent>
-              {CONTACT_SORT_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
+          <Select value={industryFilter} onValueChange={setIndustryFilter}>
+            <SelectTrigger className="w-[170px] border-border bg-card"><SelectValue placeholder="Industry" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All Industries</SelectItem>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent>
           </Select>
+          <Select value={stateFilter} onValueChange={setStateFilter}>
+            <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="State" /></SelectTrigger>
+            <SelectContent>{AUSTRALIAN_STATE_OPTIONS.map((state) => <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>)}</SelectContent>
+          </Select>
+
+          {(() => {
+            const advancedCount =
+              (statusFilter !== "all" ? 1 : 0) +
+              (appointmentOutcomeFilter !== "all" ? 1 : 0) +
+              (sortBy !== "operational" ? 1 : 0);
+            return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-border h-9">
+                    <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                    Filters
+                    {advancedCount > 0 && (
+                      <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-mono text-primary-foreground">
+                        {advancedCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 space-y-3" align="end">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Legacy status</Label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTACT_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Appointment outcome</Label>
+                    <Select value={appointmentOutcomeFilter} onValueChange={setAppointmentOutcomeFilter}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Appt. Outcome" /></SelectTrigger>
+                      <SelectContent>
+                        {APPOINTMENT_OUTCOME_FILTER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Sort by</Label>
+                    <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTACT_SORT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {advancedCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setStatusFilter("all");
+                        setAppointmentOutcomeFilter("all");
+                        setSortBy("operational");
+                      }}
+                    >
+                      Reset advanced filters
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
+
+          <label className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs cursor-pointer h-9">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Data health</span>
+            <Switch checked={dataHealthMode} onCheckedChange={setDataHealthMode} />
+          </label>
+
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">{contacts.length}/{allPageContacts.length} visible · {totalCount} contacts · page {page} of {totalPages}</span>
+            <span className="text-xs font-mono text-muted-foreground">{contacts.length}/{allPageContacts.length} · {totalCount} · p{page}/{totalPages}</span>
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => { resetCreateForm(); setShowCreateDialog(true); }} className="border-border">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />New Contact
