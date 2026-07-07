@@ -83,7 +83,13 @@ export function createAppQueryClient() {
           if (isAuthError(error)) return false;
           return failureCount < 2;
         },
-        staleTime: 15_000,
+        // Kill the flash-refetch every time a rep tabs back from Dialpad —
+        // opt-in per-query if any surface genuinely needs on-focus refresh.
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
+        // Default staleTime — most lists refresh via realtime / refetchInterval /
+        // mutation invalidation already, so 60s is fine as the floor.
+        staleTime: 60_000,
       },
       mutations: {
         retry: false,
