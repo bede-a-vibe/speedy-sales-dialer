@@ -147,6 +147,7 @@ export default function ContactDetailPage() {
   const [editCity, setEditCity] = useState("");
   const [editState, setEditState] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const openDetailsDialog = () => {
     if (!contact) return;
