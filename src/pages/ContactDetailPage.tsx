@@ -479,9 +479,13 @@ export default function ContactDetailPage() {
                 <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
                   {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
-                  <a href={`tel:${directDecisionMakerPhone}`} className="font-mono text-emerald-700 hover:underline dark:text-emerald-300">
+                  <button
+                    onClick={() => placeCall(directDecisionMakerPhone)}
+                    disabled={dialpadCall.isPending}
+                    className="font-mono text-emerald-700 hover:underline dark:text-emerald-300 disabled:opacity-50"
+                  >
                     {directDecisionMakerPhone}
-                  </a>
+                  </button>
                   {contact.dm_phone_type && (
                     <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
                   )}
