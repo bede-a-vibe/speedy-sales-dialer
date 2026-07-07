@@ -2158,179 +2158,211 @@ export default function DialerPage() {
             </DialogContent>
           </Dialog>
 
-        {showAdvancedFilters && (
-          <AdvancedFilters
-            industries={industries}
-            setIndustries={setIndustries}
-            states={states}
-            setStates={setStates}
-            leadType={leadType}
-            setLeadType={setLeadType}
-            leadChannel={leadChannel}
-            setLeadChannel={setLeadChannel}
-            leadSource={leadSource}
-            setLeadSource={setLeadSource}
-            callRecency={callRecency}
-            setCallRecency={setCallRecency}
-            contactOwner={contactOwner}
-            setContactOwner={setContactOwner}
-            salesReps={salesReps}
-            tradeTypes={tradeTypes}
-            setTradeTypes={setTradeTypes}
-            workType={workType}
-            setWorkType={setWorkType}
-            businessSize={businessSize}
-            setBusinessSize={setBusinessSize}
-            prospectTier={prospectTier}
-            setProspectTier={setProspectTier}
-            minGbpRating={minGbpRating}
-            setMinGbpRating={setMinGbpRating}
-            minReviewCount={minReviewCount}
-            setMinReviewCount={setMinReviewCount}
-            hasGoogleAds={hasGoogleAds}
-            setHasGoogleAds={setHasGoogleAds}
-            hasFacebookAds={hasFacebookAds}
-            setHasFacebookAds={setHasFacebookAds}
-            buyingSignalStrength={buyingSignalStrength}
-            setBuyingSignalStrength={setBuyingSignalStrength}
-            phoneType={phoneType}
-            setPhoneType={setPhoneType}
-            hasDmPhone={hasDmPhone}
-            setHasDmPhone={setHasDmPhone}
-            hasExistingAgency={hasExistingAgency}
-            setHasExistingAgency={setHasExistingAgency}
-            existingAgencyServices={existingAgencyServices}
-            setExistingAgencyServices={setExistingAgencyServices}
-            includeDisqualified={includeDisqualified}
-            setIncludeDisqualified={setIncludeDisqualified}
-            selectedPreset={selectedPreset}
-            onPresetChange={applyDialerPreset}
-            onReset={resetAdvancedFilters}
-            disabled={session.isSessionActive}
-            matchingContactCount={session.isSessionActive ? null : queueLeadCount}
-            enrichmentCoverage={enrichmentCoverage.data}
-            currentFilters={currentFilterSnapshot}
-            onApplySmartList={applySmartList}
-          />
-        )}
+        {/* ── Filters & tools drawer — everything that used to clutter the pre-call view ── */}
+        <Sheet open={filtersDrawerOpen} onOpenChange={setFiltersDrawerOpen}>
+          <SheetContent side="right" className="w-full overflow-y-auto p-6 sm:max-w-2xl">
+            <SheetHeader className="border-b border-border pb-4 text-left">
+              <SheetTitle>Filters &amp; tools</SheetTitle>
+              <SheetDescription>
+                Tune the queue, save presets and smart lists, run practice scenarios, and review pre-flight — every change flows into the same state as before and updates the &ldquo;leads ready&rdquo; count live.
+              </SheetDescription>
+            </SheetHeader>
 
-        {activeFilterSummary.length > 0 && !session.isSessionActive && (
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue targeting</p>
-                <p className="text-sm text-foreground">Current lead filters that will shape the next dial session.</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={resetAdvancedFilters} className="text-muted-foreground">
-                Clear all
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {activeFilterSummary.map((item) => (
-                <Button
-                  key={item.key}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={item.clear}
-                  className="h-auto gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-                >
-                  <span>{item.label}</span>
-                  <span className="text-[10px] text-muted-foreground">×</span>
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!session.isSessionActive && (
-          <div className="space-y-3">
-            {/* Compact pre-session status strip — one line, expandable */}
-            <CollapsiblePanel
-              title="Pre-flight"
-              subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
-              badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
-              badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
-              icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
-              defaultOpen={startReadinessOpenItems.length > 0}
-            >
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {startReadinessItems.map((item) => (
-                      <div
-                        key={item.label}
-                        className={cn(
-                          "rounded-md border px-3 py-2 text-xs",
-                          item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
-                        )}
+            <div className="space-y-8 pt-6">
+              {activeFilterSummary.length > 0 && (
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Active filters</h4>
+                    <Button variant="ghost" size="sm" onClick={resetAdvancedFilters} className="h-7 text-xs text-muted-foreground">
+                      Clear all
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {activeFilterSummary.map((item) => (
+                      <Button
+                        key={item.key}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={item.clear}
+                        className="h-auto gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                       >
-                        <div className="flex items-start gap-2">
-                          {item.label === "Network" ? (
-                            item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                          ) : item.ready ? (
-                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                          ) : (
-                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                          )}
-                          <div>
-                            <p className="font-semibold text-foreground">{item.label}</p>
-                            <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
-                          </div>
+                        <span>{item.label}</span>
+                        <span className="text-[10px] text-muted-foreground">×</span>
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Filters, presets &amp; smart lists</h3>
+                <AdvancedFilters
+                  industries={industries}
+                  setIndustries={setIndustries}
+                  states={states}
+                  setStates={setStates}
+                  leadType={leadType}
+                  setLeadType={setLeadType}
+                  leadChannel={leadChannel}
+                  setLeadChannel={setLeadChannel}
+                  leadSource={leadSource}
+                  setLeadSource={setLeadSource}
+                  callRecency={callRecency}
+                  setCallRecency={setCallRecency}
+                  contactOwner={contactOwner}
+                  setContactOwner={setContactOwner}
+                  salesReps={salesReps}
+                  tradeTypes={tradeTypes}
+                  setTradeTypes={setTradeTypes}
+                  workType={workType}
+                  setWorkType={setWorkType}
+                  businessSize={businessSize}
+                  setBusinessSize={setBusinessSize}
+                  prospectTier={prospectTier}
+                  setProspectTier={setProspectTier}
+                  minGbpRating={minGbpRating}
+                  setMinGbpRating={setMinGbpRating}
+                  minReviewCount={minReviewCount}
+                  setMinReviewCount={setMinReviewCount}
+                  hasGoogleAds={hasGoogleAds}
+                  setHasGoogleAds={setHasGoogleAds}
+                  hasFacebookAds={hasFacebookAds}
+                  setHasFacebookAds={setHasFacebookAds}
+                  buyingSignalStrength={buyingSignalStrength}
+                  setBuyingSignalStrength={setBuyingSignalStrength}
+                  phoneType={phoneType}
+                  setPhoneType={setPhoneType}
+                  hasDmPhone={hasDmPhone}
+                  setHasDmPhone={setHasDmPhone}
+                  hasExistingAgency={hasExistingAgency}
+                  setHasExistingAgency={setHasExistingAgency}
+                  existingAgencyServices={existingAgencyServices}
+                  setExistingAgencyServices={setExistingAgencyServices}
+                  includeDisqualified={includeDisqualified}
+                  setIncludeDisqualified={setIncludeDisqualified}
+                  selectedPreset={selectedPreset}
+                  onPresetChange={applyDialerPreset}
+                  onReset={resetAdvancedFilters}
+                  disabled={session.isSessionActive}
+                  matchingContactCount={session.isSessionActive ? null : queueLeadCount}
+                  enrichmentCoverage={enrichmentCoverage.data}
+                  currentFilters={currentFilterSnapshot}
+                  onApplySmartList={applySmartList}
+                />
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Tools</h3>
+                <div className="space-y-3">
+                  {isCoach && (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => { setScenarioOpen(true); setFiltersDrawerOpen(false); }}
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      Practice scenarios (coach mode)
+                    </Button>
+                  )}
+                  <SalesToolkit
+                    contactIndustry={null}
+                    businessName={null}
+                    city={null}
+                    state={null}
+                    attemptCount={0}
+                  />
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Setup</h3>
+                <div className="space-y-3">
+                  <CollapsiblePanel
+                    title="Pre-flight"
+                    subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
+                    badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
+                    badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
+                    icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                    defaultOpen={startReadinessOpenItems.length > 0}
+                  >
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {startReadinessItems.map((item) => (
+                            <div
+                              key={item.label}
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-xs",
+                                item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
+                              )}
+                            >
+                              <div className="flex items-start gap-2">
+                                {item.label === "Network" ? (
+                                  item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                                ) : item.ready ? (
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                                ) : (
+                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+                                )}
+                                <div>
+                                  <p className="font-semibold text-foreground">{item.label}</p>
+                                  <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
-                    <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
-                      {queueSupervisorSummary.label}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {queueSupervisorSummary.checkpoints.map((item) => (
-                      <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                        <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
+                          <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
+                            {queueSupervisorSummary.label}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {queueSupervisorSummary.checkpoints.map((item) => (
+                            <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                              <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {startReadinessOpenItems.length > 0 && (
-                <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
-                  <p className="font-medium">Recommended before you start</p>
-                  <ul className="mt-2 space-y-1.5">
-                    {startReadinessOpenItems.map((item) => (
-                      <li key={item.label} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-                        <span>{item.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </CollapsiblePanel>
+                    </div>
+                    {startReadinessOpenItems.length > 0 && (
+                      <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
+                        <p className="font-medium">Recommended before you start</p>
+                        <ul className="mt-2 space-y-1.5">
+                          {startReadinessOpenItems.map((item) => (
+                            <li key={item.label} className="flex items-start gap-2">
+                              <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                              <span>{item.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CollapsiblePanel>
 
-          </div>
-        )}
-
-        {!session.isSessionActive && (
-          <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
-            <TwoPipelineGuide
-              currentView="dialer"
-              calendarName={selectedGhlCalendar?.name ?? null}
-              bookedPipelineName={selectedGhlPipeline?.name ?? null}
-              bookedStageName={selectedGhlStage?.name ?? null}
-              followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-              followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
-            />
-          </CollapsiblePanel>
-        )}
+                  <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
+                    <TwoPipelineGuide
+                      currentView="dialer"
+                      calendarName={selectedGhlCalendar?.name ?? null}
+                      bookedPipelineName={selectedGhlPipeline?.name ?? null}
+                      bookedStageName={selectedGhlStage?.name ?? null}
+                      followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
+                      followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
+                    />
+                  </CollapsiblePanel>
+                </div>
+              </section>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {session.isSessionActive && (
           <div className="flex items-center justify-between gap-3">
