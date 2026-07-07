@@ -18,6 +18,7 @@ import {
   Sun,
   Moon,
   Building2,
+  Sparkles,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -114,6 +115,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           { title: "Insights · Team", to: "/insights?tab=team", icon: BarChart3 },
           { title: "Insights · Targets", to: "/insights?tab=targets", icon: BarChart3 },
           { title: "GHL Sync", to: "/admin/ghl-sync", icon: RefreshCw },
+          { title: "Enrichment", to: "/admin/enrichment", icon: Sparkles },
           { title: "Dialpad Settings", to: "/dialpad-settings", icon: Settings },
         ]
       : [];
