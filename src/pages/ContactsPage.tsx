@@ -1423,7 +1423,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={8} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={10} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
