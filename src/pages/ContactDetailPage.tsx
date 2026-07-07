@@ -144,7 +144,7 @@ export default function ContactDetailPage() {
       await dialpadCall.mutateAsync({
         phone,
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
-        contact_id. id,
+        contact_id: contact.id,
       });
       toast.success(`Calling ${phone} via Dialpad…`);
     } catch (e) {
