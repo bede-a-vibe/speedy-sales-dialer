@@ -296,12 +296,12 @@ export function DecisionMakerCapture({
               <UserPlus className="h-4 w-4 text-primary" />
               Decision Maker
               {hasDmData && (
-                <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-400">
+                <span className="rounded-full bg-green-500/15 dark:bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                   {existingDmName || "Direct line captured"}
                 </span>
               )}
               {!hasDmData && hasGatekeeperData && (
-                <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">
+                <span className="rounded-full bg-yellow-500/15 dark:bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-yellow-300">
                   Gatekeeper only
                 </span>
               )}
