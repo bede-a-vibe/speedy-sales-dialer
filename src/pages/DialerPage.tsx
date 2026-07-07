@@ -11,6 +11,7 @@ import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI } from "@/components/dialer/DialpadCTI";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
+import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { ExistingAgencyCapture } from "@/components/dialer/ExistingAgencyCapture";
@@ -1582,7 +1583,10 @@ export default function DialerPage() {
     if (!session.isSessionActive || !session.currentContact) return;
 
     const handler = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "INPUT") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return;
+      // Never interfere with modifier chords (⌘K palette, etc.)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked"];
       const idx = parseInt(e.key) - 1;
       if (idx >= 0 && idx < outcomes.length) session.setSelectedOutcome(outcomes[idx]);
@@ -2232,12 +2236,23 @@ export default function DialerPage() {
         )}
 
         {session.isSessionActive && (
-          <PowerHourTimer
-            sessionCallCount={session.callCount}
-            isSessionActive={session.isSessionActive}
-            autoStart
-            compact
-          />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <PowerHourTimer
+                sessionCallCount={session.callCount}
+                isSessionActive={session.isSessionActive}
+                autoStart
+                compact
+              />
+            </div>
+            <DialerShortcutsPopover />
+          </div>
+        )}
+
+        {!session.isSessionActive && (
+          <div className="flex justify-end">
+            <DialerShortcutsPopover />
+          </div>
         )}
 
         {/* ── Active Session ── */}
