@@ -217,12 +217,38 @@ export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function
     lastDialledRef.current = null;
   }, [sendMessage]);
 
+  // ── Imperative handle for the native call bar ──
+  useImperativeHandle(ref, () => ({
+    hangUpAll,
+    initiateCall,
+    isAuthenticated: () => isAuthenticated,
+  }), [hangUpAll, initiateCall, isAuthenticated]);
+
   // ── Reset last dialled when phoneNumber is cleared ──
   useEffect(() => {
     if (!phoneNumber) {
       lastDialledRef.current = null;
     }
   }, [phoneNumber]);
+
+  // ── Headless mode: raw iframe only, always mounted, no chrome ──
+  // The parent hides this off-screen (opacity-0 / left:-9999px) so it becomes a
+  // silent WebRTC audio carrier. NEVER wrap this branch in display:none — that
+  // can suspend the iframe and drop the live call audio.
+  if (headless) {
+    if (!clientId) return null;
+    return (
+      <iframe
+        ref={iframeRef}
+        src={`${CTI_BASE_URL}/${clientId}`}
+        title="Dialpad Mini Dialer"
+        allow="microphone; speaker-selection; autoplay; camera; display-capture; hid"
+        sandbox="allow-popups allow-scripts allow-same-origin allow-forms"
+        onLoad={() => setIframeLoaded(true)}
+        className="h-[520px] w-[380px] border-0"
+      />
+    );
+  }
 
   // ── No client ID configured ──
   if (!clientId) {
@@ -365,6 +391,6 @@ export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function
       </div>
     </div>
   );
-}
+});
 
 export default DialpadCTI;
