@@ -3312,6 +3312,9 @@ Deno.serve(async (req) => {
   const DIALPAD_KEY_OPTIONAL_ACTIONS = new Set([
     "test_transcript_extraction",
     "process_pending_transcript_syncs",
+    // record_cti_call only writes to our own dialpad_calls table (no Dialpad
+    // REST call), so it must work even when DIALPAD_API_KEY is unset.
+    "record_cti_call",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
@@ -3425,6 +3428,64 @@ Deno.serve(async (req) => {
     let dialpadResponse: Response;
 
     switch (action) {
+      case "record_cti_call": {
+        // Best-effort upsert so CTI-placed (postMessage) calls create a
+        // dialpad_calls row without depending on the Dialpad webhook. The
+        // transcript-drain cron then picks the row up once the transcript is
+        // available. Never touches the Dialpad REST API, so it works before
+        // DIALPAD_API_KEY is configured.
+        const dialpadCallId = typeof params.dialpad_call_id === "string" || typeof params.dialpad_call_id === "number"
+          ? String(params.dialpad_call_id).trim()
+          : "";
+        const contactId = typeof params.contact_id === "string" ? params.contact_id.trim() : "";
+        const callState = typeof params.call_state === "string" && params.call_state.length > 0
+          ? params.call_state
+          : "ringing";
+        if (!dialpadCallId || !contactId) {
+          return jsonResponse({ error: "dialpad_call_id and contact_id are required" }, 400);
+        }
+
+        // Look up an existing row so we can preserve terminal states and never
+        // rewind sync_status backwards (e.g. from "synced" → "pending").
+        const { data: existing } = await adminClient
+          .from("dialpad_calls")
+          .select("id, sync_status, call_state, transcript_synced_at")
+          .eq("dialpad_call_id", dialpadCallId)
+          .maybeSingle();
+
+        // Never reopen a row the drain has already finished with.
+        const nextSyncStatus = existing?.transcript_synced_at
+          ? existing.sync_status
+          : (existing?.sync_status && ["synced", "processing"].includes(existing.sync_status)
+              ? existing.sync_status
+              : "pending");
+
+        // Only advance call_state forward: hangup/ended sticks.
+        const isTerminal = (s: string | null | undefined) =>
+          s === "hangup" || s === "ended" || s === "cancelled";
+        const nextCallState = isTerminal(existing?.call_state) ? existing?.call_state : callState;
+
+        const { error: upsertError } = await adminClient
+          .from("dialpad_calls")
+          .upsert(
+            {
+              dialpad_call_id: dialpadCallId,
+              contact_id: contactId,
+              user_id: user.id,
+              call_state: nextCallState,
+              sync_status: nextSyncStatus,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "dialpad_call_id" },
+          );
+
+        if (upsertError) {
+          return jsonResponse({ error: upsertError.message }, 500);
+        }
+
+        return jsonResponse({ ok: true, dialpad_call_id: dialpadCallId, call_state: nextCallState, sync_status: nextSyncStatus }, 200);
+      }
+
       case "initiate_call": {
         const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
           adminClient,

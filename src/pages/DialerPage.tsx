@@ -1263,7 +1263,26 @@ export default function DialerPage() {
         return prev;
       });
     }
-  }, []);
+
+    // Fire-and-forget: record the CTI call in dialpad_calls so the transcript
+    // drain can pick it up later. Runs regardless of DIALPAD_API_KEY (the
+    // edge-function action only touches our own table). Never blocks the rep.
+    const dialpadCallId = payload?.id != null ? String(payload.id) : "";
+    const contactId = session.currentContact?.id;
+    if (dialpadCallId && contactId) {
+      const nextState = payload.state === "off" ? "hangup" : "ringing";
+      supabase.functions
+        .invoke("dialpad", {
+          body: {
+            action: "record_cti_call",
+            dialpad_call_id: dialpadCallId,
+            contact_id: contactId,
+            call_state: nextState,
+          },
+        })
+        .catch(() => {});
+    }
+  }, [session.currentContact?.id]);
 
   const handleDialpadCTIAuthChange = useCallback((authed: boolean) => {
     setDialpadCTIAuthed(authed);
