@@ -36,6 +36,10 @@ const DEEP_LINK_TEXT_RE = /\b(about|team|our story|meet (?:the |our )?team|conta
 const FETCH_TIMEOUT_MS = 6000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const CONCURRENCY = 5;
+// Deep-crawl runs one fetch per candidate page against a *different* domain per
+// lead, so we can safely raise concurrency without hammering any single site.
+// Sized so a 40-lead batch finishes well inside the edge-function time budget.
+const DEEP_CONCURRENCY = 11;
 
 // Best-effort free website discovery via DuckDuckGo HTML.
 // Skip hosts that are directories, socials, aggregators, gov/edu, or search engines.
@@ -1028,7 +1032,7 @@ Deno.serve(async (req) => {
   } catch {
     // empty body is fine
   }
-  const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 50);
+  const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 60);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
   const mode: "default" | "deep_crawl" = body?.mode === "deep_crawl" ? "deep_crawl" : "default";
 
@@ -1143,7 +1147,7 @@ Deno.serve(async (req) => {
       }
     };
 
-    await runInChunks(deepContacts ?? [], CONCURRENCY, perDeep);
+    await runInChunks(deepContacts ?? [], DEEP_CONCURRENCY, perDeep);
 
     return json({
       mode: "deep_crawl",
