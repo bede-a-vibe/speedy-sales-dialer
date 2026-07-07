@@ -873,30 +873,34 @@ async function processDeepCrawl(
   name: string | null;
   pagesFetched: number;
   ms: number;
+  signals: PageSignals;
 }> {
   const start = Date.now();
   const base = contact.website ? normalizeWebsite(contact.website) : null;
-  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start };
+  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() };
 
   let host = "";
-  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start }; }
+  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() }; }
 
   let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
   let pagesFetched = 0;
   let aboutText: string | null = null;
+  const signals: PageSignals = emptySignals();
 
   // 1. Homepage first (so we can discover its nav links).
   const homepageHtml = await fetchPage(base + "/");
   if (homepageHtml !== null) {
     pagesFetched++;
     result = extractFromHtml(homepageHtml, host, result, "/");
+    try { mergePageSignals(signals, extractPageSignals(homepageHtml)); } catch { /* ignore */ }
   }
 
   // 2. Secondary pages — nav links + common paths, capped at DEEP_MAX_PAGES total.
   const secondary = homepageHtml ? discoverSecondaryPages(homepageHtml, base) : DEEP_CANDIDATE_PATHS.map((p) => base + p);
   for (const url of secondary) {
     if (pagesFetched >= DEEP_MAX_PAGES) break;
-    if (result.name && result.mobile && result.email) break;
+    // Note: don't early-exit on name/mobile/email alone — we still want to
+    // scan footer/head for ABN, ad pixels, and years-in-business.
     let path = "/";
     try { path = new URL(url).pathname; } catch { /* keep default */ }
     let html: string | null = null;
@@ -906,6 +910,7 @@ async function processDeepCrawl(
     try {
       result = extractFromHtml(html, host, result, path);
     } catch { /* never break the batch */ }
+    try { mergePageSignals(signals, extractPageSignals(html)); } catch { /* ignore */ }
     if (!aboutText && result.aboutTextForAi) aboutText = result.aboutTextForAi;
   }
 
@@ -923,6 +928,7 @@ async function processDeepCrawl(
     name: result.name,
     pagesFetched,
     ms: Date.now() - start,
+    signals,
   };
 }
 
