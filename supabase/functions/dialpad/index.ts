@@ -1819,6 +1819,7 @@ async function applyTranscriptInsightsToContact(params: {
   transcript: string;
   insights: TranscriptInsights;
   dialpadCallsRowId?: string | null;
+  callLogId?: string | null;
   source?: string;
 }) {
   const writes = {
@@ -1826,6 +1827,9 @@ async function applyTranscriptInsightsToContact(params: {
     fields_written: [] as string[],
     lifecycle_advanced_to: null as string | null,
     transcript_stored: false,
+    scorecard_stored: false,
+    scorecard_id: null as string | null,
+    overall_score: null as number | null,
   };
 
   // 1. Append call-summary note (source = call_transcript).
@@ -1918,6 +1922,43 @@ async function applyTranscriptInsightsToContact(params: {
     console.error("[transcript-apply] Transcript store threw:", err);
   }
 
+  // 5. Persist the NEPQ scorecard, if the AI returned one.
+  if (params.insights.nepq_scorecard) {
+    let resolvedCallLogId: string | null = params.callLogId ?? null;
+    if (!resolvedCallLogId && params.dialpadCallId && !params.dialpadCallId.startsWith("test_")) {
+      const { data: matched } = await params.adminClient
+        .from("call_logs")
+        .select("id")
+        .eq("dialpad_call_id", params.dialpadCallId)
+        .maybeSingle();
+      resolvedCallLogId = matched?.id ?? null;
+    }
+    try {
+      const { data: inserted, error: scoreErr } = await params.adminClient
+        .from("call_scores")
+        .insert({
+          call_log_id: resolvedCallLogId,
+          contact_id: params.contactId,
+          dialpad_call_id: params.dialpadCallId,
+          scorecard: params.insights.nepq_scorecard,
+          overall_score: params.insights.nepq_scorecard.overall_score,
+          broke_down_at: params.insights.nepq_scorecard.broke_down_at,
+          booking_blocker: params.insights.nepq_scorecard.booking_blocker,
+        })
+        .select("id")
+        .maybeSingle();
+      if (scoreErr) {
+        console.error("[transcript-apply] Failed to store call scorecard:", scoreErr.message);
+      } else {
+        writes.scorecard_stored = true;
+        writes.scorecard_id = inserted?.id ?? null;
+        writes.overall_score = params.insights.nepq_scorecard.overall_score;
+      }
+    } catch (err) {
+      console.error("[transcript-apply] Scorecard insert threw:", err);
+    }
+  }
+
   return writes;
 }
 
@@ -1933,6 +1974,7 @@ async function runTranscriptExtractionPipeline(params: {
   businessName?: string | null;
   phoneNumber?: string | null;
   dialpadCallsRowId?: string | null;
+  callLogId?: string | null;
   source?: string;
 }) {
   if (!params.transcript || params.transcript.trim().length < 40) {
@@ -1962,6 +2004,7 @@ async function runTranscriptExtractionPipeline(params: {
       transcript: params.transcript,
       insights,
       dialpadCallsRowId: params.dialpadCallsRowId,
+      callLogId: params.callLogId ?? null,
       source: params.source,
     });
 
