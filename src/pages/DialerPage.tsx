@@ -940,17 +940,14 @@ export default function DialerPage() {
     resetAdvancedFilters();
 
     if (preset === "hot_today") {
-      // Tier / buying-signal data isn't populated yet — those filters would
-      // zero the queue. Fall back to mobiles, which are the highest-yield
-      // contacts we can actually filter on today.
-      setPhoneType("mobile");
-      toast.info("Hot today: showing mobile contacts (lead scoring data not populated yet).");
+      setProspectTier("Tier 1 - Hot");
+      toast.info("Hot today: showing Tier 1 - Hot prospects.");
       return;
     }
 
     if (preset === "dm_direct") {
-      setPhoneType("mobile");
-      toast.info("DM direct dials: showing mobile contacts (DM phone capture pending).");
+      setHasDmPhone("yes");
+      toast.info("DM direct dials: showing contacts with a captured decision-maker phone.");
       return;
     }
 
@@ -968,7 +965,8 @@ export default function DialerPage() {
     }
 
     if (preset === "high_review") {
-      toast.info("Review data not populated yet — showing all contacts.");
+      setMinReviewCount(50);
+      toast.info("High reviews: showing contacts with 50+ reviews.");
       return;
     }
 
