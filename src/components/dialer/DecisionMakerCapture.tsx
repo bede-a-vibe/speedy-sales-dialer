@@ -385,6 +385,16 @@ export function DecisionMakerCapture({
                   className="h-8 text-xs"
                   type="tel"
                 />
+                <Select value={dmPhoneType || "unknown"} onValueChange={(v) => setDmPhoneType(v === "unknown" ? "" : v)}>
+                  <SelectTrigger className="h-7 text-[11px]">
+                    <SelectValue placeholder="Phone type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unknown">Unknown</SelectItem>
+                    <SelectItem value="mobile">Mobile</SelectItem>
+                    <SelectItem value="landline">Landline</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
