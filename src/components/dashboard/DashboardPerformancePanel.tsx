@@ -7,6 +7,7 @@ import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics } from "@/lib/reportMetrics";
+import { PerformancePanelSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function StatTile({
   label,
