@@ -650,6 +650,7 @@ async function processContact(
     state: string | null;
   },
   lovableApiKey: string | undefined,
+  allowAiName: boolean,
 ): Promise<{
   mobile: string | null;
   email: string | null;
@@ -665,6 +666,7 @@ async function processContact(
   ms: number;
   addrState: string | null;
   addrCity: string | null;
+  aiCalled: boolean;
 }> {
   const start = Date.now();
   let base = contact.website ? normalizeWebsite(contact.website) : null;
@@ -720,6 +722,7 @@ async function processContact(
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
       addrState: null, addrCity: null,
+      aiCalled: false,
     };
   }
   const host = new URL(base).host;
@@ -760,9 +763,12 @@ async function processContact(
     addrCity = addr.city;
   } catch { /* ignore */ }
 
-  // AI fallback for name only
+  // AI fallback for name only — value-gated so only reachable / high-value
+  // leads spend AI credits. Free extraction above already ran for everyone.
   let usedAi = false;
-  if (!result.name && result.aboutTextForAi && lovableApiKey) {
+  let aiCalled = false;
+  if (allowAiName && !result.name && result.aboutTextForAi && lovableApiKey) {
+    aiCalled = true;
     const aiName = await aiExtractName(result.aboutTextForAi, lovableApiKey);
     if (aiName) {
       result.name = aiName;
@@ -806,6 +812,7 @@ async function processContact(
     ms: Date.now() - start,
     addrState,
     addrCity,
+    aiCalled,
   };
 }
 
@@ -951,6 +958,7 @@ async function processDeepCrawl(
     dm_email: string | null;
   },
   lovableApiKey: string | undefined,
+  allowAiName: boolean,
 ): Promise<{
   mobile: string | null;
   email: string | null;
@@ -958,13 +966,14 @@ async function processDeepCrawl(
   pagesFetched: number;
   ms: number;
   signals: PageSignals;
+  aiCalled: boolean;
 }> {
   const start = Date.now();
   const base = contact.website ? normalizeWebsite(contact.website) : null;
-  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() };
+  if (!base) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false };
 
   let host = "";
-  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals() }; }
+  try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false }; }
 
   let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
   let pagesFetched = 0;
@@ -998,10 +1007,13 @@ async function processDeepCrawl(
     if (!aboutText && result.aboutTextForAi) aboutText = result.aboutTextForAi;
   }
 
-  // AI fallback for name only — same guard as the legacy path.
-  if (!result.name && aboutText && lovableApiKey) {
+  // AI fallback for name only — value-gated so we only spend AI credits on
+  // leads a rep is realistically going to call.
+  let aiCalled = false;
+  if (allowAiName && !result.name && aboutText && lovableApiKey) {
     try {
       const aiName = await aiExtractName(aboutText, lovableApiKey);
+      aiCalled = true;
       if (aiName) result.name = aiName;
     } catch { /* ignore */ }
   }
@@ -1013,6 +1025,7 @@ async function processDeepCrawl(
     pagesFetched,
     ms: Date.now() - start,
     signals,
+    aiCalled,
   };
 }
 
@@ -1048,7 +1061,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business");
+      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1062,6 +1075,17 @@ Deno.serve(async (req) => {
     }
     const { data: deepContacts, error: deepErr } = await deepQuery;
     if (deepErr) return json({ error: `Deep select failed: ${deepErr.message}` }, 500);
+
+    // Empty backlog — idle for free, no AI, no counts query needed.
+    if (!forcedIds && (!deepContacts || deepContacts.length === 0)) {
+      console.log("[enrich-leads/deep] empty batch — no work, no AI calls.");
+      return json({
+        mode: "deep_crawl", processed: 0, names_found: 0, mobiles_found: 0,
+        emails_found: 0, fb_pixels_found: 0, google_ads_found: 0,
+        abns_found: 0, years_in_business_found: 0, signal_bumps: 0,
+        remaining: 0, ai_name_calls: 0, logs: [],
+      });
+    }
 
     let deepRemaining = 0;
     if (!forcedIds) {
@@ -1077,17 +1101,28 @@ Deno.serve(async (req) => {
 
     let d_names = 0, d_mobiles = 0, d_emails = 0;
     let d_fb = 0, d_gads = 0, d_abn = 0, d_years = 0, d_signal_bump = 0;
+    let d_ai_calls = 0;
+    let d_ai_eligible = 0;
     const deepLogs: any[] = [];
 
     const perDeep = async (c: any) => {
       try {
+        const worthAi =
+          (c.dm_phone !== null && c.dm_phone !== "") ||
+          c.phone_type === "mobile" ||
+          c.prospect_tier === "Tier 1 - Hot" ||
+          c.prospect_tier === "Tier 2 - Warm" ||
+          c.has_google_ads === "yes" ||
+          c.has_facebook_ads === "yes";
+        if (worthAi) d_ai_eligible++;
         const r = await processDeepCrawl({
           id: c.id,
           website: c.website,
           dm_name: c.dm_name,
           dm_phone: c.dm_phone,
           dm_email: c.dm_email,
-        }, LOVABLE_API_KEY);
+        }, LOVABLE_API_KEY, worthAi);
+        if (r.aiCalled) d_ai_calls++;
 
         const update: Record<string, any> = {
           deep_crawl_attempted: true,
@@ -1149,6 +1184,8 @@ Deno.serve(async (req) => {
 
     await runInChunks(deepContacts ?? [], DEEP_CONCURRENCY, perDeep);
 
+    console.log(`[enrich-leads/deep] AI name calls: ${d_ai_calls} of ${deepContacts?.length ?? 0} leads (${d_ai_eligible} eligible by value gate)`);
+
     return json({
       mode: "deep_crawl",
       processed: deepContacts?.length ?? 0,
@@ -1161,6 +1198,7 @@ Deno.serve(async (req) => {
       years_in_business_found: d_years,
       signal_bumps: d_signal_bump,
       remaining: deepRemaining,
+      ai_name_calls: d_ai_calls,
       logs: deepLogs,
     });
   }
@@ -1168,7 +1206,7 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker, city, state");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker, city, state, has_google_ads, has_facebook_ads");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
@@ -1183,6 +1221,16 @@ Deno.serve(async (req) => {
 
   const { data: contacts, error: selErr } = await query;
   if (selErr) return json({ error: `Select failed: ${selErr.message}` }, 500);
+
+  // Empty backlog — idle for free.
+  if (!forcedIds && (!contacts || contacts.length === 0)) {
+    console.log("[enrich-leads] empty batch — no work, no AI calls.");
+    return json({
+      processed: 0, mobiles_found: 0, emails_found: 0, names_found: 0,
+      websites_found: 0, states_found: 0, cities_found: 0,
+      remaining: 0, ai_name_calls: 0, logs: [],
+    });
+  }
 
   // Priority sort: non-mobile first, then Tier 1/2 first
   const tierRank = (t: string | null | undefined) =>
@@ -1211,10 +1259,20 @@ Deno.serve(async (req) => {
   let websites_found = 0;
   let states_found = 0;
   let cities_found = 0;
+  let ai_name_calls = 0;
+  let ai_name_eligible = 0;
   const logs: any[] = [];
 
   const perContact = async (c: any) => {
     try {
+      const worthAi =
+        (c.dm_phone !== null && c.dm_phone !== "") ||
+        c.phone_type === "mobile" ||
+        c.prospect_tier === "Tier 1 - Hot" ||
+        c.prospect_tier === "Tier 2 - Warm" ||
+        c.has_google_ads === "yes" ||
+        c.has_facebook_ads === "yes";
+      if (worthAi) ai_name_eligible++;
       const r = await processContact({
         id: c.id,
         website: c.website,
@@ -1223,7 +1281,8 @@ Deno.serve(async (req) => {
         industry: c.industry,
         city: c.city,
         state: c.state,
-      }, LOVABLE_API_KEY);
+      }, LOVABLE_API_KEY, worthAi);
+      if (r.aiCalled) ai_name_calls++;
 
       // Source: 'search-website' if discovered via DDG, 'email-domain' if from
       // email domain, 'website' if we fetched an existing site, else 'ai-classify'.
@@ -1321,6 +1380,8 @@ Deno.serve(async (req) => {
 
   await runInChunks(sorted, CONCURRENCY, perContact);
 
+  console.log(`[enrich-leads] AI name calls: ${ai_name_calls} of ${sorted.length} leads (${ai_name_eligible} eligible by value gate)`);
+
   return json({
     processed: sorted.length,
     mobiles_found,
@@ -1330,6 +1391,7 @@ Deno.serve(async (req) => {
     states_found,
     cities_found,
     remaining,
+    ai_name_calls,
     logs,
   });
 });
