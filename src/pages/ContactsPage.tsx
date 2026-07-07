@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus, Copy, AlertTriangle } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus, Copy, AlertTriangle, SlidersHorizontal, Activity } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { DuplicatesDialog } from "@/components/contacts/DuplicatesDialog";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { LIFECYCLE_STAGES, LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
@@ -588,8 +590,14 @@ function ExpandedContactDetails({ contact }: { contact: Contact }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
         <span className={`rounded px-2 py-1 font-mono ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}>
-          {contact.status}
+          Status: {contact.status}
         </span>
+        <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+          Stage: {getContactStage(contact)}
+        </span>
+        {contact.state && (
+          <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">{contact.state}</span>
+        )}
         {contact.is_dnc && <span className="rounded bg-destructive/10 px-2 py-1 font-mono text-destructive">Do Not Call</span>}
         <span className="rounded bg-secondary px-2 py-1 font-mono text-secondary-foreground">
           {PHONE_TYPE_LABELS[(contact.phone_type as keyof typeof PHONE_TYPE_LABELS) || "unknown"] || "Unknown"}
@@ -763,6 +771,7 @@ export default function ContactsPage() {
   const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dataHealthMode, setDataHealthMode] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
   const [bookingDate, setBookingDate] = useState("");
@@ -1292,34 +1301,10 @@ export default function ContactsPage() {
     <AppLayout title="Contacts">
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative max-w-sm flex-1">
+          <div className="relative max-w-sm flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="border-border bg-card pl-9" />
           </div>
-          <Select value={industryFilter} onValueChange={setIndustryFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Industry" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All Industries</SelectItem>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={stateFilter} onValueChange={setStateFilter}>
-            <SelectTrigger className="w-[220px] border-border bg-card"><SelectValue placeholder="Australian state" /></SelectTrigger>
-            <SelectContent>{AUSTRALIAN_STATE_OPTIONS.map((state) => <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px] border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              {CONTACT_STATUS_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={appointmentOutcomeFilter} onValueChange={setAppointmentOutcomeFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Appt. Outcome" /></SelectTrigger>
-            <SelectContent>
-              {APPOINTMENT_OUTCOME_FILTER_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
             <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
             <SelectContent>
@@ -1330,7 +1315,7 @@ export default function ContactsPage() {
             </SelectContent>
           </Select>
           <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
+            <SelectTrigger className="w-[170px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Owners</SelectItem>
               <SelectItem value="unassigned">Unassigned</SelectItem>
@@ -1341,16 +1326,94 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
-            <SelectTrigger className="w-[210px] border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
-            <SelectContent>
-              {CONTACT_SORT_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
+          <Select value={industryFilter} onValueChange={setIndustryFilter}>
+            <SelectTrigger className="w-[170px] border-border bg-card"><SelectValue placeholder="Industry" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All Industries</SelectItem>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent>
           </Select>
+          <Select value={stateFilter} onValueChange={setStateFilter}>
+            <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="State" /></SelectTrigger>
+            <SelectContent>{AUSTRALIAN_STATE_OPTIONS.map((state) => <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>)}</SelectContent>
+          </Select>
+
+          {(() => {
+            const advancedCount =
+              (statusFilter !== "all" ? 1 : 0) +
+              (appointmentOutcomeFilter !== "all" ? 1 : 0) +
+              (sortBy !== "operational" ? 1 : 0);
+            return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-border h-9">
+                    <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                    Filters
+                    {advancedCount > 0 && (
+                      <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-mono text-primary-foreground">
+                        {advancedCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 space-y-3" align="end">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Legacy status</Label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTACT_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Appointment outcome</Label>
+                    <Select value={appointmentOutcomeFilter} onValueChange={setAppointmentOutcomeFilter}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Appt. Outcome" /></SelectTrigger>
+                      <SelectContent>
+                        {APPOINTMENT_OUTCOME_FILTER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Sort by</Label>
+                    <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTACT_SORT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {advancedCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setStatusFilter("all");
+                        setAppointmentOutcomeFilter("all");
+                        setSortBy("operational");
+                      }}
+                    >
+                      Reset advanced filters
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
+
+          <label className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs cursor-pointer h-9">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Data health</span>
+            <Switch checked={dataHealthMode} onCheckedChange={setDataHealthMode} />
+          </label>
+
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">{contacts.length}/{allPageContacts.length} visible · {totalCount} contacts · page {page} of {totalPages}</span>
+            <span className="text-xs font-mono text-muted-foreground">{contacts.length}/{allPageContacts.length} · {totalCount} · p{page}/{totalPages}</span>
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => { resetCreateForm(); setShowCreateDialog(true); }} className="border-border">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />New Contact
@@ -1517,13 +1580,15 @@ export default function ContactsPage() {
                     </th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lifecycle</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Owner</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Data</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Tier</th>
+                    {dataHealthMode && (
+                      <>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Data</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
+                      </>
+                    )}
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
                     <th className="w-36 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
@@ -1542,6 +1607,8 @@ export default function ContactsPage() {
                     // Subtle fade-in stagger for the first ~12 rows on mount.
                     // `motion-safe:` guards it behind prefers-reduced-motion.
                     const staggerDelay = rowIndex < 12 ? `${rowIndex * 25}ms` : undefined;
+                    const nextFollowUp = contact.next_followup_date ? new Date(contact.next_followup_date) : null;
+                    const nextAppt = contact.latest_appointment_scheduled_for ? new Date(contact.latest_appointment_scheduled_for) : null;
 
                     return (
                       <React.Fragment key={contact.id}>
@@ -1561,21 +1628,12 @@ export default function ContactsPage() {
                             <Link to={`/contacts/${contact.id}`} className="font-medium text-foreground hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
                               {contact.business_name}
                             </Link>
+                            <p className="text-xs text-muted-foreground">{contact.industry}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm text-foreground">{contact.contact_person || "—"}</p>
                             <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
-                          <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={(e) => openStatusChange(contact, e)}
-                              className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium transition-colors hover:ring-1 hover:ring-border ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}
-                              title="Click to change status"
-                            >
-                              {contact.status}
-                              <ArrowRight className="h-3 w-3 opacity-50" />
-                            </button>
-                          </td>
-                          <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                           <td className="px-4 py-3">
                             {(() => {
                               const stage = (contact.lifecycle_stage as LifecycleStage) || "new";
@@ -1593,33 +1651,58 @@ export default function ContactsPage() {
                             })()}
                           </td>
                           <td className="px-4 py-3">
-                            {missing.length === 0 ? (
-                              <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-700" title="No missing standard fields">OK</span>
+                            {contact.prospect_tier ? (
+                              <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">{contact.prospect_tier}</span>
                             ) : (
-                              <span
-                                className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-700"
-                                title={`Missing: ${missing.join(", ")}`}
-                              >
-                                <AlertTriangle className="h-3 w-3" />Missing {missing.length}
-                              </span>
+                              <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </td>
+                          {dataHealthMode && (
+                            <>
+                              <td className="px-4 py-3">
+                                {missing.length === 0 ? (
+                                  <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-700" title="No missing standard fields">OK</span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-700"
+                                    title={`Missing: ${missing.join(", ")}`}
+                                  >
+                                    <AlertTriangle className="h-3 w-3" />Missing {missing.length}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {integrityBadges.slice(0, 2).map((badge) => (
+                                    <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
+                                      {badge.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </>
+                          )}
                           <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-1.5">
-                              {integrityBadges.slice(0, 2).map((badge) => (
-                                <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
-                                  {badge.label}
+                            {dataHealthMode ? (
+                              <div className="space-y-1" title={actionCue.title}>
+                                <span className={`inline-flex rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${actionCue.className}`}>
+                                  {actionCue.label}
                                 </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-1" title={actionCue.title}>
-                              <span className={`inline-flex rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${actionCue.className}`}>
-                                {actionCue.label}
-                              </span>
-                              <p className="text-xs text-muted-foreground">{actionCue.detail}</p>
-                            </div>
+                                <p className="text-xs text-muted-foreground">{actionCue.detail}</p>
+                              </div>
+                            ) : nextAppt ? (
+                              <div className="text-xs">
+                                <p className="text-foreground font-mono">{format(nextAppt, "MMM d")}</p>
+                                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Appointment</p>
+                              </div>
+                            ) : nextFollowUp ? (
+                              <div className="text-xs">
+                                <p className="text-foreground font-mono">{format(nextFollowUp, "MMM d")}</p>
+                                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Follow-up</p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
@@ -1644,7 +1727,7 @@ export default function ContactsPage() {
                                   Follow up
                                 </button>
                               )}
-                              {autoRepairPlan && (
+                              {dataHealthMode && autoRepairPlan && (
                                 <button
                                   onClick={(e) => repairContactDrift(contact, e)}
                                   className="inline-flex h-7 items-center gap-1 rounded border border-amber-500/30 px-2 text-xs text-amber-700 transition-colors hover:bg-amber-500/10"
@@ -1667,7 +1750,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={12} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={dataHealthMode ? 9 : 7} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
