@@ -2591,19 +2591,7 @@ export default function DialerPage() {
           </SheetContent>
         </Sheet>
 
-        {session.isSessionActive && (
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-                autoStart
-                compact
-              />
-            </div>
-            <DialerShortcutsPopover />
-          </div>
-        )}
+        {/* PowerHour + shortcuts are now folded into the compact session strip above. */}
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
@@ -2634,7 +2622,11 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
-            {session.isSessionActive && session.queue.queueSupervisor.health !== "idle" && (
+            {session.isSessionActive
+              && session.queue.queueSupervisor.health !== "idle"
+              && session.queue.queueSupervisor.health !== "healthy"
+              && session.queue.queueSupervisor.health !== "refilling"
+              && session.queue.queueSupervisor.health !== "bootstrapping" && (
               <div className={cn("rounded-lg border px-4 py-3", queueSupervisorSummary.bannerClassName)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
