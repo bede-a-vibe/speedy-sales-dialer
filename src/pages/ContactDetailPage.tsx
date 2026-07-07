@@ -15,6 +15,8 @@ import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { useUpdateContact } from "@/hooks/useContacts";
+import { useDialpadCall } from "@/hooks/useDialpad";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
@@ -110,6 +112,8 @@ export default function ContactDetailPage() {
   const { data: callLogPages, fetchNextPage: fetchMoreLogs, hasNextPage: hasMoreLogs } = useContactCallLogs(id, 5, !!contact);
   const { data: notePages, fetchNextPage: fetchMoreNotes, hasNextPage: hasMoreNotes } = usePaginatedContactNotes(id);
   const { data: pipelineItems = [] } = useContactPipelineItems(id);
+  const dialpadCall = useDialpadCall();
+  const { data: myDialpadSettings } = useMyDialpadSettings();
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -129,6 +133,24 @@ export default function ContactDetailPage() {
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
   const directDecisionMakerPhone = contact?.dm_phone?.trim() || null;
   const hasDecisionMakerDial = Boolean(directDecisionMakerPhone);
+
+  const placeCall = async (phone: string | null) => {
+    if (!phone) return;
+    if (!myDialpadSettings?.dialpad_user_id) {
+      toast.error("Connect your Dialpad number in Dialpad Settings first.");
+      return;
+    }
+    try {
+      await dialpadCall.mutateAsync({
+        phone,
+        dialpad_user_id: myDialpadSettings.dialpad_user_id,
+        contact_id: contact.id,
+      });
+      toast.success(`Calling ${phone} via Dialpad…`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start the Dialpad call.");
+    }
+  };
 
   useEffect(() => {
     setNextStatus(currentStatusValue);
@@ -425,18 +447,14 @@ export default function ContactDetailPage() {
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild size="sm" className="font-semibold">
-                <a href={`tel:${hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone}`}>
-                  <Phone className="mr-1.5 h-3.5 w-3.5" />
-                  {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
-                </a>
+              <Button size="sm" className="font-semibold" onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)} disabled={dialpadCall.isPending}>
+                <Phone className="mr-1.5 h-3.5 w-3.5" />
+                {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
               </Button>
               {hasDecisionMakerDial && (
-                <Button asChild size="sm" variant="outline" className="font-mono">
-                  <a href={`tel:${contact.phone}`}>
-                    <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
-                    {contact.phone}
-                  </a>
+                <Button size="sm" variant="outline" className="font-mono" onClick={() => placeCall(contact.phone)} disabled={dialpadCall.isPending}>
+                  <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
+                  {contact.phone}
                 </Button>
               )}
               {contact.email && (
@@ -461,9 +479,13 @@ export default function ContactDetailPage() {
                 <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
                   {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
-                  <a href={`tel:${directDecisionMakerPhone}`} className="font-mono text-emerald-700 hover:underline dark:text-emerald-300">
+                  <button
+                    onClick={() => placeCall(directDecisionMakerPhone)}
+                    disabled={dialpadCall.isPending}
+                    className="font-mono text-emerald-700 hover:underline dark:text-emerald-300 disabled:opacity-50"
+                  >
                     {directDecisionMakerPhone}
-                  </a>
+                  </button>
                   {contact.dm_phone_type && (
                     <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
                   )}
