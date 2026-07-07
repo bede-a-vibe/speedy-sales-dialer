@@ -8,7 +8,8 @@ import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryBu
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
-import { DialpadCTI } from "@/components/dialer/DialpadCTI";
+import { DialpadCTI, type DialpadCTIHandle, type CallRingingPayload } from "@/components/dialer/DialpadCTI";
+import { NativeCallBar, type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
@@ -389,7 +390,17 @@ export default function DialerPage() {
   const [dqNotes, setDqNotes] = useState<string>("");
   const [dncReason, setDncReason] = useState<DncReason | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
-  const [showDialpadCTI, setShowDialpadCTI] = useState(false);
+  // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
+  // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
+  // this only toggles the reveal wrapper — never unmount, or the live call drops.
+  const [dialpadRevealed, setDialpadRevealed] = useState(false);
+
+  // Native call bar state — driven off Dialpad CTI postMessage events so the rep
+  // sees state instantly, never waiting on server confirmation.
+  const dialpadCTIRef = useRef<DialpadCTIHandle | null>(null);
+  const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
+  const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
+  const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
@@ -1126,8 +1137,9 @@ export default function DialerPage() {
     && (!requiresConversationProgress || conversationProgressFilled)
     && !dialpad.isEndingCall
     && !createCallLog.isPending
-    && !createPipelineItem.isPending
-    && !dialpad.linkDialpadCallLog.isPending;
+    && !createPipelineItem.isPending;
+  // Note: dialpad.linkDialpadCallLog runs fire-and-forget in the background so
+  // the rep is never blocked waiting for the Dialpad call to finish linking.
 
   const isFastLogOutcome = (outcome: CallOutcome) => (
     outcome === "no_answer"
@@ -1153,7 +1165,7 @@ export default function DialerPage() {
       items.push("Fill out Conversation Progress (stages reached or exit reason)");
     }
     if (dialpad.isEndingCall) items.push("Wait for the active call to finish ending");
-    if (createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending) items.push("Saving the previous action");
+    if (createCallLog.isPending || createPipelineItem.isPending) items.push("Saving the previous action");
 
     return items;
   }, [
@@ -1171,7 +1183,6 @@ export default function DialerPage() {
     dialpad.isEndingCall,
     createCallLog.isPending,
     createPipelineItem.isPending,
-    dialpad.linkDialpadCallLog.isPending,
     isOnline,
   ]);
 
@@ -1224,16 +1235,45 @@ export default function DialerPage() {
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
 
-  // Auto-expand the docked softphone when a session starts, collapse when it ends.
-  // Only fires on the transition — rep can manually toggle mid-session without being fought.
-  const prevSessionActiveRef = useRef(session.isSessionActive);
+  // Reset the native call bar whenever the current contact changes or the
+  // session goes inactive. The bar goes back to "dialing" as soon as we
+  // auto-initiate the next call.
   useEffect(() => {
-    const prev = prevSessionActiveRef.current;
-    if (prev !== session.isSessionActive) {
-      setShowDialpadCTI(session.isSessionActive);
-      prevSessionActiveRef.current = session.isSessionActive;
+    if (!session.isSessionActive || !session.currentContact || session.isSessionPaused || isCoach) {
+      setNativeCallState("idle");
+      setNativeConnectedAt(null);
+      return;
     }
-  }, [session.isSessionActive]);
+    setNativeCallState("dialing");
+    setNativeConnectedAt(null);
+  }, [session.currentContact?.id, session.isSessionActive, session.isSessionPaused, isCoach]);
+
+  // Handle CTI ringing events: `on` means the phone is ringing, `off` means it
+  // stopped ringing (either answered or hung up). We treat `off` as connected
+  // if we were dialing/ringing so the rep sees an instant "Connected" state.
+  const handleDialpadCTIRinging = useCallback((payload: CallRingingPayload) => {
+    if (payload?.state === "on") {
+      setNativeCallState((prev) => (prev === "connected" || prev === "ended" ? prev : "ringing"));
+    } else if (payload?.state === "off") {
+      setNativeCallState((prev) => {
+        if (prev === "ringing" || prev === "dialing") {
+          setNativeConnectedAt(Date.now());
+          return "connected";
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  const handleDialpadCTIAuthChange = useCallback((authed: boolean) => {
+    setDialpadCTIAuthed(authed);
+  }, []);
+
+  const handleNativeHangUp = useCallback(() => {
+    dialpadCTIRef.current?.hangUpAll();
+    setNativeCallState("ended");
+    setNativeConnectedAt(null);
+  }, []);
 
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
@@ -2006,13 +2046,13 @@ export default function DialerPage() {
               </Button>
               {dialpadCTIClientId && (
                 <Button
-                  variant={showDialpadCTI ? "secondary" : "outline"}
+                  variant={dialpadRevealed ? "secondary" : "outline"}
                   size="sm"
-                  onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                  onClick={() => setDialpadRevealed((v) => !v)}
                   className="gap-1.5"
                 >
                   <Headphones className="h-3.5 w-3.5" />
-                  {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+                  {dialpadRevealed ? "Hide Dialpad" : "Open Dialpad"}
                 </Button>
               )}
               <span
@@ -2030,13 +2070,13 @@ export default function DialerPage() {
           <div className="flex flex-wrap items-center gap-4">
             {dialpadCTIClientId && (
               <Button
-                variant={showDialpadCTI ? "secondary" : "outline"}
+                variant={dialpadRevealed ? "secondary" : "outline"}
                 size="sm"
-                onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                onClick={() => setDialpadRevealed((v) => !v)}
                 className="gap-1.5"
               >
                 <Headphones className="h-3.5 w-3.5" />
-                {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+                {dialpadRevealed ? "Hide Dialpad" : "Open Dialpad"}
               </Button>
             )}
 
@@ -2483,6 +2523,17 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              {dialpadCTIClientId && !isCoach && (
+                <NativeCallBar
+                  businessName={session.currentContact.business_name ?? null}
+                  phoneNumber={session.currentContact.phone ?? null}
+                  state={nativeCallState}
+                  connectedAt={nativeConnectedAt}
+                  dialpadAuthenticated={dialpadCTIAuthed}
+                  onHangUp={handleNativeHangUp}
+                  onRevealDialpad={() => setDialpadRevealed(true)}
+                />
+              )}
               <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
@@ -2963,7 +3014,7 @@ export default function DialerPage() {
               {/* Log & Skip actions */}
               <div data-coach-step="log-and-skip" className="space-y-2">
                 <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
-                  {createCallLog.isPending || createPipelineItem.isPending || dialpad.linkDialpadCallLog.isPending
+                  {createCallLog.isPending || createPipelineItem.isPending
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     : <CheckCircle2 className="mr-2 h-4 w-4" />}
                   {primaryActionLabel}
@@ -3151,52 +3202,59 @@ export default function DialerPage() {
       {isCoach && (
         <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
       )}
-      {/* Docked Softphone — fixed bottom-right (clear of the left sidebar).
-          Outcome buttons sit at the top of the sticky right rail, so the bottom-right
-          corner stays clear. Iframe stays mounted for the entire session; showDialpadCTI
-          only toggles visibility (CSS collapse) so the live call & Dialpad auth are
-          never dropped. Auto-expands on session start, collapses on session end,
-          but manual toggle always wins for the current state. */}
+      {/* Headless Dialpad CTI — mounted for the entire DialerPage lifetime so
+          the WebRTC audio track stays live. The iframe carries audio silently;
+          the native call bar (in the in-call header) is what the rep interacts
+          with. When `dialpadRevealed` is true we switch this container from
+          off-screen to an on-screen dialog-style panel WITHOUT unmounting, so
+          the live call is never dropped.
+
+          CRITICAL: never wrap this in `display: none` — hidden iframes can be
+          suspended by the browser, killing the audio track. We use off-screen
+          positioning + opacity:0 + pointer-events:none instead. */}
       {dialpadCTIClientId && (
         <div
+          aria-hidden={!dialpadRevealed}
           className={cn(
-            "fixed z-40 bottom-4 sm:right-4 sm:left-auto left-2 right-2 sm:w-[380px] sm:max-w-none max-w-[calc(100vw-1rem)]",
-            "flex flex-col items-end gap-2",
+            "fixed z-50 transition-all",
+            dialpadRevealed
+              ? "right-4 bottom-4 w-[380px] shadow-2xl rounded-lg border border-border bg-card overflow-hidden"
+              // Off-screen carrier — iframe still mounted, audio still live.
+              : "left-[-9999px] top-0 w-[380px] h-[560px] opacity-0 pointer-events-none",
           )}
-          data-dialpad-dock
+          data-dialpad-headless
         >
-          <div
-            aria-hidden={!showDialpadCTI}
-            className={cn(
-              "w-full sm:w-[380px] transition-all duration-200 shadow-2xl rounded-lg",
-              showDialpadCTI
-                ? "opacity-100 visible"
-                : "opacity-0 invisible h-0 overflow-hidden pointer-events-none",
-            )}
-          >
-            <DialpadCTI
-              clientId={dialpadCTIClientId}
-              visible={true}
-              onToggleVisible={() => setShowDialpadCTI(false)}
-              phoneNumber={session.currentContact?.phone ?? null}
-              autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
-              outboundCallerId={effectiveCallerId || null}
-              customData={session.currentContact ? JSON.stringify({
-                contact_id: session.currentContact.id,
-                business_name: session.currentContact.business_name,
-              }) : null}
-            />
-          </div>
-          {!showDialpadCTI && (
-            <button
-              type="button"
-              onClick={() => setShowDialpadCTI(true)}
-              className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-medium shadow-lg hover:opacity-90"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              Dialpad
-            </button>
+          {dialpadRevealed && (
+            <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Headphones className="h-3.5 w-3.5 text-primary" />
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">
+                  Dialpad
+                </span>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setDialpadRevealed(false)}
+              >
+                Hide
+              </button>
+            </div>
           )}
+          <DialpadCTI
+            ref={dialpadCTIRef}
+            clientId={dialpadCTIClientId}
+            headless
+            phoneNumber={session.currentContact?.phone ?? null}
+            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
+            outboundCallerId={effectiveCallerId || null}
+            customData={session.currentContact ? JSON.stringify({
+              contact_id: session.currentContact.id,
+              business_name: session.currentContact.business_name,
+            }) : null}
+            onCallRinging={handleDialpadCTIRinging}
+            onAuthChange={handleDialpadCTIAuthChange}
+          />
         </div>
       )}
     </AppLayout>

@@ -138,13 +138,7 @@ export function useDialerDialpad({
             ? `The call is still live, but tracking has not reattached yet. Next automatic relink attempt is due in about ${Math.max(1, Math.ceil((nextAutoRetryAt - Date.now()) / 1000))}s.`
             : "The call is still live, but tracking has not reattached yet. The dialer is retrying in the background.",
         }
-      : isCallResolving
-        ? {
-            level: "warning" as const,
-            title: "Waiting for Dialpad confirmation",
-            detail: "The call was placed, but the dialer is still linking the live Dialpad call.",
-          }
-        : dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()
+      : dialpadPollingBackoffUntil && dialpadPollingBackoffUntil > Date.now()
           ? {
               level: "warning" as const,
               title: "Dialpad status checks are paused briefly",
