@@ -389,7 +389,7 @@ export default function DialerPage() {
   const [dqNotes, setDqNotes] = useState<string>("");
   const [dncReason, setDncReason] = useState<DncReason | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
-  const [showDialpadCTI, setShowDialpadCTI] = useState(true);
+  const [showDialpadCTI, setShowDialpadCTI] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
