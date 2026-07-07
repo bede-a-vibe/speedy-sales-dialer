@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
+import { ContactsTableSkeleton } from "@/components/skeletons/PageSkeletons";
 
 const CONTACTS_PER_PAGE = 100;
 
