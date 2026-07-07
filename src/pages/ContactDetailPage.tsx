@@ -523,7 +523,7 @@ export default function ContactDetailPage() {
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Owner</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Owner</span>
                   <Select value={ownerUserId ?? "unassigned"} onValueChange={handleOwnerChange}>
                     <SelectTrigger className="h-7 w-[160px] border-border bg-card text-xs">
                       <SelectValue placeholder="Unassigned">{ownerName ?? "Unassigned"}</SelectValue>
@@ -539,7 +539,7 @@ export default function ContactDetailPage() {
                   </Select>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Lifecycle</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Lifecycle</span>
                   <Select value={lifecycleStage} onValueChange={(v) => handleLifecycleChange(v as LifecycleStage)}>
                     <SelectTrigger className="h-7 w-[130px] border-border bg-card text-xs capitalize">
                       <SelectValue />
@@ -568,7 +568,7 @@ export default function ContactDetailPage() {
                 </div>
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5" />
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Next</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Next</span>
                   <span className="text-foreground">
                     {nextFollowUp?.scheduled_for
                       ? formatTimestamp(nextFollowUp.scheduled_for)
