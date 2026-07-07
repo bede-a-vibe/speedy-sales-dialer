@@ -466,8 +466,24 @@ export default function ContactDetailPage() {
                 <Badge variant={currentStatusValue === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
                   {currentStatusValue}
                 </Badge>
+                {prospectTier && (
+                  <Badge variant="outline" className="text-xs uppercase tracking-wide">Tier {prospectTier}</Badge>
+                )}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Owner</span>
+                  <span className="text-foreground">{ownerName ?? "Unassigned"}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Next</span>
+                  <span className="text-foreground">
+                    {nextFollowUp?.scheduled_for
+                      ? formatTimestamp(nextFollowUp.scheduled_for)
+                      : "No next action"}
+                  </span>
+                </span>
                 {contact.contact_person ? (
                   <span>{contact.contact_person}</span>
                 ) : (
