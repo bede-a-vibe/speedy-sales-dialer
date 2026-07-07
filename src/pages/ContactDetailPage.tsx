@@ -631,6 +631,8 @@ export default function ContactDetailPage() {
 
         {/* Capture panels — feature parity with the Dialer page so reps can
             view AND edit every field from Contacts → contact detail. */}
+        <ActivityTimeline contactId={id} />
+
         <div className="space-y-4">
           <CollapsiblePanel
             title="Decision Maker"
