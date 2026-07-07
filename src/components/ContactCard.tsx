@@ -218,8 +218,8 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {hasRating && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-yellow-300">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-amber-800 dark:text-yellow-300">
+              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
               {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
             </span>
           )}
@@ -229,7 +229,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
             </span>
           )}
           {contact.buying_signal_strength && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Zap className="h-3 w-3" />
               Signal: {contact.buying_signal_strength}
             </span>
@@ -239,16 +239,16 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
 
       {/* Existing agency callout */}
       {contact.has_existing_agency && (
-        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-100">
-          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-300" />
+        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-900 dark:text-fuchsia-100">
+          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-700 dark:text-fuchsia-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-800 dark:text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
             <p className="text-sm leading-snug">
               Already with an agency{contact.existing_agency_name ? `: ${contact.existing_agency_name}` : ""}
               {agencyServices.length > 0 && (
-                <span className="text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
+                <span className="text-fuchsia-800/80 dark:text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
               )}
-              <span className="block text-xs text-fuchsia-200/70 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
+              <span className="block text-xs text-fuchsia-800/80 dark:text-fuchsia-200/80 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
             </p>
           </div>
         </div>
