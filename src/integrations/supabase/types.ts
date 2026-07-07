@@ -272,8 +272,11 @@ export type Database = {
           lead_channel: string | null
           lead_source: string | null
           lead_type: string
+          lifecycle_reason: string | null
+          lifecycle_stage: string
           meeting_booked_date: string | null
           next_followup_date: string | null
+          owner_id: string | null
           phone: string
           phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
@@ -346,8 +349,11 @@ export type Database = {
           lead_channel?: string | null
           lead_source?: string | null
           lead_type?: string
+          lifecycle_reason?: string | null
+          lifecycle_stage?: string
           meeting_booked_date?: string | null
           next_followup_date?: string | null
+          owner_id?: string | null
           phone: string
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
@@ -420,8 +426,11 @@ export type Database = {
           lead_channel?: string | null
           lead_source?: string | null
           lead_type?: string
+          lifecycle_reason?: string | null
+          lifecycle_stage?: string
           meeting_booked_date?: string | null
           next_followup_date?: string | null
+          owner_id?: string | null
           phone?: string
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
@@ -944,6 +953,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      advance_contact_lifecycle: {
+        Args: { _contact_id: string; _reason?: string; _target: string }
+        Returns: undefined
+      }
       bulk_update_google_reviews: { Args: { updates: Json }; Returns: Json }
       claim_dialer_leads:
         | {
@@ -1138,6 +1151,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
+      lifecycle_rank: { Args: { stage: string }; Returns: number }
       preview_dialer_leads:
         | {
             Args: {
