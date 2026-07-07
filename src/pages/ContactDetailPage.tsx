@@ -452,11 +452,9 @@ export default function ContactDetailPage() {
                 {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
               </Button>
               {hasDecisionMakerDial && (
-                <Button asChild size="sm" variant="outline" className="font-mono">
-                  <a href={`tel:${contact.phone}`}>
-                    <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
-                    {contact.phone}
-                  </a>
+                <Button size="sm" variant="outline" className="font-mono" onClick={() => placeCall(contact.phone)} disabled={dialpadCall.isPending}>
+                  <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
+                  {contact.phone}
                 </Button>
               )}
               {contact.email && (
