@@ -499,6 +499,48 @@ function extractFromHtml(html: string, siteHost: string, prev: ExtractResult, ur
     }
   }
 
+  // 4b. Extended name-source patterns (deep crawl uses these too).
+  //     Runs even after 4 to fill in a name if step 4 didn't match. Any hit
+  //     here is treated as owner-attributed.
+  if (!out.name) {
+    const extraSources: { re: RegExp; roleAdjacent: boolean }[] = [
+      { re: OWNER_LEAD_RE, roleAdjacent: true },
+      { re: NAME_TRAIL_ROLE_RE, roleAdjacent: true },
+      { re: MEET_NAME_RE, roleAdjacent: false },
+      { re: HI_IM_RE, roleAdjacent: false },
+    ];
+    const candidates: { name: string; roleAdjacent: boolean }[] = [];
+    for (const src of extraSources) {
+      src.re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = src.re.exec(text)) !== null) {
+        const idx = m.index;
+        const window = text.slice(Math.max(0, idx - 60), idx + m[0].length + 60);
+        if (HOMEOWNER_RE.test(window)) continue;
+        const cleaned = cleanCandidateName(m[1]);
+        if (!cleaned) continue;
+        candidates.push({ name: cleaned, roleAdjacent: src.roleAdjacent });
+      }
+    }
+    // Heading-adjacent team names (needs raw HTML — run against `html`).
+    HEADING_NAME_RE.lastIndex = 0;
+    let hm: RegExpExecArray | null;
+    while ((hm = HEADING_NAME_RE.exec(html)) !== null) {
+      const idx = hm.index;
+      const around = html.slice(Math.max(0, idx - 300), idx + hm[0].length + 300);
+      const cleaned = cleanCandidateName(hm[1]);
+      if (!cleaned) continue;
+      const roleAdjacent = OWNER_KEYWORD_RE.test(around) && !HOMEOWNER_RE.test(around);
+      if (roleAdjacent) candidates.push({ name: cleaned, roleAdjacent: true });
+    }
+    // Prefer role-adjacent hits.
+    const picked = candidates.find((c) => c.roleAdjacent) ?? candidates[0];
+    if (picked) {
+      out.name = picked.name;
+      out.ownerAttributed = true;
+    }
+  }
+
   // 5. Capture About/Contact text for AI fallback
   if (!out.aboutTextForAi && (urlPath.includes("about") || urlPath.includes("contact"))) {
     out.aboutTextForAi = text.slice(0, 6000);
