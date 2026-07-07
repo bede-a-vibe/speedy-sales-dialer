@@ -5,7 +5,7 @@ import type { DealStage } from "@/data/constants";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
-export type FollowUpMethod = "call" | "email" | "prospecting";
+export type FollowUpMethod = "call" | "email" | "prospecting" | "task" | "sms";
 
 export interface PipelineItemInsert {
   contact_id: string;
