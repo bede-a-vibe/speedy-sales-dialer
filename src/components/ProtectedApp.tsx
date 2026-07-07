@@ -16,6 +16,7 @@ const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const PlaybookPage = lazy(() => import("@/pages/PlaybookPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
+const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const RolesPage = lazy(() => import("@/pages/RolesPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -113,6 +114,14 @@ function ProtectedRoutes() {
           element={(
             <AdminRoute>
               <GhlSyncPage />
+            </AdminRoute>
+          )}
+        />
+        <Route
+          path="/admin/enrichment"
+          element={(
+            <AdminRoute>
+              <EnrichmentPage />
             </AdminRoute>
           )}
         />
