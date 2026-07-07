@@ -173,6 +173,60 @@ export type Database = {
         }
         Relationships: []
       }
+      call_scores: {
+        Row: {
+          booking_blocker: string | null
+          broke_down_at: string | null
+          call_log_id: string | null
+          contact_id: string
+          created_at: string
+          dialpad_call_id: string | null
+          id: string
+          overall_score: number
+          scorecard: Json
+          updated_at: string
+        }
+        Insert: {
+          booking_blocker?: string | null
+          broke_down_at?: string | null
+          call_log_id?: string | null
+          contact_id: string
+          created_at?: string
+          dialpad_call_id?: string | null
+          id?: string
+          overall_score?: number
+          scorecard: Json
+          updated_at?: string
+        }
+        Update: {
+          booking_blocker?: string | null
+          broke_down_at?: string | null
+          call_log_id?: string | null
+          contact_id?: string
+          created_at?: string
+          dialpad_call_id?: string | null
+          id?: string
+          overall_score?: number
+          scorecard?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_scores_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_scores_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_notes: {
         Row: {
           contact_id: string
