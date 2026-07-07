@@ -319,6 +319,7 @@ export type Database = {
           city: string | null
           contact_person: string | null
           created_at: string
+          deep_crawl_attempted: boolean
           disqualified: boolean
           disqualified_at: string | null
           disqualified_notes: string | null
@@ -402,6 +403,7 @@ export type Database = {
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          deep_crawl_attempted?: boolean
           disqualified?: boolean
           disqualified_at?: string | null
           disqualified_notes?: string | null
@@ -485,6 +487,7 @@ export type Database = {
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          deep_crawl_attempted?: boolean
           disqualified?: boolean
           disqualified_at?: string | null
           disqualified_notes?: string | null
