@@ -384,41 +384,45 @@ export default function EnrichmentPage() {
           />
         </div>
 
-        {/* Throughput */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Throughput & ETA</CardTitle>
-            <CardDescription className="text-xs">
-              Deep crawl processes ~{DEEP_THROUGHPUT_PER_HOUR.toLocaleString()} leads/hour.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                Total pending (all stages)
-              </p>
-              <p className="mt-1 font-mono text-2xl font-bold text-foreground">
-                {totalPending.toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                Deep crawl pending
-              </p>
-              <p className="mt-1 font-mono text-2xl font-bold text-foreground">
-                {(stages?.deep.pending ?? 0).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                Fully enriched in
-              </p>
-              <p className="mt-1 font-mono text-2xl font-bold text-primary">
-                {formatEta(deepEtaHours)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Throughput + AI Budget */}
+        <div className="grid gap-3 md:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Throughput & ETA</CardTitle>
+              <CardDescription className="text-xs">
+                Deep crawl processes ~{DEEP_THROUGHPUT_PER_HOUR.toLocaleString()} leads/hour.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                  Total pending (all stages)
+                </p>
+                <p className="mt-1 font-mono text-2xl font-bold text-foreground">
+                  {totalPending.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                  Deep crawl pending
+                </p>
+                <p className="mt-1 font-mono text-2xl font-bold text-foreground">
+                  {(stages?.deep.pending ?? 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                  Fully enriched in
+                </p>
+                <p className="mt-1 font-mono text-2xl font-bold text-primary">
+                  {formatEta(deepEtaHours)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <AiBudgetCard budget={data?.budget ?? null} />
+        </div>
 
         {/* Coverage grid */}
         <Card>
