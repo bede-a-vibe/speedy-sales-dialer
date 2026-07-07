@@ -113,6 +113,12 @@ function useEnrichmentDashboard() {
         runCount((q) => activeFilter(q).eq("has_existing_agency", true)),
       ]);
 
+      const { data: budgetRow, error: budgetError } = await supabase
+        .from("enrichment_ai_budget")
+        .select("day, calls_used, daily_cap")
+        .maybeSingle();
+      if (budgetError) throw budgetError;
+
       return {
         total,
         active,
@@ -134,6 +140,7 @@ function useEnrichmentDashboard() {
           years_in_business: cov_years,
           existing_agency: cov_agency,
         },
+        budget: budgetRow ?? { day: "", calls_used: 0, daily_cap: 500 },
       };
     },
   });
