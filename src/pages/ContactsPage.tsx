@@ -1184,6 +1184,27 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
+            <SelectTrigger className="w-[160px] border-border bg-card"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stages</SelectItem>
+              {LIFECYCLE_STAGES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="w-[180px] border-border bg-card"><SelectValue placeholder="Owner" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Owners</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {salesReps.map((rep) => (
+                <SelectItem key={rep.user_id} value={rep.user_id}>
+                  {rep.display_name || rep.email || "Unknown rep"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContactsSortOption)}>
             <SelectTrigger className="w-[210px] border-border bg-card"><SelectValue placeholder="Sort by" /></SelectTrigger>
             <SelectContent>
