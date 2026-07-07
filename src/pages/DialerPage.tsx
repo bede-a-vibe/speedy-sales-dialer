@@ -1832,172 +1832,266 @@ export default function DialerPage() {
           />
         </Suspense>
 
-        {/* ── Filters & Controls ── */}
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            data-coach-step="filters-button"
-            variant={showAdvancedFilters ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="relative gap-1.5"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
+        {/* ── Pre-session HERO vs Active-session control strip ── */}
+        {!session.isSessionActive ? (
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-card motion-safe:animate-fade-in">
+            <div className="mx-auto max-w-2xl space-y-6 text-center">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Ready to dial</p>
+              <div>
+                <p className="font-mono text-6xl font-black text-foreground [font-variant-numeric:tabular-nums]" data-coach-step="queue-counter">
+                  {session.queue.isLoading ? "…" : queueLeadCount}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  leads ready ·{" "}
+                  <span className="font-medium text-foreground">
+                    {LEAD_TYPES.find((lt) => lt.value === leadType)?.label.split(" — ")[0] ?? "Cold"}
+                  </span>{" "}
+                  · {leadChannel ? leadChannel : "All channels"}
+                </p>
+                {queueFocusLabel && (
+                  <Badge variant="secondary" className="mt-3 font-mono text-[10px] uppercase tracking-widest">
+                    {queueFocusLabel}
+                  </Badge>
+                )}
+              </div>
 
-          {dialpadCTIClientId && (
-            <Button
-              variant={showDialpadCTI ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowDialpadCTI(!showDialpadCTI)}
-              className="gap-1.5"
-            >
-              <Headphones className="h-3.5 w-3.5" />
-              {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
-            </Button>
-          )}
-
-          <div className="flex flex-1 flex-wrap items-center gap-3">
-            <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
-              {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
-            </span>
-            {queueFocusLabel && (
-              <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
-                {queueFocusLabel}
-              </Badge>
-            )}
-            {queueGuidance && !session.isSessionActive && (
-              <span className="text-xs text-muted-foreground">
-                {queueGuidance}
-              </span>
-            )}
-            {dialpad.myDialpadSettings ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-primary">
-                  <Phone className="mr-1 inline h-3 w-3" />
-                  {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
-                </span>
-                {dialpad.callerIdOptions.length > 1 && (
-                  <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
-                    <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
-                      <SelectValue placeholder="Caller ID" />
-                    </SelectTrigger>
+              <div className="mx-auto grid max-w-lg grid-cols-1 gap-3 text-left sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lead pool</label>
+                  <Select value={leadType} onValueChange={setLeadType}>
+                    <SelectTrigger className="h-9 border-border bg-background text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Auto (default)</SelectItem>
-                      {dialpad.callerIdOptions.map((opt) => (
-                        <SelectItem key={opt.number} value={opt.number}>
-                          {opt.label} — {opt.number}
-                        </SelectItem>
+                      {LEAD_TYPES.map((lt) => (
+                        <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Channel</label>
+                  <Select value={leadChannel || "__all__"} onValueChange={(v) => setLeadChannel(v === "__all__" ? "" : v)}>
+                    <SelectTrigger className="h-9 border-border bg-background text-sm"><SelectValue placeholder="All channels" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All channels</SelectItem>
+                      {LEAD_CHANNELS.map((ch) => (
+                        <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Warnings surface here so the rep sees blockers without opening drawers */}
+              <div className="mx-auto max-w-lg space-y-2 text-left">
+                {!dialpad.hasDialpadAssignment && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    No active Dialpad assignment — ask an admin to assign your user before starting a session.
+                  </div>
+                )}
+                {!isOnline && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    You're offline. Reconnect before starting a session.
+                  </div>
+                )}
+                {dialpad.hasDialpadAssignment && isOnline && startReadinessOpenItems.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                    {startReadinessOpenItems.length} pre-flight item{startReadinessOpenItems.length === 1 ? "" : "s"} recommended — open <span className="font-medium">Filters &amp; tools → Setup</span> to review.
+                  </div>
+                )}
+                {dialpad.myDialpadSettings && (
+                  <p className="px-1 text-[11px] font-mono text-muted-foreground">
+                    <Phone className="mr-1 inline h-3 w-3" />
+                    Calling from {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+                    {selectedCallerId ? ` · caller ID ${selectedCallerId}` : ""}
+                  </p>
+                )}
+                {queueGuidance && (
+                  <p className="px-1 text-[11px] text-muted-foreground">{queueGuidance}</p>
                 )}
               </div>
-            ) : (
-              <span className="text-xs font-mono text-destructive">
-                No active Dialpad assignment — ask an admin to assign your user before starting a session.
-              </span>
-            )}
-            {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
-              <span className="text-xs font-mono text-muted-foreground">
-                Dialpad status refresh paused briefly after rate limiting.
-              </span>
-            )}
-            {!isOnline && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
-              </div>
-            )}
-            {session.isSessionActive && (
-              <>
-                <span className="text-xs font-mono text-primary">
-                  {session.callCount} calls · {session.skippedCount} skipped{session.queue.isPrefetching ? " · loading next leads" : ""}{session.isSessionPaused ? " · paused" : ""}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Active {session.formatDuration(session.totalDialingMs)}
-                  {session.totalDialingMs > 60000 && (
-                    <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
-                  )}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Paused {session.formatDuration(session.totalPausedMs)}
-                </span>
-              </>
-            )}
-          </div>
 
-          {!session.isSessionActive ? (
-            <>
-              <Button
-                data-coach-step="start-session"
-                onClick={session.startDialing}
-                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
-                variant="hero"
-                className="px-6 font-semibold"
-              >
-                {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
-                {session.isStartingSession ? "Starting..." : "Start Dialing"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => void recoverQueueSafely()}
-                disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
-                className="px-6 font-semibold"
-              >
-                {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
-              </Button>
-            </>
-          ) : (
-            <>
-              {session.isSessionPaused ? (
-                <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
-                  <Play className="mr-2 h-4 w-4" />
-                  Resume Dialing
-                </Button>
-              ) : (
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
-                  variant="secondary"
-                  onClick={() => session.pauseSession(async () => {
-                    if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
-                      try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
-                    }
-                  })}
-                  disabled={!isOnline || dialpad.isEndingCall}
-                  className="px-6 font-semibold"
+                  data-coach-step="start-session"
+                  onClick={session.startDialing}
+                  disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue || !dialpad.hasDialpadAssignment}
+                  variant="hero"
+                  size="lg"
+                  className="px-8 font-semibold"
                 >
-                  <Pause className="mr-2 h-4 w-4" />
-                  Pause Dialing
+                  {session.isStartingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
+                  {session.isStartingSession ? "Starting..." : "Start Dialing"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void recoverQueueSafely()}
+                  disabled={!isOnline || session.queue.isLoading || session.isStartingSession || session.isRecoveringQueue}
+                >
+                  {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                  {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Secondary row: drawer trigger + shortcuts + status + utilities */}
+            <div className="mx-auto mt-6 flex max-w-2xl flex-wrap items-center justify-center gap-2 border-t border-border pt-4">
+              <Button
+                data-coach-step="filters-button"
+                variant={activeFilterCount > 0 ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setFiltersDrawerOpen(true)}
+                className="relative gap-1.5"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Filters &amp; tools
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <DialerShortcutsPopover />
+              <Button variant="outline" size="sm" className="gap-1.5" disabled={!isOnline} onClick={() => setManualOpen(true)}>
+                <PhoneCall className="h-3.5 w-3.5" /> Manual Dial
+              </Button>
+              {dialpadCTIClientId && (
+                <Button
+                  variant={showDialpadCTI ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                  className="gap-1.5"
+                >
+                  <Headphones className="h-3.5 w-3.5" />
+                  {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
                 </Button>
               )}
-              <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
-                Stop Session
-              </Button>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-mono",
+                  isOnline ? "border-border text-muted-foreground" : "border-destructive/40 bg-destructive/10 text-destructive",
+                )}
+              >
+                {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                {isOnline ? "Online" : "Offline"}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-4">
+            {dialpadCTIClientId && (
               <Button
-                variant="outline"
-                onClick={() => void recoverQueueSafely()}
-                disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
+                variant={showDialpadCTI ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowDialpadCTI(!showDialpadCTI)}
+                className="gap-1.5"
+              >
+                <Headphones className="h-3.5 w-3.5" />
+                {showDialpadCTI ? "Hide Dialpad" : "Show Dialpad"}
+              </Button>
+            )}
+
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
+                {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
+              </span>
+              {queueFocusLabel && (
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
+                  {queueFocusLabel}
+                </Badge>
+              )}
+              {dialpad.myDialpadSettings ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-primary">
+                    <Phone className="mr-1 inline h-3 w-3" />
+                    {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+                  </span>
+                  {dialpad.callerIdOptions.length > 1 && (
+                    <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
+                      <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
+                        <SelectValue placeholder="Caller ID" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Auto (default)</SelectItem>
+                        {dialpad.callerIdOptions.map((opt) => (
+                          <SelectItem key={opt.number} value={opt.number}>
+                            {opt.label} — {opt.number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs font-mono text-destructive">
+                  No active Dialpad assignment — ask an admin to assign your user before starting a session.
+                </span>
+              )}
+              {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
+                <span className="text-xs font-mono text-muted-foreground">
+                  Dialpad status refresh paused briefly after rate limiting.
+                </span>
+              )}
+              {!isOnline && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
+                </div>
+              )}
+              <span className="text-xs font-mono text-primary">
+                {session.callCount} calls · {session.skippedCount} skipped{session.queue.isPrefetching ? " · loading next leads" : ""}{session.isSessionPaused ? " · paused" : ""}
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                Active {session.formatDuration(session.totalDialingMs)}
+                {session.totalDialingMs > 60000 && (
+                  <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
+                )}
+              </span>
+              <span className="text-xs font-mono text-muted-foreground">
+                Paused {session.formatDuration(session.totalPausedMs)}
+              </span>
+            </div>
+
+            {session.isSessionPaused ? (
+              <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
+                <Play className="mr-2 h-4 w-4" />
+                Resume Dialing
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => session.pauseSession(async () => {
+                  if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
+                    try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
+                  }
+                })}
+                disabled={!isOnline || dialpad.isEndingCall}
                 className="px-6 font-semibold"
               >
-                {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+                <Pause className="mr-2 h-4 w-4" />
+                Pause Dialing
               </Button>
-            </>
-          )}
+            )}
+            <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
+              Stop Session
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void recoverQueueSafely()}
+              disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
+              className="px-6 font-semibold"
+            >
+              {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+              {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
+            </Button>
+            <Button variant="outline" className="border-border" disabled={!isOnline} onClick={() => setManualOpen(true)}>
+              <PhoneCall className="mr-2 h-4 w-4" />
+              Manual Dial
+            </Button>
+          </div>
+        )}
 
-          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-border" disabled={!isOnline}>
-                <PhoneCall className="mr-2 h-4 w-4" />
-                Manual Dial
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+        {/* Manual Dial dialog — shared between pre- and in-session */}
+        <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+          <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Manual Dial</DialogTitle>
                 <DialogDescription>Place a Dialpad call directly to any phone number.</DialogDescription>
@@ -2063,7 +2157,6 @@ export default function DialerPage() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
 
         {showAdvancedFilters && (
           <AdvancedFilters
