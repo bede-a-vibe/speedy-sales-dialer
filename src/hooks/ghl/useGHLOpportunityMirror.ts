@@ -13,6 +13,7 @@ import {
   reportSyncFailure,
   type RefreshOpportunityMirrorParams,
 } from "./ghlSyncShared";
+import type { DealStage } from "@/data/constants";
 
 export function useGHLOpportunityMirror() {
   const refreshOpportunityMirror = useCallback(async (params: RefreshOpportunityMirrorParams) => {
@@ -94,5 +95,27 @@ export function useGHLOpportunityMirror() {
     }
   }, []);
 
-  return { refreshOpportunityMirror, updateOpportunityStage };
+  /**
+   * Best-effort mirror of a deal-board stage change onto the linked GHL
+   * opportunity. We can't infer a GHL stage ID from our deal_stage without
+   * pipeline config, but we CAN mirror won/lost outright via the status
+   * field. Everything else is a soft touch that keeps the opportunity open.
+   */
+  const mirrorDealStage = useCallback(async (params: {
+    ghlOpportunityId: string;
+    dealStage: DealStage;
+  }) => {
+    const { ghlOpportunityId, dealStage } = params;
+    const status =
+      dealStage === "won" ? "won" :
+      dealStage === "lost" ? "lost" :
+      "open";
+    try {
+      await ghlUpdateOpportunity(ghlOpportunityId, { status });
+    } catch (err) {
+      reportSyncFailure("mirror deal stage", ghlOpportunityId, err);
+    }
+  }, []);
+
+  return { refreshOpportunityMirror, updateOpportunityStage, mirrorDealStage };
 }
