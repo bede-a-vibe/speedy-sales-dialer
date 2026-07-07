@@ -142,10 +142,10 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
     <div className="bg-card border border-border rounded-lg p-5 space-y-4 shadow-card transition-all duration-200 motion-safe:hover:-translate-y-px hover:shadow-md hover:border-primary/40">
       {/* Follow-up Note Banner */}
       {contact.follow_up_note && (
-        <div className="flex items-start gap-2.5 bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-200">
-          <MessageSquareText className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
+        <div className="flex items-start gap-2.5 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-amber-900 dark:text-amber-100">
+          <MessageSquareText className="h-4 w-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-amber-400 mb-0.5">Follow-up Note</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-amber-800 dark:text-amber-300 mb-0.5">Follow-up Note</p>
             <p className="text-sm leading-snug">{contact.follow_up_note}</p>
           </div>
         </div>
@@ -153,21 +153,21 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
 
       {/* Gatekeeper Warning Banner */}
       {contact.gatekeeper_name && isBusinessRoutedNumber && (
-        <div className="flex items-start gap-2.5 bg-orange-500/15 border border-orange-500/30 rounded-md px-3.5 py-2.5 text-orange-200">
-          <Shield className="h-4 w-4 mt-0.5 shrink-0 text-orange-400" />
+        <div className="flex items-start gap-2.5 bg-orange-500/10 dark:bg-orange-500/15 border border-orange-500/30 rounded-md px-3.5 py-2.5 text-orange-900 dark:text-orange-100">
+          <Shield className="h-4 w-4 mt-0.5 shrink-0 text-orange-700 dark:text-orange-300" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-orange-400 mb-0.5">Gatekeeper</p>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-orange-800 dark:text-orange-300 mb-0.5">Gatekeeper</p>
             <p className="text-sm leading-snug">
               <span className="font-semibold">{contact.gatekeeper_name}</span>
               {bestRouteToDecisionMaker && (
-                <span className="ml-2 text-orange-300/70">
+                <span className="ml-2 text-orange-800/80 dark:text-orange-300/80">
                   <Clock className="h-3 w-3 inline mr-1" />
                   Route: {bestRouteToDecisionMaker}
                 </span>
               )}
             </p>
             {contact.gatekeeper_notes && (
-              <p className="mt-1 text-xs leading-snug text-orange-100/85">{contact.gatekeeper_notes}</p>
+              <p className="mt-1 text-xs leading-snug text-orange-900/90 dark:text-orange-100/90">{contact.gatekeeper_notes}</p>
             )}
           </div>
         </div>
