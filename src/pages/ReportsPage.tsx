@@ -420,6 +420,14 @@ export function ReportsBody({ initialTab, initialGroup }: ReportsBodyProps = {})
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <AppLayout title="Reports">
+      <ReportsBody />
     </AppLayout>
   );
 }
