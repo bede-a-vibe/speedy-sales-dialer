@@ -41,7 +41,7 @@ export interface PushFollowUpParams {
   scheduledFor: string;
   title?: string;
   description?: string;
-  method?: "call" | "email" | "prospecting";
+  method?: "call" | "email" | "prospecting" | "task" | "sms";
   contactName?: string;
   repName?: string;
   pipelineItemId?: string;
