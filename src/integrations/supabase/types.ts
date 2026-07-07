@@ -306,6 +306,8 @@ export type Database = {
       }
       contacts: {
         Row: {
+          abn: string | null
+          abr_attempted: boolean
           agreed_next_steps: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
@@ -390,6 +392,8 @@ export type Database = {
           work_type: string | null
         }
         Insert: {
+          abn?: string | null
+          abr_attempted?: boolean
           agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
@@ -474,6 +478,8 @@ export type Database = {
           work_type?: string | null
         }
         Update: {
+          abn?: string | null
+          abr_attempted?: boolean
           agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
