@@ -30,11 +30,11 @@ const PHASE_LABELS: Record<ScriptPhase, string> = {
 };
 
 const PHASE_COLOURS: Record<ScriptPhase, string> = {
-  opener: "bg-blue-500/10 text-blue-500",
-  discovery: "bg-purple-500/10 text-purple-500",
-  value_prop: "bg-green-500/10 text-green-500",
-  close: "bg-orange-500/10 text-orange-500",
-  objection_bridge: "bg-red-500/10 text-red-500",
+  opener: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  discovery: "bg-purple-500/10 text-purple-700 dark:text-purple-400",
+  value_prop: "bg-green-500/10 text-green-700 dark:text-green-400",
+  close: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
+  objection_bridge: "bg-red-500/10 text-red-700 dark:text-red-400",
 };
 
 /**
