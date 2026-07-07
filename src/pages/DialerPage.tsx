@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { AlertTriangle, Brain, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -1928,7 +1929,7 @@ export default function DialerPage() {
             </div>
           </div>
         )}
-        <DailyTarget />
+        {!session.isSessionActive && <DailyTarget />}
 
         <Suspense fallback={<Dialog open={session.showSummary}><DialogContent className="sm:max-w-md"><PanelSkeleton height="h-56" /></DialogContent></Dialog>}>
           <SessionSummaryDialog
@@ -2086,116 +2087,230 @@ export default function DialerPage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-4">
-            {dialpadCTIClientId && (
-              <Button
-                variant={dialpadRevealed ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setDialpadRevealed((v) => !v)}
-                className="gap-1.5"
-              >
-                <Headphones className="h-3.5 w-3.5" />
-                {dialpadRevealed ? "Hide Dialpad" : "Open Dialpad"}
-              </Button>
-            )}
-
-            <div className="flex flex-1 flex-wrap items-center gap-3">
-              <span data-coach-step="queue-counter" className="text-xs font-mono text-muted-foreground">
-                {session.queue.isLoading ? "..." : queueLeadCount} leads in queue
-              </span>
-              {queueFocusLabel && (
-                <Badge variant="secondary" className="text-[10px] uppercase tracking-widest font-mono">
-                  {queueFocusLabel}
-                </Badge>
-              )}
-              {dialpad.myDialpadSettings ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-primary">
-                    <Phone className="mr-1 inline h-3 w-3" />
-                    {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+          <div className="rounded-2xl border border-border bg-card shadow-card">
+            {/* Row 1 — compact session status strip */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+              {/* Stats cluster */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Activity className={cn("h-3.5 w-3.5", session.isSessionPaused ? "text-amber-500" : "text-emerald-500 animate-pulse")} />
+                  <span className="font-mono text-xs font-bold text-foreground tabular-nums">
+                    {session.formatDuration(session.totalDialingMs)}
                   </span>
-                  {rotationBadge}
-                  {!callerIdRotation.hasPool && dialpad.callerIdOptions.length > 1 && (
-                    <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
-                      <SelectTrigger className="h-7 w-auto min-w-[140px] border-border bg-card text-xs">
-                        <SelectValue placeholder="Caller ID" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Auto (default)</SelectItem>
-                        {dialpad.callerIdOptions.map((opt) => (
-                          <SelectItem key={opt.number} value={opt.number}>
-                            {opt.label} — {opt.number}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Active</span>
                 </div>
-              ) : (
-                <span className="text-xs font-mono text-destructive">
-                  No active Dialpad assignment — ask an admin to assign your user before starting a session.
+                <span className="text-muted-foreground/40">·</span>
+                <span className="font-mono text-xs text-foreground tabular-nums">
+                  <span className="font-bold">{session.callCount}</span>
+                  <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">calls</span>
                 </span>
-              )}
-              {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
-                <span className="text-xs font-mono text-muted-foreground">
-                  Dialpad status refresh paused briefly after rate limiting.
-                </span>
-              )}
-              {!isOnline && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  Offline mode: do not skip, stop, recover, or log this lead until the connection returns, or the dialer and queue can drift.
-                </div>
-              )}
-              <span className="text-xs font-mono text-primary">
-                {session.callCount} calls · {session.skippedCount} skipped{session.queue.isPrefetching ? " · loading next leads" : ""}{session.isSessionPaused ? " · paused" : ""}
-              </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                Active {session.formatDuration(session.totalDialingMs)}
                 {session.totalDialingMs > 60000 && (
-                  <> · {Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10} calls/hr</>
+                  <>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="font-mono text-xs text-foreground tabular-nums">
+                      <span className="font-bold">{Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}</span>
+                      <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">/hr</span>
+                    </span>
+                  </>
                 )}
-              </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                Paused {session.formatDuration(session.totalPausedMs)}
-              </span>
+                <span className="text-muted-foreground/40">·</span>
+                <span data-coach-step="queue-counter" className="font-mono text-xs text-foreground tabular-nums">
+                  <span className="font-bold">{session.queue.isLoading ? "…" : queueLeadCount}</span>
+                  <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">in queue</span>
+                </span>
+                {session.isSessionPaused && (
+                  <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase tracking-widest">
+                    Paused {session.formatDuration(session.totalPausedMs)}
+                  </Badge>
+                )}
+                {queueFocusLabel && (
+                  <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-widest">
+                    {queueFocusLabel}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Queue health pill (popover with full checkpoints) */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-mono transition-colors hover:opacity-90",
+                      queueSupervisorSummary.badgeClassName,
+                      session.queue.queueSupervisor.health === "degraded" || session.queue.queueSupervisor.health === "exhausted"
+                        ? "bg-destructive/10"
+                        : session.queue.queueSupervisor.health === "healthy" || session.queue.queueSupervisor.health === "idle"
+                          ? "bg-transparent"
+                          : "bg-amber-500/10",
+                    )}
+                    aria-label={`Queue ${queueSupervisorSummary.label}`}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        session.queue.queueSupervisor.health === "healthy" && "bg-emerald-500",
+                        session.queue.queueSupervisor.health === "degraded" || session.queue.queueSupervisor.health === "exhausted"
+                          ? "bg-destructive"
+                          : "",
+                        session.queue.queueSupervisor.health === "refilling" || session.queue.queueSupervisor.health === "bootstrapping"
+                          ? "bg-amber-500 animate-pulse"
+                          : "",
+                        session.queue.queueSupervisor.health === "idle" && "bg-muted-foreground",
+                      )}
+                    />
+                    {queueSupervisorSummary.label}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">Queue {queueSupervisorSummary.label}</p>
+                      <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
+                        {queueSupervisorSummary.checkpoints[1]?.value ?? "0"} live
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {queueSupervisorSummary.checkpoints.map((item) => (
+                        <div key={item.label} className="rounded-md border border-border bg-background/60 px-2.5 py-1.5">
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                          <p className="mt-0.5 font-mono text-xs text-foreground">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Dialpad line info — compact */}
+              {dialpad.myDialpadSettings ? (
+                <span className="hidden md:inline-flex items-center gap-1 font-mono text-[11px] text-primary">
+                  <Phone className="h-3 w-3" />
+                  {dialpad.myDialpadSettings.dialpad_phone_number || dialpad.myDialpadSettings.dialpad_user_id}
+                  {rotationBadge}
+                </span>
+              ) : (
+                <span className="font-mono text-[11px] text-destructive">
+                  No Dialpad assignment
+                </span>
+              )}
+
+              {/* Slim Daily Target inline */}
+              <div className="ml-auto flex items-center gap-3 min-w-[160px]">
+                <DailyTarget compact className="min-w-[160px]" />
+              </div>
+
+              {/* Primary controls */}
+              <div className="flex items-center gap-1.5">
+                {session.isSessionPaused ? (
+                  <Button size="sm" variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="gap-1.5">
+                    <Play className="h-3.5 w-3.5" />
+                    Resume
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => session.pauseSession(async () => {
+                      if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
+                        try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
+                      }
+                    })}
+                    disabled={!isOnline || dialpad.isEndingCall}
+                    className="gap-1.5"
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                    Pause
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void stopSessionSafely()}
+                  disabled={!isOnline}
+                  className="border-destructive/60 text-destructive hover:bg-destructive/10"
+                >
+                  Stop
+                </Button>
+
+                {/* Overflow menu — secondary controls */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="More session controls">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel>Session tools</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
+                      onClick={() => void recoverQueueSafely()}
+                    >
+                      {session.isRecoveringQueue ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      )}
+                      {session.isRecoveringQueue ? "Recovering…" : "Recover Queue"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={!isOnline} onClick={() => setManualOpen(true)}>
+                      <PhoneCall className="mr-2 h-4 w-4" />
+                      Manual Dial
+                    </DropdownMenuItem>
+                    {dialpadCTIClientId && (
+                      <DropdownMenuItem onClick={() => setDialpadRevealed((v) => !v)}>
+                        <Headphones className="mr-2 h-4 w-4" />
+                        {dialpadRevealed ? "Hide Dialpad" : "Show Dialpad"}
+                      </DropdownMenuItem>
+                    )}
+                    {!callerIdRotation.hasPool && dialpad.callerIdOptions.length > 1 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Caller ID</DropdownMenuLabel>
+                        <div className="px-2 pb-2">
+                          <Select value={selectedCallerId} onValueChange={setSelectedCallerId}>
+                            <SelectTrigger className="h-8 border-border bg-background text-xs">
+                              <SelectValue placeholder="Auto (default)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Auto (default)</SelectItem>
+                              {dialpad.callerIdOptions.map((opt) => (
+                                <SelectItem key={opt.number} value={opt.number}>
+                                  {opt.label} — {opt.number}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
-            {session.isSessionPaused ? (
-              <Button variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="px-6 font-semibold">
-                <Play className="mr-2 h-4 w-4" />
-                Resume Dialing
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => session.pauseSession(async () => {
-                  if (dialpad.activeDialpadCallId && dialpad.activeDialpadCallState !== "hangup") {
-                    try { await dialpad.cancelDialpadCall.mutateAsync({ call_id: dialpad.activeDialpadCallId }); } catch {}
-                  }
-                })}
-                disabled={!isOnline || dialpad.isEndingCall}
-                className="px-6 font-semibold"
-              >
-                <Pause className="mr-2 h-4 w-4" />
-                Pause Dialing
-              </Button>
+            {/* Inline offline warning — only when offline */}
+            {!isOnline && (
+              <div className="border-t border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+                Offline mode: do not skip, stop, recover, or log this lead until the connection returns.
+              </div>
             )}
-            <Button variant="outline" onClick={() => void stopSessionSafely()} disabled={!isOnline} className="border-destructive text-destructive hover:bg-destructive/10">
-              Stop Session
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void recoverQueueSafely()}
-              disabled={!isOnline || session.isRecoveringQueue || session.isStartingSession}
-              className="px-6 font-semibold"
-            >
-              {session.isRecoveringQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-              {session.isRecoveringQueue ? "Recovering..." : "Recover Queue"}
-            </Button>
-            <Button variant="outline" className="border-border" disabled={!isOnline} onClick={() => setManualOpen(true)}>
-              <PhoneCall className="mr-2 h-4 w-4" />
-              Manual Dial
-            </Button>
+            {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
+              <div className="border-t border-border/60 px-4 py-1.5 text-[11px] font-mono text-muted-foreground">
+                Dialpad status refresh paused briefly after rate limiting.
+              </div>
+            )}
+
+            {/* Row 2 — compact Power Hour, folded into the same strip container */}
+            <div className="border-t border-border/60 px-3 py-2">
+              <PowerHourTimer
+                sessionCallCount={session.callCount}
+                isSessionActive={session.isSessionActive}
+                autoStart
+                compact
+              />
+            </div>
           </div>
         )}
 
@@ -2476,19 +2591,7 @@ export default function DialerPage() {
           </SheetContent>
         </Sheet>
 
-        {session.isSessionActive && (
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-                autoStart
-                compact
-              />
-            </div>
-            <DialerShortcutsPopover />
-          </div>
-        )}
+        {/* PowerHour + shortcuts are now folded into the compact session strip above. */}
 
         {/* ── Active Session ── */}
         {session.isSessionActive && session.currentContact ? (
@@ -2519,7 +2622,11 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
-            {session.isSessionActive && session.queue.queueSupervisor.health !== "idle" && (
+            {session.isSessionActive
+              && session.queue.queueSupervisor.health !== "idle"
+              && session.queue.queueSupervisor.health !== "healthy"
+              && session.queue.queueSupervisor.health !== "refilling"
+              && session.queue.queueSupervisor.health !== "bootstrapping" && (
               <div className={cn("rounded-lg border px-4 py-3", queueSupervisorSummary.bannerClassName)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
