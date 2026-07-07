@@ -1345,6 +1345,22 @@ export default function ContactsPage() {
                           </td>
                           <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                           <td className="px-4 py-3">
+                            {(() => {
+                              const stage = (contact.lifecycle_stage as LifecycleStage) || "new";
+                              return (
+                                <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest border ${LIFECYCLE_STAGE_COLORS[stage] || ""}`}>
+                                  {LIFECYCLE_STAGE_LABELS[stage] || stage}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {(() => {
+                              const rep = reps.find((r) => r.user_id === contact.owner_id);
+                              return rep ? (rep.display_name || rep.email || "—") : contact.owner_id ? "Unknown rep" : "—";
+                            })()}
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1.5">
                               {integrityBadges.slice(0, 2).map((badge) => (
                                 <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
