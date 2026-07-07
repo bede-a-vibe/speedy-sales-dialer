@@ -444,6 +444,37 @@ export function AdvancedFilters({
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Lead Source</label>
+          <Select value={leadSource} onValueChange={setLeadSource} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              {sourceOptions.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.value} ({s.count.toLocaleString()})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Call Recency</label>
+          <Select value={callRecency} onValueChange={setCallRecency} disabled={disabled}>
+            <SelectTrigger className="h-8 border-border bg-card text-xs">
+              <SelectValue placeholder="Any time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any time</SelectItem>
+              <SelectItem value="never">Never called</SelectItem>
+              <SelectItem value="30">Not called in 30 days</SelectItem>
+              <SelectItem value="60">Not called in 60 days</SelectItem>
+              <SelectItem value="90">Not called in 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* === ADVANCED ENRICHMENT FILTERS (collapsed by default) === */}
