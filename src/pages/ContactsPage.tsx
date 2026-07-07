@@ -1574,13 +1574,15 @@ export default function ContactsPage() {
                     </th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Business</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Contact</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Industry</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stage</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Lifecycle</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Owner</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Data</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Tier</th>
+                    {dataHealthMode && (
+                      <>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Data</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Integrity</th>
+                      </>
+                    )}
                     <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Next action</th>
                     <th className="w-36 px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Actions</th>
                   </tr>
@@ -1599,6 +1601,8 @@ export default function ContactsPage() {
                     // Subtle fade-in stagger for the first ~12 rows on mount.
                     // `motion-safe:` guards it behind prefers-reduced-motion.
                     const staggerDelay = rowIndex < 12 ? `${rowIndex * 25}ms` : undefined;
+                    const nextFollowUp = contact.next_followup_date ? new Date(contact.next_followup_date) : null;
+                    const nextAppt = contact.latest_appointment_scheduled_for ? new Date(contact.latest_appointment_scheduled_for) : null;
 
                     return (
                       <React.Fragment key={contact.id}>
@@ -1618,21 +1622,12 @@ export default function ContactsPage() {
                             <Link to={`/contacts/${contact.id}`} className="font-medium text-foreground hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
                               {contact.business_name}
                             </Link>
+                            <p className="text-xs text-muted-foreground">{contact.industry}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm text-foreground">{contact.contact_person || "—"}</p>
                             <p className="font-mono text-xs text-muted-foreground">{contact.phone}</p>
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">{contact.contact_person || "—"}</td>
-                          <td className="px-4 py-3"><span className="rounded bg-secondary px-2 py-0.5 font-mono text-xs text-secondary-foreground">{contact.industry}</span></td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={(e) => openStatusChange(contact, e)}
-                              className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium transition-colors hover:ring-1 hover:ring-border ${STATUS_BADGE_CLASSES[contact.status] || "bg-muted text-muted-foreground"}`}
-                              title="Click to change status"
-                            >
-                              {contact.status}
-                              <ArrowRight className="h-3 w-3 opacity-50" />
-                            </button>
-                          </td>
-                          <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{getContactStage(contact)}</span></td>
                           <td className="px-4 py-3">
                             {(() => {
                               const stage = (contact.lifecycle_stage as LifecycleStage) || "new";
@@ -1650,33 +1645,58 @@ export default function ContactsPage() {
                             })()}
                           </td>
                           <td className="px-4 py-3">
-                            {missing.length === 0 ? (
-                              <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-700" title="No missing standard fields">OK</span>
+                            {contact.prospect_tier ? (
+                              <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary">{contact.prospect_tier}</span>
                             ) : (
-                              <span
-                                className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-700"
-                                title={`Missing: ${missing.join(", ")}`}
-                              >
-                                <AlertTriangle className="h-3 w-3" />Missing {missing.length}
-                              </span>
+                              <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </td>
+                          {dataHealthMode && (
+                            <>
+                              <td className="px-4 py-3">
+                                {missing.length === 0 ? (
+                                  <span className="rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-700" title="No missing standard fields">OK</span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-700"
+                                    title={`Missing: ${missing.join(", ")}`}
+                                  >
+                                    <AlertTriangle className="h-3 w-3" />Missing {missing.length}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {integrityBadges.slice(0, 2).map((badge) => (
+                                    <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
+                                      {badge.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </>
+                          )}
                           <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-1.5">
-                              {integrityBadges.slice(0, 2).map((badge) => (
-                                <span key={badge.label} className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${badge.className}`} title={badge.title}>
-                                  {badge.label}
+                            {dataHealthMode ? (
+                              <div className="space-y-1" title={actionCue.title}>
+                                <span className={`inline-flex rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${actionCue.className}`}>
+                                  {actionCue.label}
                                 </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-1" title={actionCue.title}>
-                              <span className={`inline-flex rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${actionCue.className}`}>
-                                {actionCue.label}
-                              </span>
-                              <p className="text-xs text-muted-foreground">{actionCue.detail}</p>
-                            </div>
+                                <p className="text-xs text-muted-foreground">{actionCue.detail}</p>
+                              </div>
+                            ) : nextAppt ? (
+                              <div className="text-xs">
+                                <p className="text-foreground font-mono">{format(nextAppt, "MMM d")}</p>
+                                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Appointment</p>
+                              </div>
+                            ) : nextFollowUp ? (
+                              <div className="text-xs">
+                                <p className="text-foreground font-mono">{format(nextFollowUp, "MMM d")}</p>
+                                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">Follow-up</p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
@@ -1701,7 +1721,7 @@ export default function ContactsPage() {
                                   Follow up
                                 </button>
                               )}
-                              {autoRepairPlan && (
+                              {dataHealthMode && autoRepairPlan && (
                                 <button
                                   onClick={(e) => repairContactDrift(contact, e)}
                                   className="inline-flex h-7 items-center gap-1 rounded border border-amber-500/30 px-2 text-xs text-amber-700 transition-colors hover:bg-amber-500/10"
@@ -1724,7 +1744,7 @@ export default function ContactsPage() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={12} className="bg-muted/20 px-4 py-3">
+                            <td colSpan={dataHealthMode ? 9 : 7} className="bg-muted/20 px-4 py-3">
                               <ExpandedContactDetails contact={contact} />
                             </td>
                           </tr>
