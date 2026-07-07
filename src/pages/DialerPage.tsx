@@ -3140,6 +3140,49 @@ export default function DialerPage() {
       {isCoach && (
         <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
       )}
+      {/* Docked Softphone — fixed bottom-left, clear of the right-side outcome rail.
+          The DialpadCTI iframe stays mounted for the entire session; showDialpadCTI
+          only toggles visibility (CSS collapse) so the live call & Dialpad auth
+          are never dropped. */}
+      {dialpadCTIClientId && (
+        <div
+          className="fixed z-40 left-4 bottom-4 w-[380px] max-w-[calc(100vw-2rem)] sm:w-[380px]"
+          data-dialpad-dock
+        >
+          {!showDialpadCTI && (
+            <button
+              type="button"
+              onClick={() => setShowDialpadCTI(true)}
+              className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-medium shadow-lg hover:opacity-90"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Dialpad
+            </button>
+          )}
+          <div
+            aria-hidden={!showDialpadCTI}
+            className={cn(
+              "transition-all duration-200 shadow-2xl rounded-lg",
+              showDialpadCTI
+                ? "opacity-100 visible"
+                : "opacity-0 invisible h-0 overflow-hidden pointer-events-none",
+            )}
+          >
+            <DialpadCTI
+              clientId={dialpadCTIClientId}
+              visible={true}
+              onToggleVisible={() => setShowDialpadCTI(false)}
+              phoneNumber={session.currentContact?.phone ?? null}
+              autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
+              outboundCallerId={effectiveCallerId || null}
+              customData={session.currentContact ? JSON.stringify({
+                contact_id: session.currentContact.id,
+                business_name: session.currentContact.business_name,
+              }) : null}
+            />
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
