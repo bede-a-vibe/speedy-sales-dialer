@@ -1,5 +1,6 @@
 import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
+import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
   confirmed: { label: "Confirmed", color: "text-green-400 bg-green-500/15 border-green-500/30", icon: Phone },
@@ -70,6 +71,7 @@ interface ContactCardProps {
     has_existing_agency?: boolean | null;
     existing_agency_name?: string | null;
     existing_agency_services?: string[] | null;
+    lifecycle_stage?: string | null;
   };
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
