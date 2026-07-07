@@ -402,6 +402,9 @@ export default function DialerPage() {
   const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
   const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
+  // Progressive disclosure: capture card starts collapsed (fast for the ~70% no-answer case)
+  // and auto-expands when the call connects (connected outcome or conversation reached).
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
