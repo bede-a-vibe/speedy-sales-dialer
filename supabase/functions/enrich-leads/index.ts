@@ -582,6 +582,8 @@ async function processContact(
   homepageText: string | null;
   pagesFetched: number;
   ms: number;
+  addrState: string | null;
+  addrCity: string | null;
 }> {
   const start = Date.now();
   let base = contact.website ? normalizeWebsite(contact.website) : null;
@@ -636,6 +638,7 @@ async function processContact(
       siteFromSearch: false,
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
+      addrState: null, addrCity: null,
     };
   }
   const host = new URL(base).host;
@@ -645,6 +648,7 @@ async function processContact(
   let sawJsonLd = false;
   let sawRegex = false;
   let homepageText: string | null = null;
+  let combinedText = "";
 
   for (let i = 0; i < PATHS.length && pagesFetched < MAX_FETCHES; i++) {
     const url = base + PATHS[i];
@@ -654,6 +658,9 @@ async function processContact(
     if (PATHS[i] === "/" && !homepageText) {
       homepageText = stripHtml(html).slice(0, 4000);
     }
+    try {
+      combinedText += " " + stripHtml(html).slice(0, 8000);
+    } catch { /* ignore */ }
     const before = { name: result.name, mobile: result.mobile };
     result = extractFromHtml(html, host, result, PATHS[i]);
     if (!before.name && result.name && result.ownerAttributed) sawJsonLd = true;
@@ -662,6 +669,15 @@ async function processContact(
     // Short-circuit if we have both a confident name and a mobile
     if (result.name && result.mobile) break;
   }
+
+  // AU address extraction — best-effort, never throws.
+  let addrState: string | null = null;
+  let addrCity: string | null = null;
+  try {
+    const addr = extractAuAddress(combinedText);
+    addrState = addr.state;
+    addrCity = addr.city;
+  } catch { /* ignore */ }
 
   // AI fallback for name only
   let usedAi = false;
@@ -707,6 +723,8 @@ async function processContact(
     homepageText,
     pagesFetched,
     ms: Date.now() - start,
+    addrState,
+    addrCity,
   };
 }
 
