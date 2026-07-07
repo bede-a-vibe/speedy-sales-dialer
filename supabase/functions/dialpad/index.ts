@@ -4271,6 +4271,20 @@ Deno.serve(async (req) => {
           : SAMPLE_HVAC_TRANSCRIPT;
         const syntheticDialpadCallId = `test_${contactId}_${Date.now()}`;
 
+        // If caller didn't pin a call_log_id, attach the scorecard to this
+        // contact's most recent call_log so it renders in the activity timeline.
+        let callLogIdForTest: string | null = typeof params.call_log_id === "string" ? params.call_log_id : null;
+        if (!callLogIdForTest) {
+          const { data: recentCall } = await adminClient
+            .from("call_logs")
+            .select("id")
+            .eq("contact_id", contactId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          callLogIdForTest = recentCall?.id ?? null;
+        }
+
         const pipelineResult = await runTranscriptExtractionPipeline({
           adminClient,
           contactId,
@@ -4279,6 +4293,7 @@ Deno.serve(async (req) => {
           transcript,
           businessName: contactRow.business_name,
           phoneNumber: contactRow.phone,
+          callLogId: callLogIdForTest,
           source: "Sample transcript (staging test)",
         });
 
