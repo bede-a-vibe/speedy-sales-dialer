@@ -40,7 +40,21 @@ export function ContactNotesPanel({ contactId, notes, onNotesChange, enabled = t
   } = useContactCallLogs(contactId, 5, enabled);
 
   const callLogs = callLogPages?.pages.flatMap((page) => page.items) ?? [];
-  const hasHistory = contactNotes.length > 0 || callLogs.length > 0;
+
+  // Dedupe noisy imported/system notes. Real user/call notes always kept as-is.
+  // Import scripts often insert the same "Imported builder metadata" note per
+  // record, so we collapse by (source, normalized content) — keep the newest.
+  const MANUAL_SOURCES = new Set(["manual", "call_note", "user"]);
+  const seen = new Set<string>();
+  const dedupedNotes = contactNotes.filter((n) => {
+    if (MANUAL_SOURCES.has(n.source)) return true;
+    const key = `${n.source}::${(n.content ?? "").trim().replace(/\s+/g, " ").slice(0, 400)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const hasHistory = dedupedNotes.length > 0 || callLogs.length > 0;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -78,13 +92,13 @@ export function ContactNotesPanel({ contactId, notes, onNotesChange, enabled = t
         ) : hasHistory ? (
           <ScrollArea className="h-[280px] pr-3">
             <div className="space-y-3">
-              {contactNotes.map((note) => (
-                <div key={note.id} className="rounded-md border border-border bg-background px-3 py-3">
+              {dedupedNotes.map((note) => (
+                <div key={note.id} className="rounded-md border border-border bg-background px-3 py-2">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
                     <span>{formatLabel(note.source)}</span>
                     <span>{format(new Date(note.created_at), "MMM d, h:mm a")}</span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-foreground">{note.content}</p>
+                  <p className="whitespace-pre-wrap text-sm text-foreground line-clamp-6">{note.content}</p>
                 </div>
               ))}
 

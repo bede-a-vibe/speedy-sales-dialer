@@ -14,6 +14,9 @@ interface CollapsiblePanelProps {
   /** Optional one-line subtitle shown when collapsed and expanded. */
   subtitle?: string;
   defaultOpen?: boolean;
+  /** Controlled open state — if provided, use with onOpenChange. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
   className?: string;
 }
@@ -29,10 +32,17 @@ export function CollapsiblePanel({
   icon,
   subtitle,
   defaultOpen = false,
+  open: openProp,
+  onOpenChange,
   children,
   className,
 }: CollapsiblePanelProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = openProp !== undefined ? openProp : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className={cn("rounded-lg border border-border bg-card", className)}>

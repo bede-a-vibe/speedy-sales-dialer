@@ -1,6 +1,6 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -9,7 +9,7 @@ import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryBu
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI, type DialpadCTIHandle, type CallRingingPayload } from "@/components/dialer/DialpadCTI";
-import { NativeCallBar, type NativeCallState } from "@/components/dialer/NativeCallBar";
+import { type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
@@ -156,6 +156,74 @@ const loadSessionSummaryDialog = () =>
 
 const DialpadSyncPanel = lazy(loadDialpadSyncPanel);
 const SessionSummaryDialog = lazy(loadSessionSummaryDialog);
+
+/**
+ * Compact call-status pill rendered inside the ContactCard header. Replaces the
+ * standalone NativeCallBar — same postMessage-driven state, no duplicated business
+ * name. Timer only ticks while connected.
+ */
+function CallStatusPill({
+  state,
+  connectedAt,
+  dialpadAuthenticated,
+}: {
+  state: NativeCallState;
+  connectedAt: number | null;
+  dialpadAuthenticated: boolean;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (state !== "connected" || !connectedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(id);
+  }, [state, connectedAt]);
+
+  if (state === "idle") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest",
+          dialpadAuthenticated ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300",
+        )}
+        title={dialpadAuthenticated ? "Dialpad connected" : "Sign in to Dialpad"}
+      >
+        {dialpadAuthenticated ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+        Ready
+      </span>
+    );
+  }
+
+  const label =
+    state === "dialing" ? "Calling" :
+    state === "ringing" ? "Ringing" :
+    state === "connected" ? "Connected" :
+    "Ended";
+  const tone =
+    state === "connected" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200" :
+    state === "ringing" ? "border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200 animate-pulse" :
+    state === "dialing" ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 animate-pulse" :
+    "border-border bg-muted text-muted-foreground";
+  const Icon =
+    state === "dialing" ? Loader2 :
+    state === "ringing" ? Radio :
+    state === "connected" ? Phone :
+    PhoneOff;
+
+  const timer = state === "connected" && connectedAt ? (() => {
+    const total = Math.max(0, Math.floor((now - connectedAt) / 1000));
+    const mm = String(Math.floor(total / 60)).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  })() : null;
+
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest", tone)}>
+      <Icon className={cn("h-3 w-3", state === "dialing" && "animate-spin")} />
+      {label}
+      {timer && <span className="tabular-nums normal-case tracking-normal">{timer}</span>}
+    </span>
+  );
+}
 
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -402,6 +470,9 @@ export default function DialerPage() {
   const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
   const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
+  // Progressive disclosure: capture card starts collapsed (fast for the ~70% no-answer case)
+  // and auto-expands when the call connects (connected outcome or conversation reached).
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
@@ -1294,6 +1365,25 @@ export default function DialerPage() {
     setNativeCallState("ended");
     setNativeConnectedAt(null);
   }, []);
+
+  // Reset capture disclosure whenever the active contact changes — every new
+  // lead starts lean, opens only if the rep actually connects.
+  useEffect(() => {
+    setCaptureOpen(false);
+  }, [session.currentContact?.id]);
+
+  // Auto-expand capture when the call actually connects — connected/conversation
+  // outcomes or any conversation-stage checkpoint reached.
+  useEffect(() => {
+    const connectedOutcomes: Array<string | null | undefined> = ["booked", "follow_up", "not_interested", "disqualified", "dnc"];
+    const outcomeConnected = connectedOutcomes.includes(session.selectedOutcome ?? null);
+    const stageReached =
+      conversationProgress.reachedConnection
+      || conversationProgress.reachedProblem
+      || conversationProgress.reachedSolution
+      || conversationProgress.reachedCommitment;
+    if (outcomeConnected || stageReached) setCaptureOpen(true);
+  }, [session.selectedOutcome, conversationProgress]);
 
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
@@ -2649,17 +2739,6 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
-              {dialpadCTIClientId && !isCoach && (
-                <NativeCallBar
-                  businessName={session.currentContact.business_name ?? null}
-                  phoneNumber={session.currentContact.phone ?? null}
-                  state={nativeCallState}
-                  connectedAt={nativeConnectedAt}
-                  dialpadAuthenticated={dialpadCTIAuthed}
-                  onHangUp={handleNativeHangUp}
-                  onRevealDialpad={() => setDialpadRevealed(true)}
-                />
-              )}
               <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
@@ -2675,13 +2754,46 @@ export default function DialerPage() {
                   }).catch(() => {});
                 }}
                 headerActions={
-                  <QuickBookRecoveryButton
-                    contactId={session.currentContact.id}
-                    contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
-                    onRecovered={() => {
-                      void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    {dialpadCTIClientId && !isCoach && (
+                      <>
+                        <CallStatusPill
+                          state={nativeCallState}
+                          connectedAt={nativeConnectedAt}
+                          dialpadAuthenticated={dialpadCTIAuthed}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setDialpadRevealed(true)}
+                          title="Open the full Dialpad panel (keypad, transfer, etc.)"
+                        >
+                          <ExternalLink className="mr-1 h-3 w-3" />
+                          Dialpad
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={handleNativeHangUp}
+                          disabled={nativeCallState === "idle" || nativeCallState === "ended"}
+                        >
+                          <PhoneOff className="mr-1 h-3 w-3" />
+                          Hang Up
+                        </Button>
+                      </>
+                    )}
+                    <QuickBookRecoveryButton
+                      contactId={session.currentContact.id}
+                      contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
+                      onRecovered={() => {
+                        void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
+                      }}
+                    />
+                  </div>
                 }
               />
               </div>
@@ -2708,54 +2820,46 @@ export default function DialerPage() {
                 />
               </CollapsiblePanel>
 
-              {/* Consolidated capture — three tabs, one card. Deep fields one click away. */}
-              <div
-                data-coach-step="decision-maker-capture"
-                className="rounded-lg border border-border bg-card"
+              {/* Consolidated capture — collapsed by default (fast for no-answer flow),
+                  auto-expands when call actually connects. Two tabs: DM · Intelligence
+                  (existing-agency now lives inside Intelligence). */}
+              <div data-coach-step="decision-maker-capture">
+              <CollapsiblePanel
+                title="Capture details"
+                subtitle={captureOpen ? "Decision maker · Intelligence · Agency" : "Open when the call connects"}
+                icon={<UserCheck className="h-4 w-4" />}
+                badge={
+                  (session.currentContact as any).dm_name
+                    ? "DM captured"
+                    : ((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null)
+                      ? "Agency"
+                      : undefined
+                }
+                open={captureOpen}
+                onOpenChange={setCaptureOpen}
               >
                 <Tabs defaultValue="dm" className="w-full">
-                  <div className="border-b border-border px-3 pt-3">
-                    <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
-                      <TabsTrigger
-                        value="dm"
-                        className="gap-1.5 data-[state=active]:bg-muted"
+                  <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
+                    <TabsTrigger value="dm" className="gap-1.5 data-[state=active]:bg-muted">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      Decision Maker
+                      {(session.currentContact as any).dm_name && (
+                        <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">captured</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="intel" className="gap-1.5 data-[state=active]:bg-muted">
+                      <Brain className="h-3.5 w-3.5" />
+                      Intelligence
+                      <Badge
+                        variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
+                        className="ml-1 h-4 px-1.5 text-[9px]"
                       >
-                        <UserCheck className="h-3.5 w-3.5" />
-                        Decision Maker
-                        {(session.currentContact as any).dm_name && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
-                            captured
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="intel"
-                        className="gap-1.5 data-[state=active]:bg-muted"
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        Intelligence
-                        <Badge
-                          variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
-                          className="ml-1 h-4 px-1.5 text-[9px]"
-                        >
-                          {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
-                        </Badge>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="agency"
-                        className="gap-1.5 data-[state=active]:bg-muted"
-                      >
-                        Agency
-                        {((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null) && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
-                            has one
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
+                        {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
+                      </Badge>
+                    </TabsTrigger>
+                  </TabsList>
 
-                  <TabsContent value="dm" className="p-4 pt-3 mt-0">
+                  <TabsContent value="dm" className="pt-3 mt-0">
                     <DecisionMakerCapture
                       contactId={session.currentContact.id}
                       businessName={session.currentContact.business_name || ""}
@@ -2776,7 +2880,7 @@ export default function DialerPage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="intel" className="p-4 pt-3 mt-0">
+                  <TabsContent value="intel" className="pt-3 mt-0 space-y-3">
                     <ContactIntelligencePanel
                       contactId={session.currentContact.id}
                       ghlContactId={
@@ -2785,9 +2889,6 @@ export default function DialerPage() {
                       }
                       contact={session.currentContact as unknown as Record<string, unknown>}
                     />
-                  </TabsContent>
-
-                  <TabsContent value="agency" className="p-4 pt-3 mt-0">
                     <ExistingAgencyCapture
                       contactId={session.currentContact.id}
                       ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
@@ -2798,6 +2899,7 @@ export default function DialerPage() {
                     />
                   </TabsContent>
                 </Tabs>
+              </CollapsiblePanel>
               </div>
 
             </div>
@@ -3171,116 +3273,6 @@ export default function DialerPage() {
                 </Button>
               </div>
 
-              {/* Dialpad Sync — auto-opens only when there's an issue */}
-              <CollapsiblePanel
-                title="Dialpad Sync"
-                subtitle={dialpad.hasTrackingRecoveryFailed ? "Tracking issue — needs attention" : "Live call tracking & transcript"}
-                badge={dialpad.hasTrackingRecoveryFailed ? "Issue" : undefined}
-                badgeVariant={dialpad.hasTrackingRecoveryFailed ? "destructive" : "secondary"}
-                icon={<Headphones className="h-4 w-4" />}
-                defaultOpen={dialpad.hasTrackingRecoveryFailed}
-              >
-                <Suspense fallback={<PanelSkeleton height="h-36" />}>
-                  <DialpadSyncPanel
-                    contactId={session.currentContact.id}
-                    activeDialpadCallId={dialpad.syncTrackedDialpadCallId}
-                    activeDialpadCallState={dialpad.activeDialpadCallState}
-                    onCancelCall={dialpad.cancelActiveCall}
-                    onRetryLink={dialpad.retryDialpadCallLink}
-                    isCancelling={dialpad.cancelDialpadCall.isPending}
-                    isStatusPending={dialpad.isDialpadCallStatusPending}
-                    isEndingCall={dialpad.isEndingCall}
-                    isResolving={dialpad.isCallResolving}
-                    isRetryingUntrackedLiveCall={dialpad.isRetryingUntrackedLiveCall}
-                    hasTrackingRecoveryFailed={dialpad.hasTrackingRecoveryFailed}
-                    callStartedAt={dialpad.callStartedAt}
-                    lastLinkAttemptAt={dialpad.lastLinkAttemptAt}
-                    nextAutoRetryAt={dialpad.nextAutoRetryAt}
-                    enabled
-                  />
-                </Suspense>
-              </CollapsiblePanel>
-
-              {/* Queue intel panels */}
-              <CollapsiblePanel
-                title="Queue intel"
-                subtitle={`${remainingQueueContacts.length} ahead · ${session.nextContact?.business_name ?? "no next lead"}`}
-                badge={`${remainingQueueContacts.length}`}
-              >
-                <div className="rounded-lg p-0">
-                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue mix ahead</p>
-                        <p className="text-sm text-foreground">What is still coming in your live buffer.</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-xs">{remainingQueueContacts.length} remaining</Badge>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="secondary" className="text-xs">{queueMix.routedLines} routed lines</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.mobiles} mobiles</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withDm} with DM captured</Badge>
-                      <Badge variant="secondary" className="text-xs">{queueMix.withGatekeeperNotes} with gatekeeper notes</Badge>
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Up next</p>
-                        <p className="text-sm text-foreground">Next claimed lead in your buffer.</p>
-                      </div>
-                    </div>
-                    {session.nextContact ? (
-                      <>
-                        <div className="mt-2 flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{session.nextContact.business_name}</p>
-                            <p className="text-xs font-mono text-muted-foreground">{session.nextContact.phone}</p>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] uppercase tracking-widest font-mono">
-                            {session.nextContact.phone_type ? String(session.nextContact.phone_type).replace(/_/g, " ") : "phone"}
-                          </Badge>
-                        </div>
-                        {nextLeadFacts.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {nextLeadFacts.map((fact) => (
-                              <Badge key={fact} variant="secondary" className="text-xs">{fact}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="mt-2 text-sm text-muted-foreground">No next lead loaded yet.</p>
-                    )}
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Enrichment queue</p>
-                        <p className="text-sm text-foreground">Capture what is missing before requeue.</p>
-                      </div>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {enrichmentQueueStats.enrichedShare}% ready direct
-                      </Badge>
-                    </div>
-                    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>Direct DM phone captured</span>
-                        <span>{enrichmentQueueStats.readyForDirectOutreach}/{Math.max(enrichmentQueueStats.total, 1)}</span>
-                      </div>
-                      <Progress value={enrichmentQueueStats.enrichedShare} className="h-2" />
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.needsDmPhone} need DM phone</Badge>
-                        <Badge variant="secondary" className="text-xs">{enrichmentQueueStats.routedWithoutNotes} missing notes</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                </div>
-              </CollapsiblePanel>
             </div>
           </div>
           </>
