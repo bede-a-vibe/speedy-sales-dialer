@@ -15,6 +15,8 @@ import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipelineItems";
 import { useUpdateContact } from "@/hooks/useContacts";
+import { useDialpadCall } from "@/hooks/useDialpad";
+import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
