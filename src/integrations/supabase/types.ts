@@ -227,6 +227,42 @@ export type Database = {
           },
         ]
       }
+      caller_id_pool: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          phone_number: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          phone_number: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          phone_number?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       contact_notes: {
         Row: {
           contact_id: string
@@ -639,6 +675,7 @@ export type Database = {
           dialpad_user_id: string
           id: string
           is_active: boolean
+          rotation_dial_count: number
           updated_at: string
           user_id: string
         }
@@ -648,6 +685,7 @@ export type Database = {
           dialpad_user_id: string
           id?: string
           is_active?: boolean
+          rotation_dial_count?: number
           updated_at?: string
           user_id: string
         }
@@ -657,6 +695,7 @@ export type Database = {
           dialpad_user_id?: string
           id?: string
           is_active?: boolean
+          rotation_dial_count?: number
           updated_at?: string
           user_id?: string
         }
@@ -1211,6 +1250,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_rotation_dial_count: {
+        Args: { _user_id: string }
+        Returns: number
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
