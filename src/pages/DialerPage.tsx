@@ -2612,19 +2612,6 @@ export default function DialerPage() {
                 </Tabs>
               </div>
 
-              {/* Embedded Dialpad CTI — no need to open Dialpad separately */}
-              <DialpadCTI
-                clientId={dialpadCTIClientId}
-                visible={showDialpadCTI}
-                onToggleVisible={() => setShowDialpadCTI((v) => !v)}
-                phoneNumber={session.currentContact?.phone ?? null}
-                autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
-                outboundCallerId={effectiveCallerId || null}
-                customData={session.currentContact ? JSON.stringify({
-                  contact_id: session.currentContact.id,
-                  business_name: session.currentContact.business_name,
-                }) : null}
-              />
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
