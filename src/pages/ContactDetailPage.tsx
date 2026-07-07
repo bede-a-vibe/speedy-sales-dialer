@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  ArrowLeft, Phone, Mail, Globe, MapPin, ExternalLink, Shield, ShieldOff,
+  ArrowLeft, Phone, Mail, Globe, MapPin, ExternalLink, Shield, ShieldOff, Pencil,
   Calendar, Send, Loader2, Building2, StickyNote, PhoneCall,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -17,6 +17,10 @@ import { useContactPipelineItems, useCreatePipelineItem } from "@/hooks/usePipel
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import { ghlUpdateContact } from "@/lib/ghl";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+} from "@/components/ui/dialog";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
