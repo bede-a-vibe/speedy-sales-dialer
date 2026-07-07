@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
+import type { DealStage } from "@/data/constants";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
@@ -37,6 +38,7 @@ export interface PipelineItemUpdate {
   ghl_opportunity_id?: string | null;
   ghl_pipeline_id?: string | null;
   ghl_stage_id?: string | null;
+  deal_stage?: DealStage | null;
 }
 
 export interface PipelineItemWithRelations {
@@ -54,6 +56,8 @@ export interface PipelineItemWithRelations {
   outcome_recorded_at: string | null;
   outcome_notes: string;
   deal_value: number | null;
+  monthly_recurring_value: number | null;
+  deal_stage: DealStage | null;
   follow_up_method: FollowUpMethod;
   ghl_opportunity_id: string | null;
   ghl_pipeline_id: string | null;
@@ -71,6 +75,7 @@ export interface PipelineItemWithRelations {
     website: string | null;
     gmb_link: string | null;
     ghl_contact_id: string | null;
+    lead_type: string | null;
   } | null;
 }
 
