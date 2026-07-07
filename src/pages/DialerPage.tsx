@@ -3191,52 +3191,59 @@ export default function DialerPage() {
       {isCoach && (
         <ScenarioMode open={scenarioOpen} onOpenChange={setScenarioOpen} />
       )}
-      {/* Docked Softphone — fixed bottom-right (clear of the left sidebar).
-          Outcome buttons sit at the top of the sticky right rail, so the bottom-right
-          corner stays clear. Iframe stays mounted for the entire session; showDialpadCTI
-          only toggles visibility (CSS collapse) so the live call & Dialpad auth are
-          never dropped. Auto-expands on session start, collapses on session end,
-          but manual toggle always wins for the current state. */}
+      {/* Headless Dialpad CTI — mounted for the entire DialerPage lifetime so
+          the WebRTC audio track stays live. The iframe carries audio silently;
+          the native call bar (in the in-call header) is what the rep interacts
+          with. When `dialpadRevealed` is true we switch this container from
+          off-screen to an on-screen dialog-style panel WITHOUT unmounting, so
+          the live call is never dropped.
+
+          CRITICAL: never wrap this in `display: none` — hidden iframes can be
+          suspended by the browser, killing the audio track. We use off-screen
+          positioning + opacity:0 + pointer-events:none instead. */}
       {dialpadCTIClientId && (
         <div
+          aria-hidden={!dialpadRevealed}
           className={cn(
-            "fixed z-40 bottom-4 sm:right-4 sm:left-auto left-2 right-2 sm:w-[380px] sm:max-w-none max-w-[calc(100vw-1rem)]",
-            "flex flex-col items-end gap-2",
+            "fixed z-50 transition-all",
+            dialpadRevealed
+              ? "right-4 bottom-4 w-[380px] shadow-2xl rounded-lg border border-border bg-card overflow-hidden"
+              // Off-screen carrier — iframe still mounted, audio still live.
+              : "left-[-9999px] top-0 w-[380px] h-[560px] opacity-0 pointer-events-none",
           )}
-          data-dialpad-dock
+          data-dialpad-headless
         >
-          <div
-            aria-hidden={!showDialpadCTI}
-            className={cn(
-              "w-full sm:w-[380px] transition-all duration-200 shadow-2xl rounded-lg",
-              showDialpadCTI
-                ? "opacity-100 visible"
-                : "opacity-0 invisible h-0 overflow-hidden pointer-events-none",
-            )}
-          >
-            <DialpadCTI
-              clientId={dialpadCTIClientId}
-              visible={true}
-              onToggleVisible={() => setShowDialpadCTI(false)}
-              phoneNumber={session.currentContact?.phone ?? null}
-              autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
-              outboundCallerId={effectiveCallerId || null}
-              customData={session.currentContact ? JSON.stringify({
-                contact_id: session.currentContact.id,
-                business_name: session.currentContact.business_name,
-              }) : null}
-            />
-          </div>
-          {!showDialpadCTI && (
-            <button
-              type="button"
-              onClick={() => setShowDialpadCTI(true)}
-              className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-xs font-medium shadow-lg hover:opacity-90"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              Dialpad
-            </button>
+          {dialpadRevealed && (
+            <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Headphones className="h-3.5 w-3.5 text-primary" />
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">
+                  Dialpad
+                </span>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setDialpadRevealed(false)}
+              >
+                Hide
+              </button>
+            </div>
           )}
+          <DialpadCTI
+            ref={dialpadCTIRef}
+            clientId={dialpadCTIClientId}
+            headless
+            phoneNumber={session.currentContact?.phone ?? null}
+            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
+            outboundCallerId={effectiveCallerId || null}
+            customData={session.currentContact ? JSON.stringify({
+              contact_id: session.currentContact.id,
+              business_name: session.currentContact.business_name,
+            }) : null}
+            onCallRinging={handleDialpadCTIRinging}
+            onAuthChange={handleDialpadCTIAuthChange}
+          />
         </div>
       )}
     </AppLayout>
