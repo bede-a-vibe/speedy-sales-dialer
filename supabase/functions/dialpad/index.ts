@@ -3305,7 +3305,14 @@ Deno.serve(async (req) => {
   // to Dialpad still fail loudly below, but the transcript-extraction test
   // action and other Dialpad-independent paths can proceed without it.
   const DIALPAD_API_KEY = Deno.env.get("DIALPAD_API_KEY") ?? "";
-  const DIALPAD_KEY_OPTIONAL_ACTIONS = new Set(["test_transcript_extraction"]);
+  // Actions that must still run when DIALPAD_API_KEY is unset. The transcript
+  // drain is safe to schedule at any time — processPendingTranscriptSyncs
+  // performs a no-op with `reason: "DIALPAD_API_KEY not configured"` when the
+  // key is missing, so the cron stays inert until the key is added.
+  const DIALPAD_KEY_OPTIONAL_ACTIONS = new Set([
+    "test_transcript_extraction",
+    "process_pending_transcript_syncs",
+  ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
     try {
