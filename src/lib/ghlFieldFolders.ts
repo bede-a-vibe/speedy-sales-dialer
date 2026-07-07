@@ -111,7 +111,9 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.best_route_to_dm", label: "Best Route to DM", supabaseColumn: "best_route_to_decision_maker" },
       { key: "contact.gatekeeper_notes", label: "Gatekeeper Notes", ui: "textarea", fullWidth: true, supabaseColumn: "gatekeeper_notes" },
       { key: "contact.decision_maker_name", label: "Decision Maker Name", supabaseColumn: "dm_name" },
+      { key: "contact.decision_maker_role", label: "Decision Maker Role", supabaseColumn: "dm_role", placeholder: "Owner, Director, Marketing Manager…" },
       { key: "contact.decision_maker_direct_line", label: "DM Direct Line", supabaseColumn: "dm_phone" },
+      { key: "contact.decision_maker_phone_type", label: "DM Phone Type", supabaseColumn: "dm_phone_type", placeholder: "mobile / landline / unknown" },
       { key: "contact.decision_maker_email", label: "DM Email", supabaseColumn: "dm_email" },
       { key: "contact.decision_maker_linkedin", label: "DM LinkedIn", supabaseColumn: "dm_linkedin" },
     ],
@@ -160,6 +162,17 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.assigned_closer", label: "Assigned Closer" },
       { key: "contact.meeting_source", label: "Meeting Source" },
       { key: "contact.meeting_booked_date", label: "Meeting Booked Date", ui: "date", supabaseColumn: "meeting_booked_date" },
+    ],
+  },
+  {
+    id: "agency",
+    label: "Agency & Competition",
+    shortLabel: "Agency",
+    description: "Do they already pay an agency? Which services?",
+    fields: [
+      { key: "contact.has_existing_agency", label: "Existing Agency", placeholder: "yes / no / unknown" },
+      { key: "contact.existing_agency_name", label: "Existing Agency Name", supabaseColumn: "existing_agency_name", placeholder: "e.g. King Kong, WebFX" },
+      { key: "contact.existing_agency_services", label: "Agency Services", ui: "textarea", fullWidth: true, placeholder: "SEO, Google Ads, Meta Ads (comma-separated)" },
     ],
   },
 ];
