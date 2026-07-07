@@ -390,7 +390,17 @@ export default function DialerPage() {
   const [dqNotes, setDqNotes] = useState<string>("");
   const [dncReason, setDncReason] = useState<DncReason | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
-  const [showDialpadCTI, setShowDialpadCTI] = useState(false);
+  // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
+  // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
+  // this only toggles the reveal wrapper — never unmount, or the live call drops.
+  const [dialpadRevealed, setDialpadRevealed] = useState(false);
+
+  // Native call bar state — driven off Dialpad CTI postMessage events so the rep
+  // sees state instantly, never waiting on server confirmation.
+  const dialpadCTIRef = useRef<DialpadCTIHandle | null>(null);
+  const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
+  const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
+  const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
