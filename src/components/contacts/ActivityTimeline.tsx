@@ -1,6 +1,8 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNowStrict, isSameDay, isToday, isYesterday } from "date-fns";
-import { Phone, StickyNote, Calendar, Handshake, AlertCircle } from "lucide-react";
+import { Phone, StickyNote, Calendar, Handshake, AlertCircle, Sparkles, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,127 @@ import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
 
+const NEPQ_STAGES = [
+  { key: "connection", label: "Connection" },
+  { key: "situation", label: "Situation" },
+  { key: "problem_awareness", label: "Problem" },
+  { key: "solution_awareness", label: "Solution" },
+  { key: "consequence", label: "Consequence" },
+  { key: "transition", label: "Transition" },
+  { key: "presentation", label: "Presentation" },
+  { key: "commitment", label: "Commitment" },
+] as const;
+
+type NepqStageKey = typeof NEPQ_STAGES[number]["key"];
+
+type Scorecard = {
+  nepq_scores: Partial<Record<NepqStageKey, number>>;
+  overall_score: number;
+  broke_down_at: NepqStageKey | "none";
+  what_went_well: string[];
+  coaching_tips: Array<{ stage: NepqStageKey; tip: string }>;
+  booking_blocker: string;
+};
+
+function useContactCallScores(contactId?: string) {
+  return useQuery({
+    queryKey: ["contact-call-scores", contactId],
+    enabled: !!contactId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("call_scores")
+        .select("id, call_log_id, dialpad_call_id, overall_score, broke_down_at, booking_blocker, scorecard, created_at")
+        .eq("contact_id", contactId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+function scoreTone(score: number) {
+  if (score >= 75) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 50) return "text-amber-600 dark:text-amber-400";
+  return "text-destructive";
+}
+
+function CallCoachingCard({ score }: { score: any }) {
+  const card = score.scorecard as Scorecard;
+  if (!card || !card.nepq_scores) return null;
+  const isBooked = card.broke_down_at === "none" || card.booking_blocker?.toLowerCase() === "booked";
+
+  return (
+    <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[10px] uppercase tracking-widest text-primary font-medium">Call Coaching · NEPQ</span>
+        <span className={`ml-auto font-mono text-lg font-semibold ${scoreTone(score.overall_score ?? 0)}`}>
+          {score.overall_score ?? 0}
+          <span className="text-[10px] text-muted-foreground ml-0.5">/100</span>
+        </span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1.5 mb-2">
+        {NEPQ_STAGES.map((stage) => {
+          const val = Math.max(0, Math.min(5, Number(card.nepq_scores[stage.key] ?? 0)));
+          const broke = card.broke_down_at === stage.key;
+          return (
+            <div key={stage.key} className={`rounded border p-1.5 ${broke ? "border-destructive/60 bg-destructive/10" : "border-border bg-background"}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] uppercase tracking-wide text-muted-foreground truncate">{stage.label}</span>
+                <span className="text-[10px] font-mono font-medium">{val}</span>
+              </div>
+              <div className="mt-1 flex gap-[2px]">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-1 flex-1 rounded-sm ${i <= val ? (broke ? "bg-destructive" : "bg-primary") : "bg-muted"}`}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {card.booking_blocker && (
+        <div className={`flex items-start gap-1.5 rounded px-2 py-1.5 text-xs ${isBooked ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-destructive/10 text-destructive"}`}>
+          {isBooked ? <Handshake className="h-3.5 w-3.5 shrink-0 mt-0.5" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+          <span>
+            <span className="font-medium">{isBooked ? "Booked" : "Blocker"}:</span> {card.booking_blocker}
+          </span>
+        </div>
+      )}
+
+      {card.what_went_well?.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">What went well</p>
+          <ul className="space-y-0.5 text-xs text-foreground">
+            {card.what_went_well.map((w, i) => (
+              <li key={i}>✓ {w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {card.coaching_tips?.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Coaching tips</p>
+          <ul className="space-y-1 text-xs text-foreground">
+            {card.coaching_tips.map((t, i) => (
+              <li key={i} className="flex gap-1.5">
+                <Badge variant="outline" className="text-[9px] shrink-0 h-4 px-1">{t.stage.replace(/_/g, " ")}</Badge>
+                <span className="flex-1">{t.tip}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type TimelineEntry = {
   id: string;
   kind: "call" | "note" | "pipeline";
@@ -20,6 +143,7 @@ type TimelineEntry = {
   detail?: string | null;
   meta?: string | null;
   tone?: "default" | "success" | "warning" | "muted";
+  callLogId?: string | null;
 };
 
 function iconFor(kind: TimelineEntry["kind"], entry: TimelineEntry) {
@@ -40,6 +164,15 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
   const notesQuery = usePaginatedContactNotes(contactId, 25);
   const pipelineQuery = useContactPipelineItems(contactId);
   const { data: reps = [] } = useSalesReps();
+  const scoresQuery = useContactCallScores(contactId);
+
+  const scoresByCallLog = useMemo(() => {
+    const map = new Map<string, any>();
+    (scoresQuery.data ?? []).forEach((s: any) => {
+      if (s.call_log_id && !map.has(s.call_log_id)) map.set(s.call_log_id, s);
+    });
+    return map;
+  }, [scoresQuery.data]);
 
   const repName = useMemo(() => {
     const map = new Map<string, string>();
@@ -74,6 +207,7 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
         detail: call.notes || call.dialpad_summary || null,
         meta: parts.join(" · ") || null,
         tone: call.outcome === "booked" ? "success" : call.outcome === "dnc" ? "warning" : "default",
+        callLogId: call.id,
       });
     });
 
@@ -192,6 +326,9 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
                           <p className="mt-1 text-xs text-foreground whitespace-pre-wrap line-clamp-4">
                             {entry.detail}
                           </p>
+                        )}
+                        {entry.kind === "call" && entry.callLogId && scoresByCallLog.has(entry.callLogId) && (
+                          <CallCoachingCard score={scoresByCallLog.get(entry.callLogId)} />
                         )}
                       </div>
                     </li>

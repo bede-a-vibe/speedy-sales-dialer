@@ -1511,7 +1511,8 @@ Rep: Cheers Mike, talk Tuesday.`;
 
 const TRANSCRIPT_EXTRACTION_SYSTEM_PROMPT = `You are a senior sales operations analyst reviewing a recorded outbound sales call for a digital-marketing agency selling to Australian blue-collar trades businesses (HVAC, plumbing, electrical, roofing, etc.).
 You are trained in "Fanatical Prospecting" (Jeb Blount) and "Cold Calling Sucks (And That's Why It Works)" (Farrokh & Cegelski).
-Your job is to extract structured intelligence from the transcript so the CRM can update the prospect record automatically.
+You are ALSO trained in the NEPQ sales framework (Jeremy Miner / 7th Level).
+Your job is (a) to extract structured intelligence from the transcript so the CRM can update the prospect record automatically, AND (b) to grade the rep against the NEPQ framework so they can coach themselves.
 
 Return ONLY a single valid JSON object matching this exact schema — do not wrap it in prose, markdown, or code fences:
 {
@@ -1528,8 +1529,44 @@ Return ONLY a single valid JSON object matching this exact schema — do not wra
   "agreed_next_steps": string | null,  // exact next step both parties agreed to (with time/date if given)
   "key_quote": string | null,          // one short verbatim quote from the prospect that captures intent or hesitation
   "recommended_lifecycle_stage": "new" | "attempting" | "connected" | "qualified" | "booked" | "won" | "lost",
-  "booked": boolean                     // true only if a specific meeting/appointment was agreed
+  "booked": boolean,                    // true only if a specific meeting/appointment was agreed
+  "nepq_scorecard": {
+    "nepq_scores": {
+      "connection": integer,            // 0-5
+      "situation": integer,             // 0-5
+      "problem_awareness": integer,     // 0-5
+      "solution_awareness": integer,    // 0-5
+      "consequence": integer,           // 0-5
+      "transition": integer,            // 0-5
+      "presentation": integer,          // 0-5
+      "commitment": integer             // 0-5
+    },
+    "overall_score": integer,           // 0-100 — holistic rating of the call against the NEPQ framework
+    "broke_down_at": "connection" | "situation" | "problem_awareness" | "solution_awareness" | "consequence" | "transition" | "presentation" | "commitment" | "none",
+    "what_went_well": [string],         // 1-4 short bullets, ≤ 140 chars each
+    "coaching_tips": [                  // 1-6 concrete, stage-specific tips
+      { "stage": "connection" | "situation" | "problem_awareness" | "solution_awareness" | "consequence" | "transition" | "presentation" | "commitment", "tip": string }
+    ],
+    "booking_blocker": string           // ONE short sentence: the single biggest reason it didn't book, or the literal string "booked" if a meeting was agreed
+  }
 }
+
+NEPQ rubric — score each stage 0 (absent/harmful) to 5 (textbook):
+- connection: lower the prospect's guard, take pressure off, calm trusted-advisor tone (no hype, no rushing).
+- situation: understand their current reality with a couple of neutral questions — do NOT interrogate.
+- problem_awareness: surface emotional friction and what the problem is costing them (ask, don't diagnose).
+- solution_awareness: get them to picture life after the problem — in THEIR words.
+- consequence: elevate the cost of inaction / urgency without applying pressure.
+- transition: bridge to the pitch only when the prospect's interest invites it.
+- presentation: present ONLY against the problems they named, two-way (not a monologue), and hold price until value is built.
+- commitment: ask a clean committing question; handle objections in order (logistical → fear → smokescreen).
+
+Scoring guidance:
+- Only score stages the rep actually reached. Stages that never occurred score 0.
+- overall_score should reflect the WHOLE call, not just the average — a call that reaches commitment cleanly should sit 70-95; a call that stalls in problem awareness should sit 20-50.
+- broke_down_at = the earliest NEPQ stage where the rep clearly lost the frame or the prospect. Use "none" ONLY if the call went well end-to-end (booked or clear next step).
+- booking_blocker: if a meeting was booked, return the literal string "booked". Otherwise ONE short factual sentence naming the single biggest blocker (e.g. "Rep pitched price before building enough value on lead volume.").
+- coaching_tips must be concrete and rep-facing — no jargon dumps, no generic advice.
 
 Rules:
 - Never invent facts. If a field cannot be determined, use null (or [] for objections).
@@ -1564,7 +1601,72 @@ type TranscriptInsights = {
   key_quote: string | null;
   recommended_lifecycle_stage: "new" | "attempting" | "connected" | "qualified" | "booked" | "won" | "lost" | null;
   booked: boolean;
+  nepq_scorecard: NepqScorecard | null;
 };
+
+const NEPQ_STAGES = [
+  "connection",
+  "situation",
+  "problem_awareness",
+  "solution_awareness",
+  "consequence",
+  "transition",
+  "presentation",
+  "commitment",
+] as const;
+type NepqStage = typeof NEPQ_STAGES[number];
+
+export type NepqScorecard = {
+  nepq_scores: Record<NepqStage, number>;
+  overall_score: number;
+  broke_down_at: NepqStage | "none";
+  what_went_well: string[];
+  coaching_tips: Array<{ stage: NepqStage; tip: string }>;
+  booking_blocker: string;
+};
+
+function clampInt(value: unknown, min: number, max: number, fallback = 0): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function validateNepqScorecard(raw: unknown): NepqScorecard | null {
+  if (!isRecord(raw)) return null;
+  const rawScores = isRecord(raw.nepq_scores) ? raw.nepq_scores : {};
+  const nepq_scores = {} as Record<NepqStage, number>;
+  for (const stage of NEPQ_STAGES) nepq_scores[stage] = clampInt(rawScores[stage], 0, 5, 0);
+
+  const overall_score = clampInt(raw.overall_score, 0, 100, 0);
+  const brokeRaw = coerceInsightString(raw.broke_down_at, 40) ?? "none";
+  const brokeMatch = ([...NEPQ_STAGES, "none"] as const).find((s) => s.toLowerCase() === brokeRaw.toLowerCase());
+  const broke_down_at = (brokeMatch ?? "none") as NepqScorecard["broke_down_at"];
+
+  const what_went_well: string[] = [];
+  if (Array.isArray(raw.what_went_well)) {
+    for (const item of raw.what_went_well) {
+      const s = coerceInsightString(item, 200);
+      if (s) what_went_well.push(s);
+      if (what_went_well.length >= 6) break;
+    }
+  }
+
+  const coaching_tips: Array<{ stage: NepqStage; tip: string }> = [];
+  if (Array.isArray(raw.coaching_tips)) {
+    for (const item of raw.coaching_tips) {
+      if (!isRecord(item)) continue;
+      const tip = coerceInsightString(item.tip, 400);
+      const stageStr = coerceInsightString(item.stage, 40)?.toLowerCase();
+      const stage = NEPQ_STAGES.find((s) => s === stageStr);
+      if (tip && stage) coaching_tips.push({ stage, tip });
+      if (coaching_tips.length >= 8) break;
+    }
+  }
+
+  const booking_blocker = coerceInsightString(raw.booking_blocker, 400) ?? "";
+
+  return { nepq_scores, overall_score, broke_down_at, what_went_well, coaching_tips, booking_blocker };
+}
 
 function validateTranscriptInsights(raw: unknown): TranscriptInsights | null {
   if (!isRecord(raw)) return null;
@@ -1599,6 +1701,7 @@ function validateTranscriptInsights(raw: unknown): TranscriptInsights | null {
       ["new", "attempting", "connected", "qualified", "booked", "won", "lost"] as const,
     ),
     booked: raw.booked === true,
+    nepq_scorecard: validateNepqScorecard(raw.nepq_scorecard),
   };
 
   // Consistency: booked=true forces lifecycle >= booked.
@@ -1716,6 +1819,7 @@ async function applyTranscriptInsightsToContact(params: {
   transcript: string;
   insights: TranscriptInsights;
   dialpadCallsRowId?: string | null;
+  callLogId?: string | null;
   source?: string;
 }) {
   const writes = {
@@ -1723,6 +1827,9 @@ async function applyTranscriptInsightsToContact(params: {
     fields_written: [] as string[],
     lifecycle_advanced_to: null as string | null,
     transcript_stored: false,
+    scorecard_stored: false,
+    scorecard_id: null as string | null,
+    overall_score: null as number | null,
   };
 
   // 1. Append call-summary note (source = call_transcript).
@@ -1815,6 +1922,43 @@ async function applyTranscriptInsightsToContact(params: {
     console.error("[transcript-apply] Transcript store threw:", err);
   }
 
+  // 5. Persist the NEPQ scorecard, if the AI returned one.
+  if (params.insights.nepq_scorecard) {
+    let resolvedCallLogId: string | null = params.callLogId ?? null;
+    if (!resolvedCallLogId && params.dialpadCallId && !params.dialpadCallId.startsWith("test_")) {
+      const { data: matched } = await params.adminClient
+        .from("call_logs")
+        .select("id")
+        .eq("dialpad_call_id", params.dialpadCallId)
+        .maybeSingle();
+      resolvedCallLogId = matched?.id ?? null;
+    }
+    try {
+      const { data: inserted, error: scoreErr } = await params.adminClient
+        .from("call_scores")
+        .insert({
+          call_log_id: resolvedCallLogId,
+          contact_id: params.contactId,
+          dialpad_call_id: params.dialpadCallId,
+          scorecard: params.insights.nepq_scorecard,
+          overall_score: params.insights.nepq_scorecard.overall_score,
+          broke_down_at: params.insights.nepq_scorecard.broke_down_at,
+          booking_blocker: params.insights.nepq_scorecard.booking_blocker,
+        })
+        .select("id")
+        .maybeSingle();
+      if (scoreErr) {
+        console.error("[transcript-apply] Failed to store call scorecard:", scoreErr.message);
+      } else {
+        writes.scorecard_stored = true;
+        writes.scorecard_id = inserted?.id ?? null;
+        writes.overall_score = params.insights.nepq_scorecard.overall_score;
+      }
+    } catch (err) {
+      console.error("[transcript-apply] Scorecard insert threw:", err);
+    }
+  }
+
   return writes;
 }
 
@@ -1830,6 +1974,7 @@ async function runTranscriptExtractionPipeline(params: {
   businessName?: string | null;
   phoneNumber?: string | null;
   dialpadCallsRowId?: string | null;
+  callLogId?: string | null;
   source?: string;
 }) {
   if (!params.transcript || params.transcript.trim().length < 40) {
@@ -1859,6 +2004,7 @@ async function runTranscriptExtractionPipeline(params: {
       transcript: params.transcript,
       insights,
       dialpadCallsRowId: params.dialpadCallsRowId,
+      callLogId: params.callLogId ?? null,
       source: params.source,
     });
 
@@ -2975,6 +3121,7 @@ async function syncWebhookPayload(params: {
         businessName: contactRow?.business_name ?? null,
         phoneNumber: payload.external_number ?? contactRow?.phone ?? null,
         dialpadCallsRowId: trackedCall.id,
+        callLogId: resolvedCallLogId ?? null,
         source: "Dialpad transcript",
       });
       console.log(`[syncWebhookPayload] Transcript extraction pipeline: ${JSON.stringify(pipelineResult).slice(0, 400)}`);
@@ -4124,6 +4271,20 @@ Deno.serve(async (req) => {
           : SAMPLE_HVAC_TRANSCRIPT;
         const syntheticDialpadCallId = `test_${contactId}_${Date.now()}`;
 
+        // If caller didn't pin a call_log_id, attach the scorecard to this
+        // contact's most recent call_log so it renders in the activity timeline.
+        let callLogIdForTest: string | null = typeof params.call_log_id === "string" ? params.call_log_id : null;
+        if (!callLogIdForTest) {
+          const { data: recentCall } = await adminClient
+            .from("call_logs")
+            .select("id")
+            .eq("contact_id", contactId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          callLogIdForTest = recentCall?.id ?? null;
+        }
+
         const pipelineResult = await runTranscriptExtractionPipeline({
           adminClient,
           contactId,
@@ -4132,6 +4293,7 @@ Deno.serve(async (req) => {
           transcript,
           businessName: contactRow.business_name,
           phoneNumber: contactRow.phone,
+          callLogId: callLogIdForTest,
           source: "Sample transcript (staging test)",
         });
 
