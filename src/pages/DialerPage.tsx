@@ -2236,12 +2236,23 @@ export default function DialerPage() {
         )}
 
         {session.isSessionActive && (
-          <PowerHourTimer
-            sessionCallCount={session.callCount}
-            isSessionActive={session.isSessionActive}
-            autoStart
-            compact
-          />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <PowerHourTimer
+                sessionCallCount={session.callCount}
+                isSessionActive={session.isSessionActive}
+                autoStart
+                compact
+              />
+            </div>
+            <DialerShortcutsPopover />
+          </div>
+        )}
+
+        {!session.isSessionActive && (
+          <div className="flex justify-end">
+            <DialerShortcutsPopover />
+          </div>
         )}
 
         {/* ── Active Session ── */}
