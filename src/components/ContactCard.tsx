@@ -186,6 +186,11 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         </div>
         <div className="flex items-center gap-2">
           {headerActions}
+          {contact.lifecycle_stage && (
+            <span className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${LIFECYCLE_STAGE_COLORS[contact.lifecycle_stage as LifecycleStage] || "bg-accent text-accent-foreground border-border"}`}>
+              {LIFECYCLE_STAGE_LABELS[contact.lifecycle_stage as LifecycleStage] || contact.lifecycle_stage}
+            </span>
+          )}
           <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
             {contact.industry}
           </span>
