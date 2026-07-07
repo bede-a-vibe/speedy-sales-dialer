@@ -2671,17 +2671,6 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
-              {dialpadCTIClientId && !isCoach && (
-                <NativeCallBar
-                  businessName={session.currentContact.business_name ?? null}
-                  phoneNumber={session.currentContact.phone ?? null}
-                  state={nativeCallState}
-                  connectedAt={nativeConnectedAt}
-                  dialpadAuthenticated={dialpadCTIAuthed}
-                  onHangUp={handleNativeHangUp}
-                  onRevealDialpad={() => setDialpadRevealed(true)}
-                />
-              )}
               <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
@@ -2697,13 +2686,46 @@ export default function DialerPage() {
                   }).catch(() => {});
                 }}
                 headerActions={
-                  <QuickBookRecoveryButton
-                    contactId={session.currentContact.id}
-                    contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
-                    onRecovered={() => {
-                      void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    {dialpadCTIClientId && !isCoach && (
+                      <>
+                        <CallStatusPill
+                          state={nativeCallState}
+                          connectedAt={nativeConnectedAt}
+                          dialpadAuthenticated={dialpadCTIAuthed}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setDialpadRevealed(true)}
+                          title="Open the full Dialpad panel (keypad, transfer, etc.)"
+                        >
+                          <ExternalLink className="mr-1 h-3 w-3" />
+                          Dialpad
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={handleNativeHangUp}
+                          disabled={nativeCallState === "idle" || nativeCallState === "ended"}
+                        >
+                          <PhoneOff className="mr-1 h-3 w-3" />
+                          Hang Up
+                        </Button>
+                      </>
+                    )}
+                    <QuickBookRecoveryButton
+                      contactId={session.currentContact.id}
+                      contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
+                      onRecovered={() => {
+                        void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
+                      }}
+                    />
+                  </div>
                 }
               />
               </div>
@@ -2730,54 +2752,46 @@ export default function DialerPage() {
                 />
               </CollapsiblePanel>
 
-              {/* Consolidated capture — three tabs, one card. Deep fields one click away. */}
-              <div
-                data-coach-step="decision-maker-capture"
-                className="rounded-lg border border-border bg-card"
+              {/* Consolidated capture — collapsed by default (fast for no-answer flow),
+                  auto-expands when call actually connects. Two tabs: DM · Intelligence
+                  (existing-agency now lives inside Intelligence). */}
+              <div data-coach-step="decision-maker-capture">
+              <CollapsiblePanel
+                title="Capture details"
+                subtitle={captureOpen ? "Decision maker · Intelligence · Agency" : "Open when the call connects"}
+                icon={<UserCheck className="h-4 w-4" />}
+                badge={
+                  (session.currentContact as any).dm_name
+                    ? "DM captured"
+                    : ((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null)
+                      ? "Agency"
+                      : undefined
+                }
+                open={captureOpen}
+                onOpenChange={setCaptureOpen}
               >
                 <Tabs defaultValue="dm" className="w-full">
-                  <div className="border-b border-border px-3 pt-3">
-                    <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
-                      <TabsTrigger
-                        value="dm"
-                        className="gap-1.5 data-[state=active]:bg-muted"
+                  <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
+                    <TabsTrigger value="dm" className="gap-1.5 data-[state=active]:bg-muted">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      Decision Maker
+                      {(session.currentContact as any).dm_name && (
+                        <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">captured</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="intel" className="gap-1.5 data-[state=active]:bg-muted">
+                      <Brain className="h-3.5 w-3.5" />
+                      Intelligence
+                      <Badge
+                        variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
+                        className="ml-1 h-4 px-1.5 text-[9px]"
                       >
-                        <UserCheck className="h-3.5 w-3.5" />
-                        Decision Maker
-                        {(session.currentContact as any).dm_name && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
-                            captured
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="intel"
-                        className="gap-1.5 data-[state=active]:bg-muted"
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        Intelligence
-                        <Badge
-                          variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
-                          className="ml-1 h-4 px-1.5 text-[9px]"
-                        >
-                          {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
-                        </Badge>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="agency"
-                        className="gap-1.5 data-[state=active]:bg-muted"
-                      >
-                        Agency
-                        {((session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null) && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">
-                            has one
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
+                        {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
+                      </Badge>
+                    </TabsTrigger>
+                  </TabsList>
 
-                  <TabsContent value="dm" className="p-4 pt-3 mt-0">
+                  <TabsContent value="dm" className="pt-3 mt-0">
                     <DecisionMakerCapture
                       contactId={session.currentContact.id}
                       businessName={session.currentContact.business_name || ""}
@@ -2798,7 +2812,7 @@ export default function DialerPage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="intel" className="p-4 pt-3 mt-0">
+                  <TabsContent value="intel" className="pt-3 mt-0 space-y-3">
                     <ContactIntelligencePanel
                       contactId={session.currentContact.id}
                       ghlContactId={
@@ -2807,9 +2821,6 @@ export default function DialerPage() {
                       }
                       contact={session.currentContact as unknown as Record<string, unknown>}
                     />
-                  </TabsContent>
-
-                  <TabsContent value="agency" className="p-4 pt-3 mt-0">
                     <ExistingAgencyCapture
                       contactId={session.currentContact.id}
                       ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
@@ -2820,6 +2831,7 @@ export default function DialerPage() {
                     />
                   </TabsContent>
                 </Tabs>
+              </CollapsiblePanel>
               </div>
 
             </div>
