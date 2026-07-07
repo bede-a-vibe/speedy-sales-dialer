@@ -359,6 +359,7 @@ export default function DialerPage() {
   const isCoach = useIsCoach();
   const [coachTourOpen, setCoachTourOpen] = useState(false);
   const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
 
   // Auto-launch the tour the first time a coach lands on the dialer.
   useEffect(() => {
