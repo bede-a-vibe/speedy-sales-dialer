@@ -275,14 +275,27 @@ export function FollowUpTable({
   onAssign,
   onReschedule,
   onChangeMethod,
+  onDialpadCall,
+  isCalling,
+  hideFilters,
+  defaultStatusFilter,
 }: FollowUpTableProps) {
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [repFilter, setRepFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("today");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(defaultStatusFilter ?? "today");
   const [methodFilter, setMethodFilter] = useState<FollowUpMethod | "all">("all");
   const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
   const navigate = useNavigate();
+
+  const handleCallClick = (item: PipelineItemWithRelations) => {
+    const phone = item.contacts?.phone;
+    if (onDialpadCall && phone) {
+      onDialpadCall(item.contact_id, phone);
+    } else {
+      navigate(`/contacts/${item.contact_id}`);
+    }
+  };
 
   const enriched = useMemo(
     () =>
