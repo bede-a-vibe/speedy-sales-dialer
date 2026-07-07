@@ -1235,16 +1235,45 @@ export default function DialerPage() {
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
 
-  // Auto-expand the docked softphone when a session starts, collapse when it ends.
-  // Only fires on the transition — rep can manually toggle mid-session without being fought.
-  const prevSessionActiveRef = useRef(session.isSessionActive);
+  // Reset the native call bar whenever the current contact changes or the
+  // session goes inactive. The bar goes back to "dialing" as soon as we
+  // auto-initiate the next call.
   useEffect(() => {
-    const prev = prevSessionActiveRef.current;
-    if (prev !== session.isSessionActive) {
-      setShowDialpadCTI(session.isSessionActive);
-      prevSessionActiveRef.current = session.isSessionActive;
+    if (!session.isSessionActive || !session.currentContact || session.isSessionPaused || isCoach) {
+      setNativeCallState("idle");
+      setNativeConnectedAt(null);
+      return;
     }
-  }, [session.isSessionActive]);
+    setNativeCallState("dialing");
+    setNativeConnectedAt(null);
+  }, [session.currentContact?.id, session.isSessionActive, session.isSessionPaused, isCoach]);
+
+  // Handle CTI ringing events: `on` means the phone is ringing, `off` means it
+  // stopped ringing (either answered or hung up). We treat `off` as connected
+  // if we were dialing/ringing so the rep sees an instant "Connected" state.
+  const handleDialpadCTIRinging = useCallback((payload: CallRingingPayload) => {
+    if (payload?.state === "on") {
+      setNativeCallState((prev) => (prev === "connected" || prev === "ended" ? prev : "ringing"));
+    } else if (payload?.state === "off") {
+      setNativeCallState((prev) => {
+        if (prev === "ringing" || prev === "dialing") {
+          setNativeConnectedAt(Date.now());
+          return "connected";
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  const handleDialpadCTIAuthChange = useCallback((authed: boolean) => {
+    setDialpadCTIAuthed(authed);
+  }, []);
+
+  const handleNativeHangUp = useCallback(() => {
+    dialpadCTIRef.current?.hangUpAll();
+    setNativeCallState("ended");
+    setNativeConnectedAt(null);
+  }, []);
 
   // Auto-link current contact to GHL when presented in the dialer
   // This ensures ghl_contact_id is available before any GHL sync happens
