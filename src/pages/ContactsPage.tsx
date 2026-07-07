@@ -1198,7 +1198,7 @@ export default function ContactsPage() {
             <SelectContent>
               <SelectItem value="all">All Owners</SelectItem>
               <SelectItem value="unassigned">Unassigned</SelectItem>
-              {salesReps.map((rep) => (
+              {reps.map((rep) => (
                 <SelectItem key={rep.user_id} value={rep.user_id}>
                   {rep.display_name || rep.email || "Unknown rep"}
                 </SelectItem>
