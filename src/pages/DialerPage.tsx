@@ -2338,6 +2338,7 @@ export default function DialerPage() {
                   existingDmName={(session.currentContact as any).dm_name}
                   existingDmTitle={(session.currentContact as any).dm_title}
                   existingDmPhone={(session.currentContact as any).dm_phone}
+                  existingDmPhoneType={(session.currentContact as any).dm_phone_type}
                   existingDmEmail={(session.currentContact as any).dm_email}
                   existingDmLinkedin={(session.currentContact as any).dm_linkedin}
                   existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
