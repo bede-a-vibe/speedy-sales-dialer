@@ -2450,6 +2450,40 @@ export default function DialerPage() {
                 Offline mode: do not skip, stop, recover, or log this lead until the connection returns.
               </div>
             )}
+            {complianceWindow && (
+              <div
+                className={cn(
+                  "border-t px-4 py-2 text-[11px] font-mono flex flex-wrap items-center gap-x-3 gap-y-1",
+                  complianceWindow.allowed
+                    ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+                )}
+                aria-live="polite"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="uppercase tracking-widest text-[10px] opacity-70">
+                    Lead local
+                  </span>
+                  <span className="font-bold tabular-nums">{complianceWindow.local.hhmm}</span>
+                  <span className="opacity-70">
+                    {session.currentContact?.state ?? "state?"}
+                    {complianceWindow.stateUnknown ? " · state unknown (assumed AET)" : ""}
+                  </span>
+                </span>
+                <span className="opacity-40">·</span>
+                {complianceWindow.allowed ? (
+                  <span className="inline-flex items-center gap-1 font-semibold">
+                    <CheckCircle2 className="h-3 w-3" />
+                    In window
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-semibold">
+                    <AlertTriangle className="h-3 w-3" />
+                    {describeWindowReason(complianceWindow, session.currentContact?.state ?? null)}
+                  </span>
+                )}
+              </div>
+            )}
             {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
               <div className="border-t border-border/60 px-4 py-1.5 text-[11px] font-mono text-muted-foreground">
                 Dialpad status refresh paused briefly after rate limiting.
