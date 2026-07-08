@@ -24,13 +24,13 @@ export const BILLING_PERIOD_LABELS: Record<BillingPeriod, string> = {
 
 export interface ClientDealLike {
   amount: number | string;
-  billing_period: BillingPeriod;
-  status: ClientDealStatus;
+  billing_period: BillingPeriod | string;
+  status: ClientDealStatus | string;
   start_date: string;
   end_date: string | null;
 }
 
-export function toMonthly(amount: number, billing_period: BillingPeriod): number {
+export function toMonthly(amount: number, billing_period: BillingPeriod | string): number {
   const a = Number(amount) || 0;
   switch (billing_period) {
     case "weekly": return a * (52 / 12);
@@ -39,6 +39,7 @@ export function toMonthly(amount: number, billing_period: BillingPeriod): number
     case "quarterly": return a / 3;
     case "annually": return a / 12;
     case "one_off": return 0;
+    default: return 0;
   }
 }
 
