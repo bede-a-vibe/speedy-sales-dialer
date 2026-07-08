@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
+import { AddServiceButton } from "@/components/clients/AddServiceButton";
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
 import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
@@ -2890,6 +2891,14 @@ export default function DialerPage() {
                       onRecovered={() => {
                         void session.queue.discardContact(session.currentContact!.id, { releaseLock: true });
                       }}
+                    />
+                    <AddServiceButton
+                      contactId={session.currentContact.id}
+                      contactBusinessName={session.currentContact.business_name}
+                      variant="outline"
+                      size="sm"
+                      label="Service"
+                      className="h-7 px-2 text-[11px]"
                     />
                   </div>
                 }
