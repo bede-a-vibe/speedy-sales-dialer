@@ -229,35 +229,47 @@ export type Database = {
       }
       caller_id_pool: {
         Row: {
+          area_code: string | null
+          attested_at: string | null
           created_at: string
           created_by: string | null
           id: string
           is_active: boolean
           label: string | null
+          owned_attested: boolean
           phone_number: string
           position: number
+          region: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          area_code?: string | null
+          attested_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
+          owned_attested?: boolean
           phone_number: string
           position?: number
+          region?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          area_code?: string | null
+          attested_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
+          owned_attested?: boolean
           phone_number?: string
           position?: number
+          region?: string | null
           updated_at?: string
           user_id?: string
         }
