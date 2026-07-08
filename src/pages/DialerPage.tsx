@@ -1775,6 +1775,40 @@ export default function DialerPage() {
     }
   }, [session, dialpad, isOnline, updateContact]);
 
+  // Compliance auto-skip: when the current lead is outside its permitted
+  // calling window, discard it WITHOUT bumping call_attempt_count (this
+  // isn't a real attempt — it's a compliance skip) and pull in the next.
+  const complianceSkip = useCallback(() => {
+    if (session.currentIndex === null || !session.currentContact) return;
+    if (!dialpad.isCallTerminal) {
+      void dialpad.cancelActiveCall();
+    }
+    const nextLength = session.queue.contacts.length - 1;
+    void session.queue.discardContact(session.currentContact.id, { releaseLock: true });
+    session.resetLeadState(session.user?.id || "");
+    dialpad.resetDialpadState();
+    void session.queue.ensureBuffer();
+    if (session.currentIndex >= nextLength && nextLength > 0) {
+      session.setCurrentIndex(nextLength - 1);
+    }
+  }, [session, dialpad]);
+
+  // Fire the compliance skip whenever the current lead is out of window AND
+  // we're mid-session (isDialing). Guarded so it only fires once per contact.
+  const lastComplianceSkipContactIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!session.isDialing || session.isSessionPaused) return;
+    if (!session.currentContact) return;
+    if (!complianceWindow || complianceWindow.allowed) return;
+    if (!isOnline) return;
+    if (lastComplianceSkipContactIdRef.current === session.currentContact.id) return;
+    lastComplianceSkipContactIdRef.current = session.currentContact.id;
+    toast.info(
+      `Auto-skipped ${session.currentContact.business_name ?? "lead"} — outside calling hours for ${session.currentContact.state ?? "unknown state"}.`,
+    );
+    complianceSkip();
+  }, [session.isDialing, session.isSessionPaused, session.currentContact, complianceWindow, isOnline, complianceSkip]);
+
   const stopSessionSafely = useCallback(async () => {
     if (!isOnline) {
       toast.error("You're offline. Reconnect before stopping the session so locks release cleanly.");
