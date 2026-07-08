@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useStreak } from "@/hooks/useStreak";
 import { supabase } from "@/integrations/supabase/client";
-import { Flame, Sparkles, Sun, Moon, CloudSun, Rocket } from "lucide-react";
+import { Flame, Sparkles, Sun, Moon, CloudSun } from "lucide-react";
 
 function getTimeGreeting() {
   const h = new Date().getHours();
@@ -63,13 +63,6 @@ export function DashboardGreeting() {
             <Flame className="h-4 w-4 text-[hsl(var(--outcome-voicemail))]" />
             <span className="text-sm font-bold font-mono text-foreground">{streak}</span>
             <span className="text-xs text-muted-foreground">day streak</span>
-          </div>
-        )}
-        {todaysCalls > 0 && (
-          <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-2">
-            <Rocket className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold font-mono text-foreground">{todaysCalls}</span>
-            <span className="text-xs text-muted-foreground">calls today</span>
           </div>
         )}
       </div>
