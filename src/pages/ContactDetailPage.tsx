@@ -15,6 +15,7 @@ import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligenc
 import { Brain, UserPlus, Megaphone } from "lucide-react";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { Plus } from "lucide-react";
+import { AddServiceButton } from "@/components/clients/AddServiceButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useContactCallLogs } from "@/hooks/useCallLogs";
@@ -984,6 +985,13 @@ export default function ContactDetailPage() {
                 <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setNewTaskOpen(true)}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" /> New task
                 </Button>
+                <AddServiceButton
+                  contactId={contact.id}
+                  contactBusinessName={contact.business_name}
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                />
                 <Collapsible>
                   <CollapsibleTrigger asChild>
                     <Button variant="outline" size="sm" className="w-full justify-start">
