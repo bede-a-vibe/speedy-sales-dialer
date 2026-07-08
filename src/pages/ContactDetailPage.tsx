@@ -919,6 +919,7 @@ export default function ContactDetailPage() {
                       ghlContactId={contact.ghl_contact_id}
                       hasGoogleAds={(contact as unknown as { has_google_ads?: string | null }).has_google_ads ?? null}
                       hasFacebookAds={(contact as unknown as { has_facebook_ads?: string | null }).has_facebook_ads ?? null}
+                      hasSeo={(contact as unknown as { has_seo?: string | null }).has_seo ?? null}
                       hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
                       existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
                       existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}

@@ -14,6 +14,7 @@ interface MarketingCaptureProps {
   ghlContactId?: string | null;
   hasGoogleAds: string | null;
   hasFacebookAds: string | null;
+  hasSeo: string | null;
   hasExistingAgency: boolean | null;
   existingAgencyName: string | null;
   existingAgencyServices: string[];
@@ -73,6 +74,7 @@ export function MarketingCapture({
   ghlContactId,
   hasGoogleAds,
   hasFacebookAds,
+  hasSeo,
   hasExistingAgency,
   existingAgencyName,
   existingAgencyServices,
@@ -85,6 +87,7 @@ export function MarketingCapture({
 
   const [gAds, setGAds] = useState<TriState>(toTri(hasGoogleAds));
   const [fbAds, setFbAds] = useState<TriState>(toTri(hasFacebookAds));
+  const [seo, setSeo] = useState<TriState>(toTri(hasSeo));
   const [hasAgency, setHasAgency] = useState<TriState>(
     hasExistingAgency === true ? "yes" : hasExistingAgency === false ? "no" : "unknown",
   );
@@ -107,12 +110,13 @@ export function MarketingCapture({
   useEffect(() => {
     setGAds(toTri(hasGoogleAds));
     setFbAds(toTri(hasFacebookAds));
+    setSeo(toTri(hasSeo));
     setHasAgency(hasExistingAgency === true ? "yes" : hasExistingAgency === false ? "no" : "unknown");
     setAgencyName(existingAgencyName ?? "");
     setServices(existingAgencyServices ?? []);
     setNotes(existingAgencyNotes ?? "");
     setRepTouched({ gAds: false, fbAds: false });
-  }, [contactId, hasGoogleAds, hasFacebookAds, hasExistingAgency, existingAgencyName, existingAgencyServices, existingAgencyNotes]);
+  }, [contactId, hasGoogleAds, hasFacebookAds, hasSeo, hasExistingAgency, existingAgencyName, existingAgencyServices, existingAgencyNotes]);
 
   const persist = async (
     patch: Record<string, unknown>,
@@ -153,6 +157,14 @@ export function MarketingCapture({
       { has_facebook_ads: triToDb(v) },
       "Meta Ads",
       { "contact.has_facebookmeta_ads": triToDb(v) ?? "" },
+    );
+  };
+  const onSeo = (v: TriState) => {
+    setSeo(v);
+    void persist(
+      { has_seo: triToDb(v) },
+      "SEO",
+      { "contact.has_seo": triToDb(v) ?? "" },
     );
   };
 
@@ -221,6 +233,18 @@ export function MarketingCapture({
         <TriButtons
           value={fbAds}
           onChange={onFbAds}
+          labels={{ yes: "Yes", no: "No", unknown: "Not sure" }}
+        />
+      </div>
+
+      {/* SEO */}
+      <div className="space-y-1.5">
+        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          SEO
+        </label>
+        <TriButtons
+          value={seo}
+          onChange={onSeo}
           labels={{ yes: "Yes", no: "No", unknown: "Not sure" }}
         />
       </div>
