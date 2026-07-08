@@ -421,6 +421,7 @@ export type Database = {
           has_existing_agency: boolean | null
           has_facebook_ads: string | null
           has_google_ads: string | null
+          has_seo: string | null
           id: string
           industry: string
           is_archived: boolean
@@ -508,6 +509,7 @@ export type Database = {
           has_existing_agency?: boolean | null
           has_facebook_ads?: string | null
           has_google_ads?: string | null
+          has_seo?: string | null
           id?: string
           industry: string
           is_archived?: boolean
@@ -595,6 +597,7 @@ export type Database = {
           has_existing_agency?: boolean | null
           has_facebook_ads?: string | null
           has_google_ads?: string | null
+          has_seo?: string | null
           id?: string
           industry?: string
           is_archived?: boolean

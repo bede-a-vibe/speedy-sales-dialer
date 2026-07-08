@@ -2977,6 +2977,7 @@ export default function DialerPage() {
                       ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
                       hasGoogleAds={(session.currentContact as Record<string, unknown>).has_google_ads as string | null}
                       hasFacebookAds={(session.currentContact as Record<string, unknown>).has_facebook_ads as string | null}
+                      hasSeo={(session.currentContact as Record<string, unknown>).has_seo as string | null}
                       hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
                       existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
                       existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
