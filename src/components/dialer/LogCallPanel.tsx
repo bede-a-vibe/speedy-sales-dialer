@@ -21,6 +21,8 @@ interface LogCallPanelProps {
   onDqNotesChange?: (notes: string) => void;
   dncReason?: DncReason | null;
   onDncReasonChange?: (reason: DncReason | null) => void;
+  /** Call controls (status + Dialpad + Hang Up) rendered at the top, above the outcome buttons. */
+  callControls?: React.ReactNode;
 }
 
 const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail"];
@@ -49,6 +51,7 @@ export function LogCallPanel({
   onDqNotesChange,
   dncReason = null,
   onDncReasonChange,
+  callControls,
 }: LogCallPanelProps) {
   const renderOutcome = (outcome: CallOutcome) => {
     const isSelected = selectedOutcome === outcome;
@@ -73,6 +76,13 @@ export function LogCallPanel({
         </span>
         <span className="text-[10px] uppercase tracking-widest text-primary">Required</span>
       </div>
+
+      {/* Call controls — status + Dialpad + Hang Up, right where the rep works the call */}
+      {callControls && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+          {callControls}
+        </div>
+      )}
 
       {/* Quick outcomes — most common, top of panel */}
       <div className="space-y-2">{QUICK_OUTCOMES.map(renderOutcome)}</div>
