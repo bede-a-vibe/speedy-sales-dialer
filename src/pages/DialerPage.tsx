@@ -346,6 +346,7 @@ type StoredDialerFilters = {
   buyingSignalStrength?: string;
   phoneType?: string;
   hasDmPhone?: string;
+  mobileGatekeeper?: string;
   showAdvancedFilters?: boolean;
   selectedPreset?: DialerFilterPreset;
   leadType?: string;
@@ -504,6 +505,7 @@ export default function DialerPage() {
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
   const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
+  const [mobileGatekeeper, setMobileGatekeeper] = useState<string>(() => storedFilters?.mobileGatekeeper ?? "all");
   const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
   const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
   const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
@@ -527,6 +529,7 @@ export default function DialerPage() {
     buyingSignalStrength,
     phoneType,
     hasDmPhone,
+    mobileGatekeeper,
     contactOwner,
     hasExistingAgency,
     existingAgencyServices,
@@ -535,7 +538,7 @@ export default function DialerPage() {
     leadChannel,
     leadSource,
     callRecency,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency]);
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -553,8 +556,9 @@ export default function DialerPage() {
     if (buyingSignalStrength !== "all") count++;
     if (phoneType !== "all") count++;
     if (hasDmPhone !== "all") count++;
+    if (mobileGatekeeper !== "all") count++;
     return count;
-  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone]);
+  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper]);
 
   const resetAdvancedFilters = useCallback(() => {
     setIndustries([]);
@@ -571,6 +575,7 @@ export default function DialerPage() {
     setBuyingSignalStrength("all");
     setPhoneType("all");
     setHasDmPhone("all");
+    setMobileGatekeeper("all");
     setHasExistingAgency("all");
     setExistingAgencyServices([]);
     setIncludeDisqualified(false);
@@ -649,6 +654,7 @@ export default function DialerPage() {
           buyingSignalStrength,
           phoneType,
           hasDmPhone,
+          mobileGatekeeper,
           showAdvancedFilters,
           selectedPreset,
           leadType,
@@ -675,6 +681,7 @@ export default function DialerPage() {
     buyingSignalStrength,
     phoneType,
     hasDmPhone,
+    mobileGatekeeper,
     showAdvancedFilters,
     selectedPreset,
     leadType,
@@ -1050,10 +1057,11 @@ export default function DialerPage() {
       buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
       phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
       hasDmPhone !== "all" ? { key: "hasDmPhone", label: `DM reachability: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
+      mobileGatekeeper !== "all" ? { key: "mobileGatekeeper", label: `Mobile gatekeeper: ${mobileGatekeeper === "hide" ? "hidden" : "only these"}`, clear: () => setMobileGatekeeper("all") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
       minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
     ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
-    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, minGbpRating, minReviewCount],
+    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, minGbpRating, minReviewCount],
   );
 
   const startReadinessItems = useMemo(() => {
@@ -2651,6 +2659,8 @@ export default function DialerPage() {
                   setPhoneType={setPhoneType}
                   hasDmPhone={hasDmPhone}
                   setHasDmPhone={setHasDmPhone}
+                  mobileGatekeeper={mobileGatekeeper}
+                  setMobileGatekeeper={setMobileGatekeeper}
                   hasExistingAgency={hasExistingAgency}
                   setHasExistingAgency={setHasExistingAgency}
                   existingAgencyServices={existingAgencyServices}
@@ -3048,6 +3058,17 @@ export default function DialerPage() {
                 onDqNotesChange={setDqNotes}
                 dncReason={dncReason}
                 onDncReasonChange={setDncReason}
+                mobileGatekeeper={Boolean((session.currentContact as Record<string, unknown>).mobile_reaches_gatekeeper)}
+                onMobileGatekeeperChange={
+                  session.currentContact.phone_type === "mobile"
+                    ? (v) => {
+                        updateContact.mutateAsync({
+                          id: session.currentContact!.id,
+                          mobile_reaches_gatekeeper: v,
+                        }).catch(() => {});
+                      }
+                    : undefined
+                }
               />
               </div>
 
