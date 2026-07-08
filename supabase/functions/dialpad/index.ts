@@ -3429,61 +3429,29 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "record_cti_call": {
-        // Best-effort upsert so CTI-placed (postMessage) calls create a
-        // dialpad_calls row without depending on the Dialpad webhook. The
-        // transcript-drain cron then picks the row up once the transcript is
-        // available. Never touches the Dialpad REST API, so it works before
-        // DIALPAD_API_KEY is configured.
-        const dialpadCallId = typeof params.dialpad_call_id === "string" || typeof params.dialpad_call_id === "number"
-          ? String(params.dialpad_call_id).trim()
-          : "";
-        const contactId = typeof params.contact_id === "string" ? params.contact_id.trim() : "";
-        const callState = typeof params.call_state === "string" && params.call_state.length > 0
-          ? params.call_state
-          : "ringing";
-        if (!dialpadCallId || !contactId) {
-          return jsonResponse({ error: "dialpad_call_id and contact_id are required" }, 400);
+        // No-op: the CTI iframe emits its LOCAL widget id which 404s against
+        // Dialpad's REST API. The Dialpad webhook is now the sole source of
+        // truth for dialpad_calls rows (keyed by the real REST call_id), and
+        // links back to the rep's call_log via phone→contact→most-recent
+        // call_log within a ±15 min window. Frontend keeps calling this action
+        // for backwards compatibility, but it must not create junk rows.
+        return jsonResponse({ ok: true, ignored: true, reason: "record_cti_call is a no-op; webhook owns row creation" }, 200);
+      }
+
+      case "register_dialpad_webhook": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
         }
-
-        // Look up an existing row so we can preserve terminal states and never
-        // rewind sync_status backwards (e.g. from "synced" → "pending").
-        const { data: existing } = await adminClient
-          .from("dialpad_calls")
-          .select("id, sync_status, call_state, transcript_synced_at")
-          .eq("dialpad_call_id", dialpadCallId)
-          .maybeSingle();
-
-        // Never reopen a row the drain has already finished with.
-        const nextSyncStatus = existing?.transcript_synced_at
-          ? existing.sync_status
-          : (existing?.sync_status && ["synced", "processing"].includes(existing.sync_status)
-              ? existing.sync_status
-              : "pending");
-
-        // Only advance call_state forward: hangup/ended sticks.
-        const isTerminal = (s: string | null | undefined) =>
-          s === "hangup" || s === "ended" || s === "cancelled";
-        const nextCallState = isTerminal(existing?.call_state) ? existing?.call_state : callState;
-
-        const { error: upsertError } = await adminClient
-          .from("dialpad_calls")
-          .upsert(
-            {
-              dialpad_call_id: dialpadCallId,
-              contact_id: contactId,
-              user_id: user.id,
-              call_state: nextCallState,
-              sync_status: nextSyncStatus,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "dialpad_call_id" },
-          );
-
-        if (upsertError) {
-          return jsonResponse({ error: upsertError.message }, 500);
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
         }
-
-        return jsonResponse({ ok: true, dialpad_call_id: dialpadCallId, call_state: nextCallState, sync_status: nextSyncStatus }, 200);
+        const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
+        if (!webhookSecret) {
+          return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
+        }
+        const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+        const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+        return jsonResponse(result, result.ok ? 200 : 502);
       }
 
       case "initiate_call": {
