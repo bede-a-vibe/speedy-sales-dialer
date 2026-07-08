@@ -2534,6 +2534,138 @@ async function fetchDialpadCallInfo(callId: string, apiKey: string) {
   return await response.json();
 }
 
+// ── Webhook + subscription registration (idempotent) ──────────────────
+// Creates (or reuses) a Dialpad webhook pointed at our edge function URL and
+// binds a call-event subscription to it so lifecycle events (connected +
+// hangup) fire to us. Safe to re-run: matches by hook_url on the webhook and
+// by webhook_id on the subscription.
+async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string; secret: string }) {
+  const { apiKey, hookUrl, secret } = params;
+  const authHeaders = {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  const listWebhooks = await fetch(`${DIALPAD_BASE}/webhooks?limit=100`, { headers: authHeaders });
+  const listWebhooksText = await listWebhooks.text();
+  if (!listWebhooks.ok) {
+    return { ok: false, stage: "list_webhooks", status: listWebhooks.status, error: listWebhooksText };
+  }
+  let existingWebhookId: number | string | null = null;
+  try {
+    const parsed = JSON.parse(listWebhooksText);
+    const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+      : Array.isArray(parsed) ? parsed
+      : [];
+    for (const item of items) {
+      if (isRecord(item) && typeof item.hook_url === "string" && item.hook_url === hookUrl) {
+        const id = (item as JsonRecord).id;
+        if (typeof id === "string" || typeof id === "number") existingWebhookId = id;
+        break;
+      }
+    }
+  } catch { /* ignore parse errors, will create new */ }
+
+  let webhookId = existingWebhookId;
+  if (!webhookId) {
+    const createHook = await fetch(`${DIALPAD_BASE}/webhooks`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ hook_url: hookUrl, secret }),
+    });
+    const createHookText = await createHook.text();
+    if (!createHook.ok) {
+      return { ok: false, stage: "create_webhook", status: createHook.status, error: createHookText };
+    }
+    try {
+      const parsed = JSON.parse(createHookText);
+      const id = isRecord(parsed) ? (parsed as JsonRecord).id : null;
+      if (typeof id === "string" || typeof id === "number") webhookId = id;
+    } catch { /* fall through */ }
+    if (!webhookId) {
+      return { ok: false, stage: "create_webhook_parse", status: 500, error: createHookText };
+    }
+  }
+
+  // Look for an existing call-event subscription bound to this webhook.
+  const listSubs = await fetch(`${DIALPAD_BASE}/subscriptions/call?limit=100`, { headers: authHeaders });
+  const listSubsText = await listSubs.text();
+  if (!listSubs.ok) {
+    return {
+      ok: false,
+      stage: "list_subscriptions",
+      status: listSubs.status,
+      error: listSubsText,
+      webhook_id: webhookId,
+    };
+  }
+  let existingSubId: number | string | null = null;
+  try {
+    const parsed = JSON.parse(listSubsText);
+    const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+      : Array.isArray(parsed) ? parsed
+      : [];
+    for (const item of items) {
+      if (!isRecord(item)) continue;
+      const rec = item as JsonRecord;
+      const subWebhookId = rec.webhook_id;
+      if (String(subWebhookId) === String(webhookId)) {
+        const id = rec.id;
+        if (typeof id === "string" || typeof id === "number") existingSubId = id;
+        break;
+      }
+    }
+  } catch { /* ignore */ }
+
+  let subscriptionId = existingSubId;
+  if (!subscriptionId) {
+    const createSub = await fetch(`${DIALPAD_BASE}/subscriptions/call`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        enabled: true,
+        group_calls_only: false,
+        call_states: ["connected", "hangup"],
+      }),
+    });
+    const createSubText = await createSub.text();
+    if (!createSub.ok) {
+      return {
+        ok: false,
+        stage: "create_subscription",
+        status: createSub.status,
+        error: createSubText,
+        webhook_id: webhookId,
+      };
+    }
+    try {
+      const parsed = JSON.parse(createSubText);
+      const id = isRecord(parsed) ? (parsed as JsonRecord).id : null;
+      if (typeof id === "string" || typeof id === "number") subscriptionId = id;
+    } catch { /* fall through */ }
+    if (!subscriptionId) {
+      return {
+        ok: false,
+        stage: "create_subscription_parse",
+        status: 500,
+        error: createSubText,
+        webhook_id: webhookId,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    webhook_id: webhookId,
+    subscription_id: subscriptionId,
+    hook_url: hookUrl,
+    reused_webhook: existingWebhookId !== null,
+    reused_subscription: existingSubId !== null,
+  };
+}
+
 function toDurationSeconds(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   if (value < 0) return 0;
