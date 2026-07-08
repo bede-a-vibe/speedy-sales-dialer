@@ -51,6 +51,7 @@ import {
   saveStoredEmailDraftSuggestion,
 } from "@/lib/emailDraftStore";
 import { getDefaultManualFollowUpScheduledFor, shouldCreatePipelineItemForStatus, type ContactLifecycleStatus } from "@/lib/pipelineMappings";
+import { evaluateCallingWindow, describeWindowReason } from "@/lib/callingCompliance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -237,6 +238,13 @@ export default function ContactDetailPage() {
 
   const placeCall = async (phone: string | null) => {
     if (!phone) return;
+    // AU Telemarketing Standard: don't place a call outside the lead's permitted
+    // window (the dialer's auto-dialer is already guarded; this covers manual dials).
+    const callWindow = evaluateCallingWindow(contact?.state ?? null);
+    if (!callWindow.allowed) {
+      toast.error(describeWindowReason(callWindow, contact?.state ?? null));
+      return;
+    }
     if (!myDialpadSettings?.dialpad_user_id) {
       toast.error("Connect your Dialpad number in Dialpad Settings first.");
       return;
