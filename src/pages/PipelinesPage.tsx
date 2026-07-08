@@ -28,6 +28,8 @@ import { useGHLContactLink } from "@/hooks/useGHLContactLink";
 import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpPipeline, findDefaultFollowUpStage, useGHLPipelines } from "@/hooks/useGHLConfig";
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function getRepLabel(displayName: string | null, email: string | null) {
@@ -223,6 +225,7 @@ function RepStatsTable({
 
 export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [statusOpen, setStatusOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
@@ -567,6 +570,17 @@ export default function PipelinesPage() {
           </div>
         </div>
 
+        <Collapsible open={statusOpen} onOpenChange={setStatusOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-4 py-2.5 text-left transition-colors hover:bg-muted/40">
+            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Pipeline &amp; GHL status
+            </span>
+            <span className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+              {booked.length} booked · {followUpHandoffCount} handoffs
+              <ChevronDown className={`h-4 w-4 transition-transform ${statusOpen ? "rotate-180" : ""}`} />
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-6 pt-4">
         <TwoPipelineGuide
           currentView="pipelines"
           bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
@@ -624,6 +638,8 @@ export default function PipelinesPage() {
             </p>
           </div>
         </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>

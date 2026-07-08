@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, AlertTriangle, CalendarCheck, PhoneCall, ListTodo } from "lucide-react";
+import { CalendarClock, AlertTriangle, CalendarCheck, ListTodo } from "lucide-react";
 import { usePipelineItems } from "@/hooks/usePipelineItems";
-import { useTodayCallCount } from "@/hooks/useCallLogs";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { StatTilesSkeleton } from "@/components/skeletons/PageSkeletons";
 
@@ -65,11 +63,9 @@ function QuickStat({ icon, label, value, href, urgent }: QuickStatProps) {
 }
 
 export function DashboardQuickStats() {
-  const { user } = useAuth();
   const { data: followUps = [], isLoading: followUpsLoading } = usePipelineItems("follow_up", "open");
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
-  const { data: todaysCalls = 0, isLoading: callsLoading } = useTodayCallCount(user?.id);
-  const isLoading = followUpsLoading || bookedLoading || callsLoading;
+  const isLoading = followUpsLoading || bookedLoading;
 
   const followUpsDueToday = useMemo(
     () => followUps.filter((item) => isToday(item.scheduled_for)).length,
@@ -92,11 +88,11 @@ export function DashboardQuickStats() {
   );
 
   if (isLoading) {
-    return <StatTilesSkeleton count={5} />;
+    return <StatTilesSkeleton count={4} />;
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <QuickStat
         icon={<CalendarClock className="h-5 w-5" />}
         label="Follow-ups Today"
@@ -122,12 +118,6 @@ export function DashboardQuickStats() {
         label="Today's Bookings"
         value={todaysBookings}
         href="/pipelines?tab=booked"
-      />
-      <QuickStat
-        icon={<PhoneCall className="h-5 w-5" />}
-        label="Calls Today"
-        value={todaysCalls}
-        href="/reports"
       />
     </div>
   );
