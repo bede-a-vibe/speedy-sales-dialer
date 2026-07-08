@@ -10,7 +10,7 @@ import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
-import { useCallLogs, useTodayCallCount } from "@/hooks/useCallLogs";
+import { useTodayCallCount, useTodayOutcomeCounts } from "@/hooks/useCallLogs";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { deriveAllTargets } from "@/lib/performanceTargets";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data: callLogs = [] } = useCallLogs();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
+  const { data: todayOutcomes = { counts: {}, total: 0 } } = useTodayOutcomeCounts(user?.id);
   const { data: targets = [] } = usePerformanceTargets();
 
   const dailyTarget = useMemo(() => {
@@ -32,21 +32,7 @@ export default function DashboardPage() {
     return dt?.target_value && dt.target_value > 0 ? Math.round(dt.target_value) : 50;
   }, [targets, user?.id]);
 
-  const todaysLogs = callLogs.filter((l: any) => {
-    if (l.user_id !== user?.id || !l.created_at) return false;
-    const logDate = new Date(l.created_at);
-    const now = new Date();
-    return (
-      logDate.getFullYear() === now.getFullYear() &&
-      logDate.getMonth() === now.getMonth() &&
-      logDate.getDate() === now.getDate()
-    );
-  });
-
-  const outcomeCounts = todaysLogs.reduce<Partial<Record<string, number>>>((acc, log) => {
-    acc[log.outcome] = (acc[log.outcome] || 0) + 1;
-    return acc;
-  }, {});
+  const outcomeCounts = todayOutcomes.counts;
 
   return (
     <AppLayout title="Dashboard">
@@ -82,7 +68,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <span className="rounded-full border border-border bg-background px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-              {todaysLogs.length} logged
+              {todayOutcomes.total} logged
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">

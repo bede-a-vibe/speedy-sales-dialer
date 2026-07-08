@@ -46,8 +46,9 @@ export function DashboardTargetsOverview() {
   const myDailyTargets = derived.individualDaily.filter((t) => t.user_id === user?.id);
   const myWeeklyTargets = derived.individualWeekly.filter((t) => t.user_id === user?.id);
 
-  const isLoading =
-    targetsLoading || dailyCallsLoading || weeklyCallsLoading || dailyBookingsLoading || weeklyBookingsLoading;
+  // Only gate first paint on the always-visible daily data; weekly/team sections
+  // are behind the collapsed "show more" toggle and update reactively when ready.
+  const isLoading = targetsLoading || dailyCallsLoading || dailyBookingsLoading;
 
   if (isLoading) {
     return (
