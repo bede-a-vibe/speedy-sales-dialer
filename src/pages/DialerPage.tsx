@@ -2854,37 +2854,6 @@ export default function DialerPage() {
                 }}
                 headerActions={
                   <div className="flex items-center gap-2">
-                    {dialpadCTIClientId && !isCoach && (
-                      <>
-                        <CallStatusPill
-                          state={nativeCallState}
-                          connectedAt={nativeConnectedAt}
-                          dialpadAuthenticated={dialpadCTIAuthed}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => setDialpadRevealed(true)}
-                          title="Open the full Dialpad panel (keypad, transfer, etc.)"
-                        >
-                          <ExternalLink className="mr-1 h-3 w-3" />
-                          Dialpad
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={handleNativeHangUp}
-                          disabled={nativeCallState === "idle" || nativeCallState === "ended"}
-                        >
-                          <PhoneOff className="mr-1 h-3 w-3" />
-                          Hang Up
-                        </Button>
-                      </>
-                    )}
                     <QuickBookRecoveryButton
                       contactId={session.currentContact.id}
                       contactName={session.currentContact.business_name || session.currentContact.contact_person || "Contact"}
@@ -3025,6 +2994,41 @@ export default function DialerPage() {
               {/* Log This Call — outcomes + conversation tagging in one card */}
               <div data-coach-step="log-call-panel">
               <LogCallPanel
+                callControls={
+                  dialpadCTIClientId && !isCoach ? (
+                    <>
+                      <CallStatusPill
+                        state={nativeCallState}
+                        connectedAt={nativeConnectedAt}
+                        dialpadAuthenticated={dialpadCTIAuthed}
+                      />
+                      <div className="ml-auto flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setDialpadRevealed(true)}
+                          title="Open the full Dialpad panel (keypad, transfer, etc.)"
+                        >
+                          <ExternalLink className="mr-1 h-3 w-3" />
+                          Dialpad
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={handleNativeHangUp}
+                          disabled={nativeCallState === "idle" || nativeCallState === "ended"}
+                        >
+                          <PhoneOff className="mr-1 h-3 w-3" />
+                          Hang Up
+                        </Button>
+                      </div>
+                    </>
+                  ) : null
+                }
                 selectedOutcome={session.selectedOutcome}
                 canSubmit={canSubmit}
                 isFastLogOutcome={isFastLogOutcome}

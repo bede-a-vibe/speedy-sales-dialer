@@ -197,60 +197,43 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         </div>
       </div>
 
-      {/* Intelligence badge row */}
-      {(tierCfg || poolLabel || contact.industry || hasRating || contact.business_size || contact.buying_signal_strength) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {tierCfg && (
-            <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-mono font-bold px-2.5 py-1 rounded border ${tierCfg.color}`}>
-              <Zap className="h-3 w-3" />
-              {tierCfg.label}
-            </span>
+      {/* Quick links — GMB / GHL / Website at the top for fast lookups */}
+      {(contact.gmb_link || getGhlContactUrl(contact.ghl_contact_id) || contact.website) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {contact.gmb_link && (
+            <a
+              href={contact.gmb_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
+            >
+              <MapPin className="h-3.5 w-3.5" /> GMB Profile <ExternalLink className="h-3 w-3 opacity-50" />
+            </a>
           )}
-          {poolCfg && poolLabel && (
-            <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${poolCfg.color}`}>
-              {poolLabel}
-            </span>
+          {(() => {
+            const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
+            return ghlUrl ? (
+              <a
+                href={ghlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open contact in GoHighLevel"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
+              >
+                <UserCheck className="h-3.5 w-3.5" /> GHL Contact <ExternalLink className="h-3 w-3 opacity-50" />
+              </a>
+            ) : null;
+          })()}
+          {contact.website && (
+            <a
+              href={contact.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
+            >
+              <Globe className="h-3.5 w-3.5" /> Website <ExternalLink className="h-3 w-3 opacity-50" />
+            </a>
           )}
-          {contact.industry && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-accent text-accent-foreground">
-              <Briefcase className="h-3 w-3" />
-              {contact.industry}
-            </span>
-          )}
-          {hasRating && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-amber-800 dark:text-yellow-300">
-              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
-              {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
-            </span>
-          )}
-          {contact.business_size && (
-            <span className="inline-flex items-center text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-secondary text-secondary-foreground">
-              {contact.business_size}
-            </span>
-          )}
-          {contact.buying_signal_strength && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-              <Zap className="h-3 w-3" />
-              Signal: {contact.buying_signal_strength}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Existing agency callout */}
-      {contact.has_existing_agency && (
-        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-900 dark:text-fuchsia-100">
-          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-700 dark:text-fuchsia-300" />
-          <div>
-            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-800 dark:text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
-            <p className="text-sm leading-snug">
-              Already with an agency{contact.existing_agency_name ? `: ${contact.existing_agency_name}` : ""}
-              {agencyServices.length > 0 && (
-                <span className="text-fuchsia-800/80 dark:text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
-              )}
-              <span className="block text-xs text-fuchsia-800/80 dark:text-fuchsia-200/80 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
-            </p>
-          </div>
         </div>
       )}
 
@@ -409,7 +392,64 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
         ) : null
       )}
 
-      {/* Contact Info Grid */}
+      {/* Intelligence badge row — lead context, after the actionable info */}
+      {(tierCfg || poolLabel || contact.industry || hasRating || contact.business_size || contact.buying_signal_strength) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tierCfg && (
+            <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-mono font-bold px-2.5 py-1 rounded border ${tierCfg.color}`}>
+              <Zap className="h-3 w-3" />
+              {tierCfg.label}
+            </span>
+          )}
+          {poolCfg && poolLabel && (
+            <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${poolCfg.color}`}>
+              {poolLabel}
+            </span>
+          )}
+          {contact.industry && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-accent text-accent-foreground">
+              <Briefcase className="h-3 w-3" />
+              {contact.industry}
+            </span>
+          )}
+          {hasRating && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-amber-800 dark:text-yellow-300">
+              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
+              {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
+            </span>
+          )}
+          {contact.business_size && (
+            <span className="inline-flex items-center text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-secondary text-secondary-foreground">
+              {contact.business_size}
+            </span>
+          )}
+          {contact.buying_signal_strength && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+              <Zap className="h-3 w-3" />
+              Signal: {contact.buying_signal_strength}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Existing agency callout */}
+      {contact.has_existing_agency && (
+        <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-900 dark:text-fuchsia-100">
+          <Handshake className="h-4 w-4 mt-0.5 shrink-0 text-fuchsia-700 dark:text-fuchsia-300" />
+          <div>
+            <p className="text-[10px] uppercase tracking-widest font-mono text-fuchsia-800 dark:text-fuchsia-300 mb-0.5">Already Investing in Growth</p>
+            <p className="text-sm leading-snug">
+              Already with an agency{contact.existing_agency_name ? `: ${contact.existing_agency_name}` : ""}
+              {agencyServices.length > 0 && (
+                <span className="text-fuchsia-800/80 dark:text-fuchsia-200/80"> ({agencyServices.join(", ")})</span>
+              )}
+              <span className="block text-xs text-fuchsia-800/80 dark:text-fuchsia-200/80 mt-0.5">Higher intent — they're already spending. Position as an upgrade.</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Info Grid — email + location (GMB/GHL/Website live in the top quick-links) */}
       <div className="grid grid-cols-2 gap-3">
         <a
           href={`mailto:${contact.email}`}
@@ -418,46 +458,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
           <Mail className="h-4 w-4" />
           <span className="text-sm truncate">{contact.email || "No email"}</span>
         </a>
-
-        <a
-          href={contact.website || "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground hover:bg-accent transition-colors"
-        >
-          <Globe className="h-4 w-4" />
-          <span className="text-sm truncate">Website</span>
-          <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
-        </a>
-
-        <a
-          href={contact.gmb_link || "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground hover:bg-accent transition-colors"
-        >
-          <MapPin className="h-4 w-4" />
-          <span className="text-sm truncate">GMB Profile</span>
-          <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
-        </a>
-
-        {(() => {
-          const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
-          if (!ghlUrl) return null;
-          return (
-            <a
-              href={ghlUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open contact in GoHighLevel"
-              className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground hover:bg-accent transition-colors"
-            >
-              <UserCheck className="h-4 w-4" />
-              <span className="text-sm truncate">GHL Contact</span>
-              <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
-            </a>
-          );
-        })()}
 
         {(contact.city || contact.state) && (
           <div className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground">
