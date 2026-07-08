@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   dealMrr,
   dealRevenueToDate,
+  grossMonthly,
   STREAM_ORDER,
   type ClientStream,
 } from "@/lib/clientRevenue";
@@ -107,6 +108,7 @@ export interface AgencyTotals {
   activeClients: number;
   totalMrr: number;
   totalRevenueToDate: number;
+  churnedMrr: number;
   mrrByStream: Record<ClientStream, number>;
 }
 
@@ -130,6 +132,7 @@ export function useClientRollup() {
     }, {} as Record<ClientStream, number>);
     let totalMrr = 0;
     let totalRevenueToDate = 0;
+    let churnedMrr = 0;
     let activeClients = 0;
 
     for (const [contactId, ds] of byContact) {
@@ -152,6 +155,8 @@ export function useClientRollup() {
           anyActive = true;
         } else if (d.status === "paused") {
           anyPaused = true;
+        } else if (d.status === "churned") {
+          churnedMrr += grossMonthly(d);
         }
         if (!minStart || d.start_date < minStart) minStart = d.start_date;
       }
@@ -180,6 +185,7 @@ export function useClientRollup() {
       activeClients,
       totalMrr,
       totalRevenueToDate,
+      churnedMrr,
       mrrByStream,
     };
 

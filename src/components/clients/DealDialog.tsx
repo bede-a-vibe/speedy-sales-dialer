@@ -54,6 +54,10 @@ export function DealDialog({
   const [startDate, setStartDate] = useState<string>(state.deal?.start_date ?? new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<ClientDealStatus>((state.deal?.status as ClientDealStatus) ?? "active");
   const [notes, setNotes] = useState<string>(state.deal?.notes ?? "");
+  const [endDate, setEndDate] = useState<string>(state.deal?.end_date ?? "");
+
+  // Churned deals carry an end date (revenue accrues up to it); non-churned clear it.
+  const resolvedEndDate = status === "churned" ? (endDate || new Date().toISOString().slice(0, 10)) : null;
 
   const contactSearch = useQuery({
     queryKey: ["client-deal-contact-search", search],
@@ -83,6 +87,7 @@ export function DealDialog({
             billing_period: billingPeriod,
             gst,
             start_date: startDate,
+            end_date: resolvedEndDate,
             status,
             notes: notes || null,
           },
@@ -97,6 +102,7 @@ export function DealDialog({
           billing_period: billingPeriod,
           gst,
           start_date: startDate,
+          end_date: resolvedEndDate,
           status,
           notes: notes || null,
         });
@@ -216,6 +222,18 @@ export function DealDialog({
               </div>
             </div>
           </div>
+
+          {status === "churned" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Churn / end date</Label>
+              <Input
+                type="date"
+                value={endDate || new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Revenue counts up to this date; MRR stops.</p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-xs">Notes</Label>
