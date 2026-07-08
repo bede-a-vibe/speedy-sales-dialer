@@ -275,6 +275,62 @@ export type Database = {
         }
         Relationships: []
       }
+      client_deals: {
+        Row: {
+          amount: number
+          billing_period: string
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          gst: boolean
+          id: string
+          notes: string | null
+          start_date: string
+          status: string
+          stream: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          billing_period: string
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          gst?: boolean
+          id?: string
+          notes?: string | null
+          start_date: string
+          status?: string
+          stream: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          billing_period?: string
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          gst?: boolean
+          id?: string
+          notes?: string | null
+          start_date?: string
+          status?: string
+          stream?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_notes: {
         Row: {
           contact_id: string
