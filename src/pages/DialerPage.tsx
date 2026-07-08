@@ -3438,7 +3438,7 @@ export default function DialerPage() {
             clientId={dialpadCTIClientId}
             headless
             phoneNumber={session.currentContact?.phone ?? null}
-            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
+            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused && canDialCurrent}
             outboundCallerId={effectiveCallerId || null}
             customData={session.currentContact ? JSON.stringify({
               contact_id: session.currentContact.id,
