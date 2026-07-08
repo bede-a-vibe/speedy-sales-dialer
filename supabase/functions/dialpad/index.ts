@@ -3504,6 +3504,18 @@ Deno.serve(async (req) => {
       const result = await processPendingTranscriptSyncs({ adminClient, apiKey: DIALPAD_API_KEY, limit });
       return jsonResponse({ ok: true, ...result }, 200);
     }
+    if (action === "register_dialpad_webhook") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
+      }
+      const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+      const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
