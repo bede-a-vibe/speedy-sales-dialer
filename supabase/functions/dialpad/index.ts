@@ -2534,6 +2534,138 @@ async function fetchDialpadCallInfo(callId: string, apiKey: string) {
   return await response.json();
 }
 
+// ── Webhook + subscription registration (idempotent) ──────────────────
+// Creates (or reuses) a Dialpad webhook pointed at our edge function URL and
+// binds a call-event subscription to it so lifecycle events (connected +
+// hangup) fire to us. Safe to re-run: matches by hook_url on the webhook and
+// by webhook_id on the subscription.
+async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string; secret: string }) {
+  const { apiKey, hookUrl, secret } = params;
+  const authHeaders = {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  const listWebhooks = await fetch(`${DIALPAD_BASE}/webhooks?limit=100`, { headers: authHeaders });
+  const listWebhooksText = await listWebhooks.text();
+  if (!listWebhooks.ok) {
+    return { ok: false, stage: "list_webhooks", status: listWebhooks.status, error: listWebhooksText };
+  }
+  let existingWebhookId: number | string | null = null;
+  try {
+    const parsed = JSON.parse(listWebhooksText);
+    const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+      : Array.isArray(parsed) ? parsed
+      : [];
+    for (const item of items) {
+      if (isRecord(item) && typeof item.hook_url === "string" && item.hook_url === hookUrl) {
+        const id = (item as JsonRecord).id;
+        if (typeof id === "string" || typeof id === "number") existingWebhookId = id;
+        break;
+      }
+    }
+  } catch { /* ignore parse errors, will create new */ }
+
+  let webhookId = existingWebhookId;
+  if (!webhookId) {
+    const createHook = await fetch(`${DIALPAD_BASE}/webhooks`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ hook_url: hookUrl, secret }),
+    });
+    const createHookText = await createHook.text();
+    if (!createHook.ok) {
+      return { ok: false, stage: "create_webhook", status: createHook.status, error: createHookText };
+    }
+    try {
+      const parsed = JSON.parse(createHookText);
+      const id = isRecord(parsed) ? (parsed as JsonRecord).id : null;
+      if (typeof id === "string" || typeof id === "number") webhookId = id;
+    } catch { /* fall through */ }
+    if (!webhookId) {
+      return { ok: false, stage: "create_webhook_parse", status: 500, error: createHookText };
+    }
+  }
+
+  // Look for an existing call-event subscription bound to this webhook.
+  const listSubs = await fetch(`${DIALPAD_BASE}/subscriptions/call?limit=100`, { headers: authHeaders });
+  const listSubsText = await listSubs.text();
+  if (!listSubs.ok) {
+    return {
+      ok: false,
+      stage: "list_subscriptions",
+      status: listSubs.status,
+      error: listSubsText,
+      webhook_id: webhookId,
+    };
+  }
+  let existingSubId: number | string | null = null;
+  try {
+    const parsed = JSON.parse(listSubsText);
+    const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+      : Array.isArray(parsed) ? parsed
+      : [];
+    for (const item of items) {
+      if (!isRecord(item)) continue;
+      const rec = item as JsonRecord;
+      const subWebhookId = rec.webhook_id;
+      if (String(subWebhookId) === String(webhookId)) {
+        const id = rec.id;
+        if (typeof id === "string" || typeof id === "number") existingSubId = id;
+        break;
+      }
+    }
+  } catch { /* ignore */ }
+
+  let subscriptionId = existingSubId;
+  if (!subscriptionId) {
+    const createSub = await fetch(`${DIALPAD_BASE}/subscriptions/call`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        enabled: true,
+        group_calls_only: false,
+        call_states: ["connected", "hangup"],
+      }),
+    });
+    const createSubText = await createSub.text();
+    if (!createSub.ok) {
+      return {
+        ok: false,
+        stage: "create_subscription",
+        status: createSub.status,
+        error: createSubText,
+        webhook_id: webhookId,
+      };
+    }
+    try {
+      const parsed = JSON.parse(createSubText);
+      const id = isRecord(parsed) ? (parsed as JsonRecord).id : null;
+      if (typeof id === "string" || typeof id === "number") subscriptionId = id;
+    } catch { /* fall through */ }
+    if (!subscriptionId) {
+      return {
+        ok: false,
+        stage: "create_subscription_parse",
+        status: 500,
+        error: createSubText,
+        webhook_id: webhookId,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    webhook_id: webhookId,
+    subscription_id: subscriptionId,
+    hook_url: hookUrl,
+    reused_webhook: existingWebhookId !== null,
+    reused_subscription: existingSubId !== null,
+  };
+}
+
 function toDurationSeconds(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   if (value < 0) return 0;
@@ -3372,6 +3504,18 @@ Deno.serve(async (req) => {
       const result = await processPendingTranscriptSyncs({ adminClient, apiKey: DIALPAD_API_KEY, limit });
       return jsonResponse({ ok: true, ...result }, 200);
     }
+    if (action === "register_dialpad_webhook") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
+      }
+      const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+      const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
@@ -3429,61 +3573,29 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "record_cti_call": {
-        // Best-effort upsert so CTI-placed (postMessage) calls create a
-        // dialpad_calls row without depending on the Dialpad webhook. The
-        // transcript-drain cron then picks the row up once the transcript is
-        // available. Never touches the Dialpad REST API, so it works before
-        // DIALPAD_API_KEY is configured.
-        const dialpadCallId = typeof params.dialpad_call_id === "string" || typeof params.dialpad_call_id === "number"
-          ? String(params.dialpad_call_id).trim()
-          : "";
-        const contactId = typeof params.contact_id === "string" ? params.contact_id.trim() : "";
-        const callState = typeof params.call_state === "string" && params.call_state.length > 0
-          ? params.call_state
-          : "ringing";
-        if (!dialpadCallId || !contactId) {
-          return jsonResponse({ error: "dialpad_call_id and contact_id are required" }, 400);
+        // No-op: the CTI iframe emits its LOCAL widget id which 404s against
+        // Dialpad's REST API. The Dialpad webhook is now the sole source of
+        // truth for dialpad_calls rows (keyed by the real REST call_id), and
+        // links back to the rep's call_log via phone→contact→most-recent
+        // call_log within a ±15 min window. Frontend keeps calling this action
+        // for backwards compatibility, but it must not create junk rows.
+        return jsonResponse({ ok: true, ignored: true, reason: "record_cti_call is a no-op; webhook owns row creation" }, 200);
+      }
+
+      case "register_dialpad_webhook": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
         }
-
-        // Look up an existing row so we can preserve terminal states and never
-        // rewind sync_status backwards (e.g. from "synced" → "pending").
-        const { data: existing } = await adminClient
-          .from("dialpad_calls")
-          .select("id, sync_status, call_state, transcript_synced_at")
-          .eq("dialpad_call_id", dialpadCallId)
-          .maybeSingle();
-
-        // Never reopen a row the drain has already finished with.
-        const nextSyncStatus = existing?.transcript_synced_at
-          ? existing.sync_status
-          : (existing?.sync_status && ["synced", "processing"].includes(existing.sync_status)
-              ? existing.sync_status
-              : "pending");
-
-        // Only advance call_state forward: hangup/ended sticks.
-        const isTerminal = (s: string | null | undefined) =>
-          s === "hangup" || s === "ended" || s === "cancelled";
-        const nextCallState = isTerminal(existing?.call_state) ? existing?.call_state : callState;
-
-        const { error: upsertError } = await adminClient
-          .from("dialpad_calls")
-          .upsert(
-            {
-              dialpad_call_id: dialpadCallId,
-              contact_id: contactId,
-              user_id: user.id,
-              call_state: nextCallState,
-              sync_status: nextSyncStatus,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "dialpad_call_id" },
-          );
-
-        if (upsertError) {
-          return jsonResponse({ error: upsertError.message }, 500);
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
         }
-
-        return jsonResponse({ ok: true, dialpad_call_id: dialpadCallId, call_state: nextCallState, sync_status: nextSyncStatus }, 200);
+        const webhookSecret = Deno.env.get("DIALPAD_WEBHOOK_SECRET");
+        if (!webhookSecret) {
+          return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
+        }
+        const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+        const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+        return jsonResponse(result, result.ok ? 200 : 502);
       }
 
       case "initiate_call": {
