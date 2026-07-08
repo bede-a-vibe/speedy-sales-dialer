@@ -9,9 +9,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Radio, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "@/lib/callingCompliance";
 
 const MAX_POOL_SIZE = 8;
-const ROTATION_INTERVAL = 50;
+const ROTATION_INTERVAL = 40;
+
+function deriveAreaCode(e164: string): AuAreaCode | null {
+  if (/^\+614/.test(e164)) return "04";
+  if (/^\+612/.test(e164)) return "02";
+  if (/^\+613/.test(e164)) return "03";
+  if (/^\+617/.test(e164)) return "07";
+  if (/^\+618/.test(e164)) return "08";
+  return null;
+}
 
 // Accepts E.164 (+61...) or Australian mobile / landline forms; we normalize to E.164.
 function normalizeToE164(raw: string): string | null {
@@ -32,6 +43,10 @@ interface PoolRow {
   label: string | null;
   position: number;
   is_active: boolean;
+  owned_attested: boolean;
+  attested_at: string | null;
+  area_code: string | null;
+  region: string | null;
 }
 
 interface Profile {
@@ -50,6 +65,7 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [newPhone, setNewPhone] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [newAttested, setNewAttested] = useState(false);
 
   const { data: pool = [], isLoading: poolLoading } = useQuery({
     queryKey: ["caller-id-pool-admin", selectedUserId],
@@ -57,7 +73,7 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("caller_id_pool")
-        .select("id, user_id, phone_number, label, position, is_active")
+        .select("id, user_id, phone_number, label, position, is_active, owned_attested, attested_at, area_code, region")
         .eq("user_id", selectedUserId)
         .order("position", { ascending: true });
       if (error) throw error;
@@ -80,7 +96,12 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
     },
   });
 
-  const activePool = useMemo(() => pool.filter((p) => p.is_active), [pool]);
+  // Only numbers that are BOTH active AND owned-attested are eligible for
+  // rotation — this is the compliance guard against blank / unattested CLI.
+  const activePool = useMemo(
+    () => pool.filter((p) => p.is_active && p.owned_attested),
+    [pool],
+  );
   const rotationCount = settings?.rotation_dial_count ?? 0;
   const activeIndex = activePool.length > 0
     ? Math.floor(rotationCount / ROTATION_INTERVAL) % activePool.length
@@ -96,14 +117,20 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
       const e164 = normalizeToE164(newPhone);
       if (!e164) throw new Error("Enter a valid E.164 or Australian phone number.");
       if (pool.length >= MAX_POOL_SIZE) throw new Error(`Pool cap is ${MAX_POOL_SIZE} numbers per rep.`);
+      if (!newAttested) throw new Error("You must confirm we own this number before adding it to rotation.");
       const nextPosition = pool.length === 0 ? 0 : Math.max(...pool.map((p) => p.position)) + 1;
       const { data: authData } = await supabase.auth.getUser();
+      const areaCode = deriveAreaCode(e164);
       const { error } = await supabase.from("caller_id_pool").insert({
         user_id: selectedUserId,
         phone_number: e164,
         label: newLabel.trim() || null,
         position: nextPosition,
         is_active: true,
+        owned_attested: true,
+        attested_at: new Date().toISOString(),
+        area_code: areaCode,
+        region: areaCode ? AREA_CODE_TO_REGION_LABEL[areaCode] : null,
         created_by: authData.user?.id ?? null,
       });
       if (error) throw error;
@@ -112,6 +139,7 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
       toast.success("Caller ID added to rotation.");
       setNewPhone("");
       setNewLabel("");
+      setNewAttested(false);
       invalidate();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add number."),
@@ -124,6 +152,21 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
     },
     onSuccess: invalidate,
     onError: () => toast.error("Failed to update."),
+  });
+
+  const toggleAttested = useMutation({
+    mutationFn: async ({ id, owned_attested }: { id: string; owned_attested: boolean }) => {
+      const { error } = await supabase
+        .from("caller_id_pool")
+        .update({
+          owned_attested,
+          attested_at: owned_attested ? new Date().toISOString() : null,
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: () => toast.error("Failed to update attestation."),
   });
 
   const removeNumber = useMutation({
@@ -232,22 +275,38 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
                   <TableRow>
                     <TableHead className="w-12">#</TableHead>
                     <TableHead>Phone (E.164)</TableHead>
+                    <TableHead>Area</TableHead>
                     <TableHead>Label</TableHead>
+                    <TableHead>Owned</TableHead>
                     <TableHead>Active</TableHead>
                     <TableHead className="w-[160px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pool.map((row, idx) => {
-                    const isCurrent = row.is_active && activePool[activeIndex]?.id === row.id;
+                    const isCurrent =
+                      row.is_active && row.owned_attested && activePool[activeIndex]?.id === row.id;
                     return (
                       <TableRow key={row.id} className={isCurrent ? "bg-primary/5" : ""}>
                         <TableCell className="font-mono text-xs">{idx + 1}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {row.phone_number}
                           {isCurrent && <span className="ml-2 text-[10px] uppercase text-primary">active</span>}
+                          {!row.owned_attested && (
+                            <span className="ml-2 text-[10px] uppercase text-destructive">unattested</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row.area_code ?? "—"}
+                          {row.region ? <span className="ml-1 opacity-70">· {row.region}</span> : null}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{row.label || "—"}</TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={row.owned_attested}
+                            onCheckedChange={(v) => toggleAttested.mutate({ id: row.id, owned_attested: v })}
+                          />
+                        </TableCell>
                         <TableCell>
                           <Switch
                             checked={row.is_active}
@@ -294,12 +353,23 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
               />
               <Button
                 onClick={() => addNumber.mutate()}
-                disabled={addNumber.isPending || !newPhone.trim() || pool.length >= MAX_POOL_SIZE}
+                disabled={addNumber.isPending || !newPhone.trim() || pool.length >= MAX_POOL_SIZE || !newAttested}
               >
                 {addNumber.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                 Add
               </Button>
             </div>
+            <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={newAttested}
+                onCheckedChange={(v) => setNewAttested(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium text-foreground">I confirm we own this number and it is answerable/returnable.</span>{" "}
+                Required by AU telemarketing rules — only owned, answerable numbers may be used as caller ID. Never present a blank or withheld CLI.
+              </span>
+            </label>
           </div>
         </>
       )}
