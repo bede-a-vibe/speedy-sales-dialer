@@ -1,6 +1,6 @@
 import { format, formatDistanceToNowStrict, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Clock3 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
@@ -110,17 +110,21 @@ export function BookedPipelineBoard({
   ) => Promise<void>;
 }) {
   const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
-  const grouped = BOARD_STAGES.map((stage) => ({
-    ...stage,
-    title: stage.fallbackTitle,
-    items: items
-      .filter((item) => getBoardStage(item) === stage.key)
-      .sort((a, b) => {
-        const aTime = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
-        const bTime = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
-        return aTime - bTime;
-      }),
-  }));
+  const grouped = useMemo(
+    () =>
+      BOARD_STAGES.map((stage) => ({
+        ...stage,
+        title: stage.fallbackTitle,
+        items: items
+          .filter((item) => getBoardStage(item) === stage.key)
+          .sort((a, b) => {
+            const aTime = a.scheduled_for ? new Date(a.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+            const bTime = b.scheduled_for ? new Date(b.scheduled_for).getTime() : Number.POSITIVE_INFINITY;
+            return aTime - bTime;
+          }),
+      })),
+    [items],
+  );
 
   return (
     <div className="space-y-3">

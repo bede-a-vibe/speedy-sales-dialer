@@ -198,6 +198,40 @@ export function useTodayCallCount(userId?: string) {
   });
 }
 
+/**
+ * Today's call outcomes for one user — selects only `outcome` for today's rows.
+ * Replaces pulling the full 500-row `call_logs` cache (with a contacts join) just
+ * to count today's dispositions on the Dashboard.
+ */
+export function useTodayOutcomeCounts(userId?: string) {
+  const today = new Date();
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  return useQuery({
+    queryKey: ["today-outcome-counts", userId, startOfDay.toISOString().slice(0, 10)],
+    queryFn: async () => {
+      if (!userId) return { counts: {} as Record<string, number>, total: 0 };
+      const { data, error } = await supabase
+        .from("call_logs")
+        .select("outcome")
+        .eq("user_id", userId)
+        .gte("created_at", startOfDay.toISOString())
+        .lte("created_at", endOfDay.toISOString());
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        if (row.outcome) counts[row.outcome] = (counts[row.outcome] || 0) + 1;
+      }
+      return { counts, total: (data ?? []).length };
+    },
+    enabled: !!userId,
+    refetchInterval: 15_000,
+  });
+}
+
 export function useContactCallLogs(contactId?: string, pageSize = CONTACT_CALL_LOGS_PAGE_SIZE, enabled = true) {
   return useInfiniteQuery({
     queryKey: getContactCallLogsQueryKey(contactId, pageSize),
