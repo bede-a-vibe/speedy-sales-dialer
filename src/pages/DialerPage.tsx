@@ -37,6 +37,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
 import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
+import { evaluateCallingWindow, describeWindowReason } from "@/lib/callingCompliance";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
@@ -687,11 +688,37 @@ export default function DialerPage() {
   // outbound number BEFORE we hand it to the dialer, CTI, and manual call flows.
   const { data: myDialpadSettingsEarly } = useMyDialpadSettings();
   const callerIdRotation = useCallerIdRotation(myDialpadSettingsEarly?.user_id);
+  // Local-presence-aware selection for the CURRENT lead. Prefers a pool
+  // number whose AU area code matches the lead's, else full-pool rotation.
+  const callerIdSelection = useMemo(
+    () => callerIdRotation.pickForContact(session.currentContact),
+    [callerIdRotation, session.currentContact],
+  );
   // If a pool exists, its rotated number OVERRIDES the manual selector.
-  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
+  const effectiveCallerId = callerIdSelection.number ?? selectedCallerId;
+
+  // ── AU Telemarketing Industry Standard: calling-hours guard ──
+  // Re-evaluate every 60s so the chip flips at window boundaries without
+  // requiring a full session refetch.
+  const [complianceTick, setComplianceTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setComplianceTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+  const complianceWindow = useMemo(() => {
+    if (!session.currentContact) return null;
+    return evaluateCallingWindow(session.currentContact.state ?? null);
+    // complianceTick intentionally in deps so this recomputes on the interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.currentContact?.id, session.currentContact?.state, complianceTick]);
+  const canDialCurrent = !complianceWindow || complianceWindow.allowed;
 
   const dialpad = useDialerDialpad({
-    isDialing: session.isDialing,
+    // Compliance guard: never let the auto-dial effect place a call while
+    // the current lead is outside its permitted window. The auto-skip
+    // effect below will move to the next in-window lead without burning
+    // an attempt.
+    isDialing: session.isDialing && canDialCurrent,
     isSessionPaused: session.isSessionPaused,
     currentContact: session.currentContact,
     selectedCallerId: effectiveCallerId,
@@ -711,9 +738,12 @@ export default function DialerPage() {
   const rotationBadge = callerIdRotation.hasPool ? (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-mono text-primary">
       <Radio className="h-3 w-3" />
-      {callerIdRotation.activeNumber}
+      {callerIdSelection.number ?? callerIdRotation.activeNumber}
       <span className="text-muted-foreground">
-        · rotates every {callerIdRotation.rotationInterval} dials · number {callerIdRotation.activeIndex + 1} of {callerIdRotation.poolSize}
+        {callerIdSelection.reason === "local" && callerIdSelection.regionLabel
+          ? ` · Local presence (${callerIdSelection.regionLabel})`
+          : ` · Rotation`}
+        {" · "}#{callerIdSelection.activeIndex + 1} of {callerIdSelection.poolSubsetSize} · every {callerIdRotation.rotationInterval} dials
       </span>
     </span>
   ) : null;
@@ -1745,6 +1775,40 @@ export default function DialerPage() {
     }
   }, [session, dialpad, isOnline, updateContact]);
 
+  // Compliance auto-skip: when the current lead is outside its permitted
+  // calling window, discard it WITHOUT bumping call_attempt_count (this
+  // isn't a real attempt — it's a compliance skip) and pull in the next.
+  const complianceSkip = useCallback(() => {
+    if (session.currentIndex === null || !session.currentContact) return;
+    if (!dialpad.isCallTerminal) {
+      void dialpad.cancelActiveCall();
+    }
+    const nextLength = session.queue.contacts.length - 1;
+    void session.queue.discardContact(session.currentContact.id, { releaseLock: true });
+    session.resetLeadState(session.user?.id || "");
+    dialpad.resetDialpadState();
+    void session.queue.ensureBuffer();
+    if (session.currentIndex >= nextLength && nextLength > 0) {
+      session.setCurrentIndex(nextLength - 1);
+    }
+  }, [session, dialpad]);
+
+  // Fire the compliance skip whenever the current lead is out of window AND
+  // we're mid-session (isDialing). Guarded so it only fires once per contact.
+  const lastComplianceSkipContactIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!session.isDialing || session.isSessionPaused) return;
+    if (!session.currentContact) return;
+    if (!complianceWindow || complianceWindow.allowed) return;
+    if (!isOnline) return;
+    if (lastComplianceSkipContactIdRef.current === session.currentContact.id) return;
+    lastComplianceSkipContactIdRef.current = session.currentContact.id;
+    toast.info(
+      `Auto-skipped ${session.currentContact.business_name ?? "lead"} — outside calling hours for ${session.currentContact.state ?? "unknown state"}.`,
+    );
+    complianceSkip();
+  }, [session.isDialing, session.isSessionPaused, session.currentContact, complianceWindow, isOnline, complianceSkip]);
+
   const stopSessionSafely = useCallback(async () => {
     if (!isOnline) {
       toast.error("You're offline. Reconnect before stopping the session so locks release cleanly.");
@@ -2384,6 +2448,40 @@ export default function DialerPage() {
             {!isOnline && (
               <div className="border-t border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
                 Offline mode: do not skip, stop, recover, or log this lead until the connection returns.
+              </div>
+            )}
+            {complianceWindow && (
+              <div
+                className={cn(
+                  "border-t px-4 py-2 text-[11px] font-mono flex flex-wrap items-center gap-x-3 gap-y-1",
+                  complianceWindow.allowed
+                    ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+                )}
+                aria-live="polite"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="uppercase tracking-widest text-[10px] opacity-70">
+                    Lead local
+                  </span>
+                  <span className="font-bold tabular-nums">{complianceWindow.local.hhmm}</span>
+                  <span className="opacity-70">
+                    {session.currentContact?.state ?? "state?"}
+                    {complianceWindow.stateUnknown ? " · state unknown (assumed AET)" : ""}
+                  </span>
+                </span>
+                <span className="opacity-40">·</span>
+                {complianceWindow.allowed ? (
+                  <span className="inline-flex items-center gap-1 font-semibold">
+                    <CheckCircle2 className="h-3 w-3" />
+                    In window
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-semibold">
+                    <AlertTriangle className="h-3 w-3" />
+                    {describeWindowReason(complianceWindow, session.currentContact?.state ?? null)}
+                  </span>
+                )}
               </div>
             )}
             {dialpad.dialpadPollingBackoffUntil && dialpad.dialpadPollingBackoffUntil > Date.now() && (
@@ -3374,7 +3472,7 @@ export default function DialerPage() {
             clientId={dialpadCTIClientId}
             headless
             phoneNumber={session.currentContact?.phone ?? null}
-            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused}
+            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused && canDialCurrent}
             outboundCallerId={effectiveCallerId || null}
             customData={session.currentContact ? JSON.stringify({
               contact_id: session.currentContact.id,
