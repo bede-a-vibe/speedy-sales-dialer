@@ -96,6 +96,8 @@ interface AdvancedFiltersProps {
   setPhoneType: (v: string) => void;
   hasDmPhone: string;
   setHasDmPhone: (v: string) => void;
+  mobileGatekeeper: string;
+  setMobileGatekeeper: (v: string) => void;
   hasExistingAgency: string;
   setHasExistingAgency: (v: string) => void;
   existingAgencyServices: string[];
@@ -165,6 +167,7 @@ export function AdvancedFilters({
   buyingSignalStrength, setBuyingSignalStrength,
   phoneType, setPhoneType,
   hasDmPhone, setHasDmPhone,
+  mobileGatekeeper, setMobileGatekeeper,
   hasExistingAgency, setHasExistingAgency,
   existingAgencyServices, setExistingAgencyServices,
   includeDisqualified, setIncludeDisqualified,
@@ -615,6 +618,20 @@ export function AdvancedFilters({
                 </SelectContent>
               </Select>
               <CoverageHint count={cov.dm_phone} total={cov.total} />
+            </div> : null}
+
+            {showDmPhone ? <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Mobile → gatekeeper</label>
+              <Select value={mobileGatekeeper} onValueChange={setMobileGatekeeper} disabled={disabled}>
+                <SelectTrigger className="h-8 border-border bg-card text-xs">
+                  <SelectValue placeholder="Any" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any</SelectItem>
+                  <SelectItem value="hide">Hide gatekeeper mobiles</SelectItem>
+                  <SelectItem value="only">Only gatekeeper mobiles</SelectItem>
+                </SelectContent>
+              </Select>
             </div> : null}
 
             {showGoogleAds ? <div className="space-y-1">

@@ -23,6 +23,9 @@ interface LogCallPanelProps {
   onDncReasonChange?: (reason: DncReason | null) => void;
   /** Call controls (status + Dialpad + Hang Up) rendered at the top, above the outcome buttons. */
   callControls?: React.ReactNode;
+  /** When provided (mobile leads), shows a toggle to flag the mobile as reaching a gatekeeper. */
+  mobileGatekeeper?: boolean;
+  onMobileGatekeeperChange?: (v: boolean) => void;
 }
 
 const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail"];
@@ -52,6 +55,8 @@ export function LogCallPanel({
   dncReason = null,
   onDncReasonChange,
   callControls,
+  mobileGatekeeper = false,
+  onMobileGatekeeperChange,
 }: LogCallPanelProps) {
   const renderOutcome = (outcome: CallOutcome) => {
     const isSelected = selectedOutcome === outcome;
@@ -95,6 +100,29 @@ export function LogCallPanel({
         onChange={onConversationProgressChange}
         outcomeIsBooked={selectedOutcome === "booked"}
       />
+
+      {onMobileGatekeeperChange && (
+        <button
+          type="button"
+          onClick={() => onMobileGatekeeperChange(!mobileGatekeeper)}
+          className={
+            "flex w-full items-center gap-2 rounded border px-3 py-2 text-left text-xs transition-colors " +
+            (mobileGatekeeper
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+              : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50")
+          }
+        >
+          <span
+            className={
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded border " +
+              (mobileGatekeeper ? "border-amber-500 bg-amber-500 text-white" : "border-muted-foreground/40")
+            }
+          >
+            {mobileGatekeeper ? "✓" : ""}
+          </span>
+          Mobile reaches a gatekeeper (not the owner)
+        </button>
+      )}
 
       <SectionDivider label="Other Outcomes" />
 

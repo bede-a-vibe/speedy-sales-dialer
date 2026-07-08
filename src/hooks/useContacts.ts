@@ -41,6 +41,7 @@ export type DialerFilterOptions = {
   buyingSignalStrength?: string;
   phoneType?: string;
   hasDmPhone?: string;
+  mobileGatekeeper?: string; // "all" | "hide" | "only"
   contactOwner?: string;
   hasExistingAgency?: string; // "all" | "yes" | "no"
   existingAgencyServices?: string[];
@@ -131,6 +132,7 @@ async function claimDialerLeads({
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
+    _mobile_gatekeeper: filters?.mobileGatekeeper && filters.mobileGatekeeper !== "all" ? filters.mobileGatekeeper : null,
     _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
     _include_dnc: filters?.includeDnc ?? false,
     _include_disqualified: filters?.includeDisqualified ?? false,
@@ -194,6 +196,7 @@ async function getDialerQueueCount({
     _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
     _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
     _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
+    _mobile_gatekeeper: filters?.mobileGatekeeper && filters.mobileGatekeeper !== "all" ? filters.mobileGatekeeper : null,
     _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
     _include_dnc: filters?.includeDnc ?? false,
     _include_disqualified: filters?.includeDisqualified ?? false,
