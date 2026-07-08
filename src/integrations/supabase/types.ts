@@ -442,6 +442,7 @@ export type Database = {
           lifecycle_stage: string
           meeting_booked_date: string | null
           merged_into_contact_id: string | null
+          mobile_reaches_gatekeeper: boolean
           next_followup_date: string | null
           owner_id: string | null
           phone: string
@@ -530,6 +531,7 @@ export type Database = {
           lifecycle_stage?: string
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
+          mobile_reaches_gatekeeper?: boolean
           next_followup_date?: string | null
           owner_id?: string | null
           phone: string
@@ -618,6 +620,7 @@ export type Database = {
           lifecycle_stage?: string
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
+          mobile_reaches_gatekeeper?: boolean
           next_followup_date?: string | null
           owner_id?: string | null
           phone?: string
@@ -1282,6 +1285,7 @@ export type Database = {
           _lock_minutes?: number
           _min_gbp_rating?: number
           _min_review_count?: number
+          _mobile_gatekeeper?: string
           _phone_type?: string
           _prospect_tier?: string
           _session_id: string
@@ -1345,6 +1349,7 @@ export type Database = {
           _lead_type?: string
           _min_gbp_rating?: number
           _min_review_count?: number
+          _mobile_gatekeeper?: string
           _phone_type?: string
           _prospect_tier?: string
           _session_id: string
