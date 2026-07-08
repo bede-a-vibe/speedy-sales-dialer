@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,16 +88,21 @@ function ClientDealsList({ client, onEdit, onAdd }: { client: ClientRollupRow; o
       {client.deals.map((d) => {
         const mrr = dealMrr(d);
         const rev = dealRevenueToDate(d);
+        const isChurned = d.status === "churned";
         return (
-          <div key={d.id} className="grid grid-cols-12 items-center gap-2 rounded-md bg-card border border-border px-3 py-2 text-xs">
-            <div className="col-span-2">
+          <div key={d.id} className={cn("grid grid-cols-12 items-center gap-2 rounded-md bg-card border border-border px-3 py-2 text-xs", isChurned && "opacity-60")}>
+            <div className="col-span-2 flex items-center gap-1">
               <Badge variant="secondary" className="font-normal">{STREAM_LABELS[d.stream as ClientStream]}</Badge>
+              {isChurned && <Badge variant="outline" className="text-[9px] text-muted-foreground px-1">churned</Badge>}
             </div>
             <div className="col-span-3 font-mono tabular-nums">
               {formatCurrency(Number(d.amount))} <span className="text-muted-foreground">/ {BILLING_PERIOD_LABELS[d.billing_period as BillingPeriod].toLowerCase()}</span>
               {d.gst && <span className="text-[10px] text-muted-foreground ml-1">+GST</span>}
             </div>
-            <div className="col-span-2 font-mono tabular-nums text-muted-foreground">{d.start_date}</div>
+            <div className="col-span-2 font-mono tabular-nums text-muted-foreground">
+              {d.start_date}
+              {isChurned && d.end_date && <span className="text-destructive"> → {d.end_date}</span>}
+            </div>
             <div className="col-span-2 font-mono tabular-nums">{formatCurrency(mrr)}<span className="text-muted-foreground text-[10px]">/mo</span></div>
             <div className="col-span-2 font-mono tabular-nums">{formatCurrencyCents(rev)}</div>
             <div className="col-span-1 flex justify-end gap-1">
@@ -161,11 +166,12 @@ export default function ClientsPage() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiTile label="Active clients" value={rollup.totals.activeClients.toLocaleString()} icon={Users} />
           <KpiTile label="Total MRR" value={formatCurrency(rollup.totals.totalMrr)} sub="/mo ex-GST" icon={DollarSign} />
           <KpiTile label="Revenue to date" value={formatCurrency(rollup.totals.totalRevenueToDate)} sub="realised, ex-GST" icon={TrendingUp} />
           <KpiTile label="Avg MRR / client" value={formatCurrency(avgMrr)} sub="active clients only" icon={Layers} />
+          <KpiTile label="Lost MRR" value={formatCurrency(rollup.totals.churnedMrr)} sub="/mo churned" icon={TrendingDown} />
         </div>
 
         <MrrByStreamCard mrrByStream={rollup.totals.mrrByStream} totalMrr={rollup.totals.totalMrr} />

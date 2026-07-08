@@ -48,6 +48,11 @@ export function dealMrr(deal: ClientDealLike): number {
   return toMonthly(Number(deal.amount) || 0, deal.billing_period);
 }
 
+/** Would-be monthly value ignoring churn status — used to total the MRR lost to churn. */
+export function grossMonthly(deal: ClientDealLike): number {
+  return toMonthly(Number(deal.amount) || 0, deal.billing_period);
+}
+
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 export function monthsBetween(a: Date | string, b: Date | string): number {
