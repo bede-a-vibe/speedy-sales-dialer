@@ -37,6 +37,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
 import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
+import { evaluateCallingWindow, describeWindowReason } from "@/lib/callingCompliance";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
@@ -687,11 +688,37 @@ export default function DialerPage() {
   // outbound number BEFORE we hand it to the dialer, CTI, and manual call flows.
   const { data: myDialpadSettingsEarly } = useMyDialpadSettings();
   const callerIdRotation = useCallerIdRotation(myDialpadSettingsEarly?.user_id);
+  // Local-presence-aware selection for the CURRENT lead. Prefers a pool
+  // number whose AU area code matches the lead's, else full-pool rotation.
+  const callerIdSelection = useMemo(
+    () => callerIdRotation.pickForContact(session.currentContact),
+    [callerIdRotation, session.currentContact],
+  );
   // If a pool exists, its rotated number OVERRIDES the manual selector.
-  const effectiveCallerId = callerIdRotation.activeNumber ?? selectedCallerId;
+  const effectiveCallerId = callerIdSelection.number ?? selectedCallerId;
+
+  // ── AU Telemarketing Industry Standard: calling-hours guard ──
+  // Re-evaluate every 60s so the chip flips at window boundaries without
+  // requiring a full session refetch.
+  const [complianceTick, setComplianceTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setComplianceTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+  const complianceWindow = useMemo(() => {
+    if (!session.currentContact) return null;
+    return evaluateCallingWindow(session.currentContact.state ?? null);
+    // complianceTick intentionally in deps so this recomputes on the interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.currentContact?.id, session.currentContact?.state, complianceTick]);
+  const canDialCurrent = !complianceWindow || complianceWindow.allowed;
 
   const dialpad = useDialerDialpad({
-    isDialing: session.isDialing,
+    // Compliance guard: never let the auto-dial effect place a call while
+    // the current lead is outside its permitted window. The auto-skip
+    // effect below will move to the next in-window lead without burning
+    // an attempt.
+    isDialing: session.isDialing && canDialCurrent,
     isSessionPaused: session.isSessionPaused,
     currentContact: session.currentContact,
     selectedCallerId: effectiveCallerId,
@@ -711,9 +738,12 @@ export default function DialerPage() {
   const rotationBadge = callerIdRotation.hasPool ? (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-mono text-primary">
       <Radio className="h-3 w-3" />
-      {callerIdRotation.activeNumber}
+      {callerIdSelection.number ?? callerIdRotation.activeNumber}
       <span className="text-muted-foreground">
-        · rotates every {callerIdRotation.rotationInterval} dials · number {callerIdRotation.activeIndex + 1} of {callerIdRotation.poolSize}
+        {callerIdSelection.reason === "local" && callerIdSelection.regionLabel
+          ? ` · Local presence (${callerIdSelection.regionLabel})`
+          : ` · Rotation`}
+        {" · "}#{callerIdSelection.activeIndex + 1} of {callerIdSelection.poolSubsetSize} · every {callerIdRotation.rotationInterval} dials
       </span>
     </span>
   ) : null;
