@@ -2823,40 +2823,38 @@ function extractDurationFromRecord(record: JsonRecord | null | undefined, candid
   return null;
 }
 
+function msFieldToSeconds(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return Math.max(0, Math.round(value / 1000));
+}
+
+function isoDiffSeconds(startIso: unknown, endIso: unknown): number | null {
+  if (typeof startIso !== "string" || typeof endIso !== "string") return null;
+  const s = Date.parse(startIso);
+  const e = Date.parse(endIso);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return null;
+  return Math.max(0, Math.round((e - s) / 1000));
+}
+
+// Dialpad GET /call/{id} exposes durations as `duration_ms` (talk time from date_connected→date_ended)
+// and `total_duration_ms` (from date_started→date_ended). Fall back to ISO date subtraction.
 function extractDialpadDurations(payload: DialpadWebhookPayload, callInfo: unknown) {
-  const callInfoRecord = isRecord(callInfo) ? callInfo : null;
-  const talkTimeSeconds = extractDurationFromRecord(callInfoRecord, [
-    "talk_duration",
-    "talk_duration_seconds",
-    "talk_time",
-    "talk_time_seconds",
-    "connected_duration",
-    "connected_duration_seconds",
-    "duration_connected",
-    "duration_connected_seconds",
-  ]) ?? (
-    typeof payload.date_connected === "number" && typeof payload.date_ended === "number"
-      ? Math.max(0, Math.round((payload.date_ended - payload.date_connected) / 1000))
-      : null
-  );
+  const info = isRecord(callInfo) ? callInfo : null;
+  const pRec = (payload ?? {}) as JsonRecord;
 
-  const totalDurationSeconds = extractDurationFromRecord(callInfoRecord, [
-    "duration",
-    "duration_seconds",
-    "call_duration",
-    "call_duration_seconds",
-    "total_duration",
-    "total_duration_seconds",
-  ]) ?? (
-    typeof payload.date_started === "number" && typeof payload.date_ended === "number"
-      ? Math.max(0, Math.round((payload.date_ended - payload.date_started) / 1000))
-      : null
-  );
+  const talkTimeSeconds =
+    msFieldToSeconds(info?.duration_ms) ??
+    msFieldToSeconds(pRec.duration_ms) ??
+    isoDiffSeconds(info?.date_connected_iso, info?.date_ended_iso) ??
+    isoDiffSeconds(pRec.date_connected_iso, pRec.date_ended_iso);
 
-  return {
-    talkTimeSeconds,
-    totalDurationSeconds,
-  };
+  const totalDurationSeconds =
+    msFieldToSeconds(info?.total_duration_ms) ??
+    msFieldToSeconds(pRec.total_duration_ms) ??
+    isoDiffSeconds(info?.date_started_iso, info?.date_ended_iso) ??
+    isoDiffSeconds(pRec.date_started_iso, pRec.date_ended_iso);
+
+  return { talkTimeSeconds, totalDurationSeconds };
 }
 
 async function upsertContactNote(adminClient: ReturnType<typeof createClient>, params: {
