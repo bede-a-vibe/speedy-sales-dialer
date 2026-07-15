@@ -4413,6 +4413,11 @@ Deno.serve(async (req) => {
       });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
+    if (action === "relink_dialpad_calls") {
+      const limit = typeof body.limit === "number" ? body.limit : undefined;
+      const result = await relinkDialpadCalls({ adminClient, limit });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
