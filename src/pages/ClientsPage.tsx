@@ -167,7 +167,7 @@ export default function ClientsPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiTile label="Active clients" value={rollup.totals.activeClients.toLocaleString()} icon={Users} />
+          <KpiTile label="Active clients" value={rollup.totals.activeClients.toLocaleString()} sub={rollup.totals.pendingClients > 0 ? `+${rollup.totals.pendingClients} awaiting deal $` : undefined} icon={Users} />
           <KpiTile label="Total MRR" value={formatCurrency(rollup.totals.totalMrr)} sub="/mo ex-GST" icon={DollarSign} />
           <KpiTile label="Revenue to date" value={formatCurrency(rollup.totals.totalRevenueToDate)} sub="realised, ex-GST" icon={TrendingUp} />
           <KpiTile label="Avg MRR / client" value={formatCurrency(avgMrr)} sub="active clients only" icon={Layers} />
@@ -216,15 +216,23 @@ export default function ClientsPage() {
                           {c.state && <span className="text-[10px] font-mono text-muted-foreground">{c.state}</span>}
                         </div>
                         <div className="col-span-3 flex flex-wrap gap-1">
-                          {c.streams.map((s) => (
-                            <Badge key={s} variant="secondary" className="text-[10px] font-normal">{STREAM_LABELS[s]}</Badge>
-                          ))}
+                          {c.dealRecorded ? (
+                            c.streams.map((s) => (
+                              <Badge key={s} variant="secondary" className="text-[10px] font-normal">{STREAM_LABELS[s]}</Badge>
+                            ))
+                          ) : (
+                            <span className="text-[11px] italic text-muted-foreground">Deal not recorded — click to add</span>
+                          )}
                         </div>
-                        <div className="col-span-1 text-right font-mono tabular-nums">{formatCurrency(c.mrr)}</div>
+                        <div className="col-span-1 text-right font-mono tabular-nums">{c.dealRecorded ? formatCurrency(c.mrr) : <span className="text-muted-foreground">—</span>}</div>
                         <div className="col-span-2 font-mono tabular-nums text-xs text-muted-foreground">{c.clientSince ?? "—"}</div>
-                        <div className="col-span-1 text-right font-mono tabular-nums">{formatCurrency(c.revenueToDate)}</div>
+                        <div className="col-span-1 text-right font-mono tabular-nums">{c.dealRecorded ? formatCurrency(c.revenueToDate) : <span className="text-muted-foreground">—</span>}</div>
                         <div className="col-span-1 text-right">
-                          <Badge variant={c.status === "active" ? "default" : c.status === "paused" ? "secondary" : "outline"} className={cn("text-[10px] capitalize", c.status === "churned" && "text-muted-foreground")}>{c.status}</Badge>
+                          {c.dealRecorded ? (
+                            <Badge variant={c.status === "active" ? "default" : c.status === "paused" ? "secondary" : "outline"} className={cn("text-[10px] capitalize", c.status === "churned" && "text-muted-foreground")}>{c.status}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300">No deal</Badge>
+                          )}
                         </div>
                       </button>
                       {isOpen && (
