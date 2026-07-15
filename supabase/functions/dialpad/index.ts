@@ -4148,6 +4148,154 @@ async function syncDialpadCallHistory(params: {
   };
 }
 
+// Re-link EXISTING dialpad_calls rows using the fixed phone-suffix matcher,
+// rep mapping, and call_log window logic. Also cleans stored transcripts
+// (drops Dialpad's interleaved AI marker lines) in-place. No Lovable AI.
+async function relinkDialpadCalls(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const { adminClient } = params;
+  const limit = params.limit ?? 5000;
+
+  const { data: settings } = await adminClient
+    .from("dialpad_settings")
+    .select("user_id, dialpad_user_id");
+  const userIdByDialpadUser = new Map<string, string>();
+  for (const row of settings ?? []) {
+    if (!row.dialpad_user_id || !row.user_id) continue;
+    const dpid = String(row.dialpad_user_id);
+    if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    userIdByDialpadUser.set(dpid, row.user_id as string);
+  }
+
+  // Build a fallback: if only ONE active rep exists, we can safely assign
+  // rep-less rows to them. (In this project only Bede is active — the deleted
+  // Dean/Kobi IDs are blocked above.)
+  const activeUserIds = Array.from(new Set(userIdByDialpadUser.values()));
+  const soleRepUserId = activeUserIds.length === 1 ? activeUserIds[0] : null;
+
+  const { data: rows, error } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, external_number, contact_id, user_id, call_log_id, started_at, talk_time_seconds, total_duration_seconds, transcript, dialpad_summary")
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    return { ok: false as const, error: error.message };
+  }
+
+  const stats = {
+    scanned: 0,
+    contacts_matched: 0,
+    user_ids_set: 0,
+    call_logs_linked: 0,
+    call_logs_updated: 0,
+    transcripts_cleaned: 0,
+    transcripts_dropped: 0,
+  };
+
+  for (const row of rows ?? []) {
+    stats.scanned += 1;
+    const patch: Record<string, unknown> = {};
+
+    // 1. Rep mapping. Prefer existing; else look up via Dialpad call target.
+    let repUserId: string | null = (row.user_id as string | null) ?? null;
+    if (!repUserId) {
+      // We don't have target_user stored on the row, so we can't reliably
+      // re-derive per-call — but if only one active rep exists, attribute.
+      if (soleRepUserId) {
+        repUserId = soleRepUserId;
+        patch.user_id = repUserId;
+        stats.user_ids_set += 1;
+      }
+    }
+
+    // 2. Contact matching (digits-suffix).
+    let contactId: string | null = (row.contact_id as string | null) ?? null;
+    if (!contactId) {
+      const nearIso = typeof row.started_at === "string" ? row.started_at : null;
+      contactId = await resolveContactByPhoneDigits(
+        adminClient,
+        row.external_number as string | null,
+        repUserId,
+        nearIso,
+      );
+      if (contactId) {
+        patch.contact_id = contactId;
+        stats.contacts_matched += 1;
+      }
+    }
+
+    // 3. Call-log link.
+    let callLogId: string | null = (row.call_log_id as string | null) ?? null;
+    if (!callLogId && repUserId && contactId && row.started_at) {
+      callLogId = await findCallLogByFallback(
+        adminClient,
+        contactId,
+        repUserId,
+        row.started_at as string,
+      );
+      if (callLogId) {
+        patch.call_log_id = callLogId;
+        stats.call_logs_linked += 1;
+      }
+    }
+
+    // 4. Transcript cleaning (in-place).
+    let transcript: string | null = (row.transcript as string | null) ?? null;
+    if (transcript) {
+      const cleaned = cleanFormattedTranscript(transcript);
+      if (cleaned !== transcript) {
+        if (cleaned === null) {
+          patch.transcript = null;
+          transcript = null;
+          stats.transcripts_dropped += 1;
+        } else {
+          patch.transcript = cleaned;
+          transcript = cleaned;
+          stats.transcripts_cleaned += 1;
+        }
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      const { error: upErr } = await adminClient
+        .from("dialpad_calls")
+        .update(patch)
+        .eq("id", row.id as string);
+      if (upErr) {
+        console.warn(`[relink_dialpad_calls] update failed id=${row.id}: ${upErr.message}`);
+        continue;
+      }
+    }
+
+    // 5. Backfill call_log fields when linked.
+    if (callLogId) {
+      const clPatch: Record<string, unknown> = {
+        dialpad_call_id: row.dialpad_call_id,
+      };
+      if (row.talk_time_seconds != null) clPatch.dialpad_talk_time_seconds = row.talk_time_seconds;
+      if (row.total_duration_seconds != null) clPatch.dialpad_total_duration_seconds = row.total_duration_seconds;
+      if (transcript) {
+        clPatch.dialpad_transcript = transcript;
+        clPatch.transcript_synced_at = new Date().toISOString();
+      }
+      if (row.dialpad_summary) clPatch.dialpad_summary = row.dialpad_summary;
+      const { error: clErr } = await adminClient
+        .from("call_logs")
+        .update(clPatch)
+        .eq("id", callLogId);
+      if (clErr) {
+        console.warn(`[relink_dialpad_calls] call_logs backfill failed id=${callLogId}: ${clErr.message}`);
+      } else {
+        stats.call_logs_updated += 1;
+      }
+    }
+  }
+
+  return { ok: true as const, ...stats };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
