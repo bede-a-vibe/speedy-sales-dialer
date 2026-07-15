@@ -3797,7 +3797,7 @@ async function syncDialpadCallHistory(params: {
   }
 
   // Cap detail fallback fetches per run.
-  const MAX_DETAIL_FETCHES = 300;
+  const MAX_DETAIL_FETCHES = 2000;
   let detailFetches = 0;
 
   let linked = 0;
@@ -3813,20 +3813,14 @@ async function syncDialpadCallHistory(params: {
     const dialpadCallIdStr = String(dialpadCallId);
 
     let call = originalCall;
-    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
-
-    // Duration fallback: fetch GET /call/{id} to populate talk/total duration.
-    if (
-      (durations.talkTimeSeconds == null || durations.totalDurationSeconds == null) &&
-      detailBudget.remaining > 0
-    ) {
+    // Listing rows lack duration_ms; fetch the full call object (free, no AI).
+    if (detailBudget.remaining > 0) {
       detailBudget.remaining -= 1;
       detailFetches += 1;
       try {
         const detail = await fetchDialpadCallInfo(dialpadCallIdStr, apiKey);
         if (isRecord(detail)) {
           call = { ...originalCall, ...detail };
-          durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
         }
       } catch (err) {
         console.warn(
@@ -3834,23 +3828,14 @@ async function syncDialpadCallHistory(params: {
         );
       }
     }
+    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
 
-    const startedMs = toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
-    const endedMs = toDialpadEpochMs(call.date_ended);
-    const connectedMs = toDialpadEpochMs(call.date_connected);
-    // Robust talk-time fallback (list rows use s-epoch, webhook uses ms-epoch — normalize both).
-    if (durations.talkTimeSeconds == null && connectedMs && endedMs && endedMs >= connectedMs) {
-      durations = {
-        ...durations,
-        talkTimeSeconds: Math.max(0, Math.round((endedMs - connectedMs) / 1000)),
-      };
-    }
-    if (durations.totalDurationSeconds == null && startedMs && endedMs && endedMs >= startedMs) {
-      durations = {
-        ...durations,
-        totalDurationSeconds: Math.max(0, Math.round((endedMs - startedMs) / 1000)),
-      };
-    }
+    const startedMs =
+      (typeof call.date_started_iso === "string" ? Date.parse(call.date_started_iso as string) : NaN) ||
+      toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
+    const endedMs =
+      (typeof call.date_ended_iso === "string" ? Date.parse(call.date_ended_iso as string) : NaN) ||
+      toDialpadEpochMs(call.date_ended);
     const state = normalizeDialpadState(call.state) ?? null;
     const talk = durations.talkTimeSeconds ?? 0;
     const isConnected =
