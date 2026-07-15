@@ -698,44 +698,68 @@ export type Database = {
         Row: {
           call_log_id: string | null
           call_state: string | null
-          contact_id: string
+          contact_id: string | null
           created_at: string
           dialpad_call_id: string
+          dialpad_summary: string | null
+          direction: string | null
+          ended_at: string | null
+          external_number: string | null
           id: string
+          is_connected: boolean
+          started_at: string | null
           sync_error: string | null
           sync_status: string
+          talk_time_seconds: number | null
+          total_duration_seconds: number | null
           transcript: string | null
           transcript_synced_at: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           call_log_id?: string | null
           call_state?: string | null
-          contact_id: string
+          contact_id?: string | null
           created_at?: string
           dialpad_call_id: string
+          dialpad_summary?: string | null
+          direction?: string | null
+          ended_at?: string | null
+          external_number?: string | null
           id?: string
+          is_connected?: boolean
+          started_at?: string | null
           sync_error?: string | null
           sync_status?: string
+          talk_time_seconds?: number | null
+          total_duration_seconds?: number | null
           transcript?: string | null
           transcript_synced_at?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           call_log_id?: string | null
           call_state?: string | null
-          contact_id?: string
+          contact_id?: string | null
           created_at?: string
           dialpad_call_id?: string
+          dialpad_summary?: string | null
+          direction?: string | null
+          ended_at?: string | null
+          external_number?: string | null
           id?: string
+          is_connected?: boolean
+          started_at?: string | null
           sync_error?: string | null
           sync_status?: string
+          talk_time_seconds?: number | null
+          total_duration_seconds?: number | null
           transcript?: string | null
           transcript_synced_at?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -784,6 +808,36 @@ export type Database = {
           rotation_dial_count?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      dialpad_sync_state: {
+        Row: {
+          key: string
+          last_error: string | null
+          last_linked: number | null
+          last_pulled: number | null
+          last_run_at: string | null
+          last_synced_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          last_error?: string | null
+          last_linked?: number | null
+          last_pulled?: number | null
+          last_run_at?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          last_error?: string | null
+          last_linked?: number | null
+          last_pulled?: number | null
+          last_run_at?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
