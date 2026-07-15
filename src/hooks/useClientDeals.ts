@@ -102,6 +102,8 @@ export interface ClientRollupRow {
   clientSince: string | null;
   status: "active" | "paused" | "churned";
   deals: ClientDeal[];
+  /** False = a won client with no deal recorded yet (needs deal $ entered). */
+  dealRecorded: boolean;
 }
 
 export interface AgencyTotals {
@@ -110,10 +112,29 @@ export interface AgencyTotals {
   totalRevenueToDate: number;
   churnedMrr: number;
   mrrByStream: Record<ClientStream, number>;
+  /** Won clients with no deal recorded yet. */
+  pendingClients: number;
+}
+
+/** Won contacts (clients that were closed) — used to surface clients even before a deal $ is entered. */
+export function useWonClientContacts() {
+  return useQuery({
+    queryKey: ["won-client-contacts"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, business_name, state")
+        .eq("lifecycle_stage", "won");
+      if (error) throw error;
+      return (data ?? []) as { id: string; business_name: string | null; state: string | null }[];
+    },
+  });
 }
 
 export function useClientRollup() {
   const query = useClientDeals();
+  const wonQuery = useWonClientContacts();
   const now = new Date();
 
   const rollup = useMemo(() => {
@@ -176,10 +197,37 @@ export function useClientRollup() {
         clientSince: minStart,
         status,
         deals: ds.slice().sort((a, b) => (a.start_date < b.start_date ? -1 : 1)),
+        dealRecorded: true,
       });
     }
 
-    clients.sort((a, b) => b.mrr - a.mrr);
+    // Surface won clients that have no deal recorded yet, so nothing sold hides
+    // just because the $ wasn't entered. They show 0 MRR + a "Add deal" prompt.
+    let pendingClients = 0;
+    for (const wc of wonQuery.data ?? []) {
+      if (byContact.has(wc.id)) continue;
+      pendingClients += 1;
+      clients.push({
+        contactId: wc.id,
+        businessName: wc.business_name ?? "Unknown business",
+        state: wc.state ?? null,
+        mrr: 0,
+        revenueToDate: 0,
+        streams: [],
+        activeStreamCount: 0,
+        clientSince: null,
+        status: "active",
+        deals: [],
+        dealRecorded: false,
+      });
+    }
+
+    clients.sort((a, b) => {
+      // Clients with recorded deals first (by MRR desc), pending ones after (by name).
+      if (a.dealRecorded !== b.dealRecorded) return a.dealRecorded ? -1 : 1;
+      if (!a.dealRecorded) return a.businessName.localeCompare(b.businessName);
+      return b.mrr - a.mrr;
+    });
 
     const totals: AgencyTotals = {
       activeClients,
@@ -187,10 +235,11 @@ export function useClientRollup() {
       totalRevenueToDate,
       churnedMrr,
       mrrByStream,
+      pendingClients,
     };
 
     return { clients, totals };
-  }, [query.data, now]);
+  }, [query.data, wonQuery.data, now]);
 
   return { ...query, clients: rollup.clients, totals: rollup.totals };
 }
