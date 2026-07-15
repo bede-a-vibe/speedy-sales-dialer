@@ -2823,40 +2823,65 @@ function extractDurationFromRecord(record: JsonRecord | null | undefined, candid
   return null;
 }
 
+function msFieldToSeconds(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return Math.max(0, Math.round(value / 1000));
+}
+
+function isoDiffSeconds(startIso: unknown, endIso: unknown): number | null {
+  if (typeof startIso !== "string" || typeof endIso !== "string") return null;
+  const s = Date.parse(startIso);
+  const e = Date.parse(endIso);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return null;
+  return Math.max(0, Math.round((e - s) / 1000));
+}
+
+// Dialpad GET /call/{id} exposes talk time as `duration` and total call time as
+// `total_duration`, BOTH in **milliseconds** (e.g. 247026.805). Fall back to
+// (date_ended − date_connected) / (date_ended − date_started) using the raw
+// numeric ms-epoch strings Dialpad returns.
 function extractDialpadDurations(payload: DialpadWebhookPayload, callInfo: unknown) {
-  const callInfoRecord = isRecord(callInfo) ? callInfo : null;
-  const talkTimeSeconds = extractDurationFromRecord(callInfoRecord, [
-    "talk_duration",
-    "talk_duration_seconds",
-    "talk_time",
-    "talk_time_seconds",
-    "connected_duration",
-    "connected_duration_seconds",
-    "duration_connected",
-    "duration_connected_seconds",
-  ]) ?? (
-    typeof payload.date_connected === "number" && typeof payload.date_ended === "number"
-      ? Math.max(0, Math.round((payload.date_ended - payload.date_connected) / 1000))
-      : null
-  );
+  const info = isRecord(callInfo) ? callInfo : null;
+  const pRec = (payload ?? {}) as JsonRecord;
 
-  const totalDurationSeconds = extractDurationFromRecord(callInfoRecord, [
-    "duration",
-    "duration_seconds",
-    "call_duration",
-    "call_duration_seconds",
-    "total_duration",
-    "total_duration_seconds",
-  ]) ?? (
-    typeof payload.date_started === "number" && typeof payload.date_ended === "number"
-      ? Math.max(0, Math.round((payload.date_ended - payload.date_started) / 1000))
-      : null
-  );
-
-  return {
-    talkTimeSeconds,
-    totalDurationSeconds,
+  const pickMs = (rec: JsonRecord | null, keys: string[]) => {
+    if (!rec) return null;
+    for (const k of keys) {
+      const v = rec[k];
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      if (Number.isFinite(n) && n >= 0) return Math.max(0, Math.round(n / 1000));
+    }
+    return null;
   };
+  const pickEpochMs = (rec: JsonRecord | null, keys: string[]) => {
+    if (!rec) return null;
+    for (const k of keys) {
+      const v = rec[k];
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  };
+
+  const connectedMs = pickEpochMs(info, ["date_connected"]) ?? pickEpochMs(pRec, ["date_connected"]);
+  const startedMs = pickEpochMs(info, ["date_started", "date_rang"]) ?? pickEpochMs(pRec, ["date_started", "date_rang"]);
+  const endedMs = pickEpochMs(info, ["date_ended"]) ?? pickEpochMs(pRec, ["date_ended"]);
+
+  const talkTimeSeconds =
+    pickMs(info, ["duration", "duration_ms"]) ??
+    pickMs(pRec, ["duration", "duration_ms"]) ??
+    (connectedMs && endedMs && endedMs >= connectedMs
+      ? Math.max(0, Math.round((endedMs - connectedMs) / 1000))
+      : null);
+
+  const totalDurationSeconds =
+    pickMs(info, ["total_duration", "total_duration_ms"]) ??
+    pickMs(pRec, ["total_duration", "total_duration_ms"]) ??
+    (startedMs && endedMs && endedMs >= startedMs
+      ? Math.max(0, Math.round((endedMs - startedMs) / 1000))
+      : null);
+
+  return { talkTimeSeconds, totalDurationSeconds };
 }
 
 async function upsertContactNote(adminClient: ReturnType<typeof createClient>, params: {
@@ -3799,7 +3824,7 @@ async function syncDialpadCallHistory(params: {
   }
 
   // Cap detail fallback fetches per run.
-  const MAX_DETAIL_FETCHES = 300;
+  const MAX_DETAIL_FETCHES = 2000;
   let detailFetches = 0;
 
   let linked = 0;
@@ -3815,20 +3840,14 @@ async function syncDialpadCallHistory(params: {
     const dialpadCallIdStr = String(dialpadCallId);
 
     let call = originalCall;
-    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
-
-    // Duration fallback: fetch GET /call/{id} to populate talk/total duration.
-    if (
-      (durations.talkTimeSeconds == null || durations.totalDurationSeconds == null) &&
-      detailBudget.remaining > 0
-    ) {
+    // Listing rows lack duration_ms; fetch the full call object (free, no AI).
+    if (detailBudget.remaining > 0) {
       detailBudget.remaining -= 1;
       detailFetches += 1;
       try {
         const detail = await fetchDialpadCallInfo(dialpadCallIdStr, apiKey);
         if (isRecord(detail)) {
           call = { ...originalCall, ...detail };
-          durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
         }
       } catch (err) {
         console.warn(
@@ -3836,23 +3855,14 @@ async function syncDialpadCallHistory(params: {
         );
       }
     }
+    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
 
-    const startedMs = toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
-    const endedMs = toDialpadEpochMs(call.date_ended);
-    const connectedMs = toDialpadEpochMs(call.date_connected);
-    // Robust talk-time fallback (list rows use s-epoch, webhook uses ms-epoch — normalize both).
-    if (durations.talkTimeSeconds == null && connectedMs && endedMs && endedMs >= connectedMs) {
-      durations = {
-        ...durations,
-        talkTimeSeconds: Math.max(0, Math.round((endedMs - connectedMs) / 1000)),
-      };
-    }
-    if (durations.totalDurationSeconds == null && startedMs && endedMs && endedMs >= startedMs) {
-      durations = {
-        ...durations,
-        totalDurationSeconds: Math.max(0, Math.round((endedMs - startedMs) / 1000)),
-      };
-    }
+    const startedMs =
+      (typeof call.date_started_iso === "string" ? Date.parse(call.date_started_iso as string) : NaN) ||
+      toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
+    const endedMs =
+      (typeof call.date_ended_iso === "string" ? Date.parse(call.date_ended_iso as string) : NaN) ||
+      toDialpadEpochMs(call.date_ended);
     const state = normalizeDialpadState(call.state) ?? null;
     const talk = durations.talkTimeSeconds ?? 0;
     const isConnected =
