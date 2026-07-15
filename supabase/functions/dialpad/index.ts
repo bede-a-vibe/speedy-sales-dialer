@@ -2793,13 +2793,14 @@ async function diagnoseDialpadWebhook(params: { apiKey: string; hookUrl: string 
     }
   }
 
-  const [me, webhooks, subs] = await Promise.all([
-    safeJson("/users/me"),
+  const [company, offices, webhooks, subs] = await Promise.all([
+    safeJson("/company"),
+    safeJson("/offices?limit=100"),
     safeJson("/webhooks?limit=100"),
     safeJson("/subscriptions/call?limit=100"),
   ]);
 
-  return { ok: true, hook_url: hookUrl, me, webhooks, subscriptions: subs };
+  return { ok: true, hook_url: hookUrl, company, offices, webhooks, subscriptions: subs };
 }
 
 function toDurationSeconds(value: unknown) {
