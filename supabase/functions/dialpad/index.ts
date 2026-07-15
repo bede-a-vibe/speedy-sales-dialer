@@ -3636,8 +3636,17 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
       }
       const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
-      const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+      const force = body?.force === true;
+      const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret, force });
       return jsonResponse(result, result.ok ? 200 : 502);
+    }
+    if (action === "diagnose_dialpad_webhook") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+      const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
+      return jsonResponse(result, 200);
     }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
@@ -3717,8 +3726,21 @@ Deno.serve(async (req) => {
           return jsonResponse({ error: "DIALPAD_WEBHOOK_SECRET is not configured" }, 500);
         }
         const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
-        const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret });
+        const force = params?.force === true;
+        const result = await registerDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl, secret: webhookSecret, force });
         return jsonResponse(result, result.ok ? 200 : 502);
+      }
+
+      case "diagnose_dialpad_webhook": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
+        }
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+        }
+        const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
+        const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
+        return jsonResponse(result, 200);
       }
 
       case "initiate_call": {
