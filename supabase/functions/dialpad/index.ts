@@ -3037,26 +3037,41 @@ async function findCallLogByFallback(
   userId: string,
   trackedCreatedAt: string,
 ) {
-  const windowStart = new Date(new Date(trackedCreatedAt).getTime() - 15 * 60 * 1000).toISOString();
-  const windowEnd = new Date(new Date(trackedCreatedAt).getTime() + 15 * 60 * 1000).toISOString();
+  const base = new Date(trackedCreatedAt).getTime();
+  const queryWindow = async (mins: number) => {
+    const start = new Date(base - mins * 60 * 1000).toISOString();
+    const end = new Date(base + mins * 60 * 1000).toISOString();
+    const { data, error } = await adminClient
+      .from("call_logs")
+      .select("id, created_at")
+      .eq("contact_id", contactId)
+      .eq("user_id", userId)
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn(`[findCallLogByFallback] query error (${mins}m): ${error.message}`);
+      return null;
+    }
+    return data ?? [];
+  };
 
-  const { data, error } = await adminClient
-    .from("call_logs")
-    .select("id")
-    .eq("contact_id", contactId)
-    .eq("user_id", userId)
-    .gte("created_at", windowStart)
-    .lte("created_at", windowEnd)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.warn(`[syncWebhookPayload] Fallback call_log query error: ${error.message}`);
-    return null;
+  // Tight window first: nearest in time wins.
+  const tight = await queryWindow(15);
+  if (tight && tight.length > 0) {
+    // Pick the one whose created_at is closest to trackedCreatedAt.
+    let best = tight[0];
+    let bestDelta = Math.abs(new Date(best.created_at).getTime() - base);
+    for (const row of tight.slice(1)) {
+      const d = Math.abs(new Date(row.created_at).getTime() - base);
+      if (d < bestDelta) { best = row; bestDelta = d; }
+    }
+    return best.id;
   }
-
-  return data?.id ?? null;
+  // Widen ONLY when there's a single candidate in the wider window.
+  const wide = await queryWindow(60);
+  if (wide && wide.length === 1) return wide[0].id;
+  return null;
 }
 
 async function getTranscriptEligibleCallLog(adminClient: ReturnType<typeof createClient>, callLogId: string | null) {
