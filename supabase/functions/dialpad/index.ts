@@ -4530,6 +4530,15 @@ Deno.serve(async (req) => {
         return jsonResponse(result, result.ok ? 200 : 502);
       }
 
+      case "relink_dialpad_calls": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
+        }
+        const limit = typeof params.limit === "number" ? params.limit : undefined;
+        const result = await relinkDialpadCalls({ adminClient, limit });
+        return jsonResponse(result, result.ok ? 200 : 502);
+      }
+
       case "initiate_call": {
         const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
           adminClient,
