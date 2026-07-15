@@ -2836,23 +2836,50 @@ function isoDiffSeconds(startIso: unknown, endIso: unknown): number | null {
   return Math.max(0, Math.round((e - s) / 1000));
 }
 
-// Dialpad GET /call/{id} exposes durations as `duration_ms` (talk time from date_connected→date_ended)
-// and `total_duration_ms` (from date_started→date_ended). Fall back to ISO date subtraction.
+// Dialpad GET /call/{id} exposes talk time as `duration` and total call time as
+// `total_duration`, BOTH in **milliseconds** (e.g. 247026.805). Fall back to
+// (date_ended − date_connected) / (date_ended − date_started) using the raw
+// numeric ms-epoch strings Dialpad returns.
 function extractDialpadDurations(payload: DialpadWebhookPayload, callInfo: unknown) {
   const info = isRecord(callInfo) ? callInfo : null;
   const pRec = (payload ?? {}) as JsonRecord;
 
+  const pickMs = (rec: JsonRecord | null, keys: string[]) => {
+    if (!rec) return null;
+    for (const k of keys) {
+      const v = rec[k];
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      if (Number.isFinite(n) && n >= 0) return Math.max(0, Math.round(n / 1000));
+    }
+    return null;
+  };
+  const pickEpochMs = (rec: JsonRecord | null, keys: string[]) => {
+    if (!rec) return null;
+    for (const k of keys) {
+      const v = rec[k];
+      const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  };
+
+  const connectedMs = pickEpochMs(info, ["date_connected"]) ?? pickEpochMs(pRec, ["date_connected"]);
+  const startedMs = pickEpochMs(info, ["date_started", "date_rang"]) ?? pickEpochMs(pRec, ["date_started", "date_rang"]);
+  const endedMs = pickEpochMs(info, ["date_ended"]) ?? pickEpochMs(pRec, ["date_ended"]);
+
   const talkTimeSeconds =
-    msFieldToSeconds(info?.duration_ms) ??
-    msFieldToSeconds(pRec.duration_ms) ??
-    isoDiffSeconds(info?.date_connected_iso, info?.date_ended_iso) ??
-    isoDiffSeconds(pRec.date_connected_iso, pRec.date_ended_iso);
+    pickMs(info, ["duration", "duration_ms"]) ??
+    pickMs(pRec, ["duration", "duration_ms"]) ??
+    (connectedMs && endedMs && endedMs >= connectedMs
+      ? Math.max(0, Math.round((endedMs - connectedMs) / 1000))
+      : null);
 
   const totalDurationSeconds =
-    msFieldToSeconds(info?.total_duration_ms) ??
-    msFieldToSeconds(pRec.total_duration_ms) ??
-    isoDiffSeconds(info?.date_started_iso, info?.date_ended_iso) ??
-    isoDiffSeconds(pRec.date_started_iso, pRec.date_ended_iso);
+    pickMs(info, ["total_duration", "total_duration_ms"]) ??
+    pickMs(pRec, ["total_duration", "total_duration_ms"]) ??
+    (startedMs && endedMs && endedMs >= startedMs
+      ? Math.max(0, Math.round((endedMs - startedMs) / 1000))
+      : null);
 
   return { talkTimeSeconds, totalDurationSeconds };
 }
