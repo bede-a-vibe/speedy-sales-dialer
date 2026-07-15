@@ -55,9 +55,12 @@ export function DealDialog({
   const [status, setStatus] = useState<ClientDealStatus>((state.deal?.status as ClientDealStatus) ?? "active");
   const [notes, setNotes] = useState<string>(state.deal?.notes ?? "");
   const [endDate, setEndDate] = useState<string>(state.deal?.end_date ?? "");
+  const [pausedAt, setPausedAt] = useState<string>(state.deal?.paused_at ?? "");
 
   // Churned deals carry an end date (revenue accrues up to it); non-churned clear it.
   const resolvedEndDate = status === "churned" ? (endDate || new Date().toISOString().slice(0, 10)) : null;
+  // Paused deals carry a pause date; otherwise cleared.
+  const resolvedPausedAt = status === "paused" ? (pausedAt || new Date().toISOString().slice(0, 10)) : null;
 
   const contactSearch = useQuery({
     queryKey: ["client-deal-contact-search", search],
@@ -88,6 +91,7 @@ export function DealDialog({
             gst,
             start_date: startDate,
             end_date: resolvedEndDate,
+            paused_at: resolvedPausedAt,
             status,
             notes: notes || null,
           },
@@ -103,6 +107,7 @@ export function DealDialog({
           gst,
           start_date: startDate,
           end_date: resolvedEndDate,
+          paused_at: resolvedPausedAt,
           status,
           notes: notes || null,
         });
@@ -222,6 +227,18 @@ export function DealDialog({
               </div>
             </div>
           </div>
+
+          {status === "paused" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Pause date</Label>
+              <Input
+                type="date"
+                value={pausedAt || new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setPausedAt(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">When this deal was paused. MRR won't count while paused.</p>
+            </div>
+          )}
 
           {status === "churned" && (
             <div className="space-y-1.5">
