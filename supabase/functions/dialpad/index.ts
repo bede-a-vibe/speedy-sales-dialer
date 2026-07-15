@@ -3565,6 +3565,313 @@ async function syncWebhookPayload(params: {
   };
 }
 
+// ── Dialpad call-history PULL (polling) ──────────────────────────────
+// Free, reliable replacement for the webhook. Pulls the office's recent
+// calls, stores metadata + Dialpad's own transcript + Dialpad's own
+// ai_recap. Does NOT invoke Lovable AI, NEPQ scoring, or objection
+// extraction — those live in processPendingTranscriptSyncs and stay off.
+
+const DIALPAD_OFFICE_ID_DEFAULT = "5928921344909312";
+const DIALPAD_SYNC_KEY = "office_call_history";
+
+function toDialpadEpochMs(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Dialpad returns ms epoch for date_* fields.
+    return value;
+  }
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+    const t = Date.parse(value);
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+function isoOrNull(ms: number | null): string | null {
+  if (ms == null || !Number.isFinite(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
+function pickExternalNumber(call: JsonRecord): string | null {
+  // Dialpad /call payloads use external_number for the non-Dialpad party.
+  const contact = isRecord(call.contact) ? call.contact : null;
+  const candidates = [
+    call.external_number,
+    contact?.phone,
+    call.from_number,
+    call.to_number,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  return null;
+}
+
+function pickDialpadTargetUserId(call: JsonRecord): string | null {
+  const targetKind = typeof call.target_kind === "string" ? call.target_kind : null;
+  const targetRec = isRecord(call.target) ? call.target : null;
+  const targetId = call.target_id ?? targetRec?.id;
+  if (targetKind === "user" && (typeof targetId === "string" || typeof targetId === "number")) {
+    return String(targetId);
+  }
+  // Fallbacks: some payloads expose the user via `user_id` or `target.user_id`.
+  const alt = call.user_id ?? targetRec?.user_id;
+  if (typeof alt === "string" || typeof alt === "number") return String(alt);
+  if (typeof targetId === "string" || typeof targetId === "number") return String(targetId);
+  return null;
+}
+
+async function listDialpadOfficeCalls(params: {
+  apiKey: string;
+  officeId: string;
+  startedAfterMs: number;
+  startedBeforeMs: number;
+  hardCap?: number;
+}): Promise<JsonRecord[]> {
+  const { apiKey, officeId, startedAfterMs, startedBeforeMs, hardCap = 2000 } = params;
+  const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
+  const results: JsonRecord[] = [];
+  let cursor: string | null = null;
+  let pages = 0;
+  const maxPages = 40;
+
+  while (pages < maxPages && results.length < hardCap) {
+    const url = new URL(`${DIALPAD_BASE}/call`);
+    url.searchParams.set("started_after", String(startedAfterMs));
+    url.searchParams.set("started_before", String(startedBeforeMs));
+    url.searchParams.set("target_type", "office");
+    url.searchParams.set("target_id", officeId);
+    url.searchParams.set("limit", "50");
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const res = await fetch(url.toString(), { headers });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Dialpad /call list failed: ${res.status} ${body.slice(0, 400)}`);
+    }
+    const payload = await res.json();
+    const items = Array.isArray(payload?.items)
+      ? payload.items
+      : Array.isArray(payload)
+        ? payload
+        : [];
+    for (const item of items) {
+      if (isRecord(item)) results.push(item as JsonRecord);
+    }
+    cursor = typeof payload?.cursor === "string" && payload.cursor ? payload.cursor : null;
+    pages += 1;
+    if (!cursor) break;
+  }
+
+  return results;
+}
+
+async function syncDialpadCallHistory(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  officeId?: string;
+  sinceOverrideMs?: number | null;
+  windowMinutes?: number;
+  hardCap?: number;
+}) {
+  const { adminClient, apiKey } = params;
+  const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
+  const hardCap = params.hardCap ?? 2000;
+  const nowMs = Date.now();
+
+  // Determine window start
+  let sinceMs: number;
+  if (params.sinceOverrideMs && Number.isFinite(params.sinceOverrideMs)) {
+    sinceMs = params.sinceOverrideMs;
+  } else {
+    const { data: state } = await adminClient
+      .from("dialpad_sync_state")
+      .select("last_synced_at")
+      .eq("key", DIALPAD_SYNC_KEY)
+      .maybeSingle();
+    const lastMs = state?.last_synced_at ? Date.parse(state.last_synced_at as string) : NaN;
+    if (Number.isFinite(lastMs)) {
+      // Overlap 10 minutes to plug gaps.
+      sinceMs = lastMs - 10 * 60 * 1000;
+    } else {
+      // First run: default 24h lookback.
+      const win = params.windowMinutes ?? 24 * 60;
+      sinceMs = nowMs - win * 60 * 1000;
+    }
+  }
+
+  console.log(
+    `[sync_dialpad_call_history] office=${officeId} since=${new Date(sinceMs).toISOString()} until=${new Date(nowMs).toISOString()}`,
+  );
+
+  let calls: JsonRecord[];
+  try {
+    calls = await listDialpadOfficeCalls({
+      apiKey,
+      officeId,
+      startedAfterMs: sinceMs,
+      startedBeforeMs: nowMs,
+      hardCap,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await adminClient.from("dialpad_sync_state").upsert({
+      key: DIALPAD_SYNC_KEY,
+      last_run_at: new Date().toISOString(),
+      last_error: msg,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+    return { ok: false as const, error: msg, pulled: 0, linked: 0, with_talk_time: 0 };
+  }
+
+  // Preload dialpad_user_id → { user_id } map
+  const { data: settings } = await adminClient
+    .from("dialpad_settings")
+    .select("user_id, dialpad_user_id");
+  const userIdByDialpadUser = new Map<string, string>();
+  for (const row of settings ?? []) {
+    if (row.dialpad_user_id && row.user_id) {
+      userIdByDialpadUser.set(String(row.dialpad_user_id), row.user_id as string);
+    }
+  }
+
+  let linked = 0;
+  let withTalkTime = 0;
+  let skipped = 0;
+
+  for (const call of calls) {
+    const dialpadCallId = call.call_id ?? call.id;
+    if (dialpadCallId == null) { skipped += 1; continue; }
+    const dialpadCallIdStr = String(dialpadCallId);
+
+    const durations = extractDialpadDurations({} as DialpadWebhookPayload, call);
+    const startedMs = toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
+    const endedMs = toDialpadEpochMs(call.date_ended);
+    const state = normalizeDialpadState(call.state) ?? null;
+    const isConnected = (durations.talkTimeSeconds ?? 0) > 0 || state === "connected" || state === "hangup" && !!call.date_connected;
+    const externalNumber = pickExternalNumber(call);
+    const normalizedExternal = externalNumber ? normalizePhoneNumberToE164(externalNumber) : null;
+    const direction = typeof call.direction === "string" ? call.direction : null;
+
+    // Resolve rep
+    const dialpadTargetUser = pickDialpadTargetUserId(call);
+    const repUserId = dialpadTargetUser ? userIdByDialpadUser.get(dialpadTargetUser) ?? null : null;
+
+    // Try to resolve contact by phone (E.164)
+    let contactId: string | null = null;
+    if (normalizedExternal) {
+      const { data: contactRow } = await adminClient
+        .from("contacts")
+        .select("id")
+        .eq("phone", normalizedExternal)
+        .limit(1)
+        .maybeSingle();
+      contactId = contactRow?.id ?? null;
+    }
+
+    // Attempt call_log linkage (rep + contact + ±15 min around start)
+    let callLogId: string | null = null;
+    if (repUserId && contactId && startedMs) {
+      callLogId = await findCallLogByFallback(
+        adminClient,
+        contactId,
+        repUserId,
+        new Date(startedMs).toISOString(),
+      );
+    }
+
+    // Fetch Dialpad-side transcript + ai_recap (no Lovable AI involved)
+    let transcript: string | null = null;
+    let dialpadSummary: string | null = null;
+    try {
+      transcript = await fetchDialpadTranscript(dialpadCallIdStr, apiKey);
+    } catch { /* ignore per-call */ }
+    try {
+      dialpadSummary = await fetchDialpadAiRecap(dialpadCallIdStr, apiKey);
+    } catch { /* ignore per-call */ }
+
+    const upsertRow: Record<string, unknown> = {
+      dialpad_call_id: dialpadCallIdStr,
+      contact_id: contactId,
+      user_id: repUserId,
+      call_log_id: callLogId,
+      call_state: state,
+      direction,
+      talk_time_seconds: durations.talkTimeSeconds,
+      total_duration_seconds: durations.totalDurationSeconds,
+      started_at: isoOrNull(startedMs),
+      ended_at: isoOrNull(endedMs),
+      external_number: normalizedExternal ?? externalNumber,
+      is_connected: isConnected,
+      transcript,
+      dialpad_summary: dialpadSummary,
+      transcript_synced_at: transcript ? new Date().toISOString() : null,
+      sync_status: "synced",
+      sync_error: null,
+    };
+
+    const { error: upErr } = await adminClient
+      .from("dialpad_calls")
+      .upsert(upsertRow, { onConflict: "dialpad_call_id" });
+    if (upErr) {
+      console.warn(`[sync_dialpad_call_history] upsert failed call=${dialpadCallIdStr}: ${upErr.message}`);
+      skipped += 1;
+      continue;
+    }
+
+    // Backfill Dialpad-side data onto the matched call_log (no AI)
+    if (callLogId) {
+      linked += 1;
+      const patch: Record<string, unknown> = {
+        dialpad_call_id: dialpadCallIdStr,
+      };
+      if (durations.talkTimeSeconds != null) patch.dialpad_talk_time_seconds = durations.talkTimeSeconds;
+      if (durations.totalDurationSeconds != null) patch.dialpad_total_duration_seconds = durations.totalDurationSeconds;
+      if (transcript) {
+        patch.dialpad_transcript = transcript;
+        patch.transcript_synced_at = new Date().toISOString();
+      }
+      if (dialpadSummary) patch.dialpad_summary = dialpadSummary;
+      const { error: clErr } = await adminClient
+        .from("call_logs")
+        .update(patch)
+        .eq("id", callLogId);
+      if (clErr) {
+        console.warn(`[sync_dialpad_call_history] call_logs backfill failed id=${callLogId}: ${clErr.message}`);
+      }
+    }
+    if ((durations.talkTimeSeconds ?? 0) > 0) withTalkTime += 1;
+  }
+
+  // Advance cursor to nowMs regardless (overlap protects gaps).
+  await adminClient.from("dialpad_sync_state").upsert({
+    key: DIALPAD_SYNC_KEY,
+    last_synced_at: new Date(nowMs).toISOString(),
+    last_run_at: new Date().toISOString(),
+    last_pulled: calls.length,
+    last_linked: linked,
+    last_error: null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "key" });
+
+  console.log(
+    `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped}`,
+  );
+
+  return {
+    ok: true as const,
+    endpoint: "GET /call?target_type=office&target_id=<office_id>&started_after&started_before",
+    office_id: officeId,
+    since: new Date(sinceMs).toISOString(),
+    until: new Date(nowMs).toISOString(),
+    pulled: calls.length,
+    linked,
+    with_talk_time: withTalkTime,
+    skipped,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -3662,6 +3969,24 @@ Deno.serve(async (req) => {
       const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
       return jsonResponse(result, 200);
     }
+    if (action === "sync_dialpad_call_history") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const officeId = typeof body.office_id === "string" ? body.office_id : undefined;
+      const windowMinutes = typeof body.window_minutes === "number" ? body.window_minutes : undefined;
+      const sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
+      const result = await syncDialpadCallHistory({
+        adminClient,
+        apiKey: DIALPAD_API_KEY,
+        officeId,
+        windowMinutes,
+        sinceOverrideMs,
+        hardCap,
+      });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
@@ -3755,6 +4080,28 @@ Deno.serve(async (req) => {
         const hookUrl = `${supabaseUrl}/functions/v1/dialpad`;
         const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
         return jsonResponse(result, 200);
+      }
+
+      case "sync_dialpad_call_history": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
+        }
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+        }
+        const officeId = typeof params.office_id === "string" ? params.office_id : undefined;
+        const windowMinutes = typeof params.window_minutes === "number" ? params.window_minutes : undefined;
+        const sinceOverrideMs = typeof params.since_ms === "number" ? params.since_ms : undefined;
+        const hardCap = typeof params.hard_cap === "number" ? params.hard_cap : undefined;
+        const result = await syncDialpadCallHistory({
+          adminClient,
+          apiKey: DIALPAD_API_KEY,
+          officeId,
+          windowMinutes,
+          sinceOverrideMs,
+          hardCap,
+        });
+        return jsonResponse(result, result.ok ? 200 : 502);
       }
 
       case "initiate_call": {
