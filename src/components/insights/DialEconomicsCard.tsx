@@ -1,16 +1,7 @@
-import { useState } from "react";
 import { Coins, PhoneCall, DollarSign, Handshake } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDialEconomics } from "@/hooks/useDialEconomics";
 import { formatCurrency, formatCurrencyCents } from "@/lib/clientRevenue";
-
-const RANGES = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-  { value: "365", label: "Last 12 months" },
-];
 
 function Metric({ label, value, sub, icon: Icon, highlight }: { label: string; value: string; sub?: string; icon: React.ComponentType<{ className?: string }>; highlight?: boolean }) {
   return (
@@ -27,31 +18,19 @@ function Metric({ label, value, sub, icon: Icon, highlight }: { label: string; v
   );
 }
 
-export function DialEconomicsCard() {
-  const [days, setDays] = useState("30");
-  const { data, isLoading } = useDialEconomics(Number(days));
+/** Uses the shared Insights date range — no local time selector. */
+export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
+  const { data, isLoading } = useDialEconomics(dateFrom, dateTo);
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Coins className="h-4 w-4 text-primary" /> Dial economics
-            </CardTitle>
-            <CardDescription className="text-xs">
-              New monthly recurring revenue won per dial placed, in the window.
-            </CardDescription>
-          </div>
-          <Select value={days} onValueChange={setDays}>
-            <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {RANGES.map((r) => (
-                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Coins className="h-4 w-4 text-primary" /> Dial economics
+        </CardTitle>
+        <CardDescription className="text-xs">
+          New monthly recurring revenue won per dial placed, in the selected range.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric

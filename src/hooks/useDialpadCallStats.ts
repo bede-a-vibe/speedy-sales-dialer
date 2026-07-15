@@ -11,20 +11,22 @@ export interface DialpadCallStatRow {
 }
 
 /**
- * Raw Dialpad call rows (from the call-history pull) for talk-time analytics.
+ * Raw Dialpad call rows (from the call-history pull) for talk-time analytics,
+ * over the shared Insights date range (YYYY-MM-DD).
  * Admins/coaches see all reps' calls (per RLS); reps see their own.
  */
-export function useDialpadCallStats(days = 30) {
+export function useDialpadCallStats(dateFrom: string, dateTo: string) {
   return useQuery({
-    queryKey: ["dialpad-call-stats", days],
+    queryKey: ["dialpad-call-stats", dateFrom, dateTo],
     staleTime: 60_000,
     queryFn: async () => {
-      const since = new Date();
-      since.setDate(since.getDate() - days);
+      const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
+      const toIso = new Date(`${dateTo}T23:59:59.999`).toISOString();
       const { data, error } = await supabase
         .from("dialpad_calls")
         .select("user_id, talk_time_seconds, total_duration_seconds, started_at, is_connected, direction")
-        .gte("started_at", since.toISOString())
+        .gte("started_at", fromIso)
+        .lte("started_at", toIso)
         .not("started_at", "is", null)
         .limit(20000);
       if (error) throw error;
