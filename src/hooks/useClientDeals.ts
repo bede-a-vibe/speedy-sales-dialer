@@ -17,6 +17,7 @@ export type ClientDeal = Tables<"client_deals"> & {
     business_name: string | null;
     state: string | null;
     lifecycle_stage: string | null;
+    meeting_booked_date: string | null;
   } | null;
 };
 
@@ -27,7 +28,7 @@ export function useClientDeals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("client_deals")
-        .select("*, contact:contacts(id, business_name, state, lifecycle_stage)")
+        .select("*, contact:contacts(id, business_name, state, lifecycle_stage, meeting_booked_date)")
         .order("start_date", { ascending: false });
       if (error) throw error;
       return (data ?? []) as ClientDeal[];
@@ -104,6 +105,12 @@ export interface ClientRollupRow {
   deals: ClientDeal[];
   /** False = a won client with no deal recorded yet (needs deal $ entered). */
   dealRecorded: boolean;
+  /** First appointment booked (meeting_booked_date) — start of the sales cycle. */
+  firstBookingDate: string | null;
+  /** Sign/payment date = earliest deal start_date. */
+  signDate: string | null;
+  /** Days from first booking to sign/pay; null unless both dates exist. */
+  salesCycleDays: number | null;
 }
 
 export interface AgencyTotals {
@@ -114,6 +121,16 @@ export interface AgencyTotals {
   mrrByStream: Record<ClientStream, number>;
   /** Won clients with no deal recorded yet. */
   pendingClients: number;
+  /** Average sales-cycle length (days) across clients with both dates. */
+  avgSalesCycleDays: number | null;
+}
+
+function daysBetween(fromIso: string | null, toIso: string | null): number | null {
+  if (!fromIso || !toIso) return null;
+  const from = new Date(fromIso).getTime();
+  const to = new Date(toIso).getTime();
+  if (isNaN(from) || isNaN(to)) return null;
+  return Math.max(0, Math.round((to - from) / 86_400_000));
 }
 
 /** Won contacts (clients that were closed) — used to surface clients even before a deal $ is entered. */
@@ -124,10 +141,10 @@ export function useWonClientContacts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contacts")
-        .select("id, business_name, state")
+        .select("id, business_name, state, meeting_booked_date")
         .eq("lifecycle_stage", "won");
       if (error) throw error;
-      return (data ?? []) as { id: string; business_name: string | null; state: string | null }[];
+      return (data ?? []) as { id: string; business_name: string | null; state: string | null; meeting_booked_date: string | null }[];
     },
   });
 }
@@ -198,6 +215,9 @@ export function useClientRollup() {
         status,
         deals: ds.slice().sort((a, b) => (a.start_date < b.start_date ? -1 : 1)),
         dealRecorded: true,
+        firstBookingDate: contact?.meeting_booked_date ?? null,
+        signDate: minStart,
+        salesCycleDays: daysBetween(contact?.meeting_booked_date ?? null, minStart),
       });
     }
 
@@ -219,6 +239,9 @@ export function useClientRollup() {
         status: "active",
         deals: [],
         dealRecorded: false,
+        firstBookingDate: wc.meeting_booked_date ?? null,
+        signDate: null,
+        salesCycleDays: null,
       });
     }
 
@@ -229,6 +252,11 @@ export function useClientRollup() {
       return b.mrr - a.mrr;
     });
 
+    const cycleDays = clients.map((c) => c.salesCycleDays).filter((d): d is number => d != null);
+    const avgSalesCycleDays = cycleDays.length > 0
+      ? Math.round(cycleDays.reduce((s, d) => s + d, 0) / cycleDays.length)
+      : null;
+
     const totals: AgencyTotals = {
       activeClients,
       totalMrr,
@@ -236,6 +264,7 @@ export function useClientRollup() {
       churnedMrr,
       mrrByStream,
       pendingClients,
+      avgSalesCycleDays,
     };
 
     return { clients, totals };
