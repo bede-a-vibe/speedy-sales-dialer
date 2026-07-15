@@ -3967,6 +3967,24 @@ Deno.serve(async (req) => {
       const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
       return jsonResponse(result, 200);
     }
+    if (action === "sync_dialpad_call_history") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const officeId = typeof body.office_id === "string" ? body.office_id : undefined;
+      const windowMinutes = typeof body.window_minutes === "number" ? body.window_minutes : undefined;
+      const sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
+      const result = await syncDialpadCallHistory({
+        adminClient,
+        apiKey: DIALPAD_API_KEY,
+        officeId,
+        windowMinutes,
+        sinceOverrideMs,
+        hardCap,
+      });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
