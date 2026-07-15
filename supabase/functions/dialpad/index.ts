@@ -3815,7 +3815,7 @@ async function syncDialpadCallHistory(params: {
     const dialpadCallIdStr = String(dialpadCallId);
 
     let call = originalCall;
-    let durations = extractDialpadDurations({} as DialpadWebhookPayload, call);
+    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
 
     // Duration fallback: fetch GET /call/{id} to populate talk/total duration.
     if (
@@ -3828,7 +3828,7 @@ async function syncDialpadCallHistory(params: {
         const detail = await fetchDialpadCallInfo(dialpadCallIdStr, apiKey);
         if (isRecord(detail)) {
           call = { ...originalCall, ...detail };
-          durations = extractDialpadDurations({} as DialpadWebhookPayload, call);
+          durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
         }
       } catch (err) {
         console.warn(
