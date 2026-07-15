@@ -44,7 +44,8 @@ export function toMonthly(amount: number, billing_period: BillingPeriod | string
 }
 
 export function dealMrr(deal: ClientDealLike): number {
-  if (deal.status === "churned") return 0;
+  // Churned = gone, paused = temporarily not billing — neither counts toward current MRR.
+  if (deal.status === "churned" || deal.status === "paused") return 0;
   return toMonthly(Number(deal.amount) || 0, deal.billing_period);
 }
 
