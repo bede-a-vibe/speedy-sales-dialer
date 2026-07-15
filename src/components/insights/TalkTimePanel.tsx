@@ -5,6 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { useDialpadCallStats, formatTalk, type DialpadCallStatRow } from "@/hooks/useDialpadCallStats";
 
+interface TalkTimePanelProps {
+  /** Shared Insights date range (YYYY-MM-DD). */
+  dateFrom: string;
+  dateTo: string;
+}
+
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am → 8pm
 
@@ -44,10 +50,9 @@ function Tile({ label, value, sub, icon: Icon }: { label: string; value: string;
   );
 }
 
-export function TalkTimePanel() {
-  const [days, setDays] = useState(30);
+export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
   const [rep, setRep] = useState("all");
-  const { data: calls = [], isLoading } = useDialpadCallStats(days);
+  const { data: calls = [], isLoading } = useDialpadCallStats(dateFrom, dateTo);
   const { data: reps = [] } = useSalesReps();
 
   const repName = useMemo(() => {
@@ -108,19 +113,9 @@ export function TalkTimePanel() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Talk time</h3>
-          <p className="text-xs text-muted-foreground">Live from Dialpad — connected talk time, per rep and by time of week (Melbourne).</p>
-        </div>
-        <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-          <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">Talk time</h3>
+        <p className="text-xs text-muted-foreground">Live from Dialpad — connected talk time, per rep and by time of week (Melbourne).</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -195,7 +190,7 @@ export function TalkTimePanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">By rep</CardTitle>
-          <CardDescription className="text-xs">Talk time and connect rate per rep ({days}d).</CardDescription>
+          <CardDescription className="text-xs">Talk time and connect rate per rep in the selected range.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <p className="p-6 text-xs text-muted-foreground">Loading…</p>}

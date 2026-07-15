@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
@@ -72,13 +73,21 @@ function dayDiff(from: string, to: string) {
   return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
 }
 
-export function CallFunnelBody() {
+interface CallFunnelBodyProps {
+  /** When provided (Insights shared toolbar), use these filters and hide the local toolbar. */
+  controlled?: { dateFrom: string; dateTo: string; selectedRepId: string };
+}
+
+export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
-  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
-  const [dateTo, setDateTo] = useState(today);
-  const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
+  const [internalDateFrom, setDateFrom] = useState(thirtyDaysAgo);
+  const [internalDateTo, setDateTo] = useState(today);
+  const [internalRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
+  const dateFrom = controlled?.dateFrom ?? internalDateFrom;
+  const dateTo = controlled?.dateTo ?? internalDateTo;
+  const selectedRepId = controlled?.selectedRepId ?? internalRepId;
   const [compareMode, setCompareMode] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownDimensionId>("none");
   const [activeGroupLabel, setActiveGroupLabel] = useState<string | null>(null);
@@ -300,26 +309,47 @@ export function CallFunnelBody() {
 
   return (
     <>
-      <ReportsToolbar
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        selectedRepId={selectedRepId}
-        onSelectedRepIdChange={setSelectedRepId}
-        reps={reps}
-        allRepsValue={ALL_REPS_VALUE}
-        isLoading={callsLoading || bookingsLoading || repsLoading}
-        breakdown={breakdown}
-        onBreakdownChange={(v) => {
-          setBreakdown(v as BreakdownDimensionId);
-          setActiveGroupLabel(null);
-        }}
-        breakdownOptions={BREAKDOWN_DIMENSIONS}
-      />
+      {!controlled && (
+        <ReportsToolbar
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+          selectedRepId={selectedRepId}
+          onSelectedRepIdChange={setSelectedRepId}
+          reps={reps}
+          allRepsValue={ALL_REPS_VALUE}
+          isLoading={callsLoading || bookingsLoading || repsLoading}
+          breakdown={breakdown}
+          onBreakdownChange={(v) => {
+            setBreakdown(v as BreakdownDimensionId);
+            setActiveGroupLabel(null);
+          }}
+          breakdownOptions={BREAKDOWN_DIMENSIONS}
+        />
+      )}
 
       <div className="mx-auto max-w-6xl space-y-5 pt-5">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {controlled && (
+            <div className="mr-auto flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Break down by</Label>
+              <Select
+                value={breakdown}
+                onValueChange={(v) => {
+                  setBreakdown(v as BreakdownDimensionId);
+                  setActiveGroupLabel(null);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BREAKDOWN_DIMENSIONS.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Label
             htmlFor="compare-toggle"
             className={cn(
