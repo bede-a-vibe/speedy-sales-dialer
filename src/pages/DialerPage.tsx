@@ -3058,6 +3058,7 @@ export default function DialerPage() {
                 onDqNotesChange={setDqNotes}
                 dncReason={dncReason}
                 onDncReasonChange={setDncReason}
+                contactId={session.currentContact.id}
                 mobileGatekeeper={Boolean((session.currentContact as Record<string, unknown>).mobile_reaches_gatekeeper)}
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"
