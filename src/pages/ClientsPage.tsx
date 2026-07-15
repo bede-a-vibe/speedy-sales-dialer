@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, TrendingDown, Layers, Timer } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, TrendingDown, Layers, Timer, HandCoins, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   useClientRollup,
   useDeleteClientDeal,
+  useUpdateClientFollowUp,
   type ClientDeal,
   type ClientRollupRow,
 } from "@/hooks/useClientDeals";
@@ -157,6 +159,55 @@ function ClientDealsList({ client, onEdit, onAdd }: { client: ClientRollupRow; o
   );
 }
 
+// ---------- Deposits & onboarding row ----------
+function OnboardingRow({ client, onAddDeal }: { client: ClientRollupRow; onAddDeal: () => void }) {
+  const updateFollowUp = useUpdateClientFollowUp();
+  const [date, setDate] = useState(client.followUpDate ?? "");
+  const [note, setNote] = useState(client.followUpNote ?? "");
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = Boolean(date) && date < today;
+  return (
+    <div className={cn("rounded-md border bg-card p-3", overdue ? "border-destructive/40" : "border-border")}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="truncate text-sm font-medium">{client.businessName}</span>
+          {client.state && <span className="text-[10px] font-mono text-muted-foreground">{client.state}</span>}
+          <span className="text-xs text-muted-foreground">Deposit {formatCurrency(client.revenueToDate)}</span>
+        </div>
+        <Button size="sm" variant="outline" onClick={onAddDeal}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add full deal
+        </Button>
+      </div>
+      <div className="mt-2 grid items-center gap-2 sm:grid-cols-[auto_1fr]">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Follow up</label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              updateFollowUp.mutate({ contactId: client.contactId, date: e.target.value || null });
+            }}
+            className={cn("h-7 w-[145px] text-xs", overdue && "border-destructive text-destructive")}
+          />
+          {overdue && (
+            <Badge variant="outline" className="border-destructive/40 text-destructive text-[9px] gap-1">
+              <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+            </Badge>
+          )}
+        </div>
+        <Input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onBlur={() => updateFollowUp.mutate({ contactId: client.contactId, note: note || null })}
+          placeholder="Note — what's outstanding, last contact…"
+          className="h-7 text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ---------- Page ----------
 export default function ClientsPage() {
   const rollup = useClientRollup();
@@ -164,6 +215,8 @@ export default function ClientsPage() {
   const [dialog, setDialog] = useState<DealDialogState>({ open: false, mode: "create" });
 
   const avgMrr = rollup.totals.activeClients > 0 ? rollup.totals.totalMrr / rollup.totals.activeClients : 0;
+  const onboardingClients = rollup.clients.filter((c) => c.isOnboarding);
+  const mainClients = rollup.clients.filter((c) => !c.isOnboarding);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -198,6 +251,28 @@ export default function ClientsPage() {
 
         <MrrByStreamCard mrrByStream={rollup.totals.mrrByStream} totalMrr={rollup.totals.totalMrr} />
 
+        {onboardingClients.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <HandCoins className="h-4 w-4 text-primary" /> Deposits &amp; Onboarding
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Paid a deposit but not on a full recurring deal yet — set a follow-up so they don't slip. Add their full deal to graduate them to active clients.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {onboardingClients.map((c) => (
+                <OnboardingRow
+                  key={c.contactId}
+                  client={c}
+                  onAddDeal={() => setDialog({ open: true, mode: "create", contactId: c.contactId, contactBusinessName: c.businessName })}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Clients</CardTitle>
@@ -205,7 +280,7 @@ export default function ClientsPage() {
           </CardHeader>
           <CardContent className="p-0">
             {rollup.isLoading && <p className="p-6 text-xs text-muted-foreground">Loading…</p>}
-            {!rollup.isLoading && rollup.clients.length === 0 && (
+            {!rollup.isLoading && mainClients.length === 0 && (
               <div className="p-8 text-center">
                 <p className="text-sm text-muted-foreground">No client deals yet.</p>
                 <Button className="mt-3" onClick={() => setDialog({ open: true, mode: "create" })}>
@@ -213,7 +288,7 @@ export default function ClientsPage() {
                 </Button>
               </div>
             )}
-            {rollup.clients.length > 0 && (
+            {mainClients.length > 0 && (
               <div className="divide-y divide-border">
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground bg-muted/30">
                   <div className="col-span-4">Business</div>
@@ -223,7 +298,7 @@ export default function ClientsPage() {
                   <div className="col-span-1 text-right">Revenue</div>
                   <div className="col-span-1 text-right">Status</div>
                 </div>
-                {rollup.clients.map((c) => {
+                {mainClients.map((c) => {
                   const isOpen = expanded.has(c.contactId);
                   return (
                     <div key={c.contactId}>

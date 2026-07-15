@@ -283,6 +283,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_date: string | null
+          paused_at: string | null
           gst: boolean
           id: string
           notes: string | null
@@ -298,6 +299,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          paused_at?: string | null
           gst?: boolean
           id?: string
           notes?: string | null
@@ -313,6 +315,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          paused_at?: string | null
           gst?: boolean
           id?: string
           notes?: string | null
@@ -440,6 +443,8 @@ export type Database = {
           lead_type: string
           lifecycle_reason: string | null
           lifecycle_stage: string
+          client_follow_up_date: string | null
+          client_follow_up_note: string | null
           meeting_booked_date: string | null
           merged_into_contact_id: string | null
           mobile_reaches_gatekeeper: boolean
@@ -529,6 +534,8 @@ export type Database = {
           lead_type?: string
           lifecycle_reason?: string | null
           lifecycle_stage?: string
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
           mobile_reaches_gatekeeper?: boolean
@@ -618,6 +625,8 @@ export type Database = {
           lead_type?: string
           lifecycle_reason?: string | null
           lifecycle_stage?: string
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
           mobile_reaches_gatekeeper?: boolean

@@ -18,6 +18,8 @@ export type ClientDeal = Tables<"client_deals"> & {
     state: string | null;
     lifecycle_stage: string | null;
     meeting_booked_date: string | null;
+    client_follow_up_date: string | null;
+    client_follow_up_note: string | null;
   } | null;
 };
 
@@ -28,7 +30,7 @@ export function useClientDeals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("client_deals")
-        .select("*, contact:contacts(id, business_name, state, lifecycle_stage, meeting_booked_date)")
+        .select("*, contact:contacts(id, business_name, state, lifecycle_stage, meeting_booked_date, client_follow_up_date, client_follow_up_note)")
         .order("start_date", { ascending: false });
       if (error) throw error;
       return (data ?? []) as ClientDeal[];
@@ -92,6 +94,23 @@ export function useDeleteClientDeal() {
   });
 }
 
+export function useUpdateClientFollowUp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contactId, date, note }: { contactId: string; date?: string | null; note?: string | null }) => {
+      const patch: { client_follow_up_date?: string | null; client_follow_up_note?: string | null } = {};
+      if (date !== undefined) patch.client_follow_up_date = date;
+      if (note !== undefined) patch.client_follow_up_note = note;
+      const { error } = await supabase.from("contacts").update(patch).eq("id", contactId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-deals"] });
+      qc.invalidateQueries({ queryKey: ["won-client-contacts"] });
+    },
+  });
+}
+
 export interface ClientRollupRow {
   contactId: string;
   businessName: string;
@@ -111,6 +130,10 @@ export interface ClientRollupRow {
   signDate: string | null;
   /** Days from first booking to sign/pay; null unless both dates exist. */
   salesCycleDays: number | null;
+  /** True = deposit paid / onboarding (a deal exists but no active recurring MRR). */
+  isOnboarding: boolean;
+  followUpDate: string | null;
+  followUpNote: string | null;
 }
 
 export interface AgencyTotals {
@@ -141,10 +164,13 @@ export function useWonClientContacts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contacts")
-        .select("id, business_name, state, meeting_booked_date")
+        .select("id, business_name, state, meeting_booked_date, client_follow_up_date, client_follow_up_note")
         .eq("lifecycle_stage", "won");
       if (error) throw error;
-      return (data ?? []) as { id: string; business_name: string | null; state: string | null; meeting_booked_date: string | null }[];
+      return (data ?? []) as {
+        id: string; business_name: string | null; state: string | null;
+        meeting_booked_date: string | null; client_follow_up_date: string | null; client_follow_up_note: string | null;
+      }[];
     },
   });
 }
@@ -218,6 +244,10 @@ export function useClientRollup() {
         firstBookingDate: contact?.meeting_booked_date ?? null,
         signDate: minStart,
         salesCycleDays: daysBetween(contact?.meeting_booked_date ?? null, minStart),
+        // Deposit paid / onboarding = has a deal but no active recurring MRR.
+        isOnboarding: status === "active" && mrr === 0,
+        followUpDate: contact?.client_follow_up_date ?? null,
+        followUpNote: contact?.client_follow_up_note ?? null,
       });
     }
 
@@ -242,6 +272,9 @@ export function useClientRollup() {
         firstBookingDate: wc.meeting_booked_date ?? null,
         signDate: null,
         salesCycleDays: null,
+        isOnboarding: false,
+        followUpDate: wc.client_follow_up_date ?? null,
+        followUpNote: wc.client_follow_up_note ?? null,
       });
     }
 
