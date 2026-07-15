@@ -1382,6 +1382,13 @@ export type Database = {
           status: string
         }[]
       }
+      find_contacts_by_phone_digits: {
+        Args: { _digits: string }
+        Returns: {
+          id: string
+          last_called_at: string
+        }[]
+      }
       find_exact_phone_duplicate_groups: {
         Args: never
         Returns: {
