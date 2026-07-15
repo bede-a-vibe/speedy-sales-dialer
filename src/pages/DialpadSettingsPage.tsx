@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users, Webhook, Stethoscope } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { CallerIdRotationManager } from "@/components/admin/CallerIdRotationManager";
@@ -21,6 +21,27 @@ export default function DialpadSettingsPage() {
   const isAdmin = useIsAdmin();
   const upsert = useUpsertDialpadSettings();
   const deleteMutation = useDeleteDialpadSettings();
+  const [webhookBusy, setWebhookBusy] = useState<null | "diagnose" | "reregister">(null);
+  const [webhookResult, setWebhookResult] = useState<string | null>(null);
+
+  const runWebhookAction = async (action: "diagnose_dialpad_webhook" | "register_dialpad_webhook", force = false) => {
+    setWebhookBusy(action === "diagnose_dialpad_webhook" ? "diagnose" : "reregister");
+    setWebhookResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("dialpad", {
+        body: action === "register_dialpad_webhook" ? { action, force } : { action },
+      });
+      if (error) throw error;
+      setWebhookResult(JSON.stringify(data, null, 2));
+      toast.success(action === "register_dialpad_webhook" ? "Webhook re-registered." : "Diagnostics loaded.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Request failed";
+      setWebhookResult(msg);
+      toast.error(msg);
+    } finally {
+      setWebhookBusy(null);
+    }
+  };
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -298,6 +319,45 @@ export default function DialpadSettingsPage() {
             </div>
             <div className="bg-card border border-border rounded-lg p-4">
               <CallerIdRotationManager profiles={profiles.map((p) => ({ user_id: p.user_id, display_name: p.display_name, email: p.email }))} />
+            </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="pt-4">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Webhook className="h-5 w-5" />
+                Dialpad Webhook
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Diagnose the live Dialpad webhook + call-event subscription. Use <span className="font-medium">Force re-register</span> to delete the current webhook and subscription and rebuild them scoped to your office — do this when call events stop arriving.
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => runWebhookAction("diagnose_dialpad_webhook")}
+                  disabled={webhookBusy !== null}
+                >
+                  {webhookBusy === "diagnose" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Stethoscope className="h-4 w-4 mr-2" />}
+                  Diagnose
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => runWebhookAction("register_dialpad_webhook", true)}
+                  disabled={webhookBusy !== null}
+                >
+                  {webhookBusy === "reregister" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Webhook className="h-4 w-4 mr-2" />}
+                  Force re-register
+                </Button>
+              </div>
+              {webhookResult && (
+                <pre className="text-xs bg-muted/40 border border-border rounded p-3 max-h-[400px] overflow-auto font-mono">
+                  {webhookResult}
+                </pre>
+              )}
             </div>
           </div>
         )}
