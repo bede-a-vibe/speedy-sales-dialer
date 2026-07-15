@@ -4080,6 +4080,28 @@ Deno.serve(async (req) => {
         return jsonResponse(result, 200);
       }
 
+      case "sync_dialpad_call_history": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admin role required" }, 403);
+        }
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+        }
+        const officeId = typeof params.office_id === "string" ? params.office_id : undefined;
+        const windowMinutes = typeof params.window_minutes === "number" ? params.window_minutes : undefined;
+        const sinceOverrideMs = typeof params.since_ms === "number" ? params.since_ms : undefined;
+        const hardCap = typeof params.hard_cap === "number" ? params.hard_cap : undefined;
+        const result = await syncDialpadCallHistory({
+          adminClient,
+          apiKey: DIALPAD_API_KEY,
+          officeId,
+          windowMinutes,
+          sinceOverrideMs,
+          hardCap,
+        });
+        return jsonResponse(result, result.ok ? 200 : 502);
+      }
+
       case "initiate_call": {
         const dialpadUserAuth = await resolveAuthorizedDialpadUserId({
           adminClient,
