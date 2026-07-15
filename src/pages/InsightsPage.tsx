@@ -9,14 +9,16 @@ import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { TargetsBody } from "@/pages/TargetsPage";
 import { TeamCoachingPanel } from "@/components/insights/TeamCoachingPanel";
 import { ClientRevenueSummary } from "@/components/insights/ClientRevenueSummary";
+import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 
-const TABS = ["overview", "funnel", "team", "targets"] as const;
+const TABS = ["overview", "funnel", "team", "talktime", "targets"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
   overview: "Insights · Overview",
   funnel: "Insights · Funnel",
   team: "Insights · Team",
+  talktime: "Insights · Talk Time",
   targets: "Insights · Targets",
 };
 
@@ -46,6 +48,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="talktime">Talk Time</TabsTrigger>
             <TabsTrigger value="targets">Targets</TabsTrigger>
           </TabsList>
 
@@ -66,6 +69,10 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <ReportsBody initialGroup="team-timing" initialTab="rep-comparison" />
             <Separator className="my-4" />
             <TeamCoachingPanel />
+          </TabsContent>
+
+          <TabsContent value="talktime" className="space-y-6">
+            <TalkTimePanel />
           </TabsContent>
 
           <TabsContent value="targets" className="space-y-6">
