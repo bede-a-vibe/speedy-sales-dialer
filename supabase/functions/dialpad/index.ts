@@ -705,6 +705,9 @@ function buildTranscriptText(transcriptPayload: unknown) {
     .map((line) => {
       const content = typeof line.content === "string" ? line.content.trim() : "";
       if (!content) return null;
+      // Drop Dialpad's internal AI event markers that are interleaved into the
+      // transcript stream (action_item, whole_call_summary, ner, etc.).
+      if (isDialpadTranscriptMarker(line, content)) return null;
       const speaker = typeof line.name === "string" && line.name.trim()
         ? line.name.trim()
         : typeof line.user_id === "number"
@@ -719,6 +722,74 @@ function buildTranscriptText(transcriptPayload: unknown) {
   }
 
   return ["Dialpad Transcript", ...formattedLines].join("\n");
+}
+
+// A Dialpad transcript "line" is an internal AI marker (not spoken content)
+// when its type/event field is not a normal transcript entry, or when the
+// content is a single lowercase snake_case token like `action_item` or
+// `whole_call_summary_fragment` that Dialpad injects between real utterances.
+function isDialpadTranscriptMarker(line: JsonRecord, content: string): boolean {
+  const typeCandidates = [line.type, line.event, line.kind, line.entry_type];
+  for (const t of typeCandidates) {
+    if (typeof t !== "string") continue;
+    const lt = t.trim().toLowerCase();
+    if (!lt) continue;
+    // Anything explicitly tagged as transcript/speech is real content.
+    if (lt === "transcript" || lt === "utterance" || lt === "speech") return false;
+    // Otherwise the presence of a non-transcript type marks it as an AI event.
+    return true;
+  }
+  // Fallback: single-token snake_case content is a Dialpad marker.
+  return isMarkerToken(content);
+}
+
+const KNOWN_MARKER_TOKENS = new Set<string>([
+  "action_item",
+  "action_item_v2",
+  "ai_csat_reboot_ineligible",
+  "call_purpose",
+  "call_purpose_category",
+  "call_summary",
+  "currency",
+  "ner",
+  "question",
+  "speaking_too_quickly",
+  "whole_call_summary",
+  "whole_call_summary_fragment",
+]);
+
+function isMarkerToken(content: string): boolean {
+  const s = content.trim();
+  if (!s || s.length > 60) return false;
+  if (KNOWN_MARKER_TOKENS.has(s)) return true;
+  // No whitespace, no punctuation, all lowercase snake_case with an underscore
+  // OR a single lowercase word ≤ 40 chars → treat as Dialpad marker.
+  return /^[a-z][a-z0-9_]{0,40}$/.test(s);
+}
+
+// Strip marker lines from an already-formatted transcript blob (used for the
+// in-place cleanup of previously stored transcripts).
+function cleanFormattedTranscript(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const lines = text.split(/\r?\n/);
+  const kept: string[] = [];
+  for (const raw of lines) {
+    const line = raw ?? "";
+    if (!line.trim()) continue;
+    if (line === "Dialpad Transcript") { kept.push(line); continue; }
+    // Split "Speaker: content" and check the content half.
+    const idx = line.indexOf(": ");
+    if (idx > 0) {
+      const content = line.slice(idx + 2).trim();
+      if (isMarkerToken(content)) continue;
+    } else if (isMarkerToken(line)) {
+      continue;
+    }
+    kept.push(line);
+  }
+  const speechCount = kept.filter((l) => l !== "Dialpad Transcript").length;
+  if (speechCount === 0) return null;
+  return kept.join("\n");
 }
 
 // ── GHL Field Key → ID Mapping ──────────────────────────────────────────
