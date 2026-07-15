@@ -2539,13 +2539,51 @@ async function fetchDialpadCallInfo(callId: string, apiKey: string) {
 // binds a call-event subscription to it so lifecycle events (connected +
 // hangup) fire to us. Safe to re-run: matches by hook_url on the webhook and
 // by webhook_id on the subscription.
-async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string; secret: string }) {
-  const { apiKey, hookUrl, secret } = params;
+async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string; secret: string; force?: boolean }) {
+  const { apiKey, hookUrl, secret, force = false } = params;
   const authHeaders = {
     Authorization: `Bearer ${apiKey}`,
     Accept: "application/json",
     "Content-Type": "application/json",
   };
+
+  // Helper: paginated list of a Dialpad collection endpoint.
+  async function listAll(path: string): Promise<JsonRecord[]> {
+    const out: JsonRecord[] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 10; i++) {
+      const url = new URL(`${DIALPAD_BASE}${path}`);
+      url.searchParams.set("limit", "100");
+      if (cursor) url.searchParams.set("cursor", cursor);
+      const res = await fetch(url.toString(), { headers: authHeaders });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`${path} ${res.status}: ${text}`);
+      const parsed = JSON.parse(text);
+      const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+        : Array.isArray(parsed) ? parsed : [];
+      for (const it of items) if (isRecord(it)) out.push(it as JsonRecord);
+      cursor = typeof parsed?.cursor === "string" && parsed.cursor ? parsed.cursor : null;
+      if (!cursor) break;
+    }
+    return out;
+  }
+
+  const diagnostics: { deleted_subscriptions: (string | number)[]; deleted_webhooks: (string | number)[] } = {
+    deleted_subscriptions: [],
+    deleted_webhooks: [],
+  };
+
+  // Discover office_id from the API key's owner so we can scope the subscription.
+  let officeId: number | string | null = null;
+  try {
+    const meRes = await fetch(`${DIALPAD_BASE}/users/me`, { headers: authHeaders });
+    const meText = await meRes.text();
+    if (meRes.ok) {
+      const me = JSON.parse(meText);
+      const oid = isRecord(me) ? (me as JsonRecord).office_id : null;
+      if (typeof oid === "string" || typeof oid === "number") officeId = oid;
+    }
+  } catch { /* ignore */ }
 
   const listWebhooks = await fetch(`${DIALPAD_BASE}/webhooks?limit=100`, { headers: authHeaders });
   const listWebhooksText = await listWebhooks.text();
@@ -2553,6 +2591,7 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
     return { ok: false, stage: "list_webhooks", status: listWebhooks.status, error: listWebhooksText };
   }
   let existingWebhookId: number | string | null = null;
+  const matchingWebhookIds: (number | string)[] = [];
   try {
     const parsed = JSON.parse(listWebhooksText);
     const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
@@ -2561,11 +2600,47 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
     for (const item of items) {
       if (isRecord(item) && typeof item.hook_url === "string" && item.hook_url === hookUrl) {
         const id = (item as JsonRecord).id;
-        if (typeof id === "string" || typeof id === "number") existingWebhookId = id;
-        break;
+        if (typeof id === "string" || typeof id === "number") {
+          matchingWebhookIds.push(id);
+          if (existingWebhookId === null) existingWebhookId = id;
+        }
       }
     }
   } catch { /* ignore parse errors, will create new */ }
+
+  // Force mode: purge every subscription bound to our webhook(s), then the
+  // webhook(s) themselves, and rebuild from scratch. Used when the previous
+  // registration is silently not delivering events.
+  if (force && matchingWebhookIds.length > 0) {
+    try {
+      const allSubs = await listAll("/subscriptions/call");
+      const wanted = new Set(matchingWebhookIds.map(String));
+      for (const sub of allSubs) {
+        const bound = sub.webhook_id ?? (isRecord(sub.webhook) ? (sub.webhook as JsonRecord).id : null);
+        if (bound !== null && bound !== undefined && wanted.has(String(bound))) {
+          const subId = sub.id;
+          if (typeof subId === "string" || typeof subId === "number") {
+            const del = await fetch(`${DIALPAD_BASE}/subscriptions/call/${subId}`, {
+              method: "DELETE",
+              headers: authHeaders,
+            });
+            await del.text();
+            if (del.ok) diagnostics.deleted_subscriptions.push(subId);
+          }
+        }
+      }
+    } catch { /* continue — best-effort cleanup */ }
+
+    for (const wid of matchingWebhookIds) {
+      const del = await fetch(`${DIALPAD_BASE}/webhooks/${wid}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      await del.text();
+      if (del.ok) diagnostics.deleted_webhooks.push(wid);
+    }
+    existingWebhookId = null;
+  }
 
   let webhookId = existingWebhookId;
   if (!webhookId) {
@@ -2609,7 +2684,7 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
     for (const item of items) {
       if (!isRecord(item)) continue;
       const rec = item as JsonRecord;
-      const subWebhookId = rec.webhook_id;
+      const subWebhookId = rec.webhook_id ?? (isRecord(rec.webhook) ? (rec.webhook as JsonRecord).id : null);
       if (String(subWebhookId) === String(webhookId)) {
         const id = rec.id;
         if (typeof id === "string" || typeof id === "number") existingSubId = id;
@@ -2620,15 +2695,27 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
 
   let subscriptionId = existingSubId;
   if (!subscriptionId) {
+    // The Dialpad Create schema is `endpoint_id`; older docs used `webhook_id`.
+    // Send both so it works on either revision. When we know the office, scope
+    // the subscription to it so events are delivered for every rep on the
+    // company — without an explicit target the subscription silently defaults
+    // to the API key owner's own calls only, which is the "registered but not
+    // delivering" symptom we saw with the July 8 subscription.
+    const subBody: JsonRecord = {
+      endpoint_id: webhookId,
+      webhook_id: webhookId,
+      enabled: true,
+      group_calls_only: false,
+      call_states: ["connected", "hangup"],
+    };
+    if (officeId !== null) {
+      subBody.target_type = "office";
+      subBody.target_id = officeId;
+    }
     const createSub = await fetch(`${DIALPAD_BASE}/subscriptions/call`, {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({
-        webhook_id: webhookId,
-        enabled: true,
-        group_calls_only: false,
-        call_states: ["connected", "hangup"],
-      }),
+      body: JSON.stringify(subBody),
     });
     const createSubText = await createSub.text();
     if (!createSub.ok) {
@@ -2638,6 +2725,8 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
         status: createSub.status,
         error: createSubText,
         webhook_id: webhookId,
+        office_id: officeId,
+        diagnostics,
       };
     }
     try {
@@ -2663,7 +2752,41 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
     hook_url: hookUrl,
     reused_webhook: existingWebhookId !== null,
     reused_subscription: existingSubId !== null,
+    office_id: officeId,
+    target_scope: officeId !== null ? "office" : "api_key_owner",
+    diagnostics,
   };
+}
+
+// Read-only diagnostic: fetches the current webhooks, call subscriptions, and
+// the API key owner's office so we can see what Dialpad thinks the delivery
+// config is when POSTs aren't arriving.
+async function diagnoseDialpadWebhook(params: { apiKey: string; hookUrl: string }) {
+  const { apiKey, hookUrl } = params;
+  const authHeaders = {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "application/json",
+  };
+
+  async function safeJson(path: string) {
+    try {
+      const res = await fetch(`${DIALPAD_BASE}${path}`, { headers: authHeaders });
+      const text = await res.text();
+      let body: unknown = text;
+      try { body = JSON.parse(text); } catch { /* keep text */ }
+      return { status: res.status, ok: res.ok, body };
+    } catch (err) {
+      return { status: 0, ok: false, body: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  const [me, webhooks, subs] = await Promise.all([
+    safeJson("/users/me"),
+    safeJson("/webhooks?limit=100"),
+    safeJson("/subscriptions/call?limit=100"),
+  ]);
+
+  return { ok: true, hook_url: hookUrl, me, webhooks, subscriptions: subs };
 }
 
 function toDurationSeconds(value: unknown) {
