@@ -4026,15 +4026,9 @@ async function syncDialpadCallHistory(params: {
     // Parallelize contact lookup + transcript + recap. Skip transcript/recap for
     // very short/unconnected calls (nothing to transcribe, saves API round trips).
     const wantEnrichment = isConnected && talk >= 10;
-    const [contactRes, transcriptRes, recapRes] = await Promise.all([
-      normalizedExternal
-        ? adminClient
-            .from("contacts")
-            .select("id")
-            .eq("phone", normalizedExternal)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null } as { data: { id: string } | null; error: null }),
+    const nearIso = startedMs ? new Date(startedMs).toISOString() : null;
+    const [contactId, transcriptRes, recapRes] = await Promise.all([
+      resolveContactByPhoneDigits(adminClient, externalNumber, repUserId, nearIso),
       wantEnrichment
         ? fetchDialpadTranscript(dialpadCallIdStr, apiKey).catch(() => null)
         : Promise.resolve(null),
@@ -4043,7 +4037,6 @@ async function syncDialpadCallHistory(params: {
         : Promise.resolve(null),
     ]);
 
-    const contactId: string | null = (contactRes as { data: { id: string } | null }).data?.id ?? null;
     const transcript: string | null = transcriptRes ?? null;
     const dialpadSummary: string | null = recapRes ?? null;
 
