@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, TrendingDown, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Users, DollarSign, TrendingUp, TrendingDown, Layers, Timer } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,31 @@ function MrrByStreamCard({ mrrByStream, totalMrr }: { mrrByStream: Record<Client
 }
 
 // ---------- Client row ----------
+function fmtCycleDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function ClientDealsList({ client, onEdit, onAdd }: { client: ClientRollupRow; onEdit: (deal: ClientDeal) => void; onAdd: () => void }) {
   const deleteMut = useDeleteClientDeal();
   return (
     <div className="border-t border-border bg-muted/20 px-4 py-3 space-y-2">
+      {(client.firstBookingDate || client.signDate) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-card px-3 py-2 text-[11px]">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">Sales cycle</span>
+          <span className="text-muted-foreground">
+            Booked <span className="text-foreground">{fmtCycleDate(client.firstBookingDate)}</span>
+            {" → "}
+            Signed <span className="text-foreground">{fmtCycleDate(client.signDate)}</span>
+          </span>
+          {client.salesCycleDays != null ? (
+            <span className="font-semibold text-primary">{client.salesCycleDays}-day cycle</span>
+          ) : (
+            <span className="italic text-muted-foreground">{client.signDate ? "no booking date on file" : "add a deal to complete the cycle"}</span>
+          )}
+        </div>
+      )}
       {client.deals.map((d) => {
         const mrr = dealMrr(d);
         const rev = dealRevenueToDate(d);
@@ -166,11 +187,12 @@ export default function ClientsPage() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <KpiTile label="Active clients" value={rollup.totals.activeClients.toLocaleString()} sub={rollup.totals.pendingClients > 0 ? `+${rollup.totals.pendingClients} awaiting deal $` : undefined} icon={Users} />
           <KpiTile label="Total MRR" value={formatCurrency(rollup.totals.totalMrr)} sub="/mo ex-GST" icon={DollarSign} />
           <KpiTile label="Revenue to date" value={formatCurrency(rollup.totals.totalRevenueToDate)} sub="realised, ex-GST" icon={TrendingUp} />
           <KpiTile label="Avg MRR / client" value={formatCurrency(avgMrr)} sub="active clients only" icon={Layers} />
+          <KpiTile label="Avg sales cycle" value={rollup.totals.avgSalesCycleDays != null ? `${rollup.totals.avgSalesCycleDays}d` : "—"} sub="booking → sign" icon={Timer} />
           <KpiTile label="Lost MRR" value={formatCurrency(rollup.totals.churnedMrr)} sub="/mo churned" icon={TrendingDown} />
         </div>
 
