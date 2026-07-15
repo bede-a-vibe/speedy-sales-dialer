@@ -9,6 +9,7 @@ import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { TargetsBody } from "@/pages/TargetsPage";
 import { TeamCoachingPanel } from "@/components/insights/TeamCoachingPanel";
 import { ClientRevenueSummary } from "@/components/insights/ClientRevenueSummary";
+import { DialEconomicsCard } from "@/components/insights/DialEconomicsCard";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 
 const TABS = ["overview", "funnel", "team", "talktime", "targets"] as const;
@@ -54,6 +55,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
 
           <TabsContent value="overview" className="space-y-8">
             <ClientRevenueSummary />
+            <DialEconomicsCard />
             <ReportsBody />
             <Separator className="my-4" />
             <AnalyticsBody initialTab="summary" />
