@@ -3839,6 +3839,20 @@ async function syncDialpadCallHistory(params: {
 
     const startedMs = toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
     const endedMs = toDialpadEpochMs(call.date_ended);
+    const connectedMs = toDialpadEpochMs(call.date_connected);
+    // Robust talk-time fallback (list rows use s-epoch, webhook uses ms-epoch — normalize both).
+    if (durations.talkTimeSeconds == null && connectedMs && endedMs && endedMs >= connectedMs) {
+      durations = {
+        ...durations,
+        talkTimeSeconds: Math.max(0, Math.round((endedMs - connectedMs) / 1000)),
+      };
+    }
+    if (durations.totalDurationSeconds == null && startedMs && endedMs && endedMs >= startedMs) {
+      durations = {
+        ...durations,
+        totalDurationSeconds: Math.max(0, Math.round((endedMs - startedMs) / 1000)),
+      };
+    }
     const state = normalizeDialpadState(call.state) ?? null;
     const talk = durations.talkTimeSeconds ?? 0;
     const isConnected =
