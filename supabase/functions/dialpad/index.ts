@@ -3595,9 +3595,10 @@ function isoOrNull(ms: number | null): string | null {
 
 function pickExternalNumber(call: JsonRecord): string | null {
   // Dialpad /call payloads use external_number for the non-Dialpad party.
+  const contact = isRecord(call.contact) ? call.contact : null;
   const candidates = [
     call.external_number,
-    call.contact?.["phone"],
+    contact?.phone,
     call.from_number,
     call.to_number,
   ];
@@ -3609,12 +3610,13 @@ function pickExternalNumber(call: JsonRecord): string | null {
 
 function pickDialpadTargetUserId(call: JsonRecord): string | null {
   const targetKind = typeof call.target_kind === "string" ? call.target_kind : null;
-  const targetId = call.target_id ?? call.target?.["id"];
+  const targetRec = isRecord(call.target) ? call.target : null;
+  const targetId = call.target_id ?? targetRec?.id;
   if (targetKind === "user" && (typeof targetId === "string" || typeof targetId === "number")) {
     return String(targetId);
   }
   // Fallbacks: some payloads expose the user via `user_id` or `target.user_id`.
-  const alt = call.user_id ?? call.target?.["user_id"];
+  const alt = call.user_id ?? targetRec?.user_id;
   if (typeof alt === "string" || typeof alt === "number") return String(alt);
   if (typeof targetId === "string" || typeof targetId === "number") return String(targetId);
   return null;
