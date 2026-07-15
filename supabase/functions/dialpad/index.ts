@@ -2573,14 +2573,27 @@ async function registerDialpadWebhook(params: { apiKey: string; hookUrl: string;
     deleted_webhooks: [],
   };
 
-  // Discover office_id from the API key's owner so we can scope the subscription.
+  // Discover office_id via /offices (company-scoped API keys have no /users/me).
+  // Prefer is_primary_office=true, else the first office returned.
   let officeId: number | string | null = null;
   try {
-    const meRes = await fetch(`${DIALPAD_BASE}/users/me`, { headers: authHeaders });
-    const meText = await meRes.text();
-    if (meRes.ok) {
-      const me = JSON.parse(meText);
-      const oid = isRecord(me) ? (me as JsonRecord).office_id : null;
+    const officesRes = await fetch(`${DIALPAD_BASE}/offices?limit=100`, { headers: authHeaders });
+    const officesText = await officesRes.text();
+    if (officesRes.ok) {
+      const parsed = JSON.parse(officesText);
+      const items: unknown[] = Array.isArray(parsed?.items) ? parsed.items
+        : Array.isArray(parsed) ? parsed
+        : [];
+      let primary: JsonRecord | null = null;
+      let first: JsonRecord | null = null;
+      for (const item of items) {
+        if (!isRecord(item)) continue;
+        const rec = item as JsonRecord;
+        if (!first) first = rec;
+        if (rec.is_primary_office === true && !primary) primary = rec;
+      }
+      const chosen = primary ?? first;
+      const oid = chosen ? chosen.id : null;
       if (typeof oid === "string" || typeof oid === "number") officeId = oid;
     }
   } catch { /* ignore */ }
@@ -2780,13 +2793,14 @@ async function diagnoseDialpadWebhook(params: { apiKey: string; hookUrl: string 
     }
   }
 
-  const [me, webhooks, subs] = await Promise.all([
-    safeJson("/users/me"),
+  const [company, offices, webhooks, subs] = await Promise.all([
+    safeJson("/company"),
+    safeJson("/offices?limit=100"),
     safeJson("/webhooks?limit=100"),
     safeJson("/subscriptions/call?limit=100"),
   ]);
 
-  return { ok: true, hook_url: hookUrl, me, webhooks, subscriptions: subs };
+  return { ok: true, hook_url: hookUrl, company, offices, webhooks, subscriptions: subs };
 }
 
 function toDurationSeconds(value: unknown) {
