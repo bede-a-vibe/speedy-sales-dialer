@@ -4106,15 +4106,6 @@ Deno.serve(async (req) => {
       return jsonResponse(result, 200);
     }
     if (action === "sync_dialpad_call_history") {
-      // no-op marker
-    }
-    if (action === "probe_dialpad_call") {
-      if (!DIALPAD_API_KEY) return jsonResponse({ error: "no api key" }, 500);
-      const id = String(body?.call_id ?? "");
-      const info = await fetchDialpadCallInfo(id, DIALPAD_API_KEY);
-      return jsonResponse({ id, keys: info && typeof info === "object" ? Object.keys(info) : null, raw: info }, 200);
-    }
-    if (action === "sync_dialpad_call_history") {
       if (!DIALPAD_API_KEY) {
         return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
       }
