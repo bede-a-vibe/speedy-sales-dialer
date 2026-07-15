@@ -3642,7 +3642,7 @@ async function listDialpadOfficeCalls(params: {
     url.searchParams.set("started_before", String(startedBeforeMs));
     url.searchParams.set("target_type", "office");
     url.searchParams.set("target_id", officeId);
-    url.searchParams.set("limit", "100");
+    url.searchParams.set("limit", "50");
     if (cursor) url.searchParams.set("cursor", cursor);
 
     const res = await fetch(url.toString(), { headers });
