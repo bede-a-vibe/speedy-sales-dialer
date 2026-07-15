@@ -3719,6 +3719,67 @@ function pickExternalNumber(call: JsonRecord): string | null {
   return null;
 }
 
+// Extract the digits-only representation of a phone value and return its last
+// 9 digits (which is the AU-friendly suffix that survives +61 vs 0 vs spacing).
+function phoneDigitsSuffix(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D+/g, "");
+  if (digits.length < 9) return null;
+  return digits.slice(-9);
+}
+
+// Look up a contact by the last 9 digits of an external phone number, matching
+// both contacts.phone and contacts.dm_phone (spacing-insensitive). If multiple
+// candidates match, prefer the one with a recent call_log from the given rep
+// near the given time; otherwise fall back to most-recently-called.
+async function resolveContactByPhoneDigits(
+  adminClient: ReturnType<typeof createClient>,
+  externalPhone: string | null | undefined,
+  repUserId: string | null,
+  nearIso: string | null,
+): Promise<string | null> {
+  const suffix = phoneDigitsSuffix(externalPhone);
+  if (!suffix) return null;
+
+  const { data, error } = await adminClient.rpc("find_contacts_by_phone_digits", { _digits: suffix });
+  if (error) {
+    console.warn(`[resolveContactByPhoneDigits] RPC error: ${error.message}`);
+    return null;
+  }
+  const rows = (data ?? []) as { id: string; last_called_at: string | null }[];
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0].id;
+
+  if (repUserId && nearIso) {
+    const base = new Date(nearIso).getTime();
+    if (Number.isFinite(base)) {
+      const start = new Date(base - 60 * 60 * 1000).toISOString();
+      const end = new Date(base + 60 * 60 * 1000).toISOString();
+      const ids = rows.map((r) => r.id);
+      const { data: cl } = await adminClient
+        .from("call_logs")
+        .select("contact_id, created_at")
+        .in("contact_id", ids)
+        .eq("user_id", repUserId)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false });
+      if (cl && cl.length > 0) {
+        // Nearest in time wins.
+        let best = cl[0];
+        let bestDelta = Math.abs(new Date(best.created_at).getTime() - base);
+        for (const row of cl.slice(1)) {
+          const d = Math.abs(new Date(row.created_at).getTime() - base);
+          if (d < bestDelta) { best = row; bestDelta = d; }
+        }
+        return best.contact_id as string;
+      }
+    }
+  }
+  // Fallback: most-recently-called (rows are already ordered by last_called_at desc).
+  return rows[0].id;
+}
+
 function pickDialpadTargetUserId(call: JsonRecord): string | null {
   const targetKind = typeof call.target_kind === "string" ? call.target_kind : null;
   const targetRec = isRecord(call.target) ? call.target : null;
