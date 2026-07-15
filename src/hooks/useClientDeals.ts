@@ -244,8 +244,9 @@ export function useClientRollup() {
         firstBookingDate: contact?.meeting_booked_date ?? null,
         signDate: minStart,
         salesCycleDays: daysBetween(contact?.meeting_booked_date ?? null, minStart),
-        // Deposit paid / onboarding = has a deal but no active recurring MRR.
-        isOnboarding: status === "active" && mrr === 0,
+        // Deposit paid / onboarding = only one-off deals (a deposit), never a
+        // recurring engagement. NOT a client whose recurring deal churned/paused.
+        isOnboarding: status !== "churned" && ds.every((d) => d.billing_period === "one_off"),
         followUpDate: contact?.client_follow_up_date ?? null,
         followUpNote: contact?.client_follow_up_note ?? null,
       });
