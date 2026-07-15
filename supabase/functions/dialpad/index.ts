@@ -3622,14 +3622,15 @@ function pickDialpadTargetUserId(call: JsonRecord): string | null {
   return null;
 }
 
-async function listDialpadOfficeCalls(params: {
+async function listDialpadCallsByTarget(params: {
   apiKey: string;
-  officeId: string;
+  targetType: "office" | "user";
+  targetId: string;
   startedAfterMs: number;
   startedBeforeMs: number;
   hardCap?: number;
 }): Promise<JsonRecord[]> {
-  const { apiKey, officeId, startedAfterMs, startedBeforeMs, hardCap = 2000 } = params;
+  const { apiKey, targetType, targetId, startedAfterMs, startedBeforeMs, hardCap = 2000 } = params;
   const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
   const results: JsonRecord[] = [];
   let cursor: string | null = null;
@@ -3640,15 +3641,17 @@ async function listDialpadOfficeCalls(params: {
     const url = new URL(`${DIALPAD_BASE}/call`);
     url.searchParams.set("started_after", String(startedAfterMs));
     url.searchParams.set("started_before", String(startedBeforeMs));
-    url.searchParams.set("target_type", "office");
-    url.searchParams.set("target_id", officeId);
+    url.searchParams.set("target_type", targetType);
+    url.searchParams.set("target_id", targetId);
     url.searchParams.set("limit", "50");
     if (cursor) url.searchParams.set("cursor", cursor);
 
     const res = await fetch(url.toString(), { headers });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`Dialpad /call list failed: ${res.status} ${body.slice(0, 400)}`);
+      throw new Error(
+        `Dialpad /call list failed (${targetType}=${targetId}): ${res.status} ${body.slice(0, 400)}`,
+      );
     }
     const payload = await res.json();
     const items = Array.isArray(payload?.items)
@@ -3667,18 +3670,28 @@ async function listDialpadOfficeCalls(params: {
   return results;
 }
 
+// Deleted / disabled Dialpad user IDs — never query them (they 404).
+const DIALPAD_DISABLED_USER_IDS = new Set<string>([
+  "6532825673768960", // Dean (deleted)
+  "6732964712554496", // Kobi (deleted)
+]);
+
 async function syncDialpadCallHistory(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
   officeId?: string;
   sinceOverrideMs?: number | null;
+  untilOverrideMs?: number | null;
   windowMinutes?: number;
   hardCap?: number;
 }) {
   const { adminClient, apiKey } = params;
   const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
   const hardCap = params.hardCap ?? 2000;
-  const nowMs = Date.now();
+  const nowMs =
+    params.untilOverrideMs && Number.isFinite(params.untilOverrideMs)
+      ? params.untilOverrideMs
+      : Date.now();
 
   // Determine window start
   let sinceMs: number;
@@ -3692,85 +3705,191 @@ async function syncDialpadCallHistory(params: {
       .maybeSingle();
     const lastMs = state?.last_synced_at ? Date.parse(state.last_synced_at as string) : NaN;
     if (Number.isFinite(lastMs)) {
-      // Overlap 10 minutes to plug gaps.
-      sinceMs = lastMs - 10 * 60 * 1000;
+      sinceMs = lastMs - 10 * 60 * 1000; // 10-min overlap
     } else {
-      // First run: default 24h lookback.
       const win = params.windowMinutes ?? 24 * 60;
       sinceMs = nowMs - win * 60 * 1000;
     }
   }
 
+  // Preload dialpad_user_id -> platform user_id map (all rows), plus active list
+  const { data: settings } = await adminClient
+    .from("dialpad_settings")
+    .select("user_id, dialpad_user_id, is_active");
+  const userIdByDialpadUser = new Map<string, string>();
+  const activeDialpadUserIds: string[] = [];
+  for (const row of settings ?? []) {
+    if (!row.dialpad_user_id || !row.user_id) continue;
+    const dpid = String(row.dialpad_user_id);
+    userIdByDialpadUser.set(dpid, row.user_id as string);
+    if (row.is_active === false) continue;
+    if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    activeDialpadUserIds.push(dpid);
+  }
+
   console.log(
-    `[sync_dialpad_call_history] office=${officeId} since=${new Date(sinceMs).toISOString()} until=${new Date(nowMs).toISOString()}`,
+    `[sync_dialpad_call_history] since=${new Date(sinceMs).toISOString()} until=${new Date(nowMs).toISOString()} activeUsers=${activeDialpadUserIds.length} office=${officeId}`,
   );
 
-  let calls: JsonRecord[];
+  // ── PRIMARY: per-active-user sweep (captures outbound + inbound). ──
+  const pulledByUser: Record<string, number> = {};
+  const dedup = new Map<string, JsonRecord>();
+  const errors: string[] = [];
+
+  for (const dpid of activeDialpadUserIds) {
+    try {
+      const userCalls = await listDialpadCallsByTarget({
+        apiKey,
+        targetType: "user",
+        targetId: dpid,
+        startedAfterMs: sinceMs,
+        startedBeforeMs: nowMs,
+        hardCap,
+      });
+      pulledByUser[dpid] = userCalls.length;
+      for (const c of userCalls) {
+        const id = c.call_id ?? c.id;
+        if (id != null) dedup.set(String(id), c);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[sync_dialpad_call_history] user sweep failed dpid=${dpid}: ${msg}`);
+      errors.push(`user ${dpid}: ${msg}`);
+    }
+  }
+
+  // ── SECONDARY: office sweep (catches office-level calls). ──
+  let officePulled = 0;
   try {
-    calls = await listDialpadOfficeCalls({
+    const officeCalls = await listDialpadCallsByTarget({
       apiKey,
-      officeId,
+      targetType: "office",
+      targetId: officeId,
       startedAfterMs: sinceMs,
       startedBeforeMs: nowMs,
       hardCap,
     });
+    officePulled = officeCalls.length;
+    for (const c of officeCalls) {
+      const id = c.call_id ?? c.id;
+      if (id != null && !dedup.has(String(id))) dedup.set(String(id), c);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[sync_dialpad_call_history] office sweep failed: ${msg}`);
+    errors.push(`office ${officeId}: ${msg}`);
+  }
+
+  const calls = Array.from(dedup.values());
+  if (calls.length === 0 && errors.length > 0) {
     await adminClient.from("dialpad_sync_state").upsert({
       key: DIALPAD_SYNC_KEY,
       last_run_at: new Date().toISOString(),
-      last_error: msg,
+      last_error: errors.join(" | "),
       updated_at: new Date().toISOString(),
     }, { onConflict: "key" });
-    return { ok: false as const, error: msg, pulled: 0, linked: 0, with_talk_time: 0 };
+    return {
+      ok: false as const,
+      error: errors.join(" | "),
+      pulled: 0,
+      linked: 0,
+      with_talk_time: 0,
+      pulled_by_user: pulledByUser,
+    };
   }
 
-  // Preload dialpad_user_id → { user_id } map
-  const { data: settings } = await adminClient
-    .from("dialpad_settings")
-    .select("user_id, dialpad_user_id");
-  const userIdByDialpadUser = new Map<string, string>();
-  for (const row of settings ?? []) {
-    if (row.dialpad_user_id && row.user_id) {
-      userIdByDialpadUser.set(String(row.dialpad_user_id), row.user_id as string);
-    }
-  }
+  // Cap detail fallback fetches per run.
+  const MAX_DETAIL_FETCHES = 300;
+  let detailFetches = 0;
 
   let linked = 0;
   let withTalkTime = 0;
   let skipped = 0;
 
-  for (const call of calls) {
-    const dialpadCallId = call.call_id ?? call.id;
-    if (dialpadCallId == null) { skipped += 1; continue; }
+  const CONCURRENCY = 6;
+  const detailBudget = { remaining: MAX_DETAIL_FETCHES };
+
+  async function processOne(originalCall: JsonRecord) {
+    const dialpadCallId = originalCall.call_id ?? originalCall.id;
+    if (dialpadCallId == null) { skipped += 1; return; }
     const dialpadCallIdStr = String(dialpadCallId);
 
-    const durations = extractDialpadDurations({} as DialpadWebhookPayload, call);
+    let call = originalCall;
+    let durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
+
+    // Duration fallback: fetch GET /call/{id} to populate talk/total duration.
+    if (
+      (durations.talkTimeSeconds == null || durations.totalDurationSeconds == null) &&
+      detailBudget.remaining > 0
+    ) {
+      detailBudget.remaining -= 1;
+      detailFetches += 1;
+      try {
+        const detail = await fetchDialpadCallInfo(dialpadCallIdStr, apiKey);
+        if (isRecord(detail)) {
+          call = { ...originalCall, ...detail };
+          durations = extractDialpadDurations(call as unknown as DialpadWebhookPayload, call);
+        }
+      } catch (err) {
+        console.warn(
+          `[sync_dialpad_call_history] detail fetch failed call=${dialpadCallIdStr}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
     const startedMs = toDialpadEpochMs(call.date_started ?? call.date_rang ?? call.date_connected);
     const endedMs = toDialpadEpochMs(call.date_ended);
+    const connectedMs = toDialpadEpochMs(call.date_connected);
+    // Robust talk-time fallback (list rows use s-epoch, webhook uses ms-epoch — normalize both).
+    if (durations.talkTimeSeconds == null && connectedMs && endedMs && endedMs >= connectedMs) {
+      durations = {
+        ...durations,
+        talkTimeSeconds: Math.max(0, Math.round((endedMs - connectedMs) / 1000)),
+      };
+    }
+    if (durations.totalDurationSeconds == null && startedMs && endedMs && endedMs >= startedMs) {
+      durations = {
+        ...durations,
+        totalDurationSeconds: Math.max(0, Math.round((endedMs - startedMs) / 1000)),
+      };
+    }
     const state = normalizeDialpadState(call.state) ?? null;
-    const isConnected = (durations.talkTimeSeconds ?? 0) > 0 || state === "connected" || state === "hangup" && !!call.date_connected;
+    const talk = durations.talkTimeSeconds ?? 0;
+    const isConnected =
+      talk > 0 ||
+      state === "connected" ||
+      (state === "hangup" && !!call.date_connected);
     const externalNumber = pickExternalNumber(call);
     const normalizedExternal = externalNumber ? normalizePhoneNumberToE164(externalNumber) : null;
     const direction = typeof call.direction === "string" ? call.direction : null;
 
-    // Resolve rep
     const dialpadTargetUser = pickDialpadTargetUserId(call);
     const repUserId = dialpadTargetUser ? userIdByDialpadUser.get(dialpadTargetUser) ?? null : null;
 
-    // Try to resolve contact by phone (E.164)
-    let contactId: string | null = null;
-    if (normalizedExternal) {
-      const { data: contactRow } = await adminClient
-        .from("contacts")
-        .select("id")
-        .eq("phone", normalizedExternal)
-        .limit(1)
-        .maybeSingle();
-      contactId = contactRow?.id ?? null;
-    }
+    // Parallelize contact lookup + transcript + recap. Skip transcript/recap for
+    // very short/unconnected calls (nothing to transcribe, saves API round trips).
+    const wantEnrichment = isConnected && talk >= 10;
+    const [contactRes, transcriptRes, recapRes] = await Promise.all([
+      normalizedExternal
+        ? adminClient
+            .from("contacts")
+            .select("id")
+            .eq("phone", normalizedExternal)
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null } as { data: { id: string } | null; error: null }),
+      wantEnrichment
+        ? fetchDialpadTranscript(dialpadCallIdStr, apiKey).catch(() => null)
+        : Promise.resolve(null),
+      wantEnrichment
+        ? fetchDialpadAiRecap(dialpadCallIdStr, apiKey).catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
-    // Attempt call_log linkage (rep + contact + ±15 min around start)
+    const contactId: string | null = (contactRes as { data: { id: string } | null }).data?.id ?? null;
+    const transcript: string | null = transcriptRes ?? null;
+    const dialpadSummary: string | null = recapRes ?? null;
+
     let callLogId: string | null = null;
     if (repUserId && contactId && startedMs) {
       callLogId = await findCallLogByFallback(
@@ -3780,16 +3899,6 @@ async function syncDialpadCallHistory(params: {
         new Date(startedMs).toISOString(),
       );
     }
-
-    // Fetch Dialpad-side transcript + ai_recap (no Lovable AI involved)
-    let transcript: string | null = null;
-    let dialpadSummary: string | null = null;
-    try {
-      transcript = await fetchDialpadTranscript(dialpadCallIdStr, apiKey);
-    } catch { /* ignore per-call */ }
-    try {
-      dialpadSummary = await fetchDialpadAiRecap(dialpadCallIdStr, apiKey);
-    } catch { /* ignore per-call */ }
 
     const upsertRow: Record<string, unknown> = {
       dialpad_call_id: dialpadCallIdStr,
@@ -3817,15 +3926,12 @@ async function syncDialpadCallHistory(params: {
     if (upErr) {
       console.warn(`[sync_dialpad_call_history] upsert failed call=${dialpadCallIdStr}: ${upErr.message}`);
       skipped += 1;
-      continue;
+      return;
     }
 
-    // Backfill Dialpad-side data onto the matched call_log (no AI)
     if (callLogId) {
       linked += 1;
-      const patch: Record<string, unknown> = {
-        dialpad_call_id: dialpadCallIdStr,
-      };
+      const patch: Record<string, unknown> = { dialpad_call_id: dialpadCallIdStr };
       if (durations.talkTimeSeconds != null) patch.dialpad_talk_time_seconds = durations.talkTimeSeconds;
       if (durations.totalDurationSeconds != null) patch.dialpad_total_duration_seconds = durations.totalDurationSeconds;
       if (transcript) {
@@ -3841,34 +3947,54 @@ async function syncDialpadCallHistory(params: {
         console.warn(`[sync_dialpad_call_history] call_logs backfill failed id=${callLogId}: ${clErr.message}`);
       }
     }
-    if ((durations.talkTimeSeconds ?? 0) > 0) withTalkTime += 1;
+    if (talk > 0) withTalkTime += 1;
   }
 
-  // Advance cursor to nowMs regardless (overlap protects gaps).
+  // Worker-pool over the deduped calls.
+  let cursorIdx = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, calls.length) }, async () => {
+      while (true) {
+        const idx = cursorIdx++;
+        if (idx >= calls.length) return;
+        try { await processOne(calls[idx]); }
+        catch (err) {
+          skipped += 1;
+          console.warn(`[sync_dialpad_call_history] processOne threw: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+    }),
+  );
+
   await adminClient.from("dialpad_sync_state").upsert({
     key: DIALPAD_SYNC_KEY,
     last_synced_at: new Date(nowMs).toISOString(),
     last_run_at: new Date().toISOString(),
     last_pulled: calls.length,
     last_linked: linked,
-    last_error: null,
+    last_error: errors.length ? errors.join(" | ") : null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "key" });
 
   console.log(
-    `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped}`,
+    `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped} detailFetches=${detailFetches} officePulled=${officePulled}`,
   );
 
   return {
     ok: true as const,
-    endpoint: "GET /call?target_type=office&target_id=<office_id>&started_after&started_before",
+    endpoint: "GET /call?target_type={user|office}&target_id=...",
     office_id: officeId,
+    active_dialpad_user_ids: activeDialpadUserIds,
+    pulled_by_user: pulledByUser,
+    office_pulled: officePulled,
+    detail_fetches: detailFetches,
     since: new Date(sinceMs).toISOString(),
     until: new Date(nowMs).toISOString(),
     pulled: calls.length,
     linked,
     with_talk_time: withTalkTime,
     skipped,
+    errors,
   };
 }
 
@@ -3976,6 +4102,7 @@ Deno.serve(async (req) => {
       const officeId = typeof body.office_id === "string" ? body.office_id : undefined;
       const windowMinutes = typeof body.window_minutes === "number" ? body.window_minutes : undefined;
       const sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      const untilOverrideMs = typeof body.until_ms === "number" ? body.until_ms : undefined;
       const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
       const result = await syncDialpadCallHistory({
         adminClient,
@@ -3983,6 +4110,7 @@ Deno.serve(async (req) => {
         officeId,
         windowMinutes,
         sinceOverrideMs,
+        untilOverrideMs,
         hardCap,
       });
       return jsonResponse(result, result.ok ? 200 : 502);
