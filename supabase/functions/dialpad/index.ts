@@ -4420,7 +4420,8 @@ Deno.serve(async (req) => {
     }
     if (action === "relink_dialpad_calls") {
       const limit = typeof body.limit === "number" ? body.limit : undefined;
-      const result = await relinkDialpadCalls({ adminClient, limit });
+      const only_unmatched = body.only_unmatched === true;
+      const result = await relinkDialpadCalls({ adminClient, limit, only_unmatched });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
 
