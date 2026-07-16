@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, objectionEventDrafts, reviewDraftSnapshot, reviewPackets, reviewQueueSnapshot, reviewSubmissionDrafts } from "@/lib/trainingReview";
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
-import { UserX, Building2 } from "lucide-react";
+import { UserX, Building2, Trophy } from "lucide-react";
+import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -223,12 +224,12 @@ export default function TrainingPage() {
                 </CardHeader>
                 <CardContent className="text-xs text-muted-foreground">The best notes explain next action, urgency, and owner in one glance.</CardContent>
               </Card>
-              <Card className="bg-background/70">
+              <Card className="border-primary/30 bg-primary/5">
                 <CardHeader className="pb-2">
-                  <CardDescription>Expansion ready</CardDescription>
-                  <CardTitle className="text-base">More modules later</CardTitle>
+                  <CardDescription>New: real winning calls</CardDescription>
+                  <CardTitle className="text-base">Study the calls that signed clients</CardTitle>
                 </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">Roleplay libraries, scorecards, onboarding paths, and campaign-specific packs can live here next.</CardContent>
+                <CardContent className="text-xs text-muted-foreground">Transcripts, audio, and the Fathom closing sessions for every booked call are captured automatically — start in the Real Calls tab below.</CardContent>
               </Card>
             </div>
           </div>
@@ -295,8 +296,11 @@ export default function TrainingPage() {
               <CardDescription>Each module is concrete enough to use now and cleanly separated for future content growth.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="scripts" className="space-y-4">
-                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-8">
+              <Tabs defaultValue="real-calls" className="space-y-4">
+                <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-5">
+                  <TabsTrigger value="real-calls" className="border border-primary/40 bg-primary/5">
+                    <Trophy className="mr-1.5 h-3.5 w-3.5" /> Real Calls
+                  </TabsTrigger>
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
@@ -307,6 +311,21 @@ export default function TrainingPage() {
                   <TabsTrigger value="packets" className="border border-border bg-muted/40">Packets</TabsTrigger>
                   <TabsTrigger value="playbook" className="border border-border bg-muted/40">Playbook</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="real-calls">
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+                      <h3 className="font-medium text-foreground">Learn from calls that actually turned into clients</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Every booked call is now transcribed and recorded automatically. The ones badged{" "}
+                        <span className="font-medium text-foreground">Showed &amp; Closed</span> ended as signed clients — read the
+                        transcript, listen to the audio, then watch the Fathom recording of the closing session. Match what they do:
+                        the opener, the discovery questions, how objections got handled, and how the booking was locked in.
+                      </p>
+                    </div>
+                    <WinningCallsLibrary />
+                  </div>
+                </TabsContent>
 
                 <TabsContent value="scripts">
                   <div className="space-y-4 rounded-xl border border-border bg-background/60 p-4">
