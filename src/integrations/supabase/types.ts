@@ -1445,6 +1445,14 @@ export type Database = {
         Args: { phone_number: string }
         Returns: string
       }
+      count_contacts_with_dm_email: {
+        Args: { _email: string; _exclude_id: string }
+        Returns: number
+      }
+      count_contacts_with_phone_digits: {
+        Args: { _digits: string; _exclude_id: string }
+        Returns: number
+      }
       export_contacts_for_ghl_link: {
         Args: never
         Returns: {
