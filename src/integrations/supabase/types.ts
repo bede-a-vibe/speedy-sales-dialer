@@ -283,10 +283,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_date: string | null
-          paused_at: string | null
           gst: boolean
           id: string
           notes: string | null
+          paused_at: string | null
           start_date: string
           status: string
           stream: string
@@ -299,10 +299,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
-          paused_at?: string | null
           gst?: boolean
           id?: string
           notes?: string | null
+          paused_at?: string | null
           start_date: string
           status?: string
           stream: string
@@ -315,10 +315,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
-          paused_at?: string | null
           gst?: boolean
           id?: string
           notes?: string | null
+          paused_at?: string | null
           start_date?: string
           status?: string
           stream?: string
@@ -390,6 +390,8 @@ export type Database = {
           buying_timeline: string | null
           call_attempt_count: number
           city: string | null
+          client_follow_up_date: string | null
+          client_follow_up_note: string | null
           contact_person: string | null
           created_at: string
           deep_crawl_attempted: boolean
@@ -443,8 +445,6 @@ export type Database = {
           lead_type: string
           lifecycle_reason: string | null
           lifecycle_stage: string
-          client_follow_up_date: string | null
-          client_follow_up_note: string | null
           meeting_booked_date: string | null
           merged_into_contact_id: string | null
           mobile_reaches_gatekeeper: boolean
@@ -481,6 +481,8 @@ export type Database = {
           buying_timeline?: string | null
           call_attempt_count?: number
           city?: string | null
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
           contact_person?: string | null
           created_at?: string
           deep_crawl_attempted?: boolean
@@ -534,8 +536,6 @@ export type Database = {
           lead_type?: string
           lifecycle_reason?: string | null
           lifecycle_stage?: string
-          client_follow_up_date?: string | null
-          client_follow_up_note?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
           mobile_reaches_gatekeeper?: boolean
@@ -572,6 +572,8 @@ export type Database = {
           buying_timeline?: string | null
           call_attempt_count?: number
           city?: string | null
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
           contact_person?: string | null
           created_at?: string
           deep_crawl_attempted?: boolean
@@ -625,8 +627,6 @@ export type Database = {
           lead_type?: string
           lifecycle_reason?: string | null
           lifecycle_stage?: string
-          client_follow_up_date?: string | null
-          client_follow_up_note?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
           mobile_reaches_gatekeeper?: boolean
@@ -1380,6 +1380,13 @@ export type Database = {
           id: string
           phone: string
           status: string
+        }[]
+      }
+      find_contacts_by_phone_digits: {
+        Args: { _digits: string }
+        Returns: {
+          id: string
+          last_called_at: string
         }[]
       }
       find_exact_phone_duplicate_groups: {
