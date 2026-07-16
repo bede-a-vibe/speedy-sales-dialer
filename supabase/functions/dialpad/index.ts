@@ -4626,6 +4626,19 @@ async function syncDialpadCallHistory(params: {
     `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped} detailFetches=${detailFetches} officePulled=${officePulled}`,
   );
 
+  // Opportunistic booked-call scoring. Runs a small batch inline after each
+  // sync so newly booked transcripts get NEPQ scored quickly. Hard-capped by
+  // enrichment_ai_budget (kind='booked_call_scoring'); safe to fire every
+  // sync — a no-op when nothing is eligible or the daily cap is reached.
+  let bookedScoringSummary: unknown = null;
+  try {
+    if (Deno.env.get("LOVABLE_API_KEY")) {
+      bookedScoringSummary = await scoreBookedCalls({ adminClient, limit: 5 });
+    }
+  } catch (err) {
+    console.warn(`[sync_dialpad_call_history] booked scoring failed: ${err instanceof Error ? err.message : err}`);
+  }
+
   return {
     ok: true as const,
     endpoint: "GET /call?target_type={user|office}&target_id=...",
@@ -4641,6 +4654,7 @@ async function syncDialpadCallHistory(params: {
     with_talk_time: withTalkTime,
     skipped,
     errors,
+    booked_scoring: bookedScoringSummary,
   };
 }
 
