@@ -2605,6 +2605,127 @@ async function fetchDialpadCallInfo(callId: string, apiKey: string) {
   return await response.json();
 }
 
+// ── Recording helpers ────────────────────────────────────────────────
+// Extracts the first available recording reference from a Dialpad /call/{id}
+// payload. Prefers `recording_details[]` (typed + id) and falls back to the
+// legacy `admin_recording_urls[]` string array.
+function pickDialpadRecording(call: unknown): { id: string | null; type: string; url: string } | null {
+  if (!isRecord(call)) return null;
+  const details = (call as JsonRecord).recording_details;
+  if (Array.isArray(details) && details.length > 0) {
+    const first = details[0];
+    if (isRecord(first)) {
+      const url = typeof first.url === "string" ? first.url : null;
+      if (url) {
+        return {
+          id: typeof first.id === "string" ? first.id : String(first.id ?? "") || null,
+          type: typeof first.recording_type === "string" ? first.recording_type : "admincallrecording",
+          url,
+        };
+      }
+    }
+  }
+  const admin = (call as JsonRecord).admin_recording_urls;
+  if (Array.isArray(admin) && admin.length > 0 && typeof admin[0] === "string") {
+    // Blob URL of shape https://dialpad.com/blob/adminrecording/<id>.mp3
+    const url = admin[0] as string;
+    const m = url.match(/\/blob\/[^/]+\/(\d+)\.mp3/);
+    return { id: m?.[1] ?? null, type: "admincallrecording", url };
+  }
+  return null;
+}
+
+// Creates a public recording share link via Dialpad's Recording Share Link API.
+// `privacy: "public"` returns a URL that redirects to a signed blob (audio/mpeg),
+// suitable for direct <audio src="…"> playback in our app.
+async function createDialpadRecordingShareLink(params: {
+  apiKey: string;
+  recordingId: string;
+  recordingType?: string;
+  privacy?: "public" | "company" | "owner" | "admin";
+}): Promise<{ ok: true; id: string; access_link: string } | { ok: false; status: number; error: string }> {
+  const body = {
+    recording_id: params.recordingId,
+    recording_type: params.recordingType || "admincallrecording",
+    privacy: params.privacy || "public",
+  };
+  const res = await fetch(`${DIALPAD_BASE}/recordingsharelink`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: text.slice(0, 500) };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    const link = typeof parsed.access_link === "string" ? parsed.access_link : null;
+    const id = typeof parsed.id === "string" ? parsed.id : null;
+    if (!link) return { ok: false, status: 502, error: "Missing access_link in response" };
+    return { ok: true, id: id ?? "", access_link: link };
+  } catch (err) {
+    return { ok: false, status: 502, error: `Parse error: ${err instanceof Error ? err.message : err}` };
+  }
+}
+
+// Backfills recording_id/recording_type/recording_url on existing dialpad_calls
+// rows by re-fetching the Dialpad /call/{id} payload. NO AI is invoked.
+async function backfillDialpadRecordings(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  limit: number;
+  minTalk: number;
+}) {
+  const { adminClient, apiKey, limit, minTalk } = params;
+  const { data: rows, error } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, talk_time_seconds")
+    .is("recording_id", null)
+    .gte("talk_time_seconds", minTalk)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false as const, error: error.message };
+  const list = rows ?? [];
+  let checked = 0;
+  let updated = 0;
+  const errors: string[] = [];
+  const CONCURRENCY = 6;
+  let idx = 0;
+  async function worker() {
+    while (idx < list.length) {
+      const cur = list[idx++];
+      checked += 1;
+      try {
+        const detail = await fetchDialpadCallInfo(String(cur.dialpad_call_id), apiKey);
+        const rec = pickDialpadRecording(detail);
+        if (!rec) continue;
+        const { error: upErr } = await adminClient
+          .from("dialpad_calls")
+          .update({
+            recording_id: rec.id,
+            recording_type: rec.type,
+            recording_url: rec.url,
+          })
+          .eq("id", cur.id);
+        if (upErr) {
+          errors.push(`${cur.dialpad_call_id}: ${upErr.message}`);
+        } else {
+          updated += 1;
+        }
+      } catch (err) {
+        errors.push(`${cur.dialpad_call_id}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, list.length) }, () => worker()));
+  return { ok: true as const, considered: list.length, checked, updated, errors: errors.slice(0, 20) };
+}
+
 // ── Webhook + subscription registration (idempotent) ──────────────────
 // Creates (or reuses) a Dialpad webhook pointed at our edge function URL and
 // binds a call-event subscription to it so lifecycle events (connected +
@@ -4069,6 +4190,12 @@ async function syncDialpadCallHistory(params: {
       sync_status: "synced",
       sync_error: null,
     };
+    const rec = pickDialpadRecording(call);
+    if (rec) {
+      upsertRow.recording_id = rec.id;
+      upsertRow.recording_type = rec.type;
+      upsertRow.recording_url = rec.url;
+    }
 
     const { error: upErr } = await adminClient
       .from("dialpad_calls")
@@ -4424,6 +4551,15 @@ Deno.serve(async (req) => {
       const result = await relinkDialpadCalls({ adminClient, limit, only_unmatched });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
+    if (action === "backfill_recordings") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 500) : 200;
+      const min_talk = typeof body.min_talk === "number" ? body.min_talk : 30;
+      const result = await backfillDialpadRecordings({ adminClient, apiKey: DIALPAD_API_KEY, limit, minTalk: min_talk });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
@@ -4488,6 +4624,72 @@ Deno.serve(async (req) => {
         // call_log within a ±15 min window. Frontend keeps calling this action
         // for backwards compatibility, but it must not create junk rows.
         return jsonResponse({ ok: true, ignored: true, reason: "record_cti_call is a no-op; webhook owns row creation" }, 200);
+      }
+
+      case "get_call_recording": {
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+        }
+        const dialpadCallId = typeof params?.dialpad_call_id === "string" ? params.dialpad_call_id : null;
+        const dialpadCallsRowId = typeof params?.id === "string" ? params.id : null;
+        if (!dialpadCallId && !dialpadCallsRowId) {
+          return jsonResponse({ error: "dialpad_call_id or id required" }, 400);
+        }
+        const query = adminClient
+          .from("dialpad_calls")
+          .select("id, dialpad_call_id, recording_id, recording_type, recording_url, recording_share_link, recording_share_created_at")
+          .limit(1);
+        const { data: row, error: rowErr } = dialpadCallsRowId
+          ? await query.eq("id", dialpadCallsRowId).maybeSingle()
+          : await query.eq("dialpad_call_id", dialpadCallId as string).maybeSingle();
+        if (rowErr) return jsonResponse({ error: rowErr.message }, 500);
+        if (!row) return jsonResponse({ error: "Call not found" }, 404);
+
+        // Reuse cached share link if under 6 days old (Dialpad share links are
+        // long-lived, but we refresh weekly to be safe).
+        const cachedAt = row.recording_share_created_at ? Date.parse(row.recording_share_created_at as string) : NaN;
+        const cacheFresh = Number.isFinite(cachedAt) && Date.now() - cachedAt < 6 * 24 * 60 * 60 * 1000;
+        if (row.recording_share_link && cacheFresh) {
+          return jsonResponse({ ok: true, access_link: row.recording_share_link, cached: true }, 200);
+        }
+
+        // Resolve recording id — refetch call detail if we don't have one yet.
+        let recordingId = row.recording_id as string | null;
+        let recordingType = (row.recording_type as string | null) ?? "admincallrecording";
+        let recordingUrl = row.recording_url as string | null;
+        if (!recordingId) {
+          const detail = await fetchDialpadCallInfo(String(row.dialpad_call_id), DIALPAD_API_KEY);
+          const rec = pickDialpadRecording(detail);
+          if (!rec || !rec.id) {
+            return jsonResponse({ error: "No recording available for this call" }, 404);
+          }
+          recordingId = rec.id;
+          recordingType = rec.type;
+          recordingUrl = rec.url;
+          await adminClient
+            .from("dialpad_calls")
+            .update({ recording_id: rec.id, recording_type: rec.type, recording_url: rec.url })
+            .eq("id", row.id);
+        }
+
+        const share = await createDialpadRecordingShareLink({
+          apiKey: DIALPAD_API_KEY,
+          recordingId,
+          recordingType,
+          privacy: "public",
+        });
+        if (!share.ok) {
+          return jsonResponse({ error: `Share link failed: ${share.error}`, status: share.status }, 502);
+        }
+        await adminClient
+          .from("dialpad_calls")
+          .update({
+            recording_share_link: share.access_link,
+            recording_share_link_id: share.id,
+            recording_share_created_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        return jsonResponse({ ok: true, access_link: share.access_link, cached: false, recording_url: recordingUrl }, 200);
       }
 
       case "register_dialpad_webhook": {
