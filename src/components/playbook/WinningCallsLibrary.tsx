@@ -1,11 +1,37 @@
 import { useMemo, useState } from "react";
-import { Trophy, ChevronDown, ChevronRight, Clock } from "lucide-react";
+import { Trophy, ChevronDown, ChevronRight, Clock, Video, ExternalLink } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { useWinningCalls, type WinningCallResult } from "@/hooks/useWinningCalls";
 import { formatTalk } from "@/hooks/useDialpadCallStats";
+
+interface ClientMeeting {
+  id: string;
+  title: string;
+  meeting_date: string | null;
+  fathom_url: string;
+  kind: string;
+  contact: { business_name: string | null } | null;
+}
+
+function useClientMeetings() {
+  return useQuery({
+    queryKey: ["client-meetings"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_meetings")
+        .select("id, title, meeting_date, fathom_url, kind, contact:contacts(business_name)")
+        .order("meeting_date", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ClientMeeting[];
+    },
+  });
+}
 
 const RESULT_CONFIG: Record<WinningCallResult, { label: string; className: string }> = {
   showed_closed: { label: "Showed & Closed 🏆", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
@@ -28,6 +54,7 @@ const FILTERS: { value: WinningCallResult | "all"; label: string }[] = [
  */
 export function WinningCallsLibrary() {
   const { data: calls = [], isLoading } = useWinningCalls();
+  const { data: meetings = [] } = useClientMeetings();
   const { data: reps = [] } = useSalesReps();
   const [filter, setFilter] = useState<WinningCallResult | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -108,6 +135,40 @@ export function WinningCallsLibrary() {
             </div>
           );
         })}
+
+        {meetings.length > 0 && (
+          <div className="pt-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Video className="h-4 w-4 text-primary" />
+              <h4 className="text-sm font-semibold text-foreground">Closing sessions on Fathom</h4>
+            </div>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Full video recordings of the strategy sessions and onboardings behind signed clients.
+            </p>
+            <div className="space-y-1.5">
+              {meetings.map((m) => (
+                <a
+                  key={m.id}
+                  href={m.fathom_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-sm transition-colors hover:border-primary/40"
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{m.title}</span>
+                  <Badge variant="outline" className={cn("text-[10px]", m.kind === "sales_call" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-border text-muted-foreground")}>
+                    {m.kind === "sales_call" ? "Sales call" : "Onboarding"}
+                  </Badge>
+                  {m.meeting_date && (
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(m.meeting_date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  )}
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
