@@ -3709,10 +3709,14 @@ async function syncDialpadCallHistory(params: {
   untilOverrideMs?: number | null;
   windowMinutes?: number;
   hardCap?: number;
+  includeDisabledUsers?: boolean;
+  noCursorUpdate?: boolean;
 }) {
   const { adminClient, apiKey } = params;
   const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
   const hardCap = params.hardCap ?? 2000;
+  const includeDisabledUsers = params.includeDisabledUsers === true;
+  const noCursorUpdate = params.noCursorUpdate === true;
   const nowMs =
     params.untilOverrideMs && Number.isFinite(params.untilOverrideMs)
       ? params.untilOverrideMs
@@ -3747,8 +3751,10 @@ async function syncDialpadCallHistory(params: {
     if (!row.dialpad_user_id || !row.user_id) continue;
     const dpid = String(row.dialpad_user_id);
     userIdByDialpadUser.set(dpid, row.user_id as string);
-    if (row.is_active === false) continue;
-    if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    if (!includeDisabledUsers) {
+      if (row.is_active === false) continue;
+      if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    }
     activeDialpadUserIds.push(dpid);
   }
 
@@ -3807,12 +3813,14 @@ async function syncDialpadCallHistory(params: {
 
   const calls = Array.from(dedup.values());
   if (calls.length === 0 && errors.length > 0) {
-    await adminClient.from("dialpad_sync_state").upsert({
+    if (!noCursorUpdate) {
+      await adminClient.from("dialpad_sync_state").upsert({
       key: DIALPAD_SYNC_KEY,
       last_run_at: new Date().toISOString(),
       last_error: errors.join(" | "),
       updated_at: new Date().toISOString(),
-    }, { onConflict: "key" });
+      }, { onConflict: "key" });
+    }
     return {
       ok: false as const,
       error: errors.join(" | "),
@@ -3976,7 +3984,8 @@ async function syncDialpadCallHistory(params: {
     }),
   );
 
-  await adminClient.from("dialpad_sync_state").upsert({
+  if (!noCursorUpdate) {
+    await adminClient.from("dialpad_sync_state").upsert({
     key: DIALPAD_SYNC_KEY,
     last_synced_at: new Date(nowMs).toISOString(),
     last_run_at: new Date().toISOString(),
@@ -3984,7 +3993,8 @@ async function syncDialpadCallHistory(params: {
     last_linked: linked,
     last_error: errors.length ? errors.join(" | ") : null,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "key" });
+    }, { onConflict: "key" });
+  }
 
   console.log(
     `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped} detailFetches=${detailFetches} officePulled=${officePulled}`,
