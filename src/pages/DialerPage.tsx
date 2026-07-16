@@ -470,6 +470,9 @@ export default function DialerPage() {
   // Native call bar state — driven off Dialpad CTI postMessage events so the rep
   // sees state instantly, never waiting on server confirmation.
   const dialpadCTIRef = useRef<DialpadCTIHandle | null>(null);
+  // Armed when the rep hit Stop but the current lead still needs its outcome
+  // logged: the next logAndNext ends the session instead of dialing on.
+  const stopAfterLogRef = useRef(false);
   const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
   const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
@@ -1513,10 +1516,13 @@ export default function DialerPage() {
     const followUpStageId = defaultFollowUpStage?.id;
     const repName = salesReps.find((r) => r.user_id === repId)?.display_name ?? undefined;
 
-    // Advance immediately
+    // Advance immediately — unless the rep asked to stop after logging this
+    // lead, in which case we end the session instead of dialing the next one.
+    const stopRequested = stopAfterLogRef.current;
+    stopAfterLogRef.current = false;
     const nextLength = session.queue.contacts.length - 1;
     void session.queue.discardContact(contactId, { releaseLock: true });
-    if (nextLength <= 0) {
+    if (stopRequested || nextLength <= 0) {
       session.setCurrentIndex(null);
     } else if (session.currentIndex !== null && session.currentIndex >= nextLength) {
       session.setCurrentIndex(nextLength - 1);
@@ -1536,10 +1542,15 @@ export default function DialerPage() {
     setDncReason(null);
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
-    void session.queue.ensureBuffer();
+    if (!stopRequested) void session.queue.ensureBuffer();
 
     session.recordOutcome(outcomeToLog);
     session.leadAdvanceInFlightRef.current = false;
+
+    if (stopRequested) {
+      session.stopSession();
+      toast.success("Call logged — session ended. No new call was placed.");
+    }
 
     // Do not stop from a transient local empty buffer.
     // Let the queue reconciler decide whether the session is truly exhausted.
@@ -1828,7 +1839,12 @@ export default function DialerPage() {
       try {
         await dialpad.cancelActiveCall();
       } catch {
-        toast.error("Couldn't confirm the call ended. Finish the call in Dialpad, then stop the session again.");
+        // Can't confirm the hangup — don't strand the rep. Pause the session
+        // (blocks auto-dial) and arm stop-after-log: logging this lead's
+        // outcome will END the session instead of dialing the next lead.
+        stopAfterLogRef.current = true;
+        session.pauseSession();
+        toast.info("Log this call's outcome and the session will end — no new call will be placed.");
         return;
       }
     }
@@ -1881,6 +1897,7 @@ export default function DialerPage() {
             }
           });
         } else if (session.isSessionPaused) {
+          stopAfterLogRef.current = false;
           session.resumeSession();
         }
       }
@@ -2367,7 +2384,17 @@ export default function DialerPage() {
               {/* Primary controls */}
               <div className="flex items-center gap-1.5">
                 {session.isSessionPaused ? (
-                  <Button size="sm" variant="hero" onClick={session.resumeSession} disabled={!isOnline} className="gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="hero"
+                    onClick={() => {
+                      // Resuming cancels any pending stop-after-log intent.
+                      stopAfterLogRef.current = false;
+                      session.resumeSession();
+                    }}
+                    disabled={!isOnline}
+                    className="gap-1.5"
+                  >
                     <Play className="h-3.5 w-3.5" />
                     Resume
                   </Button>
