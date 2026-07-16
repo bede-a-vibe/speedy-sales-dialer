@@ -4182,6 +4182,9 @@ Deno.serve(async (req) => {
       const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
       const includeDisabledUsers = body.include_disabled_users === true;
       const noCursorUpdate = body.no_cursor_update === true || sinceOverrideMs !== undefined;
+      const extraDialpadUserIds = Array.isArray(body.extra_dialpad_user_ids)
+        ? body.extra_dialpad_user_ids.map((v: unknown) => String(v)).filter(Boolean)
+        : undefined;
       const result = await syncDialpadCallHistory({
         adminClient,
         apiKey: DIALPAD_API_KEY,
@@ -4192,6 +4195,7 @@ Deno.serve(async (req) => {
         hardCap,
         includeDisabledUsers,
         noCursorUpdate,
+        extraDialpadUserIds,
       });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
