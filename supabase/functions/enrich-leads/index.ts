@@ -1054,6 +1054,61 @@ Deno.serve(async (req) => {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+  // ── Duplicate-number / duplicate-email write-guards ──
+  // Prevents crawled shared-template numbers/emails from being written to
+  // dozens of unrelated contacts. Compares last-9-digits of phone across
+  // contacts.dm_phone AND contacts.phone; case-insensitive match for emails.
+  const APPEND_NOTE_PHONE =
+    "Crawled mobile matched another lead's number — likely shared/template number, not written";
+  const APPEND_NOTE_EMAIL =
+    "Crawled email matched 3+ other leads — likely template/generic address, not written";
+
+  async function isDuplicatePhone(candidate: string, excludeId: string): Promise<boolean> {
+    try {
+      const digits = (candidate ?? "").replace(/[^0-9]/g, "");
+      if (digits.length < 9) return false;
+      const { data, error } = await admin.rpc("count_contacts_with_phone_digits", {
+        _digits: digits,
+        _exclude_id: excludeId,
+      });
+      if (error) {
+        console.error("[enrich-leads] dup-phone RPC failed:", error.message);
+        return false;
+      }
+      return Number(data ?? 0) >= 1;
+    } catch (err: any) {
+      console.error("[enrich-leads] dup-phone check threw:", err?.message ?? err);
+      return false;
+    }
+  }
+
+  async function isDuplicateEmail(candidate: string, excludeId: string): Promise<boolean> {
+    try {
+      const email = (candidate ?? "").trim();
+      if (!email) return false;
+      const { data, error } = await admin.rpc("count_contacts_with_dm_email", {
+        _email: email,
+        _exclude_id: excludeId,
+      });
+      if (error) {
+        console.error("[enrich-leads] dup-email RPC failed:", error.message);
+        return false;
+      }
+      // Owner-with-two-businesses is fine (1-2 occurrences); block at 3+.
+      return Number(data ?? 0) >= 3;
+    } catch (err: any) {
+      console.error("[enrich-leads] dup-email check threw:", err?.message ?? err);
+      return false;
+    }
+  }
+
+  function appendRouteNote(update: Record<string, any>, existing: string | null | undefined, note: string) {
+    // Only-if-empty semantics: don't spam a route note that's already been set.
+    if (existing && String(existing).trim() !== "") return;
+    if (update.best_route_to_decision_maker) return;
+    update.best_route_to_decision_maker = note;
+  }
+
   // ── Daily AI-call budget (Australia/Melbourne) ──
   // Bounds Lovable AI credit spend. Free extraction (scrape, regex, ad-tech,
   // ABN, address, years, ABR, DDG) ALWAYS runs — only the AI name-fallback
@@ -1110,7 +1165,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
+      .select("id, website, dm_name, dm_phone, dm_email, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1187,13 +1242,21 @@ Deno.serve(async (req) => {
           d_names++;
         }
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-          update.dm_phone = r.mobile;
-          update.dm_phone_type = "mobile";
-          d_mobiles++;
+          if (await isDuplicatePhone(r.mobile, c.id)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
+          } else {
+            update.dm_phone = r.mobile;
+            update.dm_phone_type = "mobile";
+            d_mobiles++;
+          }
         }
         if (r.email && (!c.dm_email || c.dm_email === "")) {
-          update.dm_email = r.email;
-          d_emails++;
+          if (await isDuplicateEmail(r.email, c.id)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_EMAIL);
+          } else {
+            update.dm_email = r.email;
+            d_emails++;
+          }
         }
         // ── Signals from raw HTML (ad-tech, ABN, years-in-business) ──
         try {
@@ -1366,13 +1429,21 @@ Deno.serve(async (req) => {
       }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-        update.dm_phone = r.mobile;
-        update.dm_phone_type = "mobile";
-        mobiles_found++;
+        if (await isDuplicatePhone(r.mobile, c.id)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
+        } else {
+          update.dm_phone = r.mobile;
+          update.dm_phone_type = "mobile";
+          mobiles_found++;
+        }
       }
       if (r.email && (!c.dm_email || c.dm_email === "")) {
-        update.dm_email = r.email;
-        emails_found++;
+        if (await isDuplicateEmail(r.email, c.id)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_EMAIL);
+        } else {
+          update.dm_email = r.email;
+          emails_found++;
+        }
       }
       if (r.name && (!c.dm_name || c.dm_name === "")) {
         update.dm_name = r.name;
@@ -1386,7 +1457,7 @@ Deno.serve(async (req) => {
         update.city = r.addrCity;
         cities_found++;
       }
-      if (r.mobile && (!c.dm_phone || c.dm_phone === "") && !c.best_route_to_decision_maker) {
+      if (r.mobile && (!c.dm_phone || c.dm_phone === "") && update.dm_phone && !c.best_route_to_decision_maker && !update.best_route_to_decision_maker) {
         update.best_route_to_decision_maker = r.ownerAttributed
           ? "Website mobile (owner-attributed)"
           : "Website mobile (may be general line — ask for owner)";
