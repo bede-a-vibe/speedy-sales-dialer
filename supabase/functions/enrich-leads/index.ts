@@ -1165,7 +1165,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
+      .select("id, website, dm_name, dm_phone, dm_email, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1242,13 +1242,21 @@ Deno.serve(async (req) => {
           d_names++;
         }
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-          update.dm_phone = r.mobile;
-          update.dm_phone_type = "mobile";
-          d_mobiles++;
+          if (await isDuplicatePhone(r.mobile, c.id)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
+          } else {
+            update.dm_phone = r.mobile;
+            update.dm_phone_type = "mobile";
+            d_mobiles++;
+          }
         }
         if (r.email && (!c.dm_email || c.dm_email === "")) {
-          update.dm_email = r.email;
-          d_emails++;
+          if (await isDuplicateEmail(r.email, c.id)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_EMAIL);
+          } else {
+            update.dm_email = r.email;
+            d_emails++;
+          }
         }
         // ── Signals from raw HTML (ad-tech, ABN, years-in-business) ──
         try {
