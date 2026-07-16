@@ -3887,15 +3887,12 @@ async function syncDialpadCallHistory(params: {
     // Parallelize contact lookup + transcript + recap. Skip transcript/recap for
     // very short/unconnected calls (nothing to transcribe, saves API round trips).
     const wantEnrichment = isConnected && talk >= 10;
-    const [contactRes, transcriptRes, recapRes] = await Promise.all([
-      normalizedExternal
-        ? adminClient
-            .from("contacts")
-            .select("id")
-            .eq("phone", normalizedExternal)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null } as { data: { id: string } | null; error: null }),
+    const digits = (externalNumber ?? "").replace(/\D+/g, "");
+    const suffix9 = digits.length >= 9 ? digits.slice(-9) : null;
+    const [contactRpc, transcriptRes, recapRes] = await Promise.all([
+      suffix9
+        ? adminClient.rpc("find_contacts_by_phone_digits", { _digits: suffix9 })
+        : Promise.resolve({ data: [] as { id: string; last_called_at: string | null }[], error: null }),
       wantEnrichment
         ? fetchDialpadTranscript(dialpadCallIdStr, apiKey).catch(() => null)
         : Promise.resolve(null),
@@ -3904,7 +3901,36 @@ async function syncDialpadCallHistory(params: {
         : Promise.resolve(null),
     ]);
 
-    const contactId: string | null = (contactRes as { data: { id: string } | null }).data?.id ?? null;
+    let contactId: string | null = null;
+    const rpcRows = ((contactRpc as { data: { id: string; last_called_at: string | null }[] | null }).data) ?? [];
+    if (rpcRows.length === 1) {
+      contactId = rpcRows[0].id;
+    } else if (rpcRows.length > 1 && repUserId && startedMs) {
+      // Prefer the candidate with a nearby call_log from this rep.
+      const start = new Date(startedMs - 60 * 60 * 1000).toISOString();
+      const end = new Date(startedMs + 60 * 60 * 1000).toISOString();
+      const { data: cl } = await adminClient
+        .from("call_logs")
+        .select("contact_id, created_at")
+        .in("contact_id", rpcRows.map((r) => r.id))
+        .eq("user_id", repUserId)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false });
+      if (cl && cl.length > 0) {
+        let best = cl[0];
+        let bestDelta = Math.abs(new Date(best.created_at).getTime() - startedMs);
+        for (const row of cl.slice(1)) {
+          const d = Math.abs(new Date(row.created_at).getTime() - startedMs);
+          if (d < bestDelta) { best = row; bestDelta = d; }
+        }
+        contactId = best.contact_id as string;
+      } else {
+        contactId = rpcRows[0].id; // rows already ordered by last_called_at desc
+      }
+    } else if (rpcRows.length > 0) {
+      contactId = rpcRows[0].id;
+    }
     const transcript: string | null = transcriptRes ?? null;
     const dialpadSummary: string | null = recapRes ?? null;
 
