@@ -4158,17 +4158,33 @@ Deno.serve(async (req) => {
       }
       const officeId = typeof body.office_id === "string" ? body.office_id : undefined;
       const windowMinutes = typeof body.window_minutes === "number" ? body.window_minutes : undefined;
-      const sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      let sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      if (sinceOverrideMs === undefined && typeof body.backfill_from === "string") {
+        const p = Date.parse(body.backfill_from);
+        if (Number.isFinite(p)) sinceOverrideMs = p;
+      }
       const untilOverrideMs = typeof body.until_ms === "number" ? body.until_ms : undefined;
+      if (untilOverrideMs === undefined && typeof body.backfill_to === "string") {
+        const p = Date.parse(body.backfill_to);
+        if (Number.isFinite(p)) {
+          // handled below via param
+        }
+      }
+      const backfillToMs = typeof body.backfill_to === "string" && Number.isFinite(Date.parse(body.backfill_to))
+        ? Date.parse(body.backfill_to) : undefined;
       const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
+      const includeDisabledUsers = body.include_disabled_users === true;
+      const noCursorUpdate = body.no_cursor_update === true || sinceOverrideMs !== undefined;
       const result = await syncDialpadCallHistory({
         adminClient,
         apiKey: DIALPAD_API_KEY,
         officeId,
         windowMinutes,
         sinceOverrideMs,
-        untilOverrideMs,
+        untilOverrideMs: untilOverrideMs ?? backfillToMs,
         hardCap,
+        includeDisabledUsers,
+        noCursorUpdate,
       });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
