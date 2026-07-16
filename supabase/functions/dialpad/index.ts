@@ -3722,6 +3722,7 @@ async function syncDialpadCallHistory(params: {
   hardCap?: number;
   includeDisabledUsers?: boolean;
   noCursorUpdate?: boolean;
+  extraDialpadUserIds?: string[];
 }) {
   const { adminClient, apiKey } = params;
   const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
@@ -3767,6 +3768,12 @@ async function syncDialpadCallHistory(params: {
       if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
     }
     activeDialpadUserIds.push(dpid);
+  }
+  if (params.extraDialpadUserIds && params.extraDialpadUserIds.length > 0) {
+    for (const dpid of params.extraDialpadUserIds) {
+      const s = String(dpid);
+      if (!activeDialpadUserIds.includes(s)) activeDialpadUserIds.push(s);
+    }
   }
 
   console.log(
