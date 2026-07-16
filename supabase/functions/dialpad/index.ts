@@ -4626,6 +4626,72 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, ignored: true, reason: "record_cti_call is a no-op; webhook owns row creation" }, 200);
       }
 
+      case "get_call_recording": {
+        if (!DIALPAD_API_KEY) {
+          return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+        }
+        const dialpadCallId = typeof params?.dialpad_call_id === "string" ? params.dialpad_call_id : null;
+        const dialpadCallsRowId = typeof params?.id === "string" ? params.id : null;
+        if (!dialpadCallId && !dialpadCallsRowId) {
+          return jsonResponse({ error: "dialpad_call_id or id required" }, 400);
+        }
+        const query = adminClient
+          .from("dialpad_calls")
+          .select("id, dialpad_call_id, recording_id, recording_type, recording_url, recording_share_link, recording_share_created_at")
+          .limit(1);
+        const { data: row, error: rowErr } = dialpadCallsRowId
+          ? await query.eq("id", dialpadCallsRowId).maybeSingle()
+          : await query.eq("dialpad_call_id", dialpadCallId as string).maybeSingle();
+        if (rowErr) return jsonResponse({ error: rowErr.message }, 500);
+        if (!row) return jsonResponse({ error: "Call not found" }, 404);
+
+        // Reuse cached share link if under 6 days old (Dialpad share links are
+        // long-lived, but we refresh weekly to be safe).
+        const cachedAt = row.recording_share_created_at ? Date.parse(row.recording_share_created_at as string) : NaN;
+        const cacheFresh = Number.isFinite(cachedAt) && Date.now() - cachedAt < 6 * 24 * 60 * 60 * 1000;
+        if (row.recording_share_link && cacheFresh) {
+          return jsonResponse({ ok: true, access_link: row.recording_share_link, cached: true }, 200);
+        }
+
+        // Resolve recording id — refetch call detail if we don't have one yet.
+        let recordingId = row.recording_id as string | null;
+        let recordingType = (row.recording_type as string | null) ?? "admincallrecording";
+        let recordingUrl = row.recording_url as string | null;
+        if (!recordingId) {
+          const detail = await fetchDialpadCallInfo(String(row.dialpad_call_id), DIALPAD_API_KEY);
+          const rec = pickDialpadRecording(detail);
+          if (!rec || !rec.id) {
+            return jsonResponse({ error: "No recording available for this call" }, 404);
+          }
+          recordingId = rec.id;
+          recordingType = rec.type;
+          recordingUrl = rec.url;
+          await adminClient
+            .from("dialpad_calls")
+            .update({ recording_id: rec.id, recording_type: rec.type, recording_url: rec.url })
+            .eq("id", row.id);
+        }
+
+        const share = await createDialpadRecordingShareLink({
+          apiKey: DIALPAD_API_KEY,
+          recordingId,
+          recordingType,
+          privacy: "public",
+        });
+        if (!share.ok) {
+          return jsonResponse({ error: `Share link failed: ${share.error}`, status: share.status }, 502);
+        }
+        await adminClient
+          .from("dialpad_calls")
+          .update({
+            recording_share_link: share.access_link,
+            recording_share_link_id: share.id,
+            recording_share_created_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        return jsonResponse({ ok: true, access_link: share.access_link, cached: false, recording_url: recordingUrl }, 200);
+      }
+
       case "register_dialpad_webhook": {
         if (!isAdmin) {
           return jsonResponse({ error: "Admin role required" }, 403);
