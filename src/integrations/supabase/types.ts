@@ -754,6 +754,12 @@ export type Database = {
           external_number: string | null
           id: string
           is_connected: boolean
+          recording_id: string | null
+          recording_share_created_at: string | null
+          recording_share_link: string | null
+          recording_share_link_id: string | null
+          recording_type: string | null
+          recording_url: string | null
           started_at: string | null
           sync_error: string | null
           sync_status: string
@@ -776,6 +782,12 @@ export type Database = {
           external_number?: string | null
           id?: string
           is_connected?: boolean
+          recording_id?: string | null
+          recording_share_created_at?: string | null
+          recording_share_link?: string | null
+          recording_share_link_id?: string | null
+          recording_type?: string | null
+          recording_url?: string | null
           started_at?: string | null
           sync_error?: string | null
           sync_status?: string
@@ -798,6 +810,12 @@ export type Database = {
           external_number?: string | null
           id?: string
           is_connected?: boolean
+          recording_id?: string | null
+          recording_share_created_at?: string | null
+          recording_share_link?: string | null
+          recording_share_link_id?: string | null
+          recording_type?: string | null
+          recording_url?: string | null
           started_at?: string | null
           sync_error?: string | null
           sync_status?: string
