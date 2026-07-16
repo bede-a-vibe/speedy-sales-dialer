@@ -6069,6 +6069,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, ...result }, 200);
       }
 
+      case "score_booked_calls": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+        const limit = coerceBoundedLimit(params.limit, 20, 1, 20);
+        const result = await scoreBookedCalls({ adminClient, limit });
+        return jsonResponse(result, 200);
+      }
+
       case "test_transcript_extraction": {
         // Staging action: runs the full extract+apply pipeline against an
         // inline sample HVAC transcript so the wiring can be verified end-to-end
