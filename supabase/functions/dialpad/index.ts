@@ -2605,6 +2605,74 @@ async function fetchDialpadCallInfo(callId: string, apiKey: string) {
   return await response.json();
 }
 
+// ── Recording helpers ────────────────────────────────────────────────
+// Extracts the first available recording reference from a Dialpad /call/{id}
+// payload. Prefers `recording_details[]` (typed + id) and falls back to the
+// legacy `admin_recording_urls[]` string array.
+function pickDialpadRecording(call: unknown): { id: string | null; type: string; url: string } | null {
+  if (!isRecord(call)) return null;
+  const details = (call as JsonRecord).recording_details;
+  if (Array.isArray(details) && details.length > 0) {
+    const first = details[0];
+    if (isRecord(first)) {
+      const url = typeof first.url === "string" ? first.url : null;
+      if (url) {
+        return {
+          id: typeof first.id === "string" ? first.id : String(first.id ?? "") || null,
+          type: typeof first.recording_type === "string" ? first.recording_type : "admincallrecording",
+          url,
+        };
+      }
+    }
+  }
+  const admin = (call as JsonRecord).admin_recording_urls;
+  if (Array.isArray(admin) && admin.length > 0 && typeof admin[0] === "string") {
+    // Blob URL of shape https://dialpad.com/blob/adminrecording/<id>.mp3
+    const url = admin[0] as string;
+    const m = url.match(/\/blob\/[^/]+\/(\d+)\.mp3/);
+    return { id: m?.[1] ?? null, type: "admincallrecording", url };
+  }
+  return null;
+}
+
+// Creates a public recording share link via Dialpad's Recording Share Link API.
+// `privacy: "public"` returns a URL that redirects to a signed blob (audio/mpeg),
+// suitable for direct <audio src="…"> playback in our app.
+async function createDialpadRecordingShareLink(params: {
+  apiKey: string;
+  recordingId: string;
+  recordingType?: string;
+  privacy?: "public" | "company" | "owner" | "admin";
+}): Promise<{ ok: true; id: string; access_link: string } | { ok: false; status: number; error: string }> {
+  const body = {
+    recording_id: params.recordingId,
+    recording_type: params.recordingType || "admincallrecording",
+    privacy: params.privacy || "public",
+  };
+  const res = await fetch(`${DIALPAD_BASE}/recordingsharelink`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: text.slice(0, 500) };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    const link = typeof parsed.access_link === "string" ? parsed.access_link : null;
+    const id = typeof parsed.id === "string" ? parsed.id : null;
+    if (!link) return { ok: false, status: 502, error: "Missing access_link in response" };
+    return { ok: true, id: id ?? "", access_link: link };
+  } catch (err) {
+    return { ok: false, status: 502, error: `Parse error: ${err instanceof Error ? err.message : err}` };
+  }
+}
+
 // ── Webhook + subscription registration (idempotent) ──────────────────
 // Creates (or reuses) a Dialpad webhook pointed at our edge function URL and
 // binds a call-event subscription to it so lifecycle events (connected +
