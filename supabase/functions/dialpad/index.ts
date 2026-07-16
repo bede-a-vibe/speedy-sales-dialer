@@ -2673,6 +2673,59 @@ async function createDialpadRecordingShareLink(params: {
   }
 }
 
+// Backfills recording_id/recording_type/recording_url on existing dialpad_calls
+// rows by re-fetching the Dialpad /call/{id} payload. NO AI is invoked.
+async function backfillDialpadRecordings(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  limit: number;
+  minTalk: number;
+}) {
+  const { adminClient, apiKey, limit, minTalk } = params;
+  const { data: rows, error } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, talk_time_seconds")
+    .is("recording_id", null)
+    .gte("talk_time_seconds", minTalk)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false as const, error: error.message };
+  const list = rows ?? [];
+  let checked = 0;
+  let updated = 0;
+  const errors: string[] = [];
+  const CONCURRENCY = 6;
+  let idx = 0;
+  async function worker() {
+    while (idx < list.length) {
+      const cur = list[idx++];
+      checked += 1;
+      try {
+        const detail = await fetchDialpadCallInfo(String(cur.dialpad_call_id), apiKey);
+        const rec = pickDialpadRecording(detail);
+        if (!rec) continue;
+        const { error: upErr } = await adminClient
+          .from("dialpad_calls")
+          .update({
+            recording_id: rec.id,
+            recording_type: rec.type,
+            recording_url: rec.url,
+          })
+          .eq("id", cur.id);
+        if (upErr) {
+          errors.push(`${cur.dialpad_call_id}: ${upErr.message}`);
+        } else {
+          updated += 1;
+        }
+      } catch (err) {
+        errors.push(`${cur.dialpad_call_id}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, list.length) }, () => worker()));
+  return { ok: true as const, considered: list.length, checked, updated, errors: errors.slice(0, 20) };
+}
+
 // ── Webhook + subscription registration (idempotent) ──────────────────
 // Creates (or reuses) a Dialpad webhook pointed at our edge function URL and
 // binds a call-event subscription to it so lifecycle events (connected +
