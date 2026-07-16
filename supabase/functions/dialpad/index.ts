@@ -4498,6 +4498,15 @@ Deno.serve(async (req) => {
       const result = await relinkDialpadCalls({ adminClient, limit, only_unmatched });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
+    if (action === "backfill_recordings") {
+      if (!DIALPAD_API_KEY) {
+        return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
+      }
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 500) : 200;
+      const min_talk = typeof body.min_talk === "number" ? body.min_talk : 30;
+      const result = await backfillDialpadRecordings({ adminClient, apiKey: DIALPAD_API_KEY, limit, minTalk: min_talk });
+      return jsonResponse(result, result.ok ? 200 : 502);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
