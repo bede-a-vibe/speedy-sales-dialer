@@ -4816,6 +4816,9 @@ Deno.serve(async (req) => {
     // record_cti_call only writes to our own dialpad_calls table (no Dialpad
     // REST call), so it must work even when DIALPAD_API_KEY is unset.
     "record_cti_call",
+    // score_booked_calls only reads existing transcripts and calls the
+    // Lovable AI gateway — no Dialpad REST access needed.
+    "score_booked_calls",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
