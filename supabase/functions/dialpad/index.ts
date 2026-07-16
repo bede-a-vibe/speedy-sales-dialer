@@ -4137,6 +4137,12 @@ async function syncDialpadCallHistory(params: {
       sync_status: "synced",
       sync_error: null,
     };
+    const rec = pickDialpadRecording(call);
+    if (rec) {
+      upsertRow.recording_id = rec.id;
+      upsertRow.recording_type = rec.type;
+      upsertRow.recording_url = rec.url;
+    }
 
     const { error: upErr } = await adminClient
       .from("dialpad_calls")
