@@ -2477,7 +2477,8 @@ async function scoreBookedCalls(params: {
 
   for (const row of eligible ?? []) {
     if (budget.made() >= Math.min(cap, budget.remaining)) break;
-    const dpArr = Array.isArray((row as any).dialpad_calls) ? (row as any).dialpad_calls : [];
+    const dpRaw = (row as any).dialpad_calls;
+    const dpArr = Array.isArray(dpRaw) ? dpRaw : dpRaw ? [dpRaw] : [];
     const dp = dpArr.find((d: any) => d?.transcript && String(d.transcript).trim().length >= 40);
     if (!dp) { skipped++; continue; }
 
