@@ -2449,7 +2449,6 @@ async function scoreBookedCalls(params: {
       id,
       contact_id,
       user_id,
-      call_date,
       dialpad_calls:dialpad_calls!dialpad_calls_call_log_id_fkey (
         id,
         dialpad_call_id,
@@ -2459,7 +2458,7 @@ async function scoreBookedCalls(params: {
       contacts:contacts (business_name)
     `)
     .eq("outcome", "booked")
-    .order("call_date", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(cap * 4);
   if (eligErr) return { ok: false as const, reason: eligErr.message };
 
