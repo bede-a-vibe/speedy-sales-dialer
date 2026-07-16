@@ -1429,13 +1429,21 @@ Deno.serve(async (req) => {
       }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-        update.dm_phone = r.mobile;
-        update.dm_phone_type = "mobile";
-        mobiles_found++;
+        if (await isDuplicatePhone(r.mobile, c.id)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
+        } else {
+          update.dm_phone = r.mobile;
+          update.dm_phone_type = "mobile";
+          mobiles_found++;
+        }
       }
       if (r.email && (!c.dm_email || c.dm_email === "")) {
-        update.dm_email = r.email;
-        emails_found++;
+        if (await isDuplicateEmail(r.email, c.id)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_EMAIL);
+        } else {
+          update.dm_email = r.email;
+          emails_found++;
+        }
       }
       if (r.name && (!c.dm_name || c.dm_name === "")) {
         update.dm_name = r.name;
@@ -1449,7 +1457,7 @@ Deno.serve(async (req) => {
         update.city = r.addrCity;
         cities_found++;
       }
-      if (r.mobile && (!c.dm_phone || c.dm_phone === "") && !c.best_route_to_decision_maker) {
+      if (r.mobile && (!c.dm_phone || c.dm_phone === "") && update.dm_phone && !c.best_route_to_decision_maker && !update.best_route_to_decision_maker) {
         update.best_route_to_decision_maker = r.ownerAttributed
           ? "Website mobile (owner-attributed)"
           : "Website mobile (may be general line — ask for owner)";
