@@ -4929,6 +4929,11 @@ Deno.serve(async (req) => {
       const result = await backfillDialpadRecordings({ adminClient, apiKey: DIALPAD_API_KEY, limit, minTalk: min_talk });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
+    if (action === "score_booked_calls") {
+      const limit = typeof body.limit === "number" ? body.limit : 20;
+      const result = await scoreBookedCalls({ adminClient, limit });
+      return jsonResponse(result, 200);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
