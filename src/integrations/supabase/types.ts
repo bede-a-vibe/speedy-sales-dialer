@@ -913,6 +913,7 @@ export type Database = {
           daily_cap: number
           day: string
           id: string
+          kind: string
           updated_at: string
         }
         Insert: {
@@ -921,6 +922,7 @@ export type Database = {
           daily_cap?: number
           day?: string
           id?: string
+          kind?: string
           updated_at?: string
         }
         Update: {
@@ -929,6 +931,7 @@ export type Database = {
           daily_cap?: number
           day?: string
           id?: string
+          kind?: string
           updated_at?: string
         }
         Relationships: []
