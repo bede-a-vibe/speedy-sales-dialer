@@ -23,6 +23,8 @@ export interface WinningCall {
   result: WinningCallResult;
   appointmentDate: string | null;
   score: WinningCallScore | null;
+  /** Dialpad REST call id — used to fetch the audio recording share link. */
+  dialpadCallId: string | null;
 }
 
 /**
@@ -37,7 +39,7 @@ export function useWinningCalls() {
     queryFn: async (): Promise<WinningCall[]> => {
       const { data: logs, error } = await supabase
         .from("call_logs")
-        .select("id, contact_id, user_id, created_at, dialpad_talk_time_seconds, dialpad_transcript, contacts(business_name, state)")
+        .select("id, contact_id, user_id, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, contacts(business_name, state)")
         .eq("outcome", "booked")
         .not("dialpad_transcript", "is", null)
         .neq("dialpad_transcript", "")
@@ -107,6 +109,7 @@ export function useWinningCalls() {
           result,
           appointmentDate: item?.scheduled_for ?? null,
           score: scoreByLog.get(r.id) ?? null,
+          dialpadCallId: (r.dialpad_call_id as string | null) ?? null,
         };
       });
     },
