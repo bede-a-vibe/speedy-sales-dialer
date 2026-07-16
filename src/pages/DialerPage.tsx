@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
+import { RecentCallWarning } from "@/components/dialer/RecentCallWarning";
 import { AddServiceButton } from "@/components/clients/AddServiceButton";
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
@@ -2875,6 +2876,11 @@ export default function DialerPage() {
             )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              <RecentCallWarning
+                contactId={session.currentContact.id}
+                phone={session.currentContact.phone}
+                dmPhone={session.currentContact.dm_phone}
+              />
               <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
