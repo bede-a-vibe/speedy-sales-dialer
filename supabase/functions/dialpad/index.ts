@@ -4154,6 +4154,7 @@ async function syncDialpadCallHistory(params: {
 async function relinkDialpadCalls(params: {
   adminClient: ReturnType<typeof createClient>;
   limit?: number;
+  only_unmatched?: boolean;
 }) {
   const { adminClient } = params;
   const limit = params.limit ?? 5000;
@@ -4175,11 +4176,15 @@ async function relinkDialpadCalls(params: {
   const activeUserIds = Array.from(new Set(userIdByDialpadUser.values()));
   const soleRepUserId = activeUserIds.length === 1 ? activeUserIds[0] : null;
 
-  const { data: rows, error } = await adminClient
+  let query = adminClient
     .from("dialpad_calls")
     .select("id, dialpad_call_id, external_number, contact_id, user_id, call_log_id, started_at, talk_time_seconds, total_duration_seconds, transcript, dialpad_summary")
     .order("started_at", { ascending: false })
     .limit(limit);
+  if (params.only_unmatched) {
+    query = query.is("contact_id", null);
+  }
+  const { data: rows, error } = await query;
   if (error) {
     return { ok: false as const, error: error.message };
   }
