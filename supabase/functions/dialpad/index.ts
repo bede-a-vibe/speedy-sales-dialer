@@ -705,9 +705,6 @@ function buildTranscriptText(transcriptPayload: unknown) {
     .map((line) => {
       const content = typeof line.content === "string" ? line.content.trim() : "";
       if (!content) return null;
-      // Drop Dialpad's internal AI event markers that are interleaved into the
-      // transcript stream (action_item, whole_call_summary, ner, etc.).
-      if (isDialpadTranscriptMarker(line, content)) return null;
       const speaker = typeof line.name === "string" && line.name.trim()
         ? line.name.trim()
         : typeof line.user_id === "number"
@@ -722,74 +719,6 @@ function buildTranscriptText(transcriptPayload: unknown) {
   }
 
   return ["Dialpad Transcript", ...formattedLines].join("\n");
-}
-
-// A Dialpad transcript "line" is an internal AI marker (not spoken content)
-// when its type/event field is not a normal transcript entry, or when the
-// content is a single lowercase snake_case token like `action_item` or
-// `whole_call_summary_fragment` that Dialpad injects between real utterances.
-function isDialpadTranscriptMarker(line: JsonRecord, content: string): boolean {
-  const typeCandidates = [line.type, line.event, line.kind, line.entry_type];
-  for (const t of typeCandidates) {
-    if (typeof t !== "string") continue;
-    const lt = t.trim().toLowerCase();
-    if (!lt) continue;
-    // Anything explicitly tagged as transcript/speech is real content.
-    if (lt === "transcript" || lt === "utterance" || lt === "speech") return false;
-    // Otherwise the presence of a non-transcript type marks it as an AI event.
-    return true;
-  }
-  // Fallback: single-token snake_case content is a Dialpad marker.
-  return isMarkerToken(content);
-}
-
-const KNOWN_MARKER_TOKENS = new Set<string>([
-  "action_item",
-  "action_item_v2",
-  "ai_csat_reboot_ineligible",
-  "call_purpose",
-  "call_purpose_category",
-  "call_summary",
-  "currency",
-  "ner",
-  "question",
-  "speaking_too_quickly",
-  "whole_call_summary",
-  "whole_call_summary_fragment",
-]);
-
-function isMarkerToken(content: string): boolean {
-  const s = content.trim();
-  if (!s || s.length > 60) return false;
-  if (KNOWN_MARKER_TOKENS.has(s)) return true;
-  // No whitespace, no punctuation, all lowercase snake_case with an underscore
-  // OR a single lowercase word ≤ 40 chars → treat as Dialpad marker.
-  return /^[a-z][a-z0-9_]{0,40}$/.test(s);
-}
-
-// Strip marker lines from an already-formatted transcript blob (used for the
-// in-place cleanup of previously stored transcripts).
-function cleanFormattedTranscript(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const lines = text.split(/\r?\n/);
-  const kept: string[] = [];
-  for (const raw of lines) {
-    const line = raw ?? "";
-    if (!line.trim()) continue;
-    if (line === "Dialpad Transcript") { kept.push(line); continue; }
-    // Split "Speaker: content" and check the content half.
-    const idx = line.indexOf(": ");
-    if (idx > 0) {
-      const content = line.slice(idx + 2).trim();
-      if (isMarkerToken(content)) continue;
-    } else if (isMarkerToken(line)) {
-      continue;
-    }
-    kept.push(line);
-  }
-  const speechCount = kept.filter((l) => l !== "Dialpad Transcript").length;
-  if (speechCount === 0) return null;
-  return kept.join("\n");
 }
 
 // ── GHL Field Key → ID Mapping ──────────────────────────────────────────
@@ -3055,11 +2984,8 @@ async function findCallLogByFallback(
     }
     return data ?? [];
   };
-
-  // Tight window first: nearest in time wins.
   const tight = await queryWindow(15);
   if (tight && tight.length > 0) {
-    // Pick the one whose created_at is closest to trackedCreatedAt.
     let best = tight[0];
     let bestDelta = Math.abs(new Date(best.created_at).getTime() - base);
     for (const row of tight.slice(1)) {
@@ -3068,7 +2994,6 @@ async function findCallLogByFallback(
     }
     return best.id;
   }
-  // Widen ONLY when there's a single candidate in the wider window.
   const wide = await queryWindow(60);
   if (wide && wide.length === 1) return wide[0].id;
   return null;
@@ -3719,67 +3644,6 @@ function pickExternalNumber(call: JsonRecord): string | null {
   return null;
 }
 
-// Extract the digits-only representation of a phone value and return its last
-// 9 digits (which is the AU-friendly suffix that survives +61 vs 0 vs spacing).
-function phoneDigitsSuffix(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  const digits = String(phone).replace(/\D+/g, "");
-  if (digits.length < 9) return null;
-  return digits.slice(-9);
-}
-
-// Look up a contact by the last 9 digits of an external phone number, matching
-// both contacts.phone and contacts.dm_phone (spacing-insensitive). If multiple
-// candidates match, prefer the one with a recent call_log from the given rep
-// near the given time; otherwise fall back to most-recently-called.
-async function resolveContactByPhoneDigits(
-  adminClient: ReturnType<typeof createClient>,
-  externalPhone: string | null | undefined,
-  repUserId: string | null,
-  nearIso: string | null,
-): Promise<string | null> {
-  const suffix = phoneDigitsSuffix(externalPhone);
-  if (!suffix) return null;
-
-  const { data, error } = await adminClient.rpc("find_contacts_by_phone_digits", { _digits: suffix });
-  if (error) {
-    console.warn(`[resolveContactByPhoneDigits] RPC error: ${error.message}`);
-    return null;
-  }
-  const rows = (data ?? []) as { id: string; last_called_at: string | null }[];
-  if (rows.length === 0) return null;
-  if (rows.length === 1) return rows[0].id;
-
-  if (repUserId && nearIso) {
-    const base = new Date(nearIso).getTime();
-    if (Number.isFinite(base)) {
-      const start = new Date(base - 60 * 60 * 1000).toISOString();
-      const end = new Date(base + 60 * 60 * 1000).toISOString();
-      const ids = rows.map((r) => r.id);
-      const { data: cl } = await adminClient
-        .from("call_logs")
-        .select("contact_id, created_at")
-        .in("contact_id", ids)
-        .eq("user_id", repUserId)
-        .gte("created_at", start)
-        .lte("created_at", end)
-        .order("created_at", { ascending: false });
-      if (cl && cl.length > 0) {
-        // Nearest in time wins.
-        let best = cl[0];
-        let bestDelta = Math.abs(new Date(best.created_at).getTime() - base);
-        for (const row of cl.slice(1)) {
-          const d = Math.abs(new Date(row.created_at).getTime() - base);
-          if (d < bestDelta) { best = row; bestDelta = d; }
-        }
-        return best.contact_id as string;
-      }
-    }
-  }
-  // Fallback: most-recently-called (rows are already ordered by last_called_at desc).
-  return rows[0].id;
-}
-
 function pickDialpadTargetUserId(call: JsonRecord): string | null {
   const targetKind = typeof call.target_kind === "string" ? call.target_kind : null;
   const targetRec = isRecord(call.target) ? call.target : null;
@@ -3856,10 +3720,15 @@ async function syncDialpadCallHistory(params: {
   untilOverrideMs?: number | null;
   windowMinutes?: number;
   hardCap?: number;
+  includeDisabledUsers?: boolean;
+  noCursorUpdate?: boolean;
+  extraDialpadUserIds?: string[];
 }) {
   const { adminClient, apiKey } = params;
   const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
   const hardCap = params.hardCap ?? 2000;
+  const includeDisabledUsers = params.includeDisabledUsers === true;
+  const noCursorUpdate = params.noCursorUpdate === true;
   const nowMs =
     params.untilOverrideMs && Number.isFinite(params.untilOverrideMs)
       ? params.untilOverrideMs
@@ -3894,9 +3763,17 @@ async function syncDialpadCallHistory(params: {
     if (!row.dialpad_user_id || !row.user_id) continue;
     const dpid = String(row.dialpad_user_id);
     userIdByDialpadUser.set(dpid, row.user_id as string);
-    if (row.is_active === false) continue;
-    if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    if (!includeDisabledUsers) {
+      if (row.is_active === false) continue;
+      if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
+    }
     activeDialpadUserIds.push(dpid);
+  }
+  if (params.extraDialpadUserIds && params.extraDialpadUserIds.length > 0) {
+    for (const dpid of params.extraDialpadUserIds) {
+      const s = String(dpid);
+      if (!activeDialpadUserIds.includes(s)) activeDialpadUserIds.push(s);
+    }
   }
 
   console.log(
@@ -3954,12 +3831,14 @@ async function syncDialpadCallHistory(params: {
 
   const calls = Array.from(dedup.values());
   if (calls.length === 0 && errors.length > 0) {
-    await adminClient.from("dialpad_sync_state").upsert({
+    if (!noCursorUpdate) {
+      await adminClient.from("dialpad_sync_state").upsert({
       key: DIALPAD_SYNC_KEY,
       last_run_at: new Date().toISOString(),
       last_error: errors.join(" | "),
       updated_at: new Date().toISOString(),
-    }, { onConflict: "key" });
+      }, { onConflict: "key" });
+    }
     return {
       ok: false as const,
       error: errors.join(" | "),
@@ -4026,9 +3905,12 @@ async function syncDialpadCallHistory(params: {
     // Parallelize contact lookup + transcript + recap. Skip transcript/recap for
     // very short/unconnected calls (nothing to transcribe, saves API round trips).
     const wantEnrichment = isConnected && talk >= 10;
-    const nearIso = startedMs ? new Date(startedMs).toISOString() : null;
-    const [contactId, transcriptRes, recapRes] = await Promise.all([
-      resolveContactByPhoneDigits(adminClient, externalNumber, repUserId, nearIso),
+    const digits = (externalNumber ?? "").replace(/\D+/g, "");
+    const suffix9 = digits.length >= 9 ? digits.slice(-9) : null;
+    const [contactRpc, transcriptRes, recapRes] = await Promise.all([
+      suffix9
+        ? adminClient.rpc("find_contacts_by_phone_digits", { _digits: suffix9 })
+        : Promise.resolve({ data: [] as { id: string; last_called_at: string | null }[], error: null }),
       wantEnrichment
         ? fetchDialpadTranscript(dialpadCallIdStr, apiKey).catch(() => null)
         : Promise.resolve(null),
@@ -4037,6 +3919,36 @@ async function syncDialpadCallHistory(params: {
         : Promise.resolve(null),
     ]);
 
+    let contactId: string | null = null;
+    const rpcRows = ((contactRpc as { data: { id: string; last_called_at: string | null }[] | null }).data) ?? [];
+    if (rpcRows.length === 1) {
+      contactId = rpcRows[0].id;
+    } else if (rpcRows.length > 1 && repUserId && startedMs) {
+      // Prefer the candidate with a nearby call_log from this rep.
+      const start = new Date(startedMs - 60 * 60 * 1000).toISOString();
+      const end = new Date(startedMs + 60 * 60 * 1000).toISOString();
+      const { data: cl } = await adminClient
+        .from("call_logs")
+        .select("contact_id, created_at")
+        .in("contact_id", rpcRows.map((r) => r.id))
+        .eq("user_id", repUserId)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false });
+      if (cl && cl.length > 0) {
+        let best = cl[0];
+        let bestDelta = Math.abs(new Date(best.created_at).getTime() - startedMs);
+        for (const row of cl.slice(1)) {
+          const d = Math.abs(new Date(row.created_at).getTime() - startedMs);
+          if (d < bestDelta) { best = row; bestDelta = d; }
+        }
+        contactId = best.contact_id as string;
+      } else {
+        contactId = rpcRows[0].id; // rows already ordered by last_called_at desc
+      }
+    } else if (rpcRows.length > 0) {
+      contactId = rpcRows[0].id;
+    }
     const transcript: string | null = transcriptRes ?? null;
     const dialpadSummary: string | null = recapRes ?? null;
 
@@ -4116,7 +4028,8 @@ async function syncDialpadCallHistory(params: {
     }),
   );
 
-  await adminClient.from("dialpad_sync_state").upsert({
+  if (!noCursorUpdate) {
+    await adminClient.from("dialpad_sync_state").upsert({
     key: DIALPAD_SYNC_KEY,
     last_synced_at: new Date(nowMs).toISOString(),
     last_run_at: new Date().toISOString(),
@@ -4124,7 +4037,8 @@ async function syncDialpadCallHistory(params: {
     last_linked: linked,
     last_error: errors.length ? errors.join(" | ") : null,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "key" });
+    }, { onConflict: "key" });
+  }
 
   console.log(
     `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped} detailFetches=${detailFetches} officePulled=${officePulled}`,
@@ -4146,159 +4060,6 @@ async function syncDialpadCallHistory(params: {
     skipped,
     errors,
   };
-}
-
-// Re-link EXISTING dialpad_calls rows using the fixed phone-suffix matcher,
-// rep mapping, and call_log window logic. Also cleans stored transcripts
-// (drops Dialpad's interleaved AI marker lines) in-place. No Lovable AI.
-async function relinkDialpadCalls(params: {
-  adminClient: ReturnType<typeof createClient>;
-  limit?: number;
-  only_unmatched?: boolean;
-}) {
-  const { adminClient } = params;
-  const limit = params.limit ?? 5000;
-
-  const { data: settings } = await adminClient
-    .from("dialpad_settings")
-    .select("user_id, dialpad_user_id");
-  const userIdByDialpadUser = new Map<string, string>();
-  for (const row of settings ?? []) {
-    if (!row.dialpad_user_id || !row.user_id) continue;
-    const dpid = String(row.dialpad_user_id);
-    if (DIALPAD_DISABLED_USER_IDS.has(dpid)) continue;
-    userIdByDialpadUser.set(dpid, row.user_id as string);
-  }
-
-  // Build a fallback: if only ONE active rep exists, we can safely assign
-  // rep-less rows to them. (In this project only Bede is active — the deleted
-  // Dean/Kobi IDs are blocked above.)
-  const activeUserIds = Array.from(new Set(userIdByDialpadUser.values()));
-  const soleRepUserId = activeUserIds.length === 1 ? activeUserIds[0] : null;
-
-  let query = adminClient
-    .from("dialpad_calls")
-    .select("id, dialpad_call_id, external_number, contact_id, user_id, call_log_id, started_at, talk_time_seconds, total_duration_seconds, transcript, dialpad_summary")
-    .order("started_at", { ascending: false })
-    .limit(limit);
-  if (params.only_unmatched) {
-    query = query.is("contact_id", null);
-  }
-  const { data: rows, error } = await query;
-  if (error) {
-    return { ok: false as const, error: error.message };
-  }
-
-  const stats = {
-    scanned: 0,
-    contacts_matched: 0,
-    user_ids_set: 0,
-    call_logs_linked: 0,
-    call_logs_updated: 0,
-    transcripts_cleaned: 0,
-    transcripts_dropped: 0,
-  };
-
-  for (const row of rows ?? []) {
-    stats.scanned += 1;
-    const patch: Record<string, unknown> = {};
-
-    // 1. Rep mapping. Prefer existing; else look up via Dialpad call target.
-    let repUserId: string | null = (row.user_id as string | null) ?? null;
-    if (!repUserId) {
-      // We don't have target_user stored on the row, so we can't reliably
-      // re-derive per-call — but if only one active rep exists, attribute.
-      if (soleRepUserId) {
-        repUserId = soleRepUserId;
-        patch.user_id = repUserId;
-        stats.user_ids_set += 1;
-      }
-    }
-
-    // 2. Contact matching (digits-suffix).
-    let contactId: string | null = (row.contact_id as string | null) ?? null;
-    if (!contactId) {
-      const nearIso = typeof row.started_at === "string" ? row.started_at : null;
-      contactId = await resolveContactByPhoneDigits(
-        adminClient,
-        row.external_number as string | null,
-        repUserId,
-        nearIso,
-      );
-      if (contactId) {
-        patch.contact_id = contactId;
-        stats.contacts_matched += 1;
-      }
-    }
-
-    // 3. Call-log link.
-    let callLogId: string | null = (row.call_log_id as string | null) ?? null;
-    if (!callLogId && repUserId && contactId && row.started_at) {
-      callLogId = await findCallLogByFallback(
-        adminClient,
-        contactId,
-        repUserId,
-        row.started_at as string,
-      );
-      if (callLogId) {
-        patch.call_log_id = callLogId;
-        stats.call_logs_linked += 1;
-      }
-    }
-
-    // 4. Transcript cleaning (in-place).
-    let transcript: string | null = (row.transcript as string | null) ?? null;
-    if (transcript) {
-      const cleaned = cleanFormattedTranscript(transcript);
-      if (cleaned !== transcript) {
-        if (cleaned === null) {
-          patch.transcript = null;
-          transcript = null;
-          stats.transcripts_dropped += 1;
-        } else {
-          patch.transcript = cleaned;
-          transcript = cleaned;
-          stats.transcripts_cleaned += 1;
-        }
-      }
-    }
-
-    if (Object.keys(patch).length > 0) {
-      const { error: upErr } = await adminClient
-        .from("dialpad_calls")
-        .update(patch)
-        .eq("id", row.id as string);
-      if (upErr) {
-        console.warn(`[relink_dialpad_calls] update failed id=${row.id}: ${upErr.message}`);
-        continue;
-      }
-    }
-
-    // 5. Backfill call_log fields when linked.
-    if (callLogId) {
-      const clPatch: Record<string, unknown> = {
-        dialpad_call_id: row.dialpad_call_id,
-      };
-      if (row.talk_time_seconds != null) clPatch.dialpad_talk_time_seconds = row.talk_time_seconds;
-      if (row.total_duration_seconds != null) clPatch.dialpad_total_duration_seconds = row.total_duration_seconds;
-      if (transcript) {
-        clPatch.dialpad_transcript = transcript;
-        clPatch.transcript_synced_at = new Date().toISOString();
-      }
-      if (row.dialpad_summary) clPatch.dialpad_summary = row.dialpad_summary;
-      const { error: clErr } = await adminClient
-        .from("call_logs")
-        .update(clPatch)
-        .eq("id", callLogId);
-      if (clErr) {
-        console.warn(`[relink_dialpad_calls] call_logs backfill failed id=${callLogId}: ${clErr.message}`);
-      } else {
-        stats.call_logs_updated += 1;
-      }
-    }
-  }
-
-  return { ok: true as const, ...stats };
 }
 
 Deno.serve(async (req) => {
@@ -4404,24 +4165,38 @@ Deno.serve(async (req) => {
       }
       const officeId = typeof body.office_id === "string" ? body.office_id : undefined;
       const windowMinutes = typeof body.window_minutes === "number" ? body.window_minutes : undefined;
-      const sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      let sinceOverrideMs = typeof body.since_ms === "number" ? body.since_ms : undefined;
+      if (sinceOverrideMs === undefined && typeof body.backfill_from === "string") {
+        const p = Date.parse(body.backfill_from);
+        if (Number.isFinite(p)) sinceOverrideMs = p;
+      }
       const untilOverrideMs = typeof body.until_ms === "number" ? body.until_ms : undefined;
+      if (untilOverrideMs === undefined && typeof body.backfill_to === "string") {
+        const p = Date.parse(body.backfill_to);
+        if (Number.isFinite(p)) {
+          // handled below via param
+        }
+      }
+      const backfillToMs = typeof body.backfill_to === "string" && Number.isFinite(Date.parse(body.backfill_to))
+        ? Date.parse(body.backfill_to) : undefined;
       const hardCap = typeof body.hard_cap === "number" ? body.hard_cap : undefined;
+      const includeDisabledUsers = body.include_disabled_users === true;
+      const noCursorUpdate = body.no_cursor_update === true || sinceOverrideMs !== undefined;
+      const extraDialpadUserIds = Array.isArray(body.extra_dialpad_user_ids)
+        ? body.extra_dialpad_user_ids.map((v: unknown) => String(v)).filter(Boolean)
+        : undefined;
       const result = await syncDialpadCallHistory({
         adminClient,
         apiKey: DIALPAD_API_KEY,
         officeId,
         windowMinutes,
         sinceOverrideMs,
-        untilOverrideMs,
+        untilOverrideMs: untilOverrideMs ?? backfillToMs,
         hardCap,
+        includeDisabledUsers,
+        noCursorUpdate,
+        extraDialpadUserIds,
       });
-      return jsonResponse(result, result.ok ? 200 : 502);
-    }
-    if (action === "relink_dialpad_calls") {
-      const limit = typeof body.limit === "number" ? body.limit : undefined;
-      const only_unmatched = body.only_unmatched === true;
-      const result = await relinkDialpadCalls({ adminClient, limit, only_unmatched });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
 
@@ -4538,15 +4313,6 @@ Deno.serve(async (req) => {
           sinceOverrideMs,
           hardCap,
         });
-        return jsonResponse(result, result.ok ? 200 : 502);
-      }
-
-      case "relink_dialpad_calls": {
-        if (!isAdmin) {
-          return jsonResponse({ error: "Admin role required" }, 403);
-        }
-        const limit = typeof params.limit === "number" ? params.limit : undefined;
-        const result = await relinkDialpadCalls({ adminClient, limit });
         return jsonResponse(result, result.ok ? 200 : 502);
       }
 
