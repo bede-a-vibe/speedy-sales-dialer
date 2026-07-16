@@ -334,6 +334,44 @@ export type Database = {
           },
         ]
       }
+      client_meetings: {
+        Row: {
+          contact_id: string
+          created_at: string
+          fathom_url: string
+          id: string
+          kind: string
+          meeting_date: string | null
+          title: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          fathom_url: string
+          id?: string
+          kind?: string
+          meeting_date?: string | null
+          title: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          fathom_url?: string
+          id?: string
+          kind?: string
+          meeting_date?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_meetings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_notes: {
         Row: {
           contact_id: string
@@ -368,44 +406,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "contact_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      client_meetings: {
-        Row: {
-          contact_id: string
-          created_at: string
-          fathom_url: string
-          id: string
-          kind: string
-          meeting_date: string | null
-          title: string
-        }
-        Insert: {
-          contact_id: string
-          created_at?: string
-          fathom_url: string
-          id?: string
-          kind?: string
-          meeting_date?: string | null
-          title: string
-        }
-        Update: {
-          contact_id?: string
-          created_at?: string
-          fathom_url?: string
-          id?: string
-          kind?: string
-          meeting_date?: string | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_meetings_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
