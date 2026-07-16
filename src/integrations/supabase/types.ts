@@ -906,6 +906,30 @@ export type Database = {
         }
         Relationships: []
       }
+      dm_phone_dedupe_backup: {
+        Row: {
+          backed_up_at: string | null
+          best_route_to_decision_maker: string | null
+          dm_phone: string | null
+          dm_phone_type: string | null
+          id: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          best_route_to_decision_maker?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          id?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          best_route_to_decision_maker?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          id?: string | null
+        }
+        Relationships: []
+      }
       enrichment_ai_budget: {
         Row: {
           calls_used: number
