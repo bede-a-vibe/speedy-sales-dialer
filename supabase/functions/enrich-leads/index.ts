@@ -1064,6 +1064,7 @@ Deno.serve(async (req) => {
     const { data } = await admin
       .from("enrichment_ai_budget")
       .select("id, day, calls_used, daily_cap")
+      .eq("kind", "enrichment_name")
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
