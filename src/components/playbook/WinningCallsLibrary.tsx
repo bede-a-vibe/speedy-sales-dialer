@@ -40,6 +40,31 @@ const RESULT_CONFIG: Record<WinningCallResult, { label: string; className: strin
   no_show: { label: "No-show", className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
 };
 
+function prettyKey(k: string): string {
+  return k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/** Defensive renderer for the AI-extracted call qualities (unknown-shaped JSON). */
+function QualitiesPanel({ scorecard }: { scorecard: Record<string, unknown> | null }) {
+  const qualities = scorecard && typeof scorecard === "object" ? (scorecard as any).qualities : null;
+  if (!qualities || typeof qualities !== "object") return null;
+  const entries = Object.entries(qualities as Record<string, unknown>).filter(
+    ([, v]) => v != null && (typeof v === "string" || typeof v === "number" || Array.isArray(v)),
+  );
+  if (entries.length === 0) return null;
+  return (
+    <div className="mb-3 space-y-1.5 rounded-md border border-primary/25 bg-primary/5 p-3">
+      <p className="text-[10px] font-mono uppercase tracking-widest text-primary">What made this call work</p>
+      {entries.map(([k, v]) => (
+        <p key={k} className="text-xs leading-relaxed">
+          <span className="font-medium text-foreground">{prettyKey(k)}:</span>{" "}
+          <span className="text-muted-foreground">{Array.isArray(v) ? (v as unknown[]).map(String).join(" · ") : String(v)}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 const FILTERS: { value: WinningCallResult | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "showed_closed", label: "Showed & closed" },
@@ -115,6 +140,11 @@ export function WinningCallsLibrary() {
               >
                 {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.businessName}</span>
+                {c.score && (
+                  <Badge variant="outline" className="border-primary/40 bg-primary/10 font-mono text-[10px] text-primary">
+                    {c.score.overallScore}/100
+                  </Badge>
+                )}
                 <Badge variant="outline" className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge>
                 {c.talkSeconds != null && (
                   <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
@@ -127,6 +157,12 @@ export function WinningCallsLibrary() {
               </button>
               {isOpen && (
                 <div className="border-t border-border px-4 py-3">
+                  {c.score && <QualitiesPanel scorecard={c.score.scorecard} />}
+                  {c.score?.bookingBlocker && (
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Booking blocker:</span> {c.score.bookingBlocker}
+                    </p>
+                  )}
                   <pre className="max-h-[420px] overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
                     {c.transcript}
                   </pre>

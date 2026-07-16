@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type WinningCallResult = "showed_closed" | "showed" | "no_show" | "pending";
 
+export interface WinningCallScore {
+  overallScore: number;
+  bookingBlocker: string | null;
+  brokeDownAt: string | null;
+  /** Raw scorecard JSON from the NEPQ analysis — may include a `qualities` object. */
+  scorecard: Record<string, unknown> | null;
+}
+
 export interface WinningCall {
   callLogId: string;
   contactId: string;
@@ -14,6 +22,7 @@ export interface WinningCall {
   transcript: string;
   result: WinningCallResult;
   appointmentDate: string | null;
+  score: WinningCallScore | null;
 }
 
 /**
@@ -40,11 +49,31 @@ export function useWinningCalls() {
       if (rows.length === 0) return [];
 
       const contactIds = [...new Set(rows.map((r) => r.contact_id))];
-      const { data: items, error: pErr } = await supabase
-        .from("pipeline_items")
-        .select("contact_id, appointment_outcome, scheduled_for, created_at")
-        .in("contact_id", contactIds);
+      const callLogIds = rows.map((r) => r.id);
+      const [{ data: items, error: pErr }, { data: scores, error: sErr }] = await Promise.all([
+        supabase
+          .from("pipeline_items")
+          .select("contact_id, appointment_outcome, scheduled_for, created_at")
+          .in("contact_id", contactIds),
+        supabase
+          .from("call_scores")
+          .select("call_log_id, overall_score, booking_blocker, broke_down_at, scorecard")
+          .in("call_log_id", callLogIds),
+      ]);
       if (pErr) throw pErr;
+      if (sErr) throw sErr;
+
+      const scoreByLog = new Map(
+        (scores ?? []).map((s: any) => [
+          s.call_log_id,
+          {
+            overallScore: s.overall_score as number,
+            bookingBlocker: s.booking_blocker as string | null,
+            brokeDownAt: s.broke_down_at as string | null,
+            scorecard: (s.scorecard ?? null) as Record<string, unknown> | null,
+          },
+        ]),
+      );
 
       const byContact = new Map<string, any[]>();
       for (const it of items ?? []) {
@@ -77,6 +106,7 @@ export function useWinningCalls() {
           transcript: r.dialpad_transcript as string,
           result,
           appointmentDate: item?.scheduled_for ?? null,
+          score: scoreByLog.get(r.id) ?? null,
         };
       });
     },
