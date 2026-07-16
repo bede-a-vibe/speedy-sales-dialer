@@ -2185,6 +2185,375 @@ async function runTranscriptExtractionPipeline(params: {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Booked-call scoring (targeted training analysis)
+// ─────────────────────────────────────────────────────────────────────
+// Runs ONE Lovable-AI call per booked transcript that produces BOTH the
+// standard NEPQ scorecard AND a compact "qualities" object (opener, discovery
+// count/examples, objections handled, talk/listen estimate, pace-to-booking,
+// standout lines). Gated by the enrichment_ai_budget (kind='booked_call_scoring')
+// so this can never run away in cost.
+
+const BOOKED_CALL_TRAINING_SYSTEM_PROMPT = `You are a senior sales coach reviewing a BOOKED outbound sales call for an Australian digital marketing agency selling to blue-collar trades (HVAC, plumbing, electrical, roofing).
+You are trained in the NEPQ framework (Jeremy Miner / 7th Level), "Fanatical Prospecting" (Jeb Blount), and "Cold Calling Sucks" (Farrokh & Cegelski).
+A meeting WAS booked on this call. Your job is (a) grade it against NEPQ (same rubric used across our call intelligence) AND (b) extract a compact TRAINING QUALITIES object so reps can learn what worked.
+
+Return ONLY a single valid JSON object with this EXACT schema — no prose, no markdown:
+{
+  "nepq_scorecard": {
+    "nepq_scores": {
+      "connection": integer,        // 0-5
+      "situation": integer,         // 0-5
+      "problem_awareness": integer, // 0-5
+      "solution_awareness": integer,// 0-5
+      "consequence": integer,       // 0-5
+      "transition": integer,        // 0-5
+      "presentation": integer,      // 0-5
+      "commitment": integer         // 0-5
+    },
+    "overall_score": integer,       // 0-100 holistic rating of the call vs the NEPQ framework
+    "broke_down_at": "connection" | "situation" | "problem_awareness" | "solution_awareness" | "consequence" | "transition" | "presentation" | "commitment" | "none",
+    "what_went_well": [string],     // 1-4 short bullets, ≤ 140 chars each
+    "coaching_tips": [ { "stage": "connection"|"situation"|"problem_awareness"|"solution_awareness"|"consequence"|"transition"|"presentation"|"commitment", "tip": string } ],
+    "booking_blocker": "booked"     // MUST be the literal string "booked" — a meeting was agreed on this call
+  },
+  "qualities": {
+    "opener_style": string,             // 1 sentence describing the rep's opener (e.g. "Pattern-interrupt with permission ask", "Referral name-drop", "Direct value pitch")
+    "opener_quote": string | null,      // the actual first line the rep said, verbatim (< 200 chars)
+    "discovery": {
+      "count": integer,                 // number of genuine discovery questions the rep asked (not rhetorical)
+      "examples": [string]              // up to 4 verbatim discovery questions
+    },
+    "objections_handled": [             // each real prospect objection + a brief note on the technique used
+      { "objection": string, "technique": string, "worked": boolean }
+    ],
+    "talk_listen_balance": {
+      "rep_talk_percent": integer,      // 0-100, rough estimate from transcript volume
+      "prospect_talk_percent": integer  // 0-100, together should sum ~100
+    },
+    "pace_to_booking": string,          // where in the call the booking happened, plain English (e.g. "Booked in first third — high urgency signal", "Booked after long value-build in second half")
+    "standout_lines": [string]          // 1-4 short verbatim lines from the rep worth copying to a swipe file
+  }
+}
+
+NEPQ rubric — score each stage 0 (absent/harmful) to 5 (textbook):
+- connection: lower guard, take pressure off, calm trusted-advisor tone.
+- situation: understand current reality with a couple of neutral questions.
+- problem_awareness: surface emotional friction and cost of the problem.
+- solution_awareness: get them picturing life after the problem in THEIR words.
+- consequence: elevate cost of inaction / urgency without pressure.
+- transition: bridge to pitch when the prospect's interest invites it.
+- presentation: present ONLY against problems they named; two-way; hold price until value is built.
+- commitment: clean committing question; handle objections logistical → fear → smokescreen.
+
+Rules:
+- booking_blocker MUST be the literal string "booked".
+- Only score stages the rep actually reached. Stages that never occurred score 0.
+- overall_score reflects the WHOLE call — a clean booked call should sit 60-95.
+- Never invent facts. If a quality field cannot be determined, use [] or null as appropriate.
+- Keep every string concise (under 240 chars) and free of markdown.`;
+
+type CallQualities = {
+  opener_style: string | null;
+  opener_quote: string | null;
+  discovery: { count: number; examples: string[] };
+  objections_handled: Array<{ objection: string; technique: string; worked: boolean }>;
+  talk_listen_balance: { rep_talk_percent: number; prospect_talk_percent: number };
+  pace_to_booking: string | null;
+  standout_lines: string[];
+};
+
+function validateCallQualities(raw: unknown): CallQualities {
+  const empty: CallQualities = {
+    opener_style: null,
+    opener_quote: null,
+    discovery: { count: 0, examples: [] },
+    objections_handled: [],
+    talk_listen_balance: { rep_talk_percent: 0, prospect_talk_percent: 0 },
+    pace_to_booking: null,
+    standout_lines: [],
+  };
+  if (!isRecord(raw)) return empty;
+  const discoveryRaw = isRecord(raw.discovery) ? raw.discovery : {};
+  const balRaw = isRecord(raw.talk_listen_balance) ? raw.talk_listen_balance : {};
+  const objRaw = Array.isArray(raw.objections_handled) ? raw.objections_handled : [];
+  const standoutRaw = Array.isArray(raw.standout_lines) ? raw.standout_lines : [];
+  const examplesRaw = Array.isArray(discoveryRaw.examples) ? discoveryRaw.examples : [];
+
+  const discovery = {
+    count: clampInt(discoveryRaw.count, 0, 50, 0),
+    examples: examplesRaw
+      .map((e) => coerceInsightString(e, 240))
+      .filter((s): s is string => Boolean(s))
+      .slice(0, 6),
+  };
+
+  const objections_handled: CallQualities["objections_handled"] = [];
+  for (const o of objRaw) {
+    if (!isRecord(o)) continue;
+    const objection = coerceInsightString(o.objection, 240);
+    const technique = coerceInsightString(o.technique, 240);
+    if (!objection) continue;
+    objections_handled.push({
+      objection,
+      technique: technique ?? "(not described)",
+      worked: o.worked === true,
+    });
+    if (objections_handled.length >= 8) break;
+  }
+
+  const rep_talk_percent = clampInt(balRaw.rep_talk_percent, 0, 100, 0);
+  const prospect_talk_percent = clampInt(balRaw.prospect_talk_percent, 0, 100, 0);
+
+  const standout_lines = standoutRaw
+    .map((s) => coerceInsightString(s, 240))
+    .filter((s): s is string => Boolean(s))
+    .slice(0, 6);
+
+  return {
+    opener_style: coerceInsightString(raw.opener_style, 240),
+    opener_quote: coerceInsightString(raw.opener_quote, 400),
+    discovery,
+    objections_handled,
+    talk_listen_balance: { rep_talk_percent, prospect_talk_percent },
+    pace_to_booking: coerceInsightString(raw.pace_to_booking, 300),
+    standout_lines,
+  };
+}
+
+async function extractBookedCallScoring(params: {
+  transcript: string;
+  businessName?: string | null;
+  phoneNumber?: string | null;
+}): Promise<{ nepq_scorecard: NepqScorecard | null; qualities: CallQualities } | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return null;
+
+  const userPrompt = [
+    "Grade and extract training qualities from the following BOOKED sales call transcript.",
+    params.businessName ? `Prospect business: ${params.businessName}` : null,
+    params.phoneNumber ? `Phone: ${params.phoneNumber}` : null,
+    "",
+    "Transcript:",
+    params.transcript,
+  ].filter(Boolean).join("\n");
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: BOOKED_CALL_TRAINING_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.error(`[booked-scoring] Gateway ${response.status}: ${body.slice(0, 400)}`);
+      return null;
+    }
+    const result = await response.json().catch(() => null);
+    const content = result?.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) return null;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const m = content.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { parsed = JSON.parse(m[0]); } catch { return null; }
+    }
+    if (!isRecord(parsed)) return null;
+    const nepq_scorecard = validateNepqScorecard((parsed as JsonRecord).nepq_scorecard);
+    if (nepq_scorecard) {
+      // Force booking_blocker to "booked" since this is a booked-call scorer.
+      nepq_scorecard.booking_blocker = "booked";
+    }
+    const qualities = validateCallQualities((parsed as JsonRecord).qualities);
+    return { nepq_scorecard, qualities };
+  } catch (err) {
+    console.error("[booked-scoring] Request failed:", err);
+    return null;
+  }
+}
+
+// Reads the AI budget row for booked_call_scoring, resets counters if the
+// Melbourne day rolled over, and returns a reserver + persistor.
+async function loadBookedScoringBudget(adminClient: ReturnType<typeof createClient>) {
+  const melbTodayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+  const { data } = await adminClient
+    .from("enrichment_ai_budget")
+    .select("id, day, calls_used, daily_cap")
+    .eq("kind", "booked_call_scoring")
+    .maybeSingle();
+  const row = data as { id: string; day: string; calls_used: number; daily_cap: number } | null;
+  const dailyCap = row?.daily_cap ?? 100;
+  const usedToday = row?.day === melbTodayIso ? (row?.calls_used ?? 0) : 0;
+  const remaining = Math.max(0, dailyCap - usedToday);
+  const state = { made: 0 };
+  return {
+    dailyCap,
+    usedToday,
+    remaining,
+    reserve(): boolean {
+      if (state.made >= remaining) return false;
+      state.made++;
+      return true;
+    },
+    async persist() {
+      if (!row?.id || state.made === 0) return;
+      const newUsed = row.day === melbTodayIso ? usedToday + state.made : state.made;
+      await adminClient
+        .from("enrichment_ai_budget")
+        .update({ day: melbTodayIso, calls_used: newUsed, updated_at: new Date().toISOString() })
+        .eq("id", row.id);
+    },
+    made: () => state.made,
+  };
+}
+
+async function scoreBookedCalls(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const cap = Math.min(Math.max(params.limit ?? 20, 1), 20);
+  if (!Deno.env.get("LOVABLE_API_KEY")) {
+    return { ok: false as const, reason: "no_lovable_api_key" };
+  }
+
+  const budget = await loadBookedScoringBudget(params.adminClient);
+  if (budget.remaining <= 0) {
+    return {
+      ok: true as const,
+      considered: 0,
+      scored: 0,
+      skipped: 0,
+      errors: [] as string[],
+      budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: 0 },
+      reason: "daily_cap_reached" as const,
+    };
+  }
+
+  // Eligible = booked call_logs joined to a dialpad_calls row with a transcript
+  // and NO existing call_scores row. Pull enough headroom to survive dupes.
+  const { data: eligible, error: eligErr } = await params.adminClient
+    .from("call_logs")
+    .select(`
+      id,
+      contact_id,
+      user_id,
+      call_date,
+      dialpad_calls:dialpad_calls!dialpad_calls_call_log_id_fkey (
+        id,
+        dialpad_call_id,
+        transcript,
+        external_number
+      ),
+      contacts:contacts (business_name)
+    `)
+    .eq("outcome", "booked")
+    .order("call_date", { ascending: false })
+    .limit(cap * 4);
+  if (eligErr) return { ok: false as const, reason: eligErr.message };
+
+  const scoredResults: Array<{
+    call_log_id: string;
+    business_name: string | null;
+    overall_score: number;
+    booking_blocker: string;
+    broke_down_at: string;
+    opener_style: string | null;
+    discovery_count: number;
+  }> = [];
+  const errors: string[] = [];
+  let considered = 0;
+  let skipped = 0;
+
+  for (const row of eligible ?? []) {
+    if (budget.made() >= Math.min(cap, budget.remaining)) break;
+    const dpArr = Array.isArray((row as any).dialpad_calls) ? (row as any).dialpad_calls : [];
+    const dp = dpArr.find((d: any) => d?.transcript && String(d.transcript).trim().length >= 40);
+    if (!dp) { skipped++; continue; }
+
+    // Skip if a call_scores row already exists for this call_log
+    const { data: existing } = await params.adminClient
+      .from("call_scores")
+      .select("id")
+      .eq("call_log_id", (row as any).id)
+      .maybeSingle();
+    if (existing) { skipped++; continue; }
+
+    considered++;
+    if (!budget.reserve()) break;
+
+    const businessName = (row as any).contacts?.business_name ?? null;
+    const transcript = String(dp.transcript);
+    const extraction = await extractBookedCallScoring({
+      transcript,
+      businessName,
+      phoneNumber: dp.external_number ?? null,
+    });
+    if (!extraction || !extraction.nepq_scorecard) {
+      errors.push(`call_log ${row.id}: extraction failed`);
+      continue;
+    }
+
+    const merged = {
+      ...extraction.nepq_scorecard,
+      qualities: extraction.qualities,
+    };
+
+    const { error: insErr } = await params.adminClient
+      .from("call_scores")
+      .insert({
+        call_log_id: (row as any).id,
+        contact_id: (row as any).contact_id,
+        dialpad_call_id: dp.dialpad_call_id,
+        scorecard: merged,
+        overall_score: extraction.nepq_scorecard.overall_score,
+        broke_down_at: extraction.nepq_scorecard.broke_down_at,
+        booking_blocker: extraction.nepq_scorecard.booking_blocker,
+      });
+    if (insErr) {
+      errors.push(`call_log ${row.id}: ${insErr.message}`);
+      continue;
+    }
+
+    scoredResults.push({
+      call_log_id: (row as any).id,
+      business_name: businessName,
+      overall_score: extraction.nepq_scorecard.overall_score,
+      booking_blocker: extraction.nepq_scorecard.booking_blocker,
+      broke_down_at: extraction.nepq_scorecard.broke_down_at,
+      opener_style: extraction.qualities.opener_style,
+      discovery_count: extraction.qualities.discovery.count,
+    });
+  }
+
+  await budget.persist();
+
+  return {
+    ok: true as const,
+    considered,
+    scored: scoredResults.length,
+    skipped,
+    errors: errors.slice(0, 10),
+    budget: {
+      daily_cap: budget.dailyCap,
+      used_today: budget.usedToday + budget.made(),
+      remaining: Math.max(0, budget.remaining - budget.made()),
+    },
+    results: scoredResults,
+  };
+}
+
 
 async function processPendingTranscriptSyncs(params: {
   adminClient: ReturnType<typeof createClient>;
