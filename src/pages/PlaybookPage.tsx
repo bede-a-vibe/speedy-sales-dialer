@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 
 type ObjectionRow = {
   id: string;
@@ -228,6 +229,8 @@ export default function PlaybookPage() {
             {totals.total} objection{totals.total === 1 ? "" : "s"} in the bank
           </div>
         </div>
+
+        <WinningCallsLibrary />
 
         {/* Ask the Coach */}
         <Card className="border-primary/30 bg-gradient-to-br from-primary/[0.04] to-transparent">
