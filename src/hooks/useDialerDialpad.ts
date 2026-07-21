@@ -87,6 +87,11 @@ export function useDialerDialpad({
   currentContact,
   selectedCallerId,
 }: UseDialerDialpadOptions) {
+  // Dial the DECISION MAKER's direct number when we have one — the office/main
+  // line is the fallback, not the default (reps kept reaching tradesmen on the
+  // website number when the MD's mobile was sitting captured on the lead).
+  const dmDirect = (currentContact as { dm_phone?: string | null } | null)?.dm_phone?.trim();
+  const dialNumber = dmDirect && dmDirect !== "" ? dmDirect : currentContact?.phone ?? null;
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [syncTrackedDialpadCallId, setSyncTrackedDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
@@ -194,9 +199,9 @@ export function useDialerDialpad({
 
   // ── Place call effect ──
   useEffect(() => {
-    if (!isOnline || !isDialing || isSessionPaused || !currentContact || !myDialpadSettings?.dialpad_user_id) return;
+    if (!isOnline || !isDialing || isSessionPaused || !currentContact || !dialNumber || !myDialpadSettings?.dialpad_user_id) return;
 
-    const requestKey = `${currentContact.id}:${currentContact.phone}`;
+    const requestKey = `${currentContact.id}:${dialNumber}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
 
     let cancelled = false;
@@ -218,7 +223,7 @@ export function useDialerDialpad({
     const attemptDial = async (retriesLeft: number): Promise<void> => {
       try {
         const response = await mutation!.mutateAsync({
-          phone: currentContact.phone,
+          phone: dialNumber,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           contact_id: currentContact.id,
           caller_id: selectedCallerId || undefined,
@@ -242,7 +247,9 @@ export function useDialerDialpad({
         toast.success(
           response.message === "Existing Dialpad call is already active for this lead."
             ? response.message
-            : `Calling ${currentContact.phone} through Dialpad`,
+            : dmDirect
+              ? `Calling the decision maker direct on ${dialNumber}`
+              : `Calling ${dialNumber} through Dialpad`,
         );
         if (response.tracking_warning) toast.warning("Call placed, but transcript tracking needs attention.");
       } catch (error) {
@@ -305,7 +312,7 @@ export function useDialerDialpad({
         setLastLinkAttemptAt(Date.now());
         setNextAutoRetryAt(null);
         const result = await resolveDialpadCall.mutateAsync({
-          phone: currentContact.phone,
+          phone: dialNumber ?? currentContact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           contact_id: currentContact.id,
         });
@@ -374,7 +381,7 @@ export function useDialerDialpad({
         setLastLinkAttemptAt(Date.now());
         setNextAutoRetryAt(null);
         const result = await resolveDialpadCall.mutateAsync({
-          phone: currentContact.phone,
+          phone: dialNumber ?? currentContact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           contact_id: currentContact.id,
         });
@@ -569,10 +576,10 @@ export function useDialerDialpad({
           return;
         }
         toast.success(result.message || "Call cancellation requested.");
-      } else if (myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
+      } else if (myDialpadSettings?.dialpad_user_id && dialNumber) {
         await forceHangupCall.mutateAsync({
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          phone: currentContact.phone,
+          phone: dialNumber,
         });
         markCallAsEnded("hangup");
         toast.success("Call ended.");
@@ -610,10 +617,10 @@ export function useDialerDialpad({
   const fireAndForgetHangup = useCallback(() => {
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
       cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId }).catch(() => {});
-    } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && currentContact?.phone) {
+    } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && dialNumber) {
       forceHangupCall.mutateAsync({
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
-        phone: currentContact.phone,
+        phone: dialNumber,
       }).catch(() => {});
     }
     setCallStartedAt(null);
