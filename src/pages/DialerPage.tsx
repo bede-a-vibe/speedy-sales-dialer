@@ -3540,7 +3540,7 @@ export default function DialerPage() {
             ref={dialpadCTIRef}
             clientId={dialpadCTIClientId}
             headless
-            phoneNumber={session.currentContact?.phone ?? null}
+            phoneNumber={(session.currentContact?.dm_phone?.trim() || session.currentContact?.phone) ?? null}
             autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused && canDialCurrent}
             outboundCallerId={effectiveCallerId || null}
             customData={session.currentContact ? JSON.stringify({
