@@ -253,6 +253,15 @@ export function PowerHourTimer({ sessionCallCount, isSessionActive, autoStart = 
     savePersistedState(null);
   }, []);
 
+  // A power hour that ended with ZERO calls isn't an achievement — it's
+  // leftover state (auto-started session that never dialed). Reset it rather
+  // than showing a "Complete — 0 calls" banner forever.
+  useEffect(() => {
+    if (!isRunning && !isPaused && elapsedMs > 0 && powerHourCalls === 0) {
+      resetPowerHour();
+    }
+  }, [isRunning, isPaused, elapsedMs, powerHourCalls, resetPowerHour]);
+
   // Intensity colour based on calls/hour pace
   const intensityColor = useMemo(() => {
     if (callsPerHour >= 40) return "text-green-500";
