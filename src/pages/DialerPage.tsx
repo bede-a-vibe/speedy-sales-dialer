@@ -6,6 +6,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 import { RecentCallWarning } from "@/components/dialer/RecentCallWarning";
+import { useLiveContact } from "@/hooks/useLiveContact";
 import { AddServiceButton } from "@/components/clients/AddServiceButton";
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
@@ -695,6 +696,19 @@ export default function DialerPage() {
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
+
+  // Live view of the current lead so the CARD reflects mid-call captures and
+  // external updates. Display-only merge — the dial engine, CTI, and capture
+  // panels keep the claim-time snapshot (a mid-call DM capture must not
+  // change the in-flight dial target or clobber panel edits).
+  const liveContactQuery = useLiveContact(session.currentContact?.id);
+  const displayContact = useMemo(() => {
+    if (!session.currentContact) return null;
+    if (!liveContactQuery.data || liveContactQuery.data.id !== session.currentContact.id) {
+      return session.currentContact;
+    }
+    return { ...session.currentContact, ...liveContactQuery.data };
+  }, [session.currentContact, liveContactQuery.data]);
 
   // Fetch dialpad settings early so caller-id rotation can compute the effective
   // outbound number BEFORE we hand it to the dialer, CTI, and manual call flows.
@@ -2878,15 +2892,15 @@ export default function DialerPage() {
             <div className="space-y-4 lg:col-span-3">
               <RecentCallWarning
                 contactId={session.currentContact.id}
-                phone={session.currentContact.phone}
-                dmPhone={session.currentContact.dm_phone}
+                phone={(displayContact ?? session.currentContact).phone}
+                dmPhone={(displayContact ?? session.currentContact).dm_phone}
               />
               <div data-coach-step="contact-card">
               <ContactCard
                 contact={{
-                  ...session.currentContact,
+                  ...(displayContact ?? session.currentContact),
                   ghl_contact_id:
-                    (session.currentContact as any).ghl_contact_id
+                    ((displayContact ?? session.currentContact) as any).ghl_contact_id
                     || ghlLink.getCachedGHLId(session.currentContact.id),
                 }}
                 onMarkPhoneQuality={(quality) => {
@@ -3092,7 +3106,7 @@ export default function DialerPage() {
                 dncReason={dncReason}
                 onDncReasonChange={setDncReason}
                 contactId={session.currentContact.id}
-                mobileGatekeeper={Boolean((session.currentContact as Record<string, unknown>).mobile_reaches_gatekeeper)}
+                mobileGatekeeper={Boolean(((displayContact ?? session.currentContact) as Record<string, unknown>).mobile_reaches_gatekeeper)}
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"
                     ? (v) => {
