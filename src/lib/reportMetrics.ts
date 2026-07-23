@@ -22,6 +22,9 @@ export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "dnc",
   "follow_up",
   "booked",
+  // A gatekeeper answering IS a pickup — it just isn't a conversation with
+  // the decision maker (reached_connection stays false).
+  "gatekeeper",
 ]);
 
 type AppointmentOutcomeKey = NonNullable<ReportBookingItem["appointment_outcome"]>;
@@ -186,6 +189,7 @@ function createOutcomeCounts(): OutcomeCounts {
     follow_up: 0,
     booked: 0,
     disqualified: 0,
+    gatekeeper: 0,
   };
 }
 

@@ -31,7 +31,7 @@ interface LogCallPanelProps {
   contactId?: string;
 }
 
-const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail"];
+const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper"];
 const OTHER_OUTCOMES: CallOutcome[] = ["not_interested", "dnc", "disqualified", "follow_up", "booked"];
 
 function SectionDivider({ label }: { label: string }) {
