@@ -1886,29 +1886,16 @@ export default function DialerPage() {
     complianceSkip();
   }, [session.isDialing, session.isSessionPaused, session.currentContact, complianceWindow, isOnline, complianceSkip]);
 
-  const stopSessionSafely = useCallback(async () => {
+  const stopSessionSafely = useCallback(() => {
     if (!isOnline) {
       toast.error("You're offline. Reconnect before stopping the session so locks release cleanly.");
       return;
     }
-    // Kill the in-browser CTI call FIRST — the server-side cancel below can't
-    // reach the WebRTC leg, which is why calls kept ringing after Stop.
+    // Stop must be INSTANT. The CTI hangup kills the live call immediately;
+    // the server-side cancel is just record-keeping, so it runs fire-and-forget
+    // instead of blocking the button on an edge-function round trip.
     handleNativeHangUp();
-    if (!dialpad.isCallTerminal) {
-      toast.info("Ending the live call before stopping your session.");
-      try {
-        await dialpad.cancelActiveCall();
-      } catch {
-        // Can't confirm the hangup — don't strand the rep. Pause the session
-        // (blocks auto-dial) and arm stop-after-log: logging this lead's
-        // outcome will END the session instead of dialing the next lead.
-        stopAfterLogRef.current = true;
-        session.pauseSession();
-        toast.info("Log this call's outcome and the session will end — no new call will be placed.");
-        return;
-      }
-    }
-
+    dialpad.fireAndForgetHangup();
     session.stopSession();
   }, [dialpad, isOnline, session, handleNativeHangUp]);
 
