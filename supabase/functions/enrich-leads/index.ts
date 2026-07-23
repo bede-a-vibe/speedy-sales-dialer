@@ -216,7 +216,29 @@ const NAME_STOPLIST = new Set<string>([
 
 // Strip a leading or trailing role word ("Founder Ray Glavinovic" -> "Ray Glavinovic")
 const ROLE_STRIP_RE =
-  /^(?:co[-\s]?founder|founder|owner|managing\s+director|director|principal|proprietor|ceo(?:\s*\/\s*founder)?)\s+|\s+(?:co[-\s]?founder|founder|owner|managing\s+director|director|principal|proprietor|ceo(?:\s*\/\s*founder)?)$/gi;
+  /^(?:co[-\s]?founders?|founders?|owners?|managing\s+directors?|directors?|principals?|proprietors?|ceo(?:\s*\/\s*founder)?)\s+|\s+(?:co[-\s]?founders?|founders?|owners?|managing\s+directors?|directors?|principals?|proprietors?|ceo(?:\s*\/\s*founder)?)$/gi;
+
+// Website template placeholder names — reject case-insensitively. These are
+// dummy names shipped in theme demos ("John Doe", "Lorem Ipsum", etc.) that
+// were leaking into dm_name across dozens of unrelated leads.
+const PLACEHOLDER_NAME_SET = new Set<string>([
+  "john doe", "jane doe", "jane smith", "michael doe", "joe bloggs",
+  "john citizen", "jane citizen", "your name", "first last",
+  "firstname lastname", "full name", "lorem ipsum", "test test", "sample name",
+]);
+const PLACEHOLDER_GENERIC_FIRSTS = new Set(["john", "jane", "michael", "joe"]);
+
+function isPlaceholderName(name: string): boolean {
+  const norm = name.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!norm) return true;
+  if (PLACEHOLDER_NAME_SET.has(norm)) return true;
+  if (norm.includes("lorem")) return true;
+  const parts = norm.split(" ");
+  // "<generic first> ... doe" (e.g. "john doe", "michael doe", "john q doe")
+  if (parts.length >= 2 && parts[parts.length - 1] === "doe"
+      && PLACEHOLDER_GENERIC_FIRSTS.has(parts[0])) return true;
+  return false;
+}
 
 function cleanCandidateName(raw: string): string | null {
   if (!raw) return null;
@@ -231,6 +253,7 @@ function cleanCandidateName(raw: string): string | null {
   }
   if (!name) return null;
   if (HOMEOWNER_RE.test(name)) return null;
+  if (isPlaceholderName(name)) return null;
 
   const tokens = name.split(/\s+/);
   if (tokens.length < 2 || tokens.length > 3) return null;
@@ -254,7 +277,10 @@ function cleanCandidateName(raw: string): string | null {
       if (NAME_STOPLIST.has(part.toLowerCase())) return null;
     }
   }
-  return tokens.join(" ");
+  const finalName = tokens.join(" ");
+  // Re-check after normalization in case token casing hid the placeholder.
+  if (isPlaceholderName(finalName)) return null;
+  return finalName;
 }
 
 function normalizeAuMobile(raw: string): string | null {
