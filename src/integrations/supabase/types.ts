@@ -1622,6 +1622,7 @@ export type Database = {
         | "booked"
         | "wrong_number"
         | "disqualified"
+        | "gatekeeper"
       contact_note_source:
         | "manual"
         | "dialpad_summary"
@@ -1777,6 +1778,7 @@ export const Constants = {
         "booked",
         "wrong_number",
         "disqualified",
+        "gatekeeper",
       ],
       contact_note_source: [
         "manual",

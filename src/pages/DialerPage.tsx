@@ -475,6 +475,10 @@ export default function DialerPage() {
   // Armed when the rep hit Stop but the current lead still needs its outcome
   // logged: the next logAndNext ends the session instead of dialing on.
   const stopAfterLogRef = useRef(false);
+  // Contact id whose "mobile reaches a gatekeeper" toggle was ticked this
+  // serve — if the rep then SKIPS instead of logging, we auto-log a
+  // gatekeeper outcome so the call still counts.
+  const gatekeeperMarkedRef = useRef<string | null>(null);
   const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
   const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
@@ -1273,6 +1277,7 @@ export default function DialerPage() {
   const isFastLogOutcome = (outcome: CallOutcome) => (
     outcome === "no_answer"
     || outcome === "voicemail"
+    || outcome === "gatekeeper"
     || outcome === "not_interested"
     || outcome === "dnc"
   );
@@ -1788,9 +1793,25 @@ export default function DialerPage() {
       void dialpad.cancelActiveCall();
     }
 
+    // If the rep flagged "mobile reaches a gatekeeper" and then skipped
+    // (instead of logging), still log the call as a gatekeeper outcome so it
+    // counts as a pickup and triggers the recency cooldown.
+    const gatekeeperHit = gatekeeperMarkedRef.current === session.currentContact.id;
+    gatekeeperMarkedRef.current = null;
+    if (gatekeeperHit && session.user) {
+      void supabase.from("call_logs").insert({
+        contact_id: session.currentContact.id,
+        user_id: session.user.id,
+        outcome: "gatekeeper",
+        notes: "Gatekeeper answered the mobile — lead skipped.",
+      }).then(({ error }) => { if (error) console.warn("[skipLead] gatekeeper log failed", error.message); });
+      toast.info("Logged the gatekeeper pickup, skipping to the next lead.");
+    }
+
     void updateContact.mutateAsync({
       id: session.currentContact.id,
       call_attempt_count: (session.currentContact.call_attempt_count ?? 0) + 1,
+      ...(gatekeeperHit ? { last_called_at: new Date().toISOString(), last_outcome: "gatekeeper" } : {}),
     }).catch(() => {});
 
     const nextLength = session.queue.contacts.length - 1;
@@ -1894,7 +1915,7 @@ export default function DialerPage() {
       if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return;
       // Never interfere with modifier chords (⌘K palette, etc.)
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked"];
+      const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked", "disqualified", "gatekeeper"];
       const idx = parseInt(e.key) - 1;
       if (idx >= 0 && idx < outcomes.length) session.setSelectedOutcome(outcomes[idx]);
       if (e.key === "Enter" && canSubmit) { e.preventDefault(); void logAndNext(); }
@@ -1922,7 +1943,7 @@ export default function DialerPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [canSubmit, isOnline, session.currentContact, dialpad.isCallTerminal, session.isDialing, session.isSessionActive, session.isSessionPaused, logAndNext, skipLead]);
 
-  const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked"];
+  const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked", "disqualified", "gatekeeper"];
   const currentLeadMeta = session.currentContact ? (session.currentContact as Record<string, unknown>) : null;
   const quickFacts = session.currentContact ? [
     session.currentContact.industry,
@@ -3110,6 +3131,7 @@ export default function DialerPage() {
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"
                     ? (v) => {
+                        gatekeeperMarkedRef.current = v ? session.currentContact!.id : null;
                         updateContact.mutateAsync({
                           id: session.currentContact!.id,
                           mobile_reaches_gatekeeper: v,

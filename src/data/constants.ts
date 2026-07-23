@@ -5,7 +5,8 @@ export type CallOutcome =
   | "dnc"
   | "follow_up"
   | "booked"
-  | "disqualified";
+  | "disqualified"
+  | "gatekeeper";
 
 // Conversation-progress tagging (reached_connection / reached_problem_awareness / etc.)
 // went live on this date. Any call log before this date has reached_connection=false
@@ -307,6 +308,14 @@ export const OUTCOME_CONFIG: Record<
     icon: "UserX",
     shortcut: "7",
     description: "ONLY use when the business either can't afford us (no budget) OR explicitly said they don't want to grow. Every other rejection is Not Interested.",
+  },
+  gatekeeper: {
+    label: "Gatekeeper",
+    color: "outcome-voicemail",
+    bgClass: "bg-[hsl(var(--outcome-voicemail))]",
+    icon: "Shield",
+    shortcut: "8",
+    description: "A gatekeeper/office answered — not the owner. Counts as a pickup, not a conversation. Also flags the mobile so you can filter these leads.",
   },
 };
 
