@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
@@ -270,8 +270,18 @@ export default function PipelinesPage() {
   );
 
 
+  // Key the mirror sweep to the actual set of linked opportunities, not the
+  // array identity — `booked` is a fresh reference on every refetch/optimistic
+  // update, which was re-firing a full GHL mirror sweep after each interaction.
+  const bookedRef = useRef(booked);
+  bookedRef.current = booked;
+  const mirrorKey = useMemo(
+    () => booked.filter((i) => i.ghl_opportunity_id).map((i) => `${i.id}:${i.ghl_opportunity_id}`).sort().join("|"),
+    [booked],
+  );
+
   useEffect(() => {
-    const mirrorCandidates = booked.filter((item) => item.ghl_opportunity_id);
+    const mirrorCandidates = bookedRef.current.filter((item) => item.ghl_opportunity_id);
     if (mirrorCandidates.length === 0) return;
 
     let cancelled = false;
@@ -293,7 +303,7 @@ export default function PipelinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [booked, refreshOpportunityMirror]);
+  }, [mirrorKey, refreshOpportunityMirror]);
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),

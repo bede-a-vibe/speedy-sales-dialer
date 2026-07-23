@@ -11,6 +11,7 @@ import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
+import { useAchievementData } from "@/hooks/useAchievementData";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { deriveAllTargets } from "@/lib/performanceTargets";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +20,9 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { data: todaysCalls = 0 } = useTodayCallCount(user?.id);
   const { data: targets = [] } = usePerformanceTargets();
+  // Fetched ONCE here and shared by both achievement panels — each used to run
+  // its own full-history aggregation over every call log.
+  const achievementData = useAchievementData(user?.id);
 
   const dailyTarget = useMemo(() => {
     if (!user?.id) return 50;
@@ -43,7 +47,7 @@ export default function DashboardPage() {
         <MySalesPanel />
 
         {/* Row 3: Achievements with confetti & gamification */}
-        <DailyAchievements />
+        <DailyAchievements data={achievementData} />
 
         {/* Row 4: Progress ring + reporting snapshot */}
         <div className="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-6">
@@ -61,7 +65,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Row 8: Long-term achievements */}
-        <LongTermAchievements />
+        <LongTermAchievements data={achievementData} />
       </div>
     </AppLayout>
   );

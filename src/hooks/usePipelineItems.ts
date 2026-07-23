@@ -242,13 +242,25 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["booked-appointments-range", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("pipeline_items")
         .select(
           "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
-        .eq("pipeline_type", "booked")
-        .order("created_at", { ascending: false });
+        .eq("pipeline_type", "booked");
+
+      // Server-side pre-filter with a ±1 day buffer (the precise local-date
+      // range check below stays authoritative). Previously this fetched EVERY
+      // booked row and filtered in the browser.
+      if (from && to) {
+        const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+        const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+        query = query.or(
+          `and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(scheduled_for.gte.${fromIso},scheduled_for.lte.${toIso})`,
+        );
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
 
