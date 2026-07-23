@@ -85,7 +85,12 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
           user_id: user.id,
           outcome: "booked",
           notes: notes || `Booking recovered manually — appointment booked directly in GHL on ${format(scheduled, "PPpp")}.`,
+          // A booked appointment implies the conversation ran the full arc —
+          // credit every stage so funnel/coaching metrics count this call.
           reached_connection: true,
+          reached_problem_awareness: true,
+          reached_solution_awareness: true,
+          reached_commitment: true,
           created_at: callMade.toISOString(),
         })
         .select("id")
