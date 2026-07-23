@@ -307,7 +307,7 @@ export const OUTCOME_CONFIG: Record<
     bgClass: "bg-[hsl(var(--outcome-not-interested))]",
     icon: "UserX",
     shortcut: "7",
-    description: "ONLY use when the business either can't afford us (no budget) OR explicitly said they don't want to grow. Every other rejection is Not Interested.",
+    description: "Use when the business can't afford us (no budget), explicitly said they don't want to grow, or isn't the industry this list targets. Every other rejection is Not Interested.",
   },
   gatekeeper: {
     label: "Gatekeeper",
@@ -331,6 +331,11 @@ export const DQ_REASONS = [
     value: "not_looking_to_grow" as const,
     label: "Not looking to grow",
     description: "Explicitly told us they don't want more leads or customers, or don't want to grow the business.",
+  },
+  {
+    value: "wrong_industry" as const,
+    label: "Wrong industry / not a trade",
+    description: "The lead isn't the business type this list targets (e.g. a furniture shop in the electricians queue). Removes it from dialing and tags the data for cleanup.",
   },
 ];
 
