@@ -10,7 +10,8 @@ export type CallOutcome =
   | "follow_up"
   | "booked"
   | "wrong_number"
-  | "disqualified";
+  | "disqualified"
+  | "gatekeeper";
 
 export interface PushCallNoteParams {
   ghlContactId: string;
