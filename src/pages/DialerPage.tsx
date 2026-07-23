@@ -1583,6 +1583,7 @@ export default function DialerPage() {
     session.leadAdvanceInFlightRef.current = false;
 
     if (stopRequested) {
+      handleNativeHangUp();
       session.stopSession();
       toast.success("Call logged — session ended. No new call was placed.");
     }
@@ -1795,6 +1796,7 @@ export default function DialerPage() {
     dqReason,
     dqNotes,
     dncReason,
+    handleNativeHangUp,
   ]);
 
   const skipLead = useCallback(async () => {
@@ -1889,6 +1891,9 @@ export default function DialerPage() {
       toast.error("You're offline. Reconnect before stopping the session so locks release cleanly.");
       return;
     }
+    // Kill the in-browser CTI call FIRST — the server-side cancel below can't
+    // reach the WebRTC leg, which is why calls kept ringing after Stop.
+    handleNativeHangUp();
     if (!dialpad.isCallTerminal) {
       toast.info("Ending the live call before stopping your session.");
       try {
@@ -1905,7 +1910,7 @@ export default function DialerPage() {
     }
 
     session.stopSession();
-  }, [dialpad, isOnline, session]);
+  }, [dialpad, isOnline, session, handleNativeHangUp]);
 
   const recoverQueueSafely = useCallback(async () => {
     if (!isOnline) {
