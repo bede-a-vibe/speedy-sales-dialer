@@ -1387,6 +1387,20 @@ export default function DialerPage() {
   // if we were dialing/ringing so the rep sees an instant "Connected" state.
   const handleDialpadCTIRinging = useCallback((payload: CallRingingPayload) => {
     if (payload?.state === "on") {
+      // Inbound callback detection: a ring whose number ISN'T this lead's dial
+      // target is someone ringing back mid-session. Pause cleanly (so it can't
+      // fight the auto-dialer), surface the Dialpad panel to answer, resume when done.
+      const digits9 = (p?: string | null) => (p ?? "").replace(/\D/g, "").slice(-9);
+      const incoming = digits9(payload.external_number);
+      const target = digits9(dialpad.dialNumber);
+      if (incoming && incoming !== target && session.isDialing && !session.isSessionPaused) {
+        session.pauseSession();
+        setDialpadRevealed(true);
+        toast.info(
+          `Incoming call from ${payload.external_number} — session paused so it doesn't clash with dialing. Take it in the Dialpad panel, then hit Resume.`,
+          { duration: 10000 },
+        );
+      }
       setNativeCallState((prev) => (prev === "connected" || prev === "ended" ? prev : "ringing"));
     } else if (payload?.state === "off") {
       setNativeCallState((prev) => {
@@ -1416,7 +1430,8 @@ export default function DialerPage() {
         })
         .catch(() => {});
     }
-  }, [session.currentContact?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.currentContact?.id, dialpad.dialNumber, session.isDialing, session.isSessionPaused]);
 
   const handleDialpadCTIAuthChange = useCallback((authed: boolean) => {
     setDialpadCTIAuthed(authed);
