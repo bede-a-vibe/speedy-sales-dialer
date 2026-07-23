@@ -1826,7 +1826,11 @@ export default function DialerPage() {
     void updateContact.mutateAsync({
       id: session.currentContact.id,
       call_attempt_count: (session.currentContact.call_attempt_count ?? 0) + 1,
-      ...(gatekeeperHit ? { last_called_at: new Date().toISOString(), last_outcome: "gatekeeper" } : {}),
+      // Stamp last_called_at on EVERY skip: by the time Skip is possible the
+      // auto-dialer has already rung this lead, so the recency cooldown must
+      // apply — otherwise skipped leads bounce straight back into the queue.
+      last_called_at: new Date().toISOString(),
+      ...(gatekeeperHit ? { last_outcome: "gatekeeper" } : {}),
     }).catch(() => {});
 
     const nextLength = session.queue.contacts.length - 1;
