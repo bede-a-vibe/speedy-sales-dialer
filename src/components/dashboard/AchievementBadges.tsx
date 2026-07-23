@@ -34,9 +34,7 @@ const DAILY_COLS = "grid-cols-4 lg:grid-cols-7";
 
 // ── Daily Achievements (top of dashboard) ──────────────────────────
 
-export function DailyAchievements() {
-  const { user } = useAuth();
-  const data = useAchievementData(user?.id);
+export function DailyAchievements({ data }: { data: ReturnType<typeof useAchievementData> }) {
   const daily = useDailyAchievements(data);
   const unlockedCount = daily.filter((a) => a.unlocked).length;
   const confettiActive = useConfettiTrigger(unlockedCount > 0);
@@ -73,9 +71,8 @@ export function DailyAchievements() {
 
 // ── Long-Term Achievements (bottom of dashboard) ───────────────────
 
-export function LongTermAchievements() {
+export function LongTermAchievements({ data }: { data: ReturnType<typeof useAchievementData> }) {
   const { user } = useAuth();
-  const data = useAchievementData(user?.id);
   const { data: streak = 0 } = useStreak(user?.id);
   const [tab, setTab] = useState<LongTermTier>("weekly");
 
