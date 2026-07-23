@@ -1370,6 +1370,24 @@ export type Database = {
         }
         Relationships: []
       }
+      state_label_fix_backup: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          state: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          state?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          state?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
