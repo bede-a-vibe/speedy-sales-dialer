@@ -27,6 +27,7 @@ export const CALL_OUTCOME_LABELS: Record<CallOutcome | "wrong_number", string> =
   booked: "Booked",
   disqualified: "Disqualified",
   wrong_number: "Wrong Number",
+  gatekeeper: "Gatekeeper",
 };
 
 const PIPELINE_TYPE_TO_CONTACT_STATUS: Record<PipelineType, ContactLifecycleStatus> = {
@@ -73,6 +74,11 @@ const CALL_OUTCOME_MAP: Record<CallOutcome, {
     contactStatus: "disqualified",
     pipelineType: null,
     ghlLabel: CALL_OUTCOME_LABELS.disqualified,
+  },
+  gatekeeper: {
+    contactStatus: "called",
+    pipelineType: null,
+    ghlLabel: CALL_OUTCOME_LABELS.gatekeeper,
   },
 };
 
