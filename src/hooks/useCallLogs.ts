@@ -351,7 +351,7 @@ export function useCreateCallLog() {
     mutationFn: async (log: {
       contact_id: string;
       user_id: string;
-      outcome: "no_answer" | "voicemail" | "not_interested" | "dnc" | "follow_up" | "booked" | "wrong_number" | "disqualified";
+      outcome: "no_answer" | "voicemail" | "not_interested" | "dnc" | "follow_up" | "booked" | "wrong_number" | "disqualified" | "gatekeeper";
       notes?: string;
       follow_up_date?: string | null;
       dialpad_call_id?: string | null;
