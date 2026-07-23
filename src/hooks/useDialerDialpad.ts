@@ -632,6 +632,9 @@ export function useDialerDialpad({
     myDialpadSettings,
     callerIdOptions,
     hasDialpadAssignment,
+    // Which number the dialer targets for this lead (DM direct when captured)
+    dialNumber,
+    isDmDirect: Boolean(dmDirect),
     // Call state
     activeDialpadCallId,
     syncTrackedDialpadCallId,
