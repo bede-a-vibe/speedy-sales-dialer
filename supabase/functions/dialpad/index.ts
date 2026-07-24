@@ -2727,9 +2727,11 @@ async function buildObjectionPlaybookDigest(
   const { data } = await adminClient
     .from("objection_bank")
     .select("objection_text, normalized_text, category, example_responses")
-    .filter("example_responses::text", "ilike", "%matt_ryder_ai%")
-    .limit(50);
-  const rows = (data ?? []) as Array<any>;
+    .limit(200);
+  const rows = (data ?? []).filter((r: any) => {
+    const arr = Array.isArray(r.example_responses) ? r.example_responses : [];
+    return arr.some((x: any) => x?.source === "matt_ryder_ai");
+  }) as Array<any>;
   if (rows.length === 0) {
     return "OBJECTION PLAYBOOK: (empty — coach from first principles using agree → reduce tension → redirect into a question)";
   }
