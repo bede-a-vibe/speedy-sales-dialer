@@ -3173,7 +3173,7 @@ async function coachCalls(params: {
   // subquery on a growing table).
   const { data: candidates, error } = await params.adminClient
     .from("call_logs")
-    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry)")
+    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry, lead_source, client_follow_up_date)")
     .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
     .not("dialpad_transcript", "is", null)
     .order("created_at", { ascending: true })
@@ -3199,7 +3199,8 @@ async function coachCalls(params: {
   if (!budget.reserve()) {
     return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "budget_too_low_for_digest" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
   }
-  const { digest, sample_size: digestSampleSize } = await buildWinningPatternsDigest(params.adminClient);
+  const { digest, opener_excerpts, sample_size: digestSampleSize } = await buildWinningPatternsDigest(params.adminClient);
+  const internalBenchmark = await computeInternalBenchmark(params.adminClient);
 
   const coached: Array<{ call_log_id: string; user_id: string; business_name: string | null; outcome: string; skill_tag: string | null }> = [];
   const errors: string[] = [];
@@ -3210,17 +3211,27 @@ async function coachCalls(params: {
     if (budget.made() >= budget.remaining) break;
     if (!budget.reserve()) break;
     considered++;
+    const stream = await classifyCallStream(
+      params.adminClient,
+      { id: (row as any).id, contact_id: (row as any).contact_id, created_at: (row as any).created_at },
+      (row as any).contacts ?? null,
+    );
     const coaching = await coachOneCall({
       transcript: (row as any).dialpad_transcript,
       outcome: (row as any).outcome,
       businessName: (row as any).contacts?.business_name ?? null,
       industry: (row as any).contacts?.industry ?? null,
       winningDigest: digest,
+      winningOpenerExcerpts: opener_excerpts,
+      stream,
+      internalBenchmark,
     });
     if (!coaching) {
       errors.push(`call_log ${(row as any).id}: coaching AI failed`);
       continue;
     }
+    // Force the stream field from code — don't let the AI guess.
+    coaching.stream = stream;
     const { error: insErr } = await params.adminClient
       .from("call_coaching")
       .insert({
@@ -3266,6 +3277,8 @@ async function coachCalls(params: {
     profiles_rebuilt: profileResults.filter((p) => p.ok).length,
     winning_digest_sample_size: digestSampleSize,
     winning_digest_preview: digest.slice(0, 400),
+    winning_opener_excerpts_count: opener_excerpts.length,
+    internal_benchmark: internalBenchmark,
     results: coached,
     profiles: profileResults,
     errors: errors.slice(0, 10),
