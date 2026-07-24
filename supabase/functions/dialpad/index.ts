@@ -3031,9 +3031,10 @@ async function coachCalls(params: {
   const { data: candidates, error } = await params.adminClient
     .from("call_logs")
     .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry)")
-    .in("outcome", COACHING_ELIGIBLE_OUTCOMES as unknown as string[])
+    .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
+    .not("dialpad_transcript", "is", null)
     .order("created_at", { ascending: true })
-    .limit(cap * 4);
+    .limit(cap * 8);
   if (error) return { ok: false as const, reason: error.message };
   const pool = (candidates ?? []).filter((r: any) => typeof r.dialpad_transcript === "string" && r.dialpad_transcript.length > 200);
   if (pool.length === 0) {
