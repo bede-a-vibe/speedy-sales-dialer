@@ -10,6 +10,7 @@ import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { UserX, Building2, Trophy } from "lucide-react";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
+import { CoachPanel } from "@/components/training/CoachPanel";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -303,6 +304,9 @@ export default function TrainingPage() {
                   <TabsTrigger value="real-calls" className="border border-primary/40 bg-primary/5">
                     <Trophy className="mr-1.5 h-3.5 w-3.5" /> Real Calls
                   </TabsTrigger>
+                  <TabsTrigger value="coach" className="border border-primary/40 bg-primary/5">
+                    <Brain className="mr-1.5 h-3.5 w-3.5" /> Coach
+                  </TabsTrigger>
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
@@ -326,6 +330,20 @@ export default function TrainingPage() {
                       </p>
                     </div>
                     <WinningCallsLibrary />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="coach">
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+                      <h3 className="font-medium text-foreground">Your personal AI coach</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Every answered call is compared against the calls that actually booked. The coach shows you the exact
+                        moment each call was won or lost, the better path you could have taken, and what to say next time —
+                        in your own words, not a script. Practise the drills in the Roleplay tab.
+                      </p>
+                    </div>
+                    <CoachPanel />
                   </div>
                 </TabsContent>
 
