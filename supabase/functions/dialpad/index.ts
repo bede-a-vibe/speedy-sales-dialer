@@ -5293,6 +5293,7 @@ Deno.serve(async (req) => {
     // score_booked_calls only reads existing transcripts and calls the
     // Lovable AI gateway — no Dialpad REST access needed.
     "score_booked_calls",
+    "coach_calls",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
