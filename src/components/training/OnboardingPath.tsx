@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, GraduationCap, Trophy, BookOpenText, MessageSquareQuote, Swords, ClipboardCheck, Headphones, Rocket } from "lucide-react";
+import { CheckCircle2, Circle, GraduationCap, Headphones, Mic, Swords, PhoneCall, Radio, Target, ShieldCheck, Rocket, ClipboardCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,54 +11,88 @@ import { useIsAdmin } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 
 /**
- * The new-rep onboarding path. Steps reference material that already lives in
- * the app (winning calls, scripts, objection bank, AI roleplay) in the order a
- * new starter should work through it. Edit the list freely — progress is keyed
- * by step key, so renaming titles is safe; changing keys resets that step.
+ * The 14-day new-rep program. Philosophy: ecological learning — you learn by
+ * doing, not by memorising word tracks. Live by Day 3; the daily loop of
+ * live calls + AI coach feedback + drilling ONE fix is what builds the rep,
+ * not study. Progress is keyed by step key; renaming titles is safe, changing
+ * keys resets that step.
  */
 const STEPS: { key: string; title: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
   {
-    key: "winning_calls",
-    title: "Study 3 winning calls",
-    description: "Real Calls tab: read + listen to Showed & Closed calls (start with Cozlec). Note the opener, the questions, how the booking lands.",
-    icon: Trophy,
-  },
-  {
-    key: "opening_script",
-    title: "Learn the opening script",
-    description: "Scripts tab: the first 30 seconds, out loud, until it sounds like you — not a script.",
-    icon: MessageSquareQuote,
-  },
-  {
-    key: "objection_bank",
-    title: "Know the top objections",
-    description: "Playbook: read the objection bank's top entries and the NEPQ responses. You should never hear an objection for the first time on a live call.",
-    icon: BookOpenText,
-  },
-  {
-    key: "roleplay",
-    title: "Roleplay with the AI coach",
-    description: "Playbook → Roleplay: run at least 3 rounds — one cold open, one 'not interested', one 'send me an email'.",
-    icon: Swords,
-  },
-  {
-    key: "logging",
-    title: "Learn logging + outcomes",
-    description: "Definitions tab: outcomes (incl. Gatekeeper), conversation stages, DQ rules, and the DM capture flow. Bad logging poisons everyone's stats.",
-    icon: ClipboardCheck,
-  },
-  {
-    key: "shadow_calls",
-    title: "Shadow 5 real calls",
-    description: "Real Calls tab: listen to a mix — no-answers for rhythm, a gatekeeper hit, a booked call. Cold calling is mostly cadence.",
+    key: "d1_study_drill",
+    title: "Day 1 — Study & drill, no live calls",
+    description: "AM: listen to 5 of our BEST booked calls (Real Calls tab) — write down the opener, the discovery transition, and the booking ask, word for word. PM: drill the opener out loud, 2 sessions of 10-15 min (~40 reps each). Record yourself on your phone and listen back — if it sounds stiff, you're not done. Drilled, not memorised.",
     icon: Headphones,
   },
   {
-    key: "first_power_hour",
-    title: "First live power hour",
-    description: "Run a real session with a coach nearby. Your calls are recorded + scored automatically — review them together after.",
+    key: "d2_roleplay_objections",
+    title: "Day 2 — Roleplay bot & objection bank",
+    description: "AM: run the opener 20 times against the AI roleplay — it throws the five classic brush-offs; practise agree-reduce-redirect. PM: study the objection bank, say each reframe out loud IN YOUR OWN WORDS, then 10 deeper roleplay rounds through discovery to the ask.",
+    icon: Swords,
+  },
+  {
+    key: "d3_first_live",
+    title: "Day 3 — First live dials, supervised",
+    description: "50 dials, a coach beside you or on the line. Goal is NOT volume: deliver the opener live without freezing and survive the first brush-off. Coach doesn't jump in unless you're completely stuck. PM: read your AI coaching, pick ONE thing to fix, drill it 15 min.",
+    icon: PhoneCall,
+  },
+  {
+    key: "d4_light_supervision",
+    title: "Day 4 — Live dials, light supervision",
+    description: "80-100 dials, check-ins at start and end only — the AI coach grades everything. PM: review coaching, one fix, 15-min drill, then 30 min of roleplay on whatever brush-off hit you most today.",
+    icon: PhoneCall,
+  },
+  {
+    key: "d5_full_session",
+    title: "Day 5 — Full session, coach is the supervisor",
+    description: "120-150 dials over 4-5 hours, unsupervised. End of day: review your own coaching feed, pick the one fix, drill it, 15 min roleplay on the day's toughest objection.",
     icon: Rocket,
   },
+  {
+    key: "d6_discovery_focus",
+    title: "Day 6 — Discovery focus",
+    description: "Week 2 shifts from opener to conversation. Full session; the coach grades discovery specifically — good open questions, listening, no rushing to pitch. \"Alright\" is a deflection, not an answer: probe under it.",
+    icon: Target,
+  },
+  {
+    key: "d7_booking_focus",
+    title: "Day 7 — Booking-ask focus",
+    description: "Full session; the coach grades the ask — assumptive calendar close, never permission-seeking (\"would you be open to...\" is non-buyer language). Drill the ask + full-call roleplays opener→booking.",
+    icon: Target,
+  },
+  {
+    key: "d8_all_stages",
+    title: "Day 8 — Full report card",
+    description: "Full session, all stages graded. Find your weakest funnel stage in the Coach tab and drill that specifically.",
+    icon: ClipboardCheck,
+  },
+  {
+    key: "d9_cert_prep",
+    title: "Day 9 — Certification prep",
+    description: "Full session dialled as a test day — you're being evaluated against the certification bar. Pressure reveals where you actually are, not where you think you are.",
+    icon: Radio,
+  },
+  {
+    key: "d10_certification",
+    title: "Day 10 — Certification day",
+    description: "Live certification roleplay with a HUMAN evaluator playing a cold scraped tradie, five brush-offs in random order, full call opener→booking. Pass 4 of 5 tests below (opener + brush-offs are mandatory passes) → live unsupervised from Day 11. Fail → remediation plan, drill, retest tomorrow.",
+    icon: ShieldCheck,
+  },
+  {
+    key: "d11_14_live",
+    title: "Days 11-14 — Live, unsupervised, the loop forever",
+    description: "120-150 dials/day. The daily loop: dial → read your coaching → pick ONE fix → drill 15 min → roleplay the day's toughest moment. Weekly team review: one good call, one that needs work. The loop is the program.",
+    icon: Rocket,
+  },
+];
+
+/** Day-10 certification: 4/5 to pass; tests 1 & 2 are mandatory passes. Re-scored on live calls every 30 days. */
+const CERT_TESTS: { title: string; pass: string }[] = [
+  { title: "1. Opener consistency (mandatory)", pass: "Deliver the opener 5 times in a row — natural, relaxed, identical. Pass: the evaluator couldn't tell you've only trained two weeks. Fail: stiff, rushed, or different every time." },
+  { title: "2. Brush-off handling (mandatory)", pass: "All five brush-offs in random order. Pass: 4 of 5 handled with agree-reduce-redirect, no freezing, no defensiveness, no script-reading." },
+  { title: "3. Discovery flow", pass: "Pass: 3+ good open questions, follow up on 2+ answers, no pitching before the situation is uncovered. Fail: yes/no questions or rushing to pitch." },
+  { title: "4. Booking ask", pass: "Pass: direct ask for a specific time commitment. Fail: hedging, apologising, or not asking." },
+  { title: "5. Gatekeeper flow", pass: "Pass: get the owner's name + best callback time without pushing, door left open. Fail: pushing past, hung up on, or lead burned." },
 ];
 
 function useTrainingProgress() {
@@ -132,18 +166,19 @@ export function OnboardingPath() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <GraduationCap className="h-5 w-5 text-primary" />
-          New Rep Onboarding Path
+          14-Day New Rep Program
           <Badge variant="outline" className={cn("ml-1 font-mono text-[10px]", myDone === STEPS.length && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300")}>
             {myDone}/{STEPS.length}
           </Badge>
         </CardTitle>
         <CardDescription>
-          Work top to bottom — every step links to material already in this app. Tick a step when you can do it, not when you've skimmed it.
+          Learn by doing, not by memorising — live dials by Day 3. The daily loop (dial → coaching → one fix → drill)
+          is the program; study is just the warm-up. Tick a day when you've actually done it.
         </CardDescription>
         <Progress value={pct} className="h-1.5" />
       </CardHeader>
       <CardContent className="space-y-2">
-        {STEPS.map((step, i) => {
+        {STEPS.map((step) => {
           const done = mySteps.has(step.key);
           const Icon = step.icon;
           return (
@@ -161,7 +196,7 @@ export function OnboardingPath() {
                 : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />}
               <div className="min-w-0">
                 <p className={cn("text-sm font-medium", done && "text-muted-foreground line-through decoration-emerald-500/40")}>
-                  {i + 1}. {step.title}
+                  {step.title}
                 </p>
                 <p className="text-xs text-muted-foreground">{step.description}</p>
               </div>
@@ -169,6 +204,37 @@ export function OnboardingPath() {
             </button>
           );
         })}
+
+        <div className="mt-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+          <p className="mb-1 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" /> The certification bar (Day 10)
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Pass at least 4 of 5 with a human evaluator. Tests 1 and 2 are non-negotiable — if you can't deliver a
+            consistent opener and handle the basic brush-offs, you're not ready for live calls. Certification gets you
+            on the floor; the coach re-scores it on your live calls every 30 days — sustained performance keeps you there.
+          </p>
+          <div className="space-y-1.5">
+            {CERT_TESTS.map((t) => (
+              <div key={t.title} className="rounded-md border border-border bg-card px-2.5 py-1.5">
+                <p className="text-xs font-medium">{t.title}</p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">{t.pass}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="mb-1 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            <Mic className="h-3.5 w-3.5" /> The opener drill (how to actually drill)
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Say the opener out loud for 10-15 minutes straight — you should hit it 40+ times per session, two sessions a
+            day. Boring is the point: the goal is that it comes out identical and automatic, muscle memory, not
+            memorisation. Record yourself and listen back; if the transcript engine mishears your name on live calls, a
+            tradie on a worksite can't parse it either — slow the name, pause after the company.
+          </p>
+        </div>
 
         {isAdmin && teamProgress.length > 0 && (
           <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3">
