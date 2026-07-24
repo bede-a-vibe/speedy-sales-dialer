@@ -5853,6 +5853,22 @@ Deno.serve(async (req) => {
       const result = await coachCalls({ adminClient, limit });
       return jsonResponse(result, 200);
     }
+    if (action === "preview_coach_context") {
+      // Read-only preview of what the coach prompt is grounded in on this run:
+      // the empirical internal benchmark, the winning-patterns digest, and
+      // the verbatim opener excerpts we now inject for cold_first_touch.
+      const [digestResult, benchmark] = await Promise.all([
+        buildWinningPatternsDigest(adminClient),
+        computeInternalBenchmark(adminClient),
+      ]);
+      return jsonResponse({
+        ok: true,
+        internal_benchmark: benchmark,
+        winning_digest: digestResult.digest,
+        winning_opener_excerpts: digestResult.opener_excerpts,
+        winning_sample_size: digestResult.sample_size,
+      }, 200);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
