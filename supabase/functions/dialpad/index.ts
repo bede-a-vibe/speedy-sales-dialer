@@ -2776,6 +2776,13 @@ HARD RULES:
 - Always find one genuine "went_well". If it's a disaster call, the "went_well" can be as small as "kept dialling" — but must be honest.
 - Output STRICT JSON only. No prose before or after. No markdown fences.
 
+STREAM AWARENESS (critical):
+- The call's STREAM is provided in the user prompt. It is fixed by code — do NOT reclassify. Copy it verbatim into the "stream" field.
+- Apply the STREAM RUBRIC in the user prompt: grading severity, what to coach first, and what counts as a mistake all depend on the stream.
+- Detect STREAM-PROCESS MISMATCH: did the rep run the wrong playbook for this stream? Examples: cold opener on a re_engagement or inbound_ad lead, 15-minute discovery on an inbound_ad hand-raiser, a 60-90s booking ask on a cold_first_touch call with no real conversation, no reference to the prior conversation on a cold_follow_up. If yes, set "stream_mismatch": true AND make the mismatch the primary coaching point.
+- On cold streams (cold_first_touch, cold_follow_up) spend the coaching on the OPENER and first-minute flow; grade the booking ask leniently/moderately per the rubric.
+- On warm streams (inbound_ad, cold_email, re_engagement) spend the coaching on the ASK and flow discipline; grade the booking ask strictly per the rubric.
+
 Return this exact shape:
 {
   "summary": "one line on what happened",
@@ -2785,7 +2792,11 @@ Return this exact shape:
   "example_lines": ["1-3 exact things the rep could have said in their own casual Aussie style"],
   "skill_tag": "one of: opening, discovery, objection_handling, gatekeeper, closing_ask, follow_up_setup, tonality_pace",
   "went_well": "one thing done well",
-  "drill": "a one-line roleplay drill instruction to practice the better path"
+  "drill": "a one-line roleplay drill instruction to practice the better path",
+  "first_broken_stage": "opener|resistance|discovery|problem_awareness|gap_build|ask|objections|none",
+  "pillar_scores": { "tonality": 1-5, "command_of_call": 1-5, "probing": 1-5, "word_economy": 1-5, "objection_handling": 1-5 or null },
+  "stream": "cold_first_touch|cold_follow_up|inbound_ad|cold_email|re_engagement",
+  "stream_mismatch": true|false
 }`;
 
 const REP_PROFILE_SYSTEM_PROMPT = `You are a sales manager writing a short coaching profile for ONE rep, based on their recent per-call coaching notes.
@@ -2795,6 +2806,11 @@ HARD RULES:
 - "evidence" must cite REAL calls from the input (business_name + short quote or paraphrase from what_happened / key_moment). No made-up examples.
 - "better_path" and "drill" must be specific and actionable, not generic advice.
 - Output STRICT JSON only. No prose, no markdown fences.
+
+STREAM AWARENESS:
+- Each note includes its "stream". Inspect the STREAM MIX in the input.
+- Rank focus_areas by (a) earliest recurring broken funnel stage, then (b) pillar priority (tonality → command_of_call → probing → word_economy → objection_handling).
+- If the rep SYSTEMATICALLY misplays one stream (e.g. runs cold openers on inbound_ad leads, or fails to reference prior conversation on cold_follow_up, or is too soft on re_engagement), that becomes a focus_area of its own with skill_tag "opening" (or "closing_ask" if the ask is the failure), and the "area" label must name the stream (e.g. "Inbound-ad stream: running cold opener").
 
 Return this exact shape:
 {
@@ -2807,6 +2823,79 @@ Return this exact shape:
   ]
 }
 Return AT MOST 3 focus_areas and AT MOST 2 strengths. Fewer is fine if the evidence isn't there.`;
+
+// ─────────────────────────────────────────────────────────────────────
+// Stream classification (code, not AI). Priority order matters.
+// ─────────────────────────────────────────────────────────────────────
+type CallStream = "cold_first_touch" | "cold_follow_up" | "inbound_ad" | "cold_email" | "re_engagement";
+
+const STREAM_RUBRICS: Record<CallStream, string> = {
+  cold_first_touch:
+    "COLD_FIRST_TOUCH: hardest call, zero permission. Opener is EVERYTHING — must be casual and honest ('look, this is a cold call, you got 30 seconds?'), never scripted-sounding, slow the name. Grade booking ask LENIENTLY — booking is a bonus; if blown out in 15s, coach the OPENER, not the missing ask. FLAG as stream_mismatch if the rep tried a booking ask without 2-3 min of real conversation first. Focus coaching on the opener and first-minute agreement frame.",
+  cold_follow_up:
+    "COLD_FOLLOW_UP: we've spoken before. Opener MUST reference the previous conversation ('we spoke a couple weeks back about X, you mentioned touching base around now'). Big mistake = running the cold opener from scratch or clearly not knowing the CRM notes — that IS stream_mismatch. Grade booking ask MODERATELY: after a decent conversation, no ask = flag.",
+  inbound_ad:
+    "INBOUND_AD: they raised their hand via ad/form. Speed-to-lead matters (5-min contact ≈ 100x). Opener MUST reference the ad/form. Big mistakes = generic cold opener (stream_mismatch), OVER-QUALIFYING (15-min discovery on a hand-raiser = stream_mismatch). Grade booking ask STRICTLY: short, direct, book them; no ask = serious flag.",
+  cold_email:
+    "COLD_EMAIL: they replied to our email. Opener references the email's first sentence. Big mistake = generic cold opener ignoring the email context (stream_mismatch). Grade booking ask MODERATE-TO-STRICT.",
+  re_engagement:
+    "RE_ENGAGEMENT: warmest non-inbound leads — they booked/paid before and went quiet. Opener references the specific history and asks DIRECTLY what happened ('you booked a call and didn't show, what happened?'). Big mistake = treating it as a cold call (stream_mismatch) or being too soft. Grade booking ask STRICTEST: off the phone without a booking or a clear stated reason = hard flag.",
+};
+
+async function classifyCallStream(
+  adminClient: ReturnType<typeof createClient>,
+  row: { id: string; contact_id: string | null; created_at: string },
+): Promise<CallStream> {
+  const contactId = row.contact_id;
+  const calledAt = row.created_at;
+
+  if (contactId) {
+    // (a) re_engagement — prior no-show OR client_deals row / client_follow_up_date set, before this call
+    const [{ data: noShow }, { data: deals }, { data: contactRow }] = await Promise.all([
+      adminClient
+        .from("pipeline_items")
+        .select("id")
+        .eq("contact_id", contactId)
+        .eq("appointment_outcome", "no_show")
+        .lt("created_at", calledAt)
+        .limit(1),
+      adminClient
+        .from("client_deals")
+        .select("id")
+        .eq("contact_id", contactId)
+        .lt("created_at", calledAt)
+        .limit(1),
+      adminClient
+        .from("contacts")
+        .select("lead_source, client_follow_up_date")
+        .eq("id", contactId)
+        .maybeSingle(),
+    ]);
+    if ((noShow?.length ?? 0) > 0) return "re_engagement";
+    if ((deals?.length ?? 0) > 0) return "re_engagement";
+    if (contactRow?.client_follow_up_date) return "re_engagement";
+
+    const ls = (contactRow?.lead_source ?? "").toLowerCase();
+    if (ls) {
+      // (b) inbound_ad
+      if (/\bad(s|word|words)?\b|\bform\b|website/.test(ls)) return "inbound_ad";
+      // (c) cold_email
+      if (/email/.test(ls)) return "cold_email";
+    }
+
+    // (d) cold_follow_up — earlier call for the same contact
+    const { data: priorCalls } = await adminClient
+      .from("call_logs")
+      .select("id, outcome")
+      .eq("contact_id", contactId)
+      .lt("created_at", calledAt)
+      .limit(1);
+    if ((priorCalls?.length ?? 0) > 0) return "cold_follow_up";
+  }
+
+  // (e) default
+  return "cold_first_touch";
+}
 
 // Build the "winning patterns" digest by scanning the qualities JSON on the
 // top ~10 recent booked calls. This is cheap (one AI call per coach_calls
@@ -2880,12 +2969,17 @@ async function coachOneCall(params: {
   businessName: string | null;
   industry: string | null;
   winningDigest: string;
+  stream: CallStream;
 }): Promise<any | null> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
   const userPrompt = [
     `OUTCOME: ${params.outcome}`,
     `BUSINESS: ${params.businessName ?? "unknown"}${params.industry ? ` (${params.industry})` : ""}`,
+    `STREAM (fixed by code — copy verbatim into "stream"): ${params.stream}`,
+    "",
+    "STREAM RUBRIC (apply this — grading severity and what to coach first depend on it):",
+    STREAM_RUBRICS[params.stream],
     "",
     "WINNING PATTERNS (what works on booked calls — ground better_path in these):",
     params.winningDigest,
@@ -2918,6 +3012,9 @@ async function coachOneCall(params: {
     if (!parsed || typeof parsed !== "object") return null;
     // Minimal shape check — at least a key_moment + better_path.
     if (!parsed.key_moment || !parsed.better_path) return null;
+    // Force the code-classified stream (do not trust AI).
+    parsed.stream = params.stream;
+    parsed.stream_mismatch = parsed.stream_mismatch === true;
     return parsed;
   } catch (err) {
     console.error("[coach_calls] coachOneCall failed:", err);
