@@ -1167,6 +1167,27 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_auth: {
+        Row: {
+          bearer_token: string
+          created_at: string
+          id: number
+          label: string | null
+        }
+        Insert: {
+          bearer_token: string
+          created_at?: string
+          id?: number
+          label?: string | null
+        }
+        Update: {
+          bearer_token?: string
+          created_at?: string
+          id?: number
+          label?: string | null
+        }
+        Relationships: []
+      }
       objection_bank: {
         Row: {
           booked_count: number
