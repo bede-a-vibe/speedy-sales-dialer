@@ -7,7 +7,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import {
+  PILLAR_LABELS,
+  PILLAR_ORDER,
   SKILL_TAG_LABELS,
+  STAGE_LABELS,
   useCoachedCalls,
   useRepCoachingProfiles,
   type CoachedCall,
@@ -39,6 +42,16 @@ function CoachedCallRow({ call }: { call: CoachedCall }) {
       >
         {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{call.businessName}</span>
+        {c.first_broken_stage && c.first_broken_stage !== "none" && STAGE_LABELS[c.first_broken_stage] && (
+          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300">
+            Lost at: {STAGE_LABELS[c.first_broken_stage]}
+          </Badge>
+        )}
+        {c.first_broken_stage === "none" && (
+          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-300">
+            Clean call
+          </Badge>
+        )}
         {skill && (
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-[10px] text-primary">{skill}</Badge>
         )}
@@ -54,6 +67,28 @@ function CoachedCallRow({ call }: { call: CoachedCall }) {
       {open && (
         <div className="space-y-3 border-t border-border px-4 py-3 text-sm">
           {c.summary && <p className="text-muted-foreground">{c.summary}</p>}
+          {c.pillar_scores && (
+            <div className="flex flex-wrap gap-1.5">
+              {PILLAR_ORDER.filter((p) => typeof c.pillar_scores![p] === "number").map((p) => {
+                const score = c.pillar_scores![p] as number;
+                return (
+                  <span
+                    key={p}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 font-mono text-[10px]",
+                      score >= 4
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : score <= 2
+                          ? "border-destructive/40 bg-destructive/10 text-destructive"
+                          : "border-border bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {PILLAR_LABELS[p]} {score}/5
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {c.key_moment && (
             <div className="rounded-md border border-amber-500/25 bg-amber-500/5 p-3">
               <p className="mb-1 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-700 dark:text-amber-300">
