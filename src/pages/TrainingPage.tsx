@@ -11,6 +11,7 @@ import { UserX, Building2, Trophy } from "lucide-react";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { CoachPanel } from "@/components/training/CoachPanel";
+import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -307,6 +308,7 @@ export default function TrainingPage() {
                   <TabsTrigger value="coach" className="border border-primary/40 bg-primary/5">
                     <Brain className="mr-1.5 h-3.5 w-3.5" /> Coach
                   </TabsTrigger>
+                  <TabsTrigger value="streams" className="border border-border bg-muted/40">Streams</TabsTrigger>
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
@@ -345,6 +347,10 @@ export default function TrainingPage() {
                     </div>
                     <CoachPanel />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="streams">
+                  <StreamsPlaybook />
                 </TabsContent>
 
                 <TabsContent value="scripts">
