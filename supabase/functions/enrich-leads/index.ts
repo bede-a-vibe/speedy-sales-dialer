@@ -240,11 +240,35 @@ function isPlaceholderName(name: string): boolean {
   return false;
 }
 
+// Website heading fragments were leaking into dm_name ("Our Electricians Meet",
+// "Meet The Managing", etc.). Strip a leading "Meet " and reject obvious
+// heading / section titles that aren't personal names.
+const MEET_STRIP_RE = /^meet\s+/i;
+const HEADING_START_RE = /^(our|your|the|why|about|contact|welcome|meet)\b/i;
+const HEADING_END_RE = /(team|story|history|services|staff|crew|us|electricians|plumbers|builders)$/i;
+const HEADING_SINGLE_RE = /^(team|staff|crew|services|story)$/i;
+
+function isHeadingFragment(name: string): boolean {
+  const norm = name.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!norm) return true;
+  if (HEADING_SINGLE_RE.test(norm)) return true;
+  if (HEADING_START_RE.test(norm)) return true;
+  if (HEADING_END_RE.test(norm)) return true;
+  return false;
+}
+
 function cleanCandidateName(raw: string): string | null {
   if (!raw) return null;
   let name = raw.trim();
   // Drop trailing punctuation/comma clutter
   name = name.replace(/[,;:.\-–—]+$/g, "").trim();
+  // Strip a leading "Meet " before role-word stripping so "Meet Nathan Bettridge"
+  // becomes a valid name instead of a heading fragment.
+  for (let i = 0; i < 3; i++) {
+    const next = name.replace(MEET_STRIP_RE, "").trim();
+    if (next === name) break;
+    name = next;
+  }
   // Strip leading/trailing role words repeatedly
   for (let i = 0; i < 3; i++) {
     const next = name.replace(ROLE_STRIP_RE, "").trim();
@@ -254,6 +278,7 @@ function cleanCandidateName(raw: string): string | null {
   if (!name) return null;
   if (HOMEOWNER_RE.test(name)) return null;
   if (isPlaceholderName(name)) return null;
+  if (isHeadingFragment(name)) return null;
 
   const tokens = name.split(/\s+/);
   if (tokens.length < 2 || tokens.length > 3) return null;
