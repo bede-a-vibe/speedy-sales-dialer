@@ -1,0 +1,1 @@
+UPDATE public.enrichment_ai_budget SET daily_cap = 300 WHERE kind = 'booked_call_scoring';
