@@ -6,6 +6,7 @@ import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable"
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
+import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
 import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
 
 interface Props {
@@ -40,6 +41,7 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
 
   return (
     <div className="space-y-5">
+      <OpenerSurvivalCard dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
       <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
