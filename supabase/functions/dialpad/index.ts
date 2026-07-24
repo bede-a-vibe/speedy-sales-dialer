@@ -2188,6 +2188,157 @@ async function runTranscriptExtractionPipeline(params: {
 // ─────────────────────────────────────────────────────────────────────
 // Booked-call scoring (targeted training analysis)
 // ─────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────
+// Transcript correction (booked calls only)
+// ─────────────────────────────────────────────────────────────────────
+// Dialpad ASR frequently mangles rep names, company words and trade
+// vocabulary — e.g. "it's space from ode" for "it's Bede from Odin".
+// Before scoring a booked transcript we run ONE Lovable-AI pass that
+// corrects ONLY speech-recognition errors, preserving line structure and
+// speaker labels. Same capped lane (kind='booked_call_scoring') as
+// scoring, so cost stays in cents/day.
+
+const TRANSCRIPT_CORRECTION_SYSTEM_PROMPT = `You correct speech-to-text errors in call transcripts. You output a CORRECTED transcript, nothing else.
+
+HARD RULES:
+- Fix ONLY automatic-speech-recognition mistakes: misheard names, company words, garbled phrases, obvious homophones.
+- NEVER add, remove, paraphrase, summarise, translate, or reorder content.
+- Preserve the EXACT line structure: same number of lines, same speaker labels/prefixes (e.g. "Rep:", "Prospect:", timestamps) in the same positions.
+- Preserve punctuation, casing style, and filler words ("um", "uh", "yeah") as they appear.
+- If a passage is unintelligible or ambiguous, leave it EXACTLY as-is. Never guess.
+- Do NOT wrap the output in quotes, code fences, or JSON. Output the corrected transcript as plain text only.
+
+You are given a GLOSSARY of names and terms that are commonly misheard on these calls. Use it to identify likely ASR errors and replace them with the correct spelling in-place. Only apply a glossary correction when the surrounding phrase clearly indicates the mistake (e.g. "it's <garbled> from <company misheard>"). Do not force glossary terms into unrelated passages.`;
+
+function buildTranscriptCorrectionGlossary(params: {
+  repNames: string[];
+  businessName: string | null;
+  dmName: string | null;
+}): string {
+  const reps = Array.from(new Set(params.repNames.filter(Boolean))).slice(0, 8);
+  const lines: string[] = [];
+  lines.push("COMPANY (the caller's company):");
+  lines.push("- Odin Digital — commonly misheard as: ode, odin, oden, odine, odeon, oldin, orden, o'din, owdin");
+  lines.push("- App name: Speedy Dialer — commonly misheard as: speedy dyler, speedy diver, speedy dial, speedy dallier");
+  lines.push("");
+  if (reps.length) {
+    lines.push("REP NAMES (people making the outbound calls — a first name in the opener is almost always one of these):");
+    for (const r of reps) lines.push(`- ${r}`);
+    lines.push("Common Bede mishearings: space, bead, bed, beed, bade, bay, bee, be, peed, weed, bade, beed.");
+    lines.push("");
+  }
+  if (params.businessName || params.dmName) {
+    lines.push("LEAD (the prospect on this specific call):");
+    if (params.businessName) lines.push(`- Business name: ${params.businessName}`);
+    if (params.dmName) lines.push(`- Decision maker: ${params.dmName}`);
+    lines.push("");
+  }
+  lines.push("SALES / MARKETING VOCABULARY (fix obvious ASR variants):");
+  lines.push("- Google Ads, AdWords, Meta (Facebook/Instagram) Ads, SEO, landing page, cost per lead, CPL, retargeting, conversion, funnel, CRM, GoHighLevel, GHL");
+  lines.push("");
+  lines.push("AUSTRALIAN TRADE TERMS: tradie, sparky, chippy, plumber, sparkies, HVAC, aircon, split system, hot water, roofer, brickie, concreter, ute.");
+  return lines.join("\n");
+}
+
+// Cheap similarity check: are the two transcripts materially different?
+// We ignore whitespace/punctuation to avoid churn on cosmetic changes.
+function transcriptChangedMaterially(before: string, after: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const a = norm(before);
+  const b = norm(after);
+  if (a === b) return false;
+  // A tiny char-count delta with identical length is still "material" if any
+  // token flipped — the normalised compare above already handles the punct case.
+  return true;
+}
+
+async function correctTranscript(params: {
+  transcript: string;
+  businessName: string | null;
+  dmName: string | null;
+  repNames: string[];
+}): Promise<string | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return null;
+  const raw = params.transcript;
+  if (!raw || raw.trim().length < 20) return null;
+
+  const glossary = buildTranscriptCorrectionGlossary({
+    repNames: params.repNames,
+    businessName: params.businessName,
+    dmName: params.dmName,
+  });
+  const userPrompt = [
+    "GLOSSARY:",
+    glossary,
+    "",
+    "TRANSCRIPT TO CORRECT (return the corrected transcript, same line structure, plain text only):",
+    raw,
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: TRANSCRIPT_CORRECTION_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.error(`[transcript-correction] Gateway ${response.status}: ${body.slice(0, 400)}`);
+      return null;
+    }
+    const result = await response.json().catch(() => null);
+    const content = result?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") return null;
+    // Strip any accidental code fences / leading label the model may add.
+    let corrected = content
+      .replace(/^\s*```(?:text|markdown)?\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .replace(/^\s*(?:corrected transcript|output)\s*:\s*/i, "")
+      .trim();
+    if (!corrected) return null;
+    // Sanity: if the model shortened by >25% it likely paraphrased — reject.
+    if (corrected.length < raw.length * 0.75 || corrected.length > raw.length * 1.35) {
+      console.warn(`[transcript-correction] length delta out of bounds (raw=${raw.length}, corrected=${corrected.length}) — rejecting`);
+      return null;
+    }
+    return corrected;
+  } catch (err) {
+    console.error("[transcript-correction] Request failed:", err);
+    return null;
+  }
+}
+
+// Fetches display_name for each unique user_id in the batch — used to build
+// the rep-names glossary passed to correctTranscript.
+async function loadRepDisplayNames(
+  adminClient: ReturnType<typeof createClient>,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const uniq = Array.from(new Set(userIds.filter(Boolean)));
+  if (uniq.length === 0) return new Map();
+  const { data } = await adminClient
+    .from("profiles")
+    .select("user_id, display_name")
+    .in("user_id", uniq);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    const name = (row as any).display_name;
+    if (typeof name === "string" && name.trim()) map.set((row as any).user_id, name.trim());
+  }
+  return map;
+}
+
 // Runs ONE Lovable-AI call per booked transcript that produces BOTH the
 // standard NEPQ scorecard AND a compact "qualities" object (opener, discovery
 // count/examples, objections handled, talk/listen estimate, pace-to-booking,
