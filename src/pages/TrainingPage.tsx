@@ -9,6 +9,7 @@ import { callReviewRubric, managerCoachingTasks, managerTaskSnapshot, objectionE
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { UserX, Building2, Trophy } from "lucide-react";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { OnboardingPath } from "@/components/training/OnboardingPath";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -196,6 +197,7 @@ export default function TrainingPage() {
   return (
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
+        <OnboardingPath />
         <section className="rounded-2xl border border-border bg-card p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl space-y-3">
