@@ -2770,18 +2770,13 @@ const COACH_SYSTEM_PROMPT = `You are a sharp, no-fluff Australian cold-call coac
 HARD RULES:
 - Be direct and specific. NEVER give generic advice like "build more rapport", "listen more", "be confident".
 - ALWAYS quote the transcript verbatim in "key_moment". Use the exact words the rep or prospect said.
-- Ground "better_path" in the WINNING PATTERNS supplied — reference what works on booked calls.
+- Ground "better_path" in what actually works. For stream "cold_first_touch", ground it FIRST in the WINNING OPENER EXCERPTS and WINNING PATTERNS from our own booked calls (real Australian tradies who booked from first-touch cold). Only fall back to generic methodology when our corpus has no example for the moment you're coaching. For warm streams (inbound_ad, cold_email, re_engagement, cold_follow_up), the standard inbound/closing methodology (agree-reduce-redirect, NEPQ, structured discovery, direct booking ask) IS the right lane — weight it accordingly.
 - "example_lines" must sound like THIS rep, in THEIR casual Aussie tone from the transcript — no corporate script-speak, no "circle back", no "value add".
 - For BOOKED calls: coaching = what made it work + ONE sharpening point (still specific, still quoted).
 - Always find one genuine "went_well". If it's a disaster call, the "went_well" can be as small as "kept dialling" — but must be honest.
+- NEVER present methodology as gospel. If the transcript shows something working that contradicts the framework (e.g. rep books a meeting with a "wrong" opener), say so explicitly and treat the real result as the evidence. Reality outranks theory.
+- Do NOT use absolute industry benchmarks (e.g. "you should hit 90% pickup-to-conversation"). Only reference the INTERNAL BENCHMARK numbers supplied in the prompt — those are our real ceiling to coach toward.
 - Output STRICT JSON only. No prose before or after. No markdown fences.
-
-STREAM AWARENESS (critical):
-- The call's STREAM is provided in the user prompt. It is fixed by code — do NOT reclassify. Copy it verbatim into the "stream" field.
-- Apply the STREAM RUBRIC in the user prompt: grading severity, what to coach first, and what counts as a mistake all depend on the stream.
-- Detect STREAM-PROCESS MISMATCH: did the rep run the wrong playbook for this stream? Examples: cold opener on a re_engagement or inbound_ad lead, 15-minute discovery on an inbound_ad hand-raiser, a 60-90s booking ask on a cold_first_touch call with no real conversation, no reference to the prior conversation on a cold_follow_up. If yes, set "stream_mismatch": true AND make the mismatch the primary coaching point.
-- On cold streams (cold_first_touch, cold_follow_up) spend the coaching on the OPENER and first-minute flow; grade the booking ask leniently/moderately per the rubric.
-- On warm streams (inbound_ad, cold_email, re_engagement) spend the coaching on the ASK and flow discipline; grade the booking ask strictly per the rubric.
 
 Return this exact shape:
 {
@@ -2792,11 +2787,7 @@ Return this exact shape:
   "example_lines": ["1-3 exact things the rep could have said in their own casual Aussie style"],
   "skill_tag": "one of: opening, discovery, objection_handling, gatekeeper, closing_ask, follow_up_setup, tonality_pace",
   "went_well": "one thing done well",
-  "drill": "a one-line roleplay drill instruction to practice the better path",
-  "first_broken_stage": "opener|resistance|discovery|problem_awareness|gap_build|ask|objections|none",
-  "pillar_scores": { "tonality": 1-5, "command_of_call": 1-5, "probing": 1-5, "word_economy": 1-5, "objection_handling": 1-5 or null },
-  "stream": "cold_first_touch|cold_follow_up|inbound_ad|cold_email|re_engagement",
-  "stream_mismatch": true|false
+  "drill": "a one-line roleplay drill instruction to practice the better path"
 }`;
 
 const REP_PROFILE_SYSTEM_PROMPT = `You are a sales manager writing a short coaching profile for ONE rep, based on their recent per-call coaching notes.
@@ -2806,11 +2797,6 @@ HARD RULES:
 - "evidence" must cite REAL calls from the input (business_name + short quote or paraphrase from what_happened / key_moment). No made-up examples.
 - "better_path" and "drill" must be specific and actionable, not generic advice.
 - Output STRICT JSON only. No prose, no markdown fences.
-
-STREAM AWARENESS:
-- Each note includes its "stream". Inspect the STREAM MIX in the input.
-- Rank focus_areas by (a) earliest recurring broken funnel stage, then (b) pillar priority (tonality → command_of_call → probing → word_economy → objection_handling).
-- If the rep SYSTEMATICALLY misplays one stream (e.g. runs cold openers on inbound_ad leads, or fails to reference prior conversation on cold_follow_up, or is too soft on re_engagement), that becomes a focus_area of its own with skill_tag "opening" (or "closing_ask" if the ask is the failure), and the "area" label must name the stream (e.g. "Inbound-ad stream: running cold opener").
 
 Return this exact shape:
 {
@@ -2824,89 +2810,16 @@ Return this exact shape:
 }
 Return AT MOST 3 focus_areas and AT MOST 2 strengths. Fewer is fine if the evidence isn't there.`;
 
-// ─────────────────────────────────────────────────────────────────────
-// Stream classification (code, not AI). Priority order matters.
-// ─────────────────────────────────────────────────────────────────────
-type CallStream = "cold_first_touch" | "cold_follow_up" | "inbound_ad" | "cold_email" | "re_engagement";
-
-const STREAM_RUBRICS: Record<CallStream, string> = {
-  cold_first_touch:
-    "COLD_FIRST_TOUCH: hardest call, zero permission. Opener is EVERYTHING — must be casual and honest ('look, this is a cold call, you got 30 seconds?'), never scripted-sounding, slow the name. Grade booking ask LENIENTLY — booking is a bonus; if blown out in 15s, coach the OPENER, not the missing ask. FLAG as stream_mismatch if the rep tried a booking ask without 2-3 min of real conversation first. Focus coaching on the opener and first-minute agreement frame.",
-  cold_follow_up:
-    "COLD_FOLLOW_UP: we've spoken before. Opener MUST reference the previous conversation ('we spoke a couple weeks back about X, you mentioned touching base around now'). Big mistake = running the cold opener from scratch or clearly not knowing the CRM notes — that IS stream_mismatch. Grade booking ask MODERATELY: after a decent conversation, no ask = flag.",
-  inbound_ad:
-    "INBOUND_AD: they raised their hand via ad/form. Speed-to-lead matters (5-min contact ≈ 100x). Opener MUST reference the ad/form. Big mistakes = generic cold opener (stream_mismatch), OVER-QUALIFYING (15-min discovery on a hand-raiser = stream_mismatch). Grade booking ask STRICTLY: short, direct, book them; no ask = serious flag.",
-  cold_email:
-    "COLD_EMAIL: they replied to our email. Opener references the email's first sentence. Big mistake = generic cold opener ignoring the email context (stream_mismatch). Grade booking ask MODERATE-TO-STRICT.",
-  re_engagement:
-    "RE_ENGAGEMENT: warmest non-inbound leads — they booked/paid before and went quiet. Opener references the specific history and asks DIRECTLY what happened ('you booked a call and didn't show, what happened?'). Big mistake = treating it as a cold call (stream_mismatch) or being too soft. Grade booking ask STRICTEST: off the phone without a booking or a clear stated reason = hard flag.",
-};
-
-async function classifyCallStream(
-  adminClient: ReturnType<typeof createClient>,
-  row: { id: string; contact_id: string | null; created_at: string },
-): Promise<CallStream> {
-  const contactId = row.contact_id;
-  const calledAt = row.created_at;
-
-  if (contactId) {
-    // (a) re_engagement — prior no-show OR client_deals row / client_follow_up_date set, before this call
-    const [{ data: noShow }, { data: deals }, { data: contactRow }] = await Promise.all([
-      adminClient
-        .from("pipeline_items")
-        .select("id")
-        .eq("contact_id", contactId)
-        .eq("appointment_outcome", "no_show")
-        .lt("created_at", calledAt)
-        .limit(1),
-      adminClient
-        .from("client_deals")
-        .select("id")
-        .eq("contact_id", contactId)
-        .lt("created_at", calledAt)
-        .limit(1),
-      adminClient
-        .from("contacts")
-        .select("lead_source, client_follow_up_date")
-        .eq("id", contactId)
-        .maybeSingle(),
-    ]);
-    if ((noShow?.length ?? 0) > 0) return "re_engagement";
-    if ((deals?.length ?? 0) > 0) return "re_engagement";
-    if (contactRow?.client_follow_up_date) return "re_engagement";
-
-    const ls = (contactRow?.lead_source ?? "").toLowerCase();
-    if (ls) {
-      // (b) inbound_ad
-      if (/\bad(s|word|words)?\b|\bform\b|website/.test(ls)) return "inbound_ad";
-      // (c) cold_email
-      if (/email/.test(ls)) return "cold_email";
-    }
-
-    // (d) cold_follow_up — earlier call for the same contact
-    const { data: priorCalls } = await adminClient
-      .from("call_logs")
-      .select("id, outcome")
-      .eq("contact_id", contactId)
-      .lt("created_at", calledAt)
-      .limit(1);
-    if ((priorCalls?.length ?? 0) > 0) return "cold_follow_up";
-  }
-
-  // (e) default
-  return "cold_first_touch";
-}
-
 // Build the "winning patterns" digest by scanning the qualities JSON on the
 // top ~10 recent booked calls. This is cheap (one AI call per coach_calls
 // run, no per-call cost) and grounds every coaching note in what actually
 // works on booked calls.
 async function buildWinningPatternsDigest(
   adminClient: ReturnType<typeof createClient>,
-): Promise<{ digest: string; sample_size: number }> {
+): Promise<{ digest: string; opener_excerpts: string[]; sample_size: number }> {
   const { data } = await adminClient
     .from("call_scores")
-    .select("call_log_id, overall_score, scorecard, call_logs:call_logs!inner(outcome, contacts:contacts(business_name))")
+    .select("call_log_id, overall_score, scorecard, call_logs:call_logs!inner(outcome, dialpad_transcript, contacts:contacts(business_name))")
     .order("created_at", { ascending: false })
     .limit(30);
   const booked = (data ?? []).filter((r: any) => r.call_logs?.outcome === "booked");
@@ -2915,16 +2828,40 @@ async function buildWinningPatternsDigest(
     .sort((a: any, b: any) => (b.overall_score ?? 0) - (a.overall_score ?? 0))
     .slice(0, 10);
   if (top.length === 0) {
-    return { digest: "No booked-call qualities available yet. Ground coaching in fundamentals: pattern-interrupt opener, situation-questions before pitching, agreement-frame before the booking ask.", sample_size: 0 };
+    return { digest: "No booked-call qualities available yet. Ground coaching in fundamentals: pattern-interrupt opener, situation-questions before pitching, agreement-frame before the booking ask.", opener_excerpts: [], sample_size: 0 };
   }
   const qualities = top.map((r: any) => ({
     business: r.call_logs?.contacts?.business_name ?? null,
     score: r.overall_score,
     qualities: r.scorecard?.qualities ?? null,
   }));
+
+  // 2-3 verbatim opener excerpts (first ~6 real dialogue lines) from the
+  // highest-scoring booked calls. Strips the "Dialpad Transcript" header and
+  // Dialpad metadata rows like "action_item_v2" / "whole_call_summary".
+  const METADATA_RE = /^(action_item|ai_csat|call_purpose|whole_call_summary|ner|topic|sentence_level|speaker_turn|summary_fragment|dialpad_transcript)/i;
+  const opener_excerpts: string[] = [];
+  for (const r of top.slice(0, 3)) {
+    const raw = (r.call_logs?.dialpad_transcript as string | null) ?? "";
+    if (!raw) continue;
+    const lines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^dialpad transcript$/i.test(l))
+      .filter((l) => {
+        const after = l.split(":").slice(1).join(":").trim();
+        return after && !METADATA_RE.test(after);
+      })
+      .slice(0, 6);
+    if (lines.length >= 2) {
+      const label = r.call_logs?.contacts?.business_name ?? "booked call";
+      opener_excerpts.push(`[${label} — score ${r.overall_score}]\n${lines.join("\n")}`);
+    }
+  }
+
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
-    return { digest: "Winning-patterns AI summary unavailable (no LOVABLE_API_KEY). Use raw NEPQ fundamentals.", sample_size: top.length };
+    return { digest: "Winning-patterns AI summary unavailable (no LOVABLE_API_KEY). Use raw NEPQ fundamentals.", opener_excerpts, sample_size: top.length };
   }
   try {
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -2941,15 +2878,110 @@ async function buildWinningPatternsDigest(
         ],
       }),
     });
-    if (!resp.ok) return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+    if (!resp.ok) return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", opener_excerpts, sample_size: top.length };
     const j = await resp.json().catch(() => null);
     const text = j?.choices?.[0]?.message?.content;
     const digest = typeof text === "string" && text.trim() ? text.trim() : "Fallback digest.";
-    return { digest, sample_size: top.length };
+    return { digest, opener_excerpts, sample_size: top.length };
   } catch {
-    return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+    return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", opener_excerpts, sample_size: top.length };
   }
 }
+
+// Empirical internal benchmark computed from the last 60 days of call_logs.
+// pickup = dialpad_talk_time_seconds >= 15 (past hello); 2min conversation =
+// >= 120s. We return two rates: overall (all reps) and "booked-rep on booked-
+// day" (the reps who actually booked, on days they booked — their realistic
+// ceiling). No absolute industry claims — this is our real number.
+async function computeInternalBenchmark(
+  adminClient: ReturnType<typeof createClient>,
+): Promise<{
+  overall_pickup_to_2min_pct: number;
+  booked_rep_pickup_to_2min_pct: number;
+  sample_size_overall: number;
+  sample_size_booked_reps: number;
+  window_days: number;
+}> {
+  const windowDays = 60;
+  const since = new Date(Date.now() - windowDays * 86400000).toISOString();
+  const { data } = await adminClient
+    .from("call_logs")
+    .select("user_id, outcome, dialpad_talk_time_seconds, created_at")
+    .gte("created_at", since)
+    .not("dialpad_talk_time_seconds", "is", null)
+    .limit(20000);
+  const rows = (data ?? []) as Array<{ user_id: string | null; outcome: string | null; dialpad_talk_time_seconds: number | null; created_at: string }>;
+
+  const pickedUp = (r: typeof rows[number]) => (r.dialpad_talk_time_seconds ?? 0) >= 15;
+  const twoMin = (r: typeof rows[number]) => (r.dialpad_talk_time_seconds ?? 0) >= 120;
+
+  const overallPicked = rows.filter(pickedUp);
+  const overallRate = overallPicked.length === 0 ? 0 : (overallPicked.filter(twoMin).length / overallPicked.length) * 100;
+
+  // "booked-rep on booked-day": rep_user_id + YYYY-MM-DD pairs where that rep
+  // booked at least once that day. Their conversation rate on those days is
+  // the realistic internal ceiling.
+  const bookedKeys = new Set<string>();
+  for (const r of rows) {
+    if (r.outcome === "booked" && r.user_id) {
+      bookedKeys.add(`${r.user_id}|${r.created_at.slice(0, 10)}`);
+    }
+  }
+  const ceilingPool = rows.filter((r) => r.user_id && bookedKeys.has(`${r.user_id}|${r.created_at.slice(0, 10)}`));
+  const ceilingPicked = ceilingPool.filter(pickedUp);
+  const ceilingRate = ceilingPicked.length === 0 ? 0 : (ceilingPicked.filter(twoMin).length / ceilingPicked.length) * 100;
+
+  return {
+    overall_pickup_to_2min_pct: Math.round(overallRate * 10) / 10,
+    booked_rep_pickup_to_2min_pct: Math.round(ceilingRate * 10) / 10,
+    sample_size_overall: overallPicked.length,
+    sample_size_booked_reps: ceilingPicked.length,
+    window_days: windowDays,
+  };
+}
+
+// Lightweight stream classifier used to weight the coaching prompt. Priority:
+// re_engagement -> inbound_ad -> cold_email -> cold_follow_up -> cold_first_touch.
+async function classifyCallStream(
+  adminClient: ReturnType<typeof createClient>,
+  row: { id: string; contact_id: string; created_at: string },
+  contact: { lead_source?: string | null; client_follow_up_date?: string | null } | null,
+): Promise<"re_engagement" | "inbound_ad" | "cold_email" | "cold_follow_up" | "cold_first_touch"> {
+  const callTime = new Date(row.created_at).getTime();
+
+  // (a) re_engagement
+  const [{ data: noShow }, { data: deals }] = await Promise.all([
+    adminClient.from("pipeline_items").select("id, created_at, appointment_outcome").eq("contact_id", row.contact_id).eq("appointment_outcome", "no_show").limit(1),
+    adminClient.from("client_deals").select("id, created_at").eq("contact_id", row.contact_id).limit(1),
+  ]);
+  const priorNoShow = (noShow ?? []).some((n: any) => new Date(n.created_at).getTime() < callTime);
+  const priorDeal = (deals ?? []).some((d: any) => new Date(d.created_at).getTime() < callTime);
+  if (priorNoShow || priorDeal || contact?.client_follow_up_date) return "re_engagement";
+
+  const src = (contact?.lead_source ?? "").toLowerCase();
+  if (src && /(ad|form|website)/.test(src)) return "inbound_ad";
+  if (src && /email/.test(src)) return "cold_email";
+
+  // (d) prior answered call on same contact
+  const { data: priorCalls } = await adminClient
+    .from("call_logs")
+    .select("id, created_at, outcome, dialpad_talk_time_seconds")
+    .eq("contact_id", row.contact_id)
+    .lt("created_at", row.created_at)
+    .limit(5);
+  const hasPrior = (priorCalls ?? []).some((c: any) => (c.dialpad_talk_time_seconds ?? 0) >= 15 || c.outcome === "follow_up");
+  if (hasPrior) return "cold_follow_up";
+
+  return "cold_first_touch";
+}
+
+const STREAM_RUBRICS: Record<string, string> = {
+  cold_first_touch: "Zero permission. The opener is 90% of the game. Grade booking ask LENIENTLY — if you got blown out in 15s, coach the opener, not the missing ask. Ground the better_path in the WINNING OPENER EXCERPTS below (real cold openers that booked Australian tradies). The generic inbound/closing methodology is a fallback ONLY.",
+  cold_follow_up: "We've spoken before. Opener MUST reference the prior conversation. Big mistake = running a cold opener from scratch or clearly not knowing the CRM notes. Grade booking ask MODERATELY.",
+  inbound_ad: "They raised their hand. Speed-to-lead and a form/ad-referenced opener are non-negotiable. Big mistakes = generic cold opener and OVER-QUALIFYING. Grade booking ask STRICTLY — short, direct, book them.",
+  cold_email: "They replied to our email. Opener references the email. Grade booking ask MODERATE-TO-STRICT.",
+  re_engagement: "Warmest non-inbound lead. Opener references specific history, direct 'what happened' question. Grade booking ask STRICTEST — off the phone without a booking or a clear reason = hard flag.",
+};
 
 function tryParseJson(raw: string): any | null {
   if (!raw) return null;
@@ -2969,17 +3001,34 @@ async function coachOneCall(params: {
   businessName: string | null;
   industry: string | null;
   winningDigest: string;
-  stream: CallStream;
+  winningOpenerExcerpts: string[];
+  stream: "cold_first_touch" | "cold_follow_up" | "inbound_ad" | "cold_email" | "re_engagement";
+  internalBenchmark: {
+    overall_pickup_to_2min_pct: number;
+    booked_rep_pickup_to_2min_pct: number;
+    sample_size_overall: number;
+    sample_size_booked_reps: number;
+    window_days: number;
+  };
 }): Promise<any | null> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
+  const rubric = STREAM_RUBRICS[params.stream] ?? STREAM_RUBRICS.cold_first_touch;
+  const bench = params.internalBenchmark;
+  const benchLine = `INTERNAL BENCHMARK (last ${bench.window_days} days, our own data — coach toward this ceiling, do NOT invent absolute industry numbers): overall pickup→2min conversation rate = ${bench.overall_pickup_to_2min_pct}% (n=${bench.sample_size_overall}); on days our booking reps booked, their rate = ${bench.booked_rep_pickup_to_2min_pct}% (n=${bench.sample_size_booked_reps}).`;
+  const openerBlock = params.winningOpenerExcerpts.length
+    ? `WINNING OPENER EXCERPTS — verbatim first ~6 lines from our highest-scoring booked calls (use these as ground truth for cold_first_touch openers):\n\n${params.winningOpenerExcerpts.join("\n\n---\n\n")}`
+    : "WINNING OPENER EXCERPTS: none available yet — fall back to methodology.";
   const userPrompt = [
     `OUTCOME: ${params.outcome}`,
+    `STREAM: ${params.stream}`,
     `BUSINESS: ${params.businessName ?? "unknown"}${params.industry ? ` (${params.industry})` : ""}`,
-    `STREAM (fixed by code — copy verbatim into "stream"): ${params.stream}`,
     "",
-    "STREAM RUBRIC (apply this — grading severity and what to coach first depend on it):",
-    STREAM_RUBRICS[params.stream],
+    `STREAM RUBRIC: ${rubric}`,
+    "",
+    benchLine,
+    "",
+    openerBlock,
     "",
     "WINNING PATTERNS (what works on booked calls — ground better_path in these):",
     params.winningDigest,
@@ -3012,9 +3061,6 @@ async function coachOneCall(params: {
     if (!parsed || typeof parsed !== "object") return null;
     // Minimal shape check — at least a key_moment + better_path.
     if (!parsed.key_moment || !parsed.better_path) return null;
-    // Force the code-classified stream (do not trust AI).
-    parsed.stream = params.stream;
-    parsed.stream_mismatch = parsed.stream_mismatch === true;
     return parsed;
   } catch (err) {
     console.error("[coach_calls] coachOneCall failed:", err);
@@ -3044,25 +3090,12 @@ async function rebuildRepCoachingProfile(params: {
     business: r.contacts?.business_name ?? null,
     industry: r.contacts?.industry ?? null,
     outcome: r.outcome,
-    stream: r.coaching?.stream ?? null,
-    stream_mismatch: r.coaching?.stream_mismatch === true,
-    first_broken_stage: r.coaching?.first_broken_stage ?? null,
-    pillar_scores: r.coaching?.pillar_scores ?? null,
     skill_tag: r.coaching?.skill_tag ?? null,
     what_happened: r.coaching?.what_happened ?? null,
     key_moment: r.coaching?.key_moment ?? null,
     better_path: r.coaching?.better_path ?? null,
     went_well: r.coaching?.went_well ?? null,
   }));
-
-  // Stream mix summary for the profile prompt.
-  const streamMix: Record<string, { count: number; mismatch: number }> = {};
-  for (const d of digest) {
-    const s = d.stream ?? "unknown";
-    if (!streamMix[s]) streamMix[s] = { count: 0, mismatch: 0 };
-    streamMix[s].count++;
-    if (d.stream_mismatch) streamMix[s].mismatch++;
-  }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   let profile: { focus_areas: any[]; strengths: any[] } = { focus_areas: [], strengths: [] };
@@ -3075,7 +3108,7 @@ async function rebuildRepCoachingProfile(params: {
           model: COACH_MODEL,
           messages: [
             { role: "system", content: REP_PROFILE_SYSTEM_PROMPT },
-            { role: "user", content: `Recent coaching notes for this rep (last ${windowDays} days, ${digest.length} calls).\n\nSTREAM MIX (calls / stream_mismatches): ${JSON.stringify(streamMix)}\n\nNOTES:\n${JSON.stringify(digest)}` },
+            { role: "user", content: `Recent coaching notes for this rep (last ${windowDays} days, ${digest.length} calls):\n\n${JSON.stringify(digest)}` },
           ],
           response_format: { type: "json_object" },
         }),
@@ -3140,7 +3173,7 @@ async function coachCalls(params: {
   // subquery on a growing table).
   const { data: candidates, error } = await params.adminClient
     .from("call_logs")
-    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry)")
+    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry, lead_source, client_follow_up_date)")
     .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
     .not("dialpad_transcript", "is", null)
     .order("created_at", { ascending: true })
@@ -3166,7 +3199,8 @@ async function coachCalls(params: {
   if (!budget.reserve()) {
     return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "budget_too_low_for_digest" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
   }
-  const { digest, sample_size: digestSampleSize } = await buildWinningPatternsDigest(params.adminClient);
+  const { digest, opener_excerpts, sample_size: digestSampleSize } = await buildWinningPatternsDigest(params.adminClient);
+  const internalBenchmark = await computeInternalBenchmark(params.adminClient);
 
   const coached: Array<{ call_log_id: string; user_id: string; business_name: string | null; outcome: string; skill_tag: string | null }> = [];
   const errors: string[] = [];
@@ -3177,23 +3211,27 @@ async function coachCalls(params: {
     if (budget.made() >= budget.remaining) break;
     if (!budget.reserve()) break;
     considered++;
-    const stream = await classifyCallStream(params.adminClient, {
-      id: (row as any).id,
-      contact_id: (row as any).contact_id,
-      created_at: (row as any).created_at,
-    });
+    const stream = await classifyCallStream(
+      params.adminClient,
+      { id: (row as any).id, contact_id: (row as any).contact_id, created_at: (row as any).created_at },
+      (row as any).contacts ?? null,
+    );
     const coaching = await coachOneCall({
       transcript: (row as any).dialpad_transcript,
       outcome: (row as any).outcome,
       businessName: (row as any).contacts?.business_name ?? null,
       industry: (row as any).contacts?.industry ?? null,
       winningDigest: digest,
+      winningOpenerExcerpts: opener_excerpts,
       stream,
+      internalBenchmark,
     });
     if (!coaching) {
       errors.push(`call_log ${(row as any).id}: coaching AI failed`);
       continue;
     }
+    // Force the stream field from code — don't let the AI guess.
+    coaching.stream = stream;
     const { error: insErr } = await params.adminClient
       .from("call_coaching")
       .insert({
@@ -3239,6 +3277,8 @@ async function coachCalls(params: {
     profiles_rebuilt: profileResults.filter((p) => p.ok).length,
     winning_digest_sample_size: digestSampleSize,
     winning_digest_preview: digest.slice(0, 400),
+    winning_opener_excerpts_count: opener_excerpts.length,
+    internal_benchmark: internalBenchmark,
     results: coached,
     profiles: profileResults,
     errors: errors.slice(0, 10),
@@ -5684,6 +5724,7 @@ Deno.serve(async (req) => {
     "score_booked_calls",
     "backfill_correct_booked_transcripts",
     "coach_calls",
+    "preview_coach_context",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
@@ -5812,6 +5853,22 @@ Deno.serve(async (req) => {
       const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 30) : 15;
       const result = await coachCalls({ adminClient, limit });
       return jsonResponse(result, 200);
+    }
+    if (action === "preview_coach_context") {
+      // Read-only preview of what the coach prompt is grounded in on this run:
+      // the empirical internal benchmark, the winning-patterns digest, and
+      // the verbatim opener excerpts we now inject for cold_first_touch.
+      const [digestResult, benchmark] = await Promise.all([
+        buildWinningPatternsDigest(adminClient),
+        computeInternalBenchmark(adminClient),
+      ]);
+      return jsonResponse({
+        ok: true,
+        internal_benchmark: benchmark,
+        winning_digest: digestResult.digest,
+        winning_opener_excerpts: digestResult.opener_excerpts,
+        winning_sample_size: digestResult.sample_size,
+      }, 200);
     }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
