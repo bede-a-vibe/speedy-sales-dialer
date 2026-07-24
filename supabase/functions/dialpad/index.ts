@@ -2785,6 +2785,7 @@ async function backfillCorrectBookedTranscripts(params: {
     .select(`
       id,
       user_id,
+      dialpad_transcript,
       contacts:contacts (business_name, dm_name),
       dialpad_calls:dialpad_calls!dialpad_calls_call_log_id_fkey (
         id,
@@ -2816,9 +2817,15 @@ async function backfillCorrectBookedTranscripts(params: {
     const dpArr = Array.isArray(dpRaw) ? dpRaw : dpRaw ? [dpRaw] : [];
     const dp = dpArr.find((d: any) => d?.transcript && String(d.transcript).trim().length >= 40);
     if (!dp) continue;
+    const rawTranscript = String(dp.transcript);
+    const existingCallLogTranscript = typeof (row as any).dialpad_transcript === "string" ? (row as any).dialpad_transcript : null;
+    // Already corrected on a previous pass — call_logs no longer matches raw.
+    if (existingCallLogTranscript && existingCallLogTranscript.trim() && existingCallLogTranscript !== rawTranscript) {
+      unchangedCount++;
+      continue;
+    }
     considered++;
 
-    const rawTranscript = String(dp.transcript);
     const businessName = (row as any).contacts?.business_name ?? null;
     const dmName = (row as any).contacts?.dm_name ?? null;
     const repName = repNameMap.get((row as any).user_id) ?? null;
