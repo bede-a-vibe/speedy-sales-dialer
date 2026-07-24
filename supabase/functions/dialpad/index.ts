@@ -5296,6 +5296,12 @@ Deno.serve(async (req) => {
       const result = await scoreBookedCalls({ adminClient, limit });
       return jsonResponse(result, 200);
     }
+    if (action === "backfill_correct_booked_transcripts") {
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 100) : 25;
+      const rescore = body.rescore !== false;
+      const result = await backfillCorrectBookedTranscripts({ adminClient, limit, rescore });
+      return jsonResponse(result, 200);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
