@@ -90,12 +90,27 @@ function prettyKey(k: string): string {
   return k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
+/** Render any qualities value — strings, numbers, arrays, or objects (e.g. {objection, handled}). */
+function qualityValueToText(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (Array.isArray(v)) return v.map(qualityValueToText).filter(Boolean).join(" · ");
+  if (typeof v === "object") {
+    // e.g. {objection: "...", how_handled: "..."} → "…" — "…"
+    return Object.values(v as Record<string, unknown>)
+      .map(qualityValueToText)
+      .filter(Boolean)
+      .join(" — ");
+  }
+  return "";
+}
+
 /** Defensive renderer for the AI-extracted call qualities (unknown-shaped JSON). */
 function QualitiesPanel({ scorecard }: { scorecard: Record<string, unknown> | null }) {
   const qualities = scorecard && typeof scorecard === "object" ? (scorecard as any).qualities : null;
   if (!qualities || typeof qualities !== "object") return null;
   const entries = Object.entries(qualities as Record<string, unknown>).filter(
-    ([, v]) => v != null && (typeof v === "string" || typeof v === "number" || Array.isArray(v)),
+    ([, v]) => qualityValueToText(v) !== "",
   );
   if (entries.length === 0) return null;
   return (
@@ -104,7 +119,7 @@ function QualitiesPanel({ scorecard }: { scorecard: Record<string, unknown> | nu
       {entries.map(([k, v]) => (
         <p key={k} className="text-xs leading-relaxed">
           <span className="font-medium text-foreground">{prettyKey(k)}:</span>{" "}
-          <span className="text-muted-foreground">{Array.isArray(v) ? (v as unknown[]).map(String).join(" · ") : String(v)}</span>
+          <span className="text-muted-foreground">{qualityValueToText(v)}</span>
         </p>
       ))}
     </div>
