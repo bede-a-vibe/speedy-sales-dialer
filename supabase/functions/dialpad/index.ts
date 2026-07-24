@@ -3001,12 +3001,34 @@ async function coachOneCall(params: {
   businessName: string | null;
   industry: string | null;
   winningDigest: string;
+  winningOpenerExcerpts: string[];
+  stream: "cold_first_touch" | "cold_follow_up" | "inbound_ad" | "cold_email" | "re_engagement";
+  internalBenchmark: {
+    overall_pickup_to_2min_pct: number;
+    booked_rep_pickup_to_2min_pct: number;
+    sample_size_overall: number;
+    sample_size_booked_reps: number;
+    window_days: number;
+  };
 }): Promise<any | null> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
+  const rubric = STREAM_RUBRICS[params.stream] ?? STREAM_RUBRICS.cold_first_touch;
+  const bench = params.internalBenchmark;
+  const benchLine = `INTERNAL BENCHMARK (last ${bench.window_days} days, our own data — coach toward this ceiling, do NOT invent absolute industry numbers): overall pickup→2min conversation rate = ${bench.overall_pickup_to_2min_pct}% (n=${bench.sample_size_overall}); on days our booking reps booked, their rate = ${bench.booked_rep_pickup_to_2min_pct}% (n=${bench.sample_size_booked_reps}).`;
+  const openerBlock = params.winningOpenerExcerpts.length
+    ? `WINNING OPENER EXCERPTS — verbatim first ~6 lines from our highest-scoring booked calls (use these as ground truth for cold_first_touch openers):\n\n${params.winningOpenerExcerpts.join("\n\n---\n\n")}`
+    : "WINNING OPENER EXCERPTS: none available yet — fall back to methodology.";
   const userPrompt = [
     `OUTCOME: ${params.outcome}`,
+    `STREAM: ${params.stream}`,
     `BUSINESS: ${params.businessName ?? "unknown"}${params.industry ? ` (${params.industry})` : ""}`,
+    "",
+    `STREAM RUBRIC: ${rubric}`,
+    "",
+    benchLine,
+    "",
+    openerBlock,
     "",
     "WINNING PATTERNS (what works on booked calls — ground better_path in these):",
     params.winningDigest,
