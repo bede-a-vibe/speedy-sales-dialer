@@ -12,6 +12,8 @@ import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
+import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
+import { useIsAdmin } from "@/hooks/useUserRole";
 
 const openerScript = [
   "Hi, it's {rep_name} from SalesDialer. Did I catch you at an okay time for 27 seconds?",
@@ -196,6 +198,7 @@ const coachingSpotlights = objectionEventDrafts.map((event) => {
 });
 
 export default function TrainingPage() {
+  const isAdmin = useIsAdmin();
   return (
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -309,6 +312,7 @@ export default function TrainingPage() {
                     <Brain className="mr-1.5 h-3.5 w-3.5" /> Coach
                   </TabsTrigger>
                   <TabsTrigger value="streams" className="border border-border bg-muted/40">Streams</TabsTrigger>
+                  {isAdmin && <TabsTrigger value="manager" className="border border-border bg-muted/40">Manager</TabsTrigger>}
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
                   <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                   <TabsTrigger value="pipeline" className="border border-border bg-muted/40">Pipeline</TabsTrigger>
@@ -352,6 +356,12 @@ export default function TrainingPage() {
                 <TabsContent value="streams">
                   <StreamsPlaybook />
                 </TabsContent>
+
+                {isAdmin && (
+                  <TabsContent value="manager">
+                    <ManagerPlaybook />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="scripts">
                   <div className="space-y-4 rounded-xl border border-border bg-background/60 p-4">
