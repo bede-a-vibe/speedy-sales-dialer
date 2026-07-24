@@ -2556,6 +2556,8 @@ async function scoreBookedCalls(params: {
 
 
 async function processPendingTranscriptSyncs(params: {
+*** REPLACE ME ***
+  adminClient: ReturnType<typeof createClient>;
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
   limit?: number;
