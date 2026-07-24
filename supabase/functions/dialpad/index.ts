@@ -5724,6 +5724,7 @@ Deno.serve(async (req) => {
     "score_booked_calls",
     "backfill_correct_booked_transcripts",
     "coach_calls",
+    "preview_coach_context",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
