@@ -2753,6 +2753,387 @@ async function scoreBookedCalls(params: {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// AI Call Coach (wins AND losses → "better path" coaching per call,
+// plus a per-rep aggregate profile in rep_coaching_profile).
+// ─────────────────────────────────────────────────────────────────────
+// Reuses the booked_call_scoring budget lane so total AI spend stays
+// cents/day. dialpad_transcript is already ASR-corrected by the
+// scoreBookedCalls pass for booked calls; non-booked outcomes fall back
+// to the raw dialpad_transcript, which is good enough for coaching.
+
+const COACH_MODEL = "google/gemini-3-flash-preview";
+const COACHING_ELIGIBLE_OUTCOMES = ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"] as const;
+
+const COACH_SYSTEM_PROMPT = `You are a sharp, no-fluff Australian cold-call coach. You review ONE real outbound sales call transcript and produce concrete, specific coaching.
+
+HARD RULES:
+- Be direct and specific. NEVER give generic advice like "build more rapport", "listen more", "be confident".
+- ALWAYS quote the transcript verbatim in "key_moment". Use the exact words the rep or prospect said.
+- Ground "better_path" in the WINNING PATTERNS supplied — reference what works on booked calls.
+- "example_lines" must sound like THIS rep, in THEIR casual Aussie tone from the transcript — no corporate script-speak, no "circle back", no "value add".
+- For BOOKED calls: coaching = what made it work + ONE sharpening point (still specific, still quoted).
+- Always find one genuine "went_well". If it's a disaster call, the "went_well" can be as small as "kept dialling" — but must be honest.
+- Output STRICT JSON only. No prose before or after. No markdown fences.
+
+Return this exact shape:
+{
+  "summary": "one line on what happened",
+  "key_moment": "the exact quoted line(s) where the call was won or lost",
+  "what_happened": "what the rep did at that moment",
+  "better_path": "the specific alternative move, grounded in the winning patterns",
+  "example_lines": ["1-3 exact things the rep could have said in their own casual Aussie style"],
+  "skill_tag": "one of: opening, discovery, objection_handling, gatekeeper, closing_ask, follow_up_setup, tonality_pace",
+  "went_well": "one thing done well",
+  "drill": "a one-line roleplay drill instruction to practice the better path"
+}`;
+
+const REP_PROFILE_SYSTEM_PROMPT = `You are a sales manager writing a short coaching profile for ONE rep, based on their recent per-call coaching notes.
+
+HARD RULES:
+- Look for RECURRING patterns across the coaching notes. A one-off issue is not a focus area.
+- "evidence" must cite REAL calls from the input (business_name + short quote or paraphrase from what_happened / key_moment). No made-up examples.
+- "better_path" and "drill" must be specific and actionable, not generic advice.
+- Output STRICT JSON only. No prose, no markdown fences.
+
+Return this exact shape:
+{
+  "focus_areas": [
+    { "area": "short label", "skill_tag": "opening|discovery|objection_handling|gatekeeper|closing_ask|follow_up_setup|tonality_pace",
+      "evidence": "short, cites 1-2 real calls by business name", "better_path": "specific alternative move", "drill": "one-line practice drill" }
+  ],
+  "strengths": [
+    { "area": "short label", "evidence": "short, cites real calls" }
+  ]
+}
+Return AT MOST 3 focus_areas and AT MOST 2 strengths. Fewer is fine if the evidence isn't there.`;
+
+// Build the "winning patterns" digest by scanning the qualities JSON on the
+// top ~10 recent booked calls. This is cheap (one AI call per coach_calls
+// run, no per-call cost) and grounds every coaching note in what actually
+// works on booked calls.
+async function buildWinningPatternsDigest(
+  adminClient: ReturnType<typeof createClient>,
+): Promise<{ digest: string; sample_size: number }> {
+  const { data } = await adminClient
+    .from("call_scores")
+    .select("call_log_id, overall_score, scorecard, call_logs:call_logs!inner(outcome, contacts:contacts(business_name))")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  const booked = (data ?? []).filter((r: any) => r.call_logs?.outcome === "booked");
+  const top = booked
+    .filter((r: any) => (r.overall_score ?? 0) >= 60)
+    .sort((a: any, b: any) => (b.overall_score ?? 0) - (a.overall_score ?? 0))
+    .slice(0, 10);
+  if (top.length === 0) {
+    return { digest: "No booked-call qualities available yet. Ground coaching in fundamentals: pattern-interrupt opener, situation-questions before pitching, agreement-frame before the booking ask.", sample_size: 0 };
+  }
+  const qualities = top.map((r: any) => ({
+    business: r.call_logs?.contacts?.business_name ?? null,
+    score: r.overall_score,
+    qualities: r.scorecard?.qualities ?? null,
+  }));
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    return { digest: "Winning-patterns AI summary unavailable (no LOVABLE_API_KEY). Use raw NEPQ fundamentals.", sample_size: top.length };
+  }
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: COACH_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "Summarise winning-call patterns into a tight bullet list. 4 short bullets, one line each, covering: (1) OPENERS that landed, (2) DISCOVERY questions that opened the call up, (3) OBJECTION handling moves that worked, (4) how the BOOKING ASK landed. Use the actual qualities JSON as evidence. No preamble, bullets only.",
+          },
+          { role: "user", content: JSON.stringify(qualities) },
+        ],
+      }),
+    });
+    if (!resp.ok) return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+    const j = await resp.json().catch(() => null);
+    const text = j?.choices?.[0]?.message?.content;
+    const digest = typeof text === "string" && text.trim() ? text.trim() : "Fallback digest.";
+    return { digest, sample_size: top.length };
+  } catch {
+    return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+  }
+}
+
+function tryParseJson(raw: string): any | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  try { return JSON.parse(cleaned); } catch { /* try to salvage */ }
+  const m = cleaned.match(/\{[\s\S]*\}$/);
+  if (m) { try { return JSON.parse(m[0]); } catch { return null; } }
+  return null;
+}
+
+async function coachOneCall(params: {
+  transcript: string;
+  outcome: string;
+  businessName: string | null;
+  industry: string | null;
+  winningDigest: string;
+}): Promise<any | null> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return null;
+  const userPrompt = [
+    `OUTCOME: ${params.outcome}`,
+    `BUSINESS: ${params.businessName ?? "unknown"}${params.industry ? ` (${params.industry})` : ""}`,
+    "",
+    "WINNING PATTERNS (what works on booked calls — ground better_path in these):",
+    params.winningDigest,
+    "",
+    "TRANSCRIPT:",
+    params.transcript,
+  ].join("\n");
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: COACH_MODEL,
+        messages: [
+          { role: "system", content: COACH_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      console.error(`[coach_calls] Gateway ${resp.status}: ${body.slice(0, 400)}`);
+      return null;
+    }
+    const j = await resp.json().catch(() => null);
+    const content = j?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") return null;
+    const parsed = tryParseJson(content);
+    if (!parsed || typeof parsed !== "object") return null;
+    // Minimal shape check — at least a key_moment + better_path.
+    if (!parsed.key_moment || !parsed.better_path) return null;
+    return parsed;
+  } catch (err) {
+    console.error("[coach_calls] coachOneCall failed:", err);
+    return null;
+  }
+}
+
+async function rebuildRepCoachingProfile(params: {
+  adminClient: ReturnType<typeof createClient>;
+  userId: string;
+  windowDays?: number;
+}): Promise<{ ok: boolean; calls: number; reason?: string }> {
+  const windowDays = params.windowDays ?? 30;
+  const since = new Date(Date.now() - windowDays * 86400000).toISOString();
+  const { data: rows, error } = await params.adminClient
+    .from("call_coaching")
+    .select("call_log_id, outcome, coaching, created_at, contacts:contacts(business_name, industry)")
+    .eq("user_id", params.userId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error) return { ok: false, calls: 0, reason: error.message };
+  const notes = rows ?? [];
+  if (notes.length === 0) return { ok: true, calls: 0, reason: "no_coaching_rows" };
+
+  const digest = notes.map((r: any) => ({
+    business: r.contacts?.business_name ?? null,
+    industry: r.contacts?.industry ?? null,
+    outcome: r.outcome,
+    skill_tag: r.coaching?.skill_tag ?? null,
+    what_happened: r.coaching?.what_happened ?? null,
+    key_moment: r.coaching?.key_moment ?? null,
+    better_path: r.coaching?.better_path ?? null,
+    went_well: r.coaching?.went_well ?? null,
+  }));
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  let profile: { focus_areas: any[]; strengths: any[] } = { focus_areas: [], strengths: [] };
+  if (LOVABLE_API_KEY) {
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: COACH_MODEL,
+          messages: [
+            { role: "system", content: REP_PROFILE_SYSTEM_PROMPT },
+            { role: "user", content: `Recent coaching notes for this rep (last ${windowDays} days, ${digest.length} calls):\n\n${JSON.stringify(digest)}` },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (resp.ok) {
+        const j = await resp.json().catch(() => null);
+        const content = j?.choices?.[0]?.message?.content;
+        const parsed = tryParseJson(typeof content === "string" ? content : "");
+        if (parsed && typeof parsed === "object") {
+          profile = {
+            focus_areas: Array.isArray(parsed.focus_areas) ? parsed.focus_areas.slice(0, 3) : [],
+            strengths: Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 2) : [],
+          };
+        }
+      } else {
+        const body = await resp.text().catch(() => "");
+        console.error(`[coach_calls] profile ${resp.status}: ${body.slice(0, 300)}`);
+      }
+    } catch (err) {
+      console.error("[coach_calls] rebuildRepCoachingProfile failed:", err);
+    }
+  }
+
+  const { error: upErr } = await params.adminClient
+    .from("rep_coaching_profile")
+    .upsert({
+      user_id: params.userId,
+      focus_areas: profile.focus_areas,
+      strengths: profile.strengths,
+      calls_analyzed: notes.length,
+      window_days: windowDays,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+  if (upErr) return { ok: false, calls: notes.length, reason: upErr.message };
+  return { ok: true, calls: notes.length };
+}
+
+async function coachCalls(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const cap = Math.min(Math.max(params.limit ?? 15, 1), 30);
+  if (!Deno.env.get("LOVABLE_API_KEY")) {
+    return { ok: false as const, reason: "no_lovable_api_key" };
+  }
+
+  const budget = await loadBookedScoringBudget(params.adminClient);
+  if (budget.remaining <= 0) {
+    return {
+      ok: true as const,
+      coached: 0,
+      considered: 0,
+      profiles_rebuilt: 0,
+      reason: "daily_cap_reached" as const,
+      budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: 0 },
+    };
+  }
+
+  // Eligibility: transcript >200 chars, allowed outcome, no existing coaching row.
+  // We fetch a wider pool then filter out any call_log_ids that already have a
+  // call_coaching row (LEFT JOIN via a second query — cheaper than a NOT IN
+  // subquery on a growing table).
+  const { data: candidates, error } = await params.adminClient
+    .from("call_logs")
+    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry)")
+    .in("outcome", COACHING_ELIGIBLE_OUTCOMES as unknown as string[])
+    .order("created_at", { ascending: true })
+    .limit(cap * 4);
+  if (error) return { ok: false as const, reason: error.message };
+  const pool = (candidates ?? []).filter((r: any) => typeof r.dialpad_transcript === "string" && r.dialpad_transcript.length > 200);
+  if (pool.length === 0) {
+    return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "no_candidates" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
+  }
+  const ids = pool.map((r: any) => r.id);
+  const { data: existing } = await params.adminClient
+    .from("call_coaching")
+    .select("call_log_id")
+    .in("call_log_id", ids);
+  const already = new Set((existing ?? []).map((r: any) => r.call_log_id));
+  const eligible = pool.filter((r: any) => !already.has(r.id)).slice(0, cap);
+
+  if (eligible.length === 0) {
+    return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "backlog_empty" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
+  }
+
+  // ONE winning-patterns digest per run (1 AI call).
+  if (!budget.reserve()) {
+    return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "budget_too_low_for_digest" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
+  }
+  const { digest, sample_size: digestSampleSize } = await buildWinningPatternsDigest(params.adminClient);
+
+  const coached: Array<{ call_log_id: string; user_id: string; business_name: string | null; outcome: string; skill_tag: string | null }> = [];
+  const errors: string[] = [];
+  const affectedUsers = new Set<string>();
+  let considered = 0;
+
+  for (const row of eligible) {
+    if (budget.made() >= budget.remaining) break;
+    if (!budget.reserve()) break;
+    considered++;
+    const coaching = await coachOneCall({
+      transcript: (row as any).dialpad_transcript,
+      outcome: (row as any).outcome,
+      businessName: (row as any).contacts?.business_name ?? null,
+      industry: (row as any).contacts?.industry ?? null,
+      winningDigest: digest,
+    });
+    if (!coaching) {
+      errors.push(`call_log ${(row as any).id}: coaching AI failed`);
+      continue;
+    }
+    const { error: insErr } = await params.adminClient
+      .from("call_coaching")
+      .insert({
+        call_log_id: (row as any).id,
+        contact_id: (row as any).contact_id,
+        user_id: (row as any).user_id,
+        outcome: (row as any).outcome,
+        coaching,
+        model: COACH_MODEL,
+      });
+    if (insErr) {
+      errors.push(`call_log ${(row as any).id}: insert failed: ${insErr.message}`);
+      continue;
+    }
+    if ((row as any).user_id) affectedUsers.add((row as any).user_id);
+    coached.push({
+      call_log_id: (row as any).id,
+      user_id: (row as any).user_id,
+      business_name: (row as any).contacts?.business_name ?? null,
+      outcome: (row as any).outcome,
+      skill_tag: coaching.skill_tag ?? null,
+    });
+  }
+
+  // Rebuild rep_coaching_profile per affected user (1 AI call each).
+  const profileResults: Array<{ user_id: string; calls: number; ok: boolean; reason?: string }> = [];
+  for (const uid of affectedUsers) {
+    if (budget.made() >= budget.remaining) {
+      profileResults.push({ user_id: uid, calls: 0, ok: false, reason: "budget_exhausted" });
+      continue;
+    }
+    if (!budget.reserve()) break;
+    const res = await rebuildRepCoachingProfile({ adminClient: params.adminClient, userId: uid });
+    profileResults.push({ user_id: uid, ...res });
+  }
+
+  await budget.persist();
+
+  return {
+    ok: true as const,
+    considered,
+    coached: coached.length,
+    profiles_rebuilt: profileResults.filter((p) => p.ok).length,
+    winning_digest_sample_size: digestSampleSize,
+    winning_digest_preview: digest.slice(0, 400),
+    results: coached,
+    profiles: profileResults,
+    errors: errors.slice(0, 10),
+    budget: {
+      daily_cap: budget.dailyCap,
+      used_today: budget.usedToday + budget.made(),
+      remaining: Math.max(0, budget.remaining - budget.made()),
+    },
+  };
+}
+
+
 // One-off backfill: correct EXISTING booked-call transcripts using the same
 // correction lane. For each candidate we (a) read raw transcript from
 // dialpad_calls, (b) run correctTranscript against it, (c) if it changed
