@@ -11,6 +11,7 @@ import {
   PILLAR_ORDER,
   SKILL_TAG_LABELS,
   STAGE_LABELS,
+  STREAM_LABELS,
   useCoachedCalls,
   useRepCoachingProfiles,
   type CoachedCall,
@@ -42,6 +43,16 @@ function CoachedCallRow({ call }: { call: CoachedCall }) {
       >
         {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{call.businessName}</span>
+        {c.stream && STREAM_LABELS[c.stream] && (
+          <Badge variant="outline" className="border-border bg-muted text-[10px] text-muted-foreground">
+            {STREAM_LABELS[c.stream]}
+          </Badge>
+        )}
+        {c.stream_mismatch && (
+          <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-[10px] text-destructive">
+            Wrong playbook
+          </Badge>
+        )}
         {c.first_broken_stage && c.first_broken_stage !== "none" && STAGE_LABELS[c.first_broken_stage] && (
           <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300">
             Lost at: {STAGE_LABELS[c.first_broken_stage]}
@@ -145,6 +156,7 @@ export function CoachPanel() {
   const { data: profiles = [] } = useRepCoachingProfiles();
   const [repFilter, setRepFilter] = useState<string | null>(null);
   const [skillFilter, setSkillFilter] = useState<string | null>(null);
+  const [streamFilter, setStreamFilter] = useState<string | null>(null);
 
   const activeUserId = repFilter ?? user?.id ?? null;
   const profile = profiles.find((p) => p.userId === activeUserId) ?? null;
@@ -159,10 +171,21 @@ export function CoachPanel() {
       calls.filter(
         (c) =>
           (!activeUserId || c.userId === activeUserId) &&
-          (!skillFilter || c.coaching.skill_tag === skillFilter),
+          (!skillFilter || c.coaching.skill_tag === skillFilter) &&
+          (!streamFilter || c.coaching.stream === streamFilter),
       ),
-    [calls, activeUserId, skillFilter],
+    [calls, activeUserId, skillFilter, streamFilter],
   );
+
+  const streamCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of calls) {
+      if (activeUserId && c.userId !== activeUserId) continue;
+      const s = c.coaching.stream;
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    return counts;
+  }, [calls, activeUserId]);
 
   const skillCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -256,6 +279,26 @@ export function CoachPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Call-by-call coaching</CardTitle>
           <CardDescription>Every answered call gets reviewed: the moment it was won or lost, and the better path.</CardDescription>
+          {streamCounts.size > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[...streamCounts.entries()].sort((a, b) => b[1] - a[1]).map(([s, n]) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStreamFilter(streamFilter === s ? null : s)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                    streamFilter === s
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50",
+                  )}
+                >
+                  {STREAM_LABELS[s] ?? s}
+                  <span className="ml-1 font-mono text-[10px] text-muted-foreground">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {skillCounts.size > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {[...skillCounts.entries()].sort((a, b) => b[1] - a[1]).map(([tag, n]) => (

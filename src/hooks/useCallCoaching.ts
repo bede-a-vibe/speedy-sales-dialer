@@ -13,7 +13,18 @@ export interface CoachingJson {
   drill?: string;
   first_broken_stage?: string;
   pillar_scores?: Record<string, number | null>;
+  stream?: string;
+  stream_mismatch?: boolean;
 }
+
+/** Lead streams — grading severity scales with intent (cold lenient → re-engagement strictest). */
+export const STREAM_LABELS: Record<string, string> = {
+  cold_first_touch: "Cold first touch",
+  cold_follow_up: "Cold follow-up",
+  inbound_ad: "Inbound ad lead",
+  cold_email: "Cold email reply",
+  re_engagement: "Re-engagement",
+};
 
 export const STAGE_LABELS: Record<string, string> = {
   opener: "Opener",
