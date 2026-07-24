@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
+import { invalidateContactCaches } from "@/hooks/useContacts";
 import {
   dealMrr,
   dealRevenueToDate,
@@ -64,9 +65,10 @@ export function useCreateClientDeal() {
       await ensureContactMarkedWon(input.contact_id);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       qc.invalidateQueries({ queryKey: ["client-deals"] });
-      qc.invalidateQueries({ queryKey: ["contacts"] });
+      qc.invalidateQueries({ queryKey: ["won-client-contacts"] });
+      invalidateContactCaches(qc, input.contact_id);
     },
   });
 }

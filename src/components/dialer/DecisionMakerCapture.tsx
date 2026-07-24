@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateContactCaches } from "@/hooks/useContacts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,6 +145,7 @@ export function DecisionMakerCapture({
   );
   const [isExpanded, setIsExpanded] = useState(!hasExistingContext);
   const [isSaving, setIsSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   // DM fields
   const [dmName, setDmName] = useState(existingDmName || "");
@@ -247,6 +250,8 @@ export function DecisionMakerCapture({
         .eq("id", contactId);
 
       if (error) throw error;
+      // Broadcast the change so the card, Contacts list, and detail page refresh.
+      invalidateContactCaches(queryClient, contactId);
 
       // Push to GHL if contact is linked
       if (ghlContactId) {
@@ -286,7 +291,7 @@ export function DecisionMakerCapture({
     } finally {
       setIsSaving(false);
     }
-  }, [contactId, dmName, dmTitle, dmPhone, dmPhoneType, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved]);
+  }, [contactId, dmName, dmTitle, dmPhone, dmPhoneType, dmEmail, dmLinkedin, gatekeeperName, gatekeeperNotes, bestRoute, bestTimeToCall, ghlContactId, onSaved, queryClient]);
 
   return (
     <Card className="border-border bg-card/50">

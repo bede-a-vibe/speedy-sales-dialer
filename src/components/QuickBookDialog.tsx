@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateContactCaches } from "@/hooks/useContacts";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { addDays, setHours, setMinutes } from "date-fns";
 import { Search, CalendarPlus, Phone, User, Building2, MapPin, Loader2, CalendarIcon, ClipboardList, Plus, AlertTriangle } from "lucide-react";
@@ -111,6 +113,7 @@ function getQuickCreateDefaultSchedule(type: PipelineType) {
 
 export function QuickBookDialog({ open, onOpenChange, initialContact = null, initialPipelineType }: QuickBookDialogProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: salesReps = [] } = useSalesReps();
   const createPipelineItem = useCreatePipelineItem();
   const createCallLog = useCreateCallLog();
@@ -522,6 +525,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
       if (contactMirrorError) {
         throw contactMirrorError;
       }
+      invalidateContactCaches(queryClient, selectedContact.id);
 
       const label = pipelineType === "booked" ? "Booking" : "Follow-up";
       let ghlSyncConfirmed = false;

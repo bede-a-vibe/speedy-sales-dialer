@@ -4,6 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
+import type { QueryClient } from "@tanstack/react-query";
+
+/**
+ * The ONE way to announce "this contact changed" to the rest of the app.
+ * Every write to the contacts table — through useUpdateContact or raw — must
+ * call this so the dialer card, Contacts list, contact detail, and live views
+ * all refresh. Writers that skip it are the root cause of "I saved it but it
+ * didn't update" bugs.
+ */
+export function invalidateContactCaches(queryClient: QueryClient, contactId?: string) {
+  if (contactId) {
+    void queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
+    void queryClient.invalidateQueries({ queryKey: ["live-contact", contactId] });
+  }
+  void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+  void queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
+}
+
 const DIALER_TARGET_BUFFER = 40;
 const DIALER_PREFETCH_THRESHOLD = 25;
 const DIALER_CLAIM_SIZE = 25;
@@ -854,8 +872,7 @@ export function useUpdateContact() {
     },
     onSettled: (_data, _error, variables) => {
       // Reconcile against the server once the write returns.
-      queryClient.invalidateQueries({ queryKey: ["contact", variables.id] });
-      queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
+      invalidateContactCaches(queryClient, variables.id);
     },
   });
 }

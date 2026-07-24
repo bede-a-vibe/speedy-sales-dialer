@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateContactCaches } from "@/hooks/useContacts";
 import { format } from "date-fns";
 import { CalendarCheck2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +35,7 @@ interface QuickBookRecoveryButtonProps {
  */
 export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }: QuickBookRecoveryButtonProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(() => {
     const d = new Date();
@@ -124,6 +127,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
         .eq("id", contactId);
 
       if (contactErr) throw contactErr;
+      invalidateContactCaches(queryClient, contactId);
 
       toast.success("Booking recovered", {
         description: `Counted as a call at ${format(callMade, "PPp")} — appointment ${format(scheduled, "PPp")}.`,
