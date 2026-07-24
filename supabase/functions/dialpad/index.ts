@@ -3044,12 +3044,25 @@ async function rebuildRepCoachingProfile(params: {
     business: r.contacts?.business_name ?? null,
     industry: r.contacts?.industry ?? null,
     outcome: r.outcome,
+    stream: r.coaching?.stream ?? null,
+    stream_mismatch: r.coaching?.stream_mismatch === true,
+    first_broken_stage: r.coaching?.first_broken_stage ?? null,
+    pillar_scores: r.coaching?.pillar_scores ?? null,
     skill_tag: r.coaching?.skill_tag ?? null,
     what_happened: r.coaching?.what_happened ?? null,
     key_moment: r.coaching?.key_moment ?? null,
     better_path: r.coaching?.better_path ?? null,
     went_well: r.coaching?.went_well ?? null,
   }));
+
+  // Stream mix summary for the profile prompt.
+  const streamMix: Record<string, { count: number; mismatch: number }> = {};
+  for (const d of digest) {
+    const s = d.stream ?? "unknown";
+    if (!streamMix[s]) streamMix[s] = { count: 0, mismatch: 0 };
+    streamMix[s].count++;
+    if (d.stream_mismatch) streamMix[s].mismatch++;
+  }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   let profile: { focus_areas: any[]; strengths: any[] } = { focus_areas: [], strengths: [] };
@@ -3062,7 +3075,7 @@ async function rebuildRepCoachingProfile(params: {
           model: COACH_MODEL,
           messages: [
             { role: "system", content: REP_PROFILE_SYSTEM_PROMPT },
-            { role: "user", content: `Recent coaching notes for this rep (last ${windowDays} days, ${digest.length} calls):\n\n${JSON.stringify(digest)}` },
+            { role: "user", content: `Recent coaching notes for this rep (last ${windowDays} days, ${digest.length} calls).\n\nSTREAM MIX (calls / stream_mismatches): ${JSON.stringify(streamMix)}\n\nNOTES:\n${JSON.stringify(digest)}` },
           ],
           response_format: { type: "json_object" },
         }),
