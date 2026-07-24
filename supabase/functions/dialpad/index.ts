@@ -2753,6 +2753,152 @@ async function scoreBookedCalls(params: {
 }
 
 
+// One-off backfill: correct EXISTING booked-call transcripts using the same
+// correction lane. For each candidate we (a) read raw transcript from
+// dialpad_calls, (b) run correctTranscript against it, (c) if it changed
+// materially, write to call_logs.dialpad_transcript AND delete any existing
+// call_scores row so the next scoreBookedCalls pass re-scores against the
+// corrected text. Raw stays untouched in dialpad_calls.transcript.
+async function backfillCorrectBookedTranscripts(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit: number;
+  rescore: boolean;
+}) {
+  if (!Deno.env.get("LOVABLE_API_KEY")) {
+    return { ok: false as const, reason: "no_lovable_api_key" };
+  }
+  const budget = await loadBookedScoringBudget(params.adminClient);
+  if (budget.remaining <= 0) {
+    return {
+      ok: true as const,
+      considered: 0,
+      corrected: 0,
+      unchanged: 0,
+      reason: "daily_cap_reached" as const,
+      budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: 0 },
+    };
+  }
+
+  const cap = Math.min(Math.max(params.limit, 1), 100);
+  const { data: candidates, error } = await params.adminClient
+    .from("call_logs")
+    .select(`
+      id,
+      user_id,
+      contacts:contacts (business_name, dm_name),
+      dialpad_calls:dialpad_calls!dialpad_calls_call_log_id_fkey (
+        id,
+        transcript
+      )
+    `)
+    .eq("outcome", "booked")
+    .order("created_at", { ascending: false })
+    .limit(cap * 2);
+  if (error) return { ok: false as const, reason: error.message };
+
+  const repNameMap = await loadRepDisplayNames(
+    params.adminClient,
+    (candidates ?? []).map((r: any) => r.user_id).filter(Boolean),
+  );
+  const allRepNames = Array.from(new Set(repNameMap.values()));
+
+  const samples: Array<{ call_log_id: string; business_name: string | null; before: string; after: string }> = [];
+  const rescoredIds: string[] = [];
+  const errors: string[] = [];
+  let considered = 0;
+  let correctedCount = 0;
+  let unchangedCount = 0;
+
+  for (const row of candidates ?? []) {
+    if (correctedCount + unchangedCount >= cap) break;
+    if (budget.made() >= budget.remaining) break;
+    const dpRaw = (row as any).dialpad_calls;
+    const dpArr = Array.isArray(dpRaw) ? dpRaw : dpRaw ? [dpRaw] : [];
+    const dp = dpArr.find((d: any) => d?.transcript && String(d.transcript).trim().length >= 40);
+    if (!dp) continue;
+    considered++;
+
+    const rawTranscript = String(dp.transcript);
+    const businessName = (row as any).contacts?.business_name ?? null;
+    const dmName = (row as any).contacts?.dm_name ?? null;
+    const repName = repNameMap.get((row as any).user_id) ?? null;
+    const repNamesForCall = Array.from(new Set([repName, ...allRepNames].filter((s): s is string => Boolean(s))));
+
+    if (!budget.reserve()) break;
+    const corrected = await correctTranscript({
+      transcript: rawTranscript,
+      businessName,
+      dmName,
+      repNames: repNamesForCall,
+    });
+    if (!corrected || !transcriptChangedMaterially(rawTranscript, corrected)) {
+      unchangedCount++;
+      continue;
+    }
+
+    const { error: updErr } = await params.adminClient
+      .from("call_logs")
+      .update({ dialpad_transcript: corrected })
+      .eq("id", (row as any).id);
+    if (updErr) {
+      errors.push(`call_log ${row.id}: persist failed: ${updErr.message}`);
+      continue;
+    }
+    correctedCount++;
+
+    // Grab a compact before/after line sample for the report — pick the first
+    // line that actually changed so the diff is meaningful.
+    if (samples.length < 3) {
+      const beforeLines = rawTranscript.split(/\r?\n/);
+      const afterLines = corrected.split(/\r?\n/);
+      const maxLen = Math.min(beforeLines.length, afterLines.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (beforeLines[i] !== afterLines[i] && beforeLines[i].trim().length > 8) {
+          samples.push({
+            call_log_id: (row as any).id,
+            business_name: businessName,
+            before: beforeLines[i].slice(0, 300),
+            after: afterLines[i].slice(0, 300),
+          });
+          break;
+        }
+      }
+    }
+
+    if (params.rescore) {
+      // Delete existing call_scores row so scoreBookedCalls will rescore this
+      // call against the corrected transcript on its next pass.
+      const { error: delErr } = await params.adminClient
+        .from("call_scores")
+        .delete()
+        .eq("call_log_id", (row as any).id);
+      if (delErr) {
+        errors.push(`call_log ${row.id}: rescore reset failed: ${delErr.message}`);
+      } else {
+        rescoredIds.push((row as any).id);
+      }
+    }
+  }
+
+  await budget.persist();
+
+  return {
+    ok: true as const,
+    considered,
+    corrected: correctedCount,
+    unchanged: unchangedCount,
+    rescore_reset: rescoredIds.length,
+    samples,
+    errors: errors.slice(0, 10),
+    budget: {
+      daily_cap: budget.dailyCap,
+      used_today: budget.usedToday + budget.made(),
+      remaining: Math.max(0, budget.remaining - budget.made()),
+    },
+  };
+}
+
+
 async function processPendingTranscriptSyncs(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
