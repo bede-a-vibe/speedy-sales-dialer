@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.import-ghl-leads]
 verify_jwt = false
+
+[functions.matt-mcp]
+verify_jwt = false
