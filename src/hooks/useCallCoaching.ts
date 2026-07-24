@@ -11,7 +11,31 @@ export interface CoachingJson {
   skill_tag?: string;
   went_well?: string;
   drill?: string;
+  first_broken_stage?: string;
+  pillar_scores?: Record<string, number | null>;
 }
+
+export const STAGE_LABELS: Record<string, string> = {
+  opener: "Opener",
+  resistance: "First-minute resistance",
+  discovery: "Discovery",
+  problem_awareness: "Problem awareness",
+  gap_build: "Gap build",
+  ask: "The ask",
+  objections: "Objections",
+  none: "Clean call",
+};
+
+/** Pillars in Matt Ryder's priority order — fix top-first. */
+export const PILLAR_ORDER = ["tonality", "command_of_call", "probing", "word_economy", "objection_handling"] as const;
+
+export const PILLAR_LABELS: Record<string, string> = {
+  tonality: "Tonality",
+  command_of_call: "Command",
+  probing: "Probing",
+  word_economy: "Word economy",
+  objection_handling: "Objections",
+};
 
 export interface CoachedCall {
   id: string;
