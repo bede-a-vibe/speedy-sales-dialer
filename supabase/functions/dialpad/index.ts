@@ -2816,10 +2816,10 @@ Return AT MOST 3 focus_areas and AT MOST 2 strengths. Fewer is fine if the evide
 // works on booked calls.
 async function buildWinningPatternsDigest(
   adminClient: ReturnType<typeof createClient>,
-): Promise<{ digest: string; sample_size: number }> {
+): Promise<{ digest: string; opener_excerpts: string[]; sample_size: number }> {
   const { data } = await adminClient
     .from("call_scores")
-    .select("call_log_id, overall_score, scorecard, call_logs:call_logs!inner(outcome, contacts:contacts(business_name))")
+    .select("call_log_id, overall_score, scorecard, call_logs:call_logs!inner(outcome, dialpad_transcript, contacts:contacts(business_name))")
     .order("created_at", { ascending: false })
     .limit(30);
   const booked = (data ?? []).filter((r: any) => r.call_logs?.outcome === "booked");
@@ -2828,16 +2828,40 @@ async function buildWinningPatternsDigest(
     .sort((a: any, b: any) => (b.overall_score ?? 0) - (a.overall_score ?? 0))
     .slice(0, 10);
   if (top.length === 0) {
-    return { digest: "No booked-call qualities available yet. Ground coaching in fundamentals: pattern-interrupt opener, situation-questions before pitching, agreement-frame before the booking ask.", sample_size: 0 };
+    return { digest: "No booked-call qualities available yet. Ground coaching in fundamentals: pattern-interrupt opener, situation-questions before pitching, agreement-frame before the booking ask.", opener_excerpts: [], sample_size: 0 };
   }
   const qualities = top.map((r: any) => ({
     business: r.call_logs?.contacts?.business_name ?? null,
     score: r.overall_score,
     qualities: r.scorecard?.qualities ?? null,
   }));
+
+  // 2-3 verbatim opener excerpts (first ~6 real dialogue lines) from the
+  // highest-scoring booked calls. Strips the "Dialpad Transcript" header and
+  // Dialpad metadata rows like "action_item_v2" / "whole_call_summary".
+  const METADATA_RE = /^(action_item|ai_csat|call_purpose|whole_call_summary|ner|topic|sentence_level|speaker_turn|summary_fragment|dialpad_transcript)/i;
+  const opener_excerpts: string[] = [];
+  for (const r of top.slice(0, 3)) {
+    const raw = (r.call_logs?.dialpad_transcript as string | null) ?? "";
+    if (!raw) continue;
+    const lines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^dialpad transcript$/i.test(l))
+      .filter((l) => {
+        const after = l.split(":").slice(1).join(":").trim();
+        return after && !METADATA_RE.test(after);
+      })
+      .slice(0, 6);
+    if (lines.length >= 2) {
+      const label = r.call_logs?.contacts?.business_name ?? "booked call";
+      opener_excerpts.push(`[${label} — score ${r.overall_score}]\n${lines.join("\n")}`);
+    }
+  }
+
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
-    return { digest: "Winning-patterns AI summary unavailable (no LOVABLE_API_KEY). Use raw NEPQ fundamentals.", sample_size: top.length };
+    return { digest: "Winning-patterns AI summary unavailable (no LOVABLE_API_KEY). Use raw NEPQ fundamentals.", opener_excerpts, sample_size: top.length };
   }
   try {
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -2854,15 +2878,110 @@ async function buildWinningPatternsDigest(
         ],
       }),
     });
-    if (!resp.ok) return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+    if (!resp.ok) return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", opener_excerpts, sample_size: top.length };
     const j = await resp.json().catch(() => null);
     const text = j?.choices?.[0]?.message?.content;
     const digest = typeof text === "string" && text.trim() ? text.trim() : "Fallback digest.";
-    return { digest, sample_size: top.length };
+    return { digest, opener_excerpts, sample_size: top.length };
   } catch {
-    return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", sample_size: top.length };
+    return { digest: "Fallback: strong openers, at least 3 situation questions, address objection then re-ask, direct booking ask.", opener_excerpts, sample_size: top.length };
   }
 }
+
+// Empirical internal benchmark computed from the last 60 days of call_logs.
+// pickup = dialpad_talk_time_seconds >= 15 (past hello); 2min conversation =
+// >= 120s. We return two rates: overall (all reps) and "booked-rep on booked-
+// day" (the reps who actually booked, on days they booked — their realistic
+// ceiling). No absolute industry claims — this is our real number.
+async function computeInternalBenchmark(
+  adminClient: ReturnType<typeof createClient>,
+): Promise<{
+  overall_pickup_to_2min_pct: number;
+  booked_rep_pickup_to_2min_pct: number;
+  sample_size_overall: number;
+  sample_size_booked_reps: number;
+  window_days: number;
+}> {
+  const windowDays = 60;
+  const since = new Date(Date.now() - windowDays * 86400000).toISOString();
+  const { data } = await adminClient
+    .from("call_logs")
+    .select("user_id, outcome, dialpad_talk_time_seconds, created_at")
+    .gte("created_at", since)
+    .not("dialpad_talk_time_seconds", "is", null)
+    .limit(20000);
+  const rows = (data ?? []) as Array<{ user_id: string | null; outcome: string | null; dialpad_talk_time_seconds: number | null; created_at: string }>;
+
+  const pickedUp = (r: typeof rows[number]) => (r.dialpad_talk_time_seconds ?? 0) >= 15;
+  const twoMin = (r: typeof rows[number]) => (r.dialpad_talk_time_seconds ?? 0) >= 120;
+
+  const overallPicked = rows.filter(pickedUp);
+  const overallRate = overallPicked.length === 0 ? 0 : (overallPicked.filter(twoMin).length / overallPicked.length) * 100;
+
+  // "booked-rep on booked-day": rep_user_id + YYYY-MM-DD pairs where that rep
+  // booked at least once that day. Their conversation rate on those days is
+  // the realistic internal ceiling.
+  const bookedKeys = new Set<string>();
+  for (const r of rows) {
+    if (r.outcome === "booked" && r.user_id) {
+      bookedKeys.add(`${r.user_id}|${r.created_at.slice(0, 10)}`);
+    }
+  }
+  const ceilingPool = rows.filter((r) => r.user_id && bookedKeys.has(`${r.user_id}|${r.created_at.slice(0, 10)}`));
+  const ceilingPicked = ceilingPool.filter(pickedUp);
+  const ceilingRate = ceilingPicked.length === 0 ? 0 : (ceilingPicked.filter(twoMin).length / ceilingPicked.length) * 100;
+
+  return {
+    overall_pickup_to_2min_pct: Math.round(overallRate * 10) / 10,
+    booked_rep_pickup_to_2min_pct: Math.round(ceilingRate * 10) / 10,
+    sample_size_overall: overallPicked.length,
+    sample_size_booked_reps: ceilingPicked.length,
+    window_days: windowDays,
+  };
+}
+
+// Lightweight stream classifier used to weight the coaching prompt. Priority:
+// re_engagement -> inbound_ad -> cold_email -> cold_follow_up -> cold_first_touch.
+async function classifyCallStream(
+  adminClient: ReturnType<typeof createClient>,
+  row: { id: string; contact_id: string; created_at: string },
+  contact: { lead_source?: string | null; client_follow_up_date?: string | null } | null,
+): Promise<"re_engagement" | "inbound_ad" | "cold_email" | "cold_follow_up" | "cold_first_touch"> {
+  const callTime = new Date(row.created_at).getTime();
+
+  // (a) re_engagement
+  const [{ data: noShow }, { data: deals }] = await Promise.all([
+    adminClient.from("pipeline_items").select("id, created_at, appointment_outcome").eq("contact_id", row.contact_id).eq("appointment_outcome", "no_show").limit(1),
+    adminClient.from("client_deals").select("id, created_at").eq("contact_id", row.contact_id).limit(1),
+  ]);
+  const priorNoShow = (noShow ?? []).some((n: any) => new Date(n.created_at).getTime() < callTime);
+  const priorDeal = (deals ?? []).some((d: any) => new Date(d.created_at).getTime() < callTime);
+  if (priorNoShow || priorDeal || contact?.client_follow_up_date) return "re_engagement";
+
+  const src = (contact?.lead_source ?? "").toLowerCase();
+  if (src && /(ad|form|website)/.test(src)) return "inbound_ad";
+  if (src && /email/.test(src)) return "cold_email";
+
+  // (d) prior answered call on same contact
+  const { data: priorCalls } = await adminClient
+    .from("call_logs")
+    .select("id, created_at, outcome, dialpad_talk_time_seconds")
+    .eq("contact_id", row.contact_id)
+    .lt("created_at", row.created_at)
+    .limit(5);
+  const hasPrior = (priorCalls ?? []).some((c: any) => (c.dialpad_talk_time_seconds ?? 0) >= 15 || c.outcome === "follow_up");
+  if (hasPrior) return "cold_follow_up";
+
+  return "cold_first_touch";
+}
+
+const STREAM_RUBRICS: Record<string, string> = {
+  cold_first_touch: "Zero permission. The opener is 90% of the game. Grade booking ask LENIENTLY — if you got blown out in 15s, coach the opener, not the missing ask. Ground the better_path in the WINNING OPENER EXCERPTS below (real cold openers that booked Australian tradies). The generic inbound/closing methodology is a fallback ONLY.",
+  cold_follow_up: "We've spoken before. Opener MUST reference the prior conversation. Big mistake = running a cold opener from scratch or clearly not knowing the CRM notes. Grade booking ask MODERATELY.",
+  inbound_ad: "They raised their hand. Speed-to-lead and a form/ad-referenced opener are non-negotiable. Big mistakes = generic cold opener and OVER-QUALIFYING. Grade booking ask STRICTLY — short, direct, book them.",
+  cold_email: "They replied to our email. Opener references the email. Grade booking ask MODERATE-TO-STRICT.",
+  re_engagement: "Warmest non-inbound lead. Opener references specific history, direct 'what happened' question. Grade booking ask STRICTEST — off the phone without a booking or a clear reason = hard flag.",
+};
 
 function tryParseJson(raw: string): any | null {
   if (!raw) return null;
