@@ -3177,12 +3177,18 @@ async function coachCalls(params: {
     if (budget.made() >= budget.remaining) break;
     if (!budget.reserve()) break;
     considered++;
+    const stream = await classifyCallStream(params.adminClient, {
+      id: (row as any).id,
+      contact_id: (row as any).contact_id,
+      created_at: (row as any).created_at,
+    });
     const coaching = await coachOneCall({
       transcript: (row as any).dialpad_transcript,
       outcome: (row as any).outcome,
       businessName: (row as any).contacts?.business_name ?? null,
       industry: (row as any).contacts?.industry ?? null,
       winningDigest: digest,
+      stream,
     });
     if (!coaching) {
       errors.push(`call_log ${(row as any).id}: coaching AI failed`);
