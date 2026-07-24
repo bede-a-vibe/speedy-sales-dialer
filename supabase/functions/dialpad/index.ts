@@ -2794,7 +2794,7 @@ async function backfillCorrectBookedTranscripts(params: {
     `)
     .eq("outcome", "booked")
     .order("created_at", { ascending: false })
-    .limit(cap * 2);
+    .limit(Math.max(cap * 4, 60));
   if (error) return { ok: false as const, reason: error.message };
 
   const repNameMap = await loadRepDisplayNames(
@@ -2811,7 +2811,7 @@ async function backfillCorrectBookedTranscripts(params: {
   let unchangedCount = 0;
 
   for (const row of candidates ?? []) {
-    if (correctedCount + unchangedCount >= cap) break;
+    if (correctedCount >= cap) break;
     if (budget.made() >= budget.remaining) break;
     const dpRaw = (row as any).dialpad_calls;
     const dpArr = Array.isArray(dpRaw) ? dpRaw : dpRaw ? [dpRaw] : [];
