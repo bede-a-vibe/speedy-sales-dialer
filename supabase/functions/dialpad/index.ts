@@ -5411,6 +5411,11 @@ Deno.serve(async (req) => {
       const result = await scoreBookedCalls({ adminClient, limit });
       return jsonResponse(result, 200);
     }
+    if (action === "coach_calls") {
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 30) : 15;
+      const result = await coachCalls({ adminClient, limit });
+      return jsonResponse(result, 200);
+    }
 
     return jsonResponse({ error: "Unknown cron action" }, 400);
   }
