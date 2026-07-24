@@ -128,6 +128,8 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
 
       if (contactErr) throw contactErr;
       invalidateContactCaches(queryClient, contactId);
+      // The pipeline insert above must reach the Pipelines board + quick stats too.
+      void queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
 
       toast.success("Booking recovered", {
         description: `Counted as a call at ${format(callMade, "PPp")} — appointment ${format(scheduled, "PPp")}.`,
