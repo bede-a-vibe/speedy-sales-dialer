@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 
 type ObjectionRow = {
   id: string;
@@ -61,19 +62,9 @@ export default function PlaybookPage() {
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [askMatched, setAskMatched] = useState<Array<{ id: string; objection_text: string; category: string }>>([]);
 
-  // Roleplay state
+  // Roleplay state — round mechanics live inside RoleplayTrainer.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
   const [roleplayObjection, setRoleplayObjection] = useState("");
-  const [roleplayStarted, setRoleplayStarted] = useState(false);
-  const [roleplayHistory, setRoleplayHistory] = useState<Array<{ role: "rep" | "prospect"; text: string; coaching_note?: string }>>([]);
-  const [repInput, setRepInput] = useState("");
-  const [roleplayLoading, setRoleplayLoading] = useState(false);
-  const [roleplayDone, setRoleplayDone] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [roleplayHistory, roleplayLoading]);
 
   // Deep link from the Coach tab: /playbook?drill=<scenario> opens the
   // roleplay dialog pre-loaded with that drill.
@@ -149,81 +140,7 @@ export default function PlaybookPage() {
 
   function openRoleplay(objection: string) {
     setRoleplayObjection(objection);
-    setRoleplayStarted(false);
-    setRoleplayHistory([]);
-    setRepInput("");
-    setRoleplayDone(false);
     setRoleplayOpen(true);
-  }
-
-  async function startRoleplay() {
-    const obj = roleplayObjection.trim();
-    if (!obj || roleplayLoading) return;
-    setRoleplayStarted(true);
-    setRoleplayLoading(true);
-    try {
-      const { data: result, error } = await supabase.functions.invoke("coach-assistant", {
-        body: { mode: "roleplay", objection: obj, history: [] },
-      });
-      if (error) throw error;
-      if ((result as any)?.error) throw new Error((result as any).error);
-      const r = result as any;
-      setRoleplayHistory([{ role: "prospect", text: r.prospect_reply ?? "…" }]);
-      setRoleplayDone(Boolean(r.done));
-    } catch (err: any) {
-      toast({
-        title: "Roleplay failed to start",
-        description: err?.message ?? "Try again in a moment.",
-        variant: "destructive",
-      });
-      setRoleplayStarted(false);
-    } finally {
-      setRoleplayLoading(false);
-    }
-  }
-
-  async function sendRepReply() {
-    const text = repInput.trim();
-    if (!text || roleplayLoading || roleplayDone) return;
-    const nextHistory: Array<{ role: "rep" | "prospect"; text: string; coaching_note?: string }> = [
-      ...roleplayHistory,
-      { role: "rep", text },
-    ];
-    setRoleplayHistory(nextHistory);
-    setRepInput("");
-    setRoleplayLoading(true);
-    try {
-      const { data: result, error } = await supabase.functions.invoke("coach-assistant", {
-        body: {
-          mode: "roleplay",
-          objection: roleplayObjection,
-          history: nextHistory.map((h) => ({ role: h.role, text: h.text })),
-        },
-      });
-      if (error) throw error;
-      if ((result as any)?.error) throw new Error((result as any).error);
-      const r = result as any;
-      setRoleplayHistory([
-        ...nextHistory,
-        { role: "prospect", text: r.prospect_reply ?? "…", coaching_note: r.coaching_note ?? "" },
-      ]);
-      setRoleplayDone(Boolean(r.done));
-    } catch (err: any) {
-      toast({
-        title: "Coach unavailable",
-        description: err?.message ?? "Try again in a moment.",
-        variant: "destructive",
-      });
-    } finally {
-      setRoleplayLoading(false);
-    }
-  }
-
-  function resetRoleplay() {
-    setRoleplayStarted(false);
-    setRoleplayHistory([]);
-    setRepInput("");
-    setRoleplayDone(false);
   }
 
   return (
@@ -450,121 +367,19 @@ export default function PlaybookPage() {
         )}
       </div>
 
-      {/* Roleplay dialog */}
+      {/* Roleplay trainer dialog */}
       <Dialog open={roleplayOpen} onOpenChange={setRoleplayOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquareText className="h-4 w-4 text-primary" />
-              Roleplay
+              Roleplay trainer
             </DialogTitle>
             <DialogDescription>
-              Practice against a realistic prospect holding this objection. The coach grades each reply.
+              Five hidden tradie personas, levels 1-5, milestone grading. Pass = clean process, not "did you book".
             </DialogDescription>
           </DialogHeader>
-
-          {!roleplayStarted ? (
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                  Objection to roleplay
-                </label>
-                <Textarea
-                  value={roleplayObjection}
-                  onChange={(e) => setRoleplayObjection(e.target.value)}
-                  placeholder='e.g. "We already have an agency"'
-                  className="mt-1.5 min-h-[80px]"
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={startRoleplay} disabled={!roleplayObjection.trim() || roleplayLoading}>
-                  {roleplayLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Start roleplay
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="rounded-md bg-muted/50 border border-border px-3 py-2 text-xs">
-                <span className="font-mono uppercase tracking-wider text-muted-foreground">Objection:</span>{" "}
-                <span className="italic">"{roleplayObjection}"</span>
-              </div>
-
-              <ScrollArea className="h-[360px] rounded-md border border-border bg-background p-3">
-                <div className="space-y-3">
-                  {roleplayHistory.map((msg, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "flex flex-col gap-1",
-                        msg.role === "rep" ? "items-end" : "items-start",
-                      )}
-                    >
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                        {msg.role === "rep" ? "You (rep)" : "Prospect"}
-                      </div>
-                      <div
-                        className={cn(
-                          "max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap",
-                          msg.role === "rep"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground border border-border",
-                        )}
-                      >
-                        {msg.text}
-                      </div>
-                      {msg.role === "prospect" && msg.coaching_note && (
-                        <div className="max-w-[85%] rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-800 leading-snug">
-                          <span className="font-mono uppercase tracking-wider text-[9px] mr-1">Coach:</span>
-                          {msg.coaching_note}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {roleplayLoading && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Prospect is thinking…
-                    </div>
-                  )}
-                  {roleplayDone && (
-                    <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-800 flex items-center gap-2">
-                      <Trophy className="h-4 w-4" />
-                      They're coming around — the prospect agreed to a next step. Nice work.
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-              </ScrollArea>
-
-              <div className="flex gap-2">
-                <Textarea
-                  value={repInput}
-                  onChange={(e) => setRepInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendRepReply();
-                    }
-                  }}
-                  placeholder={roleplayDone ? "Roleplay complete — reset to try another." : "Type your reply as the rep… (Enter to send)"}
-                  className="min-h-[60px] resize-none"
-                  disabled={roleplayLoading || roleplayDone}
-                />
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={sendRepReply}
-                    disabled={roleplayLoading || roleplayDone || !repInput.trim()}
-                    size="icon"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={resetRoleplay} title="Reset">
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <RoleplayTrainer key={roleplayObjection} initialScenario={roleplayObjection} />
         </DialogContent>
       </Dialog>
     </AppLayout>

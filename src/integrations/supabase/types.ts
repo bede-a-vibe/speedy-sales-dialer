@@ -1490,6 +1490,45 @@ export type Database = {
         }
         Relationships: []
       }
+      roleplay_rounds: {
+        Row: {
+          created_at: string
+          failed_milestone: string | null
+          id: string
+          level: number
+          milestones: Json | null
+          mode: string
+          passed: boolean | null
+          persona: string | null
+          transcript: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failed_milestone?: string | null
+          id?: string
+          level?: number
+          milestones?: Json | null
+          mode?: string
+          passed?: boolean | null
+          persona?: string | null
+          transcript?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          failed_milestone?: string | null
+          id?: string
+          level?: number
+          milestones?: Json | null
+          mode?: string
+          passed?: boolean | null
+          persona?: string | null
+          transcript?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       smart_lists: {
         Row: {
           created_at: string
