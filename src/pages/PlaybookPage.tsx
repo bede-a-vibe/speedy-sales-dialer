@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Search, Sparkles, Radio, Wand2, MessageSquareText, Loader2, RotateCcw, Trophy, Send } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -73,6 +74,19 @@ export default function PlaybookPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [roleplayHistory, roleplayLoading]);
+
+  // Deep link from the Coach tab: /playbook?drill=<scenario> opens the
+  // roleplay dialog pre-loaded with that drill.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const drill = searchParams.get("drill");
+    if (drill && !roleplayOpen) {
+      setRoleplayObjection(drill);
+      setRoleplayOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["objection-bank"],

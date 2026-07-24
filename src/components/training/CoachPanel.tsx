@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Brain, ChevronDown, ChevronRight, Quote, Sparkles, Swords, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,18 @@ import {
   useRepCoachingProfiles,
   type CoachedCall,
 } from "@/hooks/useCallCoaching";
+
+/** One-click drill → AI roleplay in the Playbook, pre-loaded with the scenario. */
+function PracticeLink({ drill }: { drill: string }) {
+  return (
+    <Link
+      to={`/playbook?drill=${encodeURIComponent(drill)}`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
+    >
+      <Swords className="h-3 w-3" /> Practice this
+    </Link>
+  );
+}
 
 const OUTCOME_BADGE: Record<string, string> = {
   booked: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -131,9 +144,10 @@ function CoachedCallRow({ call }: { call: CoachedCall }) {
               </p>
             )}
             {c.drill && (
-              <p className="inline-flex items-start gap-1 text-xs text-muted-foreground">
+              <p className="inline-flex flex-wrap items-start gap-1.5 text-xs text-muted-foreground">
                 <Swords className="mt-0.5 h-3 w-3 shrink-0" />
                 <span><span className="font-medium text-foreground">Drill:</span> {c.drill}</span>
+                <PracticeLink drill={c.drill} />
               </p>
             )}
           </div>
@@ -253,8 +267,9 @@ export function CoachPanel() {
               {f.evidence && <p className="mt-1 text-xs text-muted-foreground">{f.evidence}</p>}
               {f.better_path && <p className="mt-1 text-xs"><span className="font-medium">Better path:</span> {f.better_path}</p>}
               {f.drill && (
-                <p className="mt-1 inline-flex items-start gap-1 text-xs text-muted-foreground">
+                <p className="mt-1 inline-flex flex-wrap items-start gap-1.5 text-xs text-muted-foreground">
                   <Swords className="mt-0.5 h-3 w-3 shrink-0" /> {f.drill}
+                  <PracticeLink drill={f.drill} />
                 </p>
               )}
             </div>

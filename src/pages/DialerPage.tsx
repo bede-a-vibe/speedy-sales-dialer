@@ -1012,8 +1012,19 @@ export default function DialerPage() {
     };
   }, [queueLeadCount, session.isSessionActive, session.queue]);
 
-  const applySchedulePreset = useCallback((preset: "in_2_hours" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9" | "in_1_month" | "in_3_months") => {
+  const applySchedulePreset = useCallback((preset: "in_2_hours" | "knock_off" | "tomorrow_9" | "tomorrow_2" | "next_business_day_9" | "in_1_month" | "in_3_months") => {
     const now = new Date();
+
+    // "What time do you knock off? I'll buzz you then." — today 16:30 if it's
+    // still ahead of us, otherwise tomorrow 16:30. Callbacks they EXPECT at
+    // knock-off convert; cold dials at 5pm don't.
+    if (preset === "knock_off") {
+      const next = new Date(now);
+      if (now.getHours() >= 16) next.setDate(next.getDate() + 1);
+      session.setFollowUpDate(next);
+      session.setFollowUpTime("16:30");
+      return;
+    }
 
     if (preset === "in_2_hours") {
       const next = roundUpToNextQuarterHour(new Date(now.getTime() + (2 * 60 * 60 * 1000)));
@@ -3206,6 +3217,7 @@ export default function DialerPage() {
                           <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); session.setFollowUpDate(tomorrow); }}>Tomorrow</Button>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" size="sm" className="h-8 border border-primary/40" onClick={() => applySchedulePreset("knock_off")}>Knock-off 4:30</Button>
                           <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("in_2_hours")}>In 2 hours</Button>
                           <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_9")}>Tomorrow 9:00</Button>
                           <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => applySchedulePreset("tomorrow_2")}>Tomorrow 2:00</Button>
