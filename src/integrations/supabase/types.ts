@@ -44,6 +44,54 @@ export type Database = {
         }
         Relationships: []
       }
+      call_coaching: {
+        Row: {
+          call_log_id: string
+          coaching: Json
+          contact_id: string | null
+          created_at: string
+          id: string
+          model: string | null
+          outcome: string | null
+          user_id: string
+        }
+        Insert: {
+          call_log_id: string
+          coaching: Json
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          outcome?: string | null
+          user_id: string
+        }
+        Update: {
+          call_log_id?: string
+          coaching?: Json
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          outcome?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_coaching_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: true
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_coaching_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_logs: {
         Row: {
           contact_id: string
@@ -1340,6 +1388,33 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rep_coaching_profile: {
+        Row: {
+          calls_analyzed: number
+          focus_areas: Json
+          strengths: Json
+          updated_at: string
+          user_id: string
+          window_days: number
+        }
+        Insert: {
+          calls_analyzed?: number
+          focus_areas?: Json
+          strengths?: Json
+          updated_at?: string
+          user_id: string
+          window_days?: number
+        }
+        Update: {
+          calls_analyzed?: number
+          focus_areas?: Json
+          strengths?: Json
+          updated_at?: string
+          user_id?: string
+          window_days?: number
         }
         Relationships: []
       }
