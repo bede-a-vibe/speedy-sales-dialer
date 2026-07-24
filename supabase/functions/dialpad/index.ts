@@ -2606,12 +2606,20 @@ async function scoreBookedCalls(params: {
         transcript,
         external_number
       ),
-      contacts:contacts (business_name)
+      contacts:contacts (business_name, dm_name)
     `)
     .eq("outcome", "booked")
     .order("created_at", { ascending: false })
     .limit(cap * 4);
   if (eligErr) return { ok: false as const, reason: eligErr.message };
+
+  // Preload rep display names for the whole batch — used to ground the
+  // transcript-correction glossary (e.g. Bede → not "space"/"bead").
+  const repNameMap = await loadRepDisplayNames(
+    params.adminClient,
+    (eligible ?? []).map((r: any) => r.user_id).filter(Boolean),
+  );
+  const allRepNames = Array.from(new Set(repNameMap.values()));
 
   const scoredResults: Array<{
     call_log_id: string;
@@ -2621,13 +2629,17 @@ async function scoreBookedCalls(params: {
     broke_down_at: string;
     opener_style: string | null;
     discovery_count: number;
+    transcript_corrected: boolean;
   }> = [];
   const errors: string[] = [];
   let considered = 0;
   let skipped = 0;
+  let correctedCount = 0;
 
   for (const row of eligible ?? []) {
-    if (budget.made() >= Math.min(cap, budget.remaining)) break;
+    // Each booked call consumes up to 2 slots (1 correction + 1 scoring).
+    if (budget.made() + 2 > budget.remaining) break;
+    if (budget.made() >= Math.min(cap * 2, budget.remaining)) break;
     const dpRaw = (row as any).dialpad_calls;
     const dpArr = Array.isArray(dpRaw) ? dpRaw : dpRaw ? [dpRaw] : [];
     const dp = dpArr.find((d: any) => d?.transcript && String(d.transcript).trim().length >= 40);
@@ -2642,10 +2654,43 @@ async function scoreBookedCalls(params: {
     if (existing) { skipped++; continue; }
 
     considered++;
-    if (!budget.reserve()) break;
-
     const businessName = (row as any).contacts?.business_name ?? null;
-    const transcript = String(dp.transcript);
+    const dmName = (row as any).contacts?.dm_name ?? null;
+    const rawTranscript = String(dp.transcript);
+    const repName = repNameMap.get((row as any).user_id) ?? null;
+    const repNamesForCall = Array.from(new Set([
+      repName,
+      ...allRepNames,
+    ].filter((s): s is string => Boolean(s))));
+
+    // (1) Correction pass — reserve one budget slot for it. Falls back to
+    // raw transcript if the correction call fails or is rejected.
+    let transcript = rawTranscript;
+    if (budget.reserve()) {
+      const corrected = await correctTranscript({
+        transcript: rawTranscript,
+        businessName,
+        dmName,
+        repNames: repNamesForCall,
+      });
+      if (corrected && transcriptChangedMaterially(rawTranscript, corrected)) {
+        transcript = corrected;
+        correctedCount++;
+        // Persist corrected version to call_logs.dialpad_transcript so the
+        // Winning Calls library + downstream scoring see the corrected text.
+        // Raw stays untouched in dialpad_calls.transcript.
+        const { error: updErr } = await params.adminClient
+          .from("call_logs")
+          .update({ dialpad_transcript: corrected })
+          .eq("id", (row as any).id);
+        if (updErr) {
+          errors.push(`call_log ${row.id}: correction persist failed: ${updErr.message}`);
+        }
+      }
+    }
+
+    // (2) Scoring pass — reserve one budget slot for it.
+    if (!budget.reserve()) break;
     const extraction = await extractBookedCallScoring({
       transcript,
       businessName,
@@ -2685,6 +2730,7 @@ async function scoreBookedCalls(params: {
       broke_down_at: extraction.nepq_scorecard.broke_down_at,
       opener_style: extraction.qualities.opener_style,
       discovery_count: extraction.qualities.discovery.count,
+      transcript_corrected: transcript !== rawTranscript,
     });
   }
 
@@ -2694,6 +2740,7 @@ async function scoreBookedCalls(params: {
     ok: true as const,
     considered,
     scored: scoredResults.length,
+    transcripts_corrected: correctedCount,
     skipped,
     errors: errors.slice(0, 10),
     budget: {
