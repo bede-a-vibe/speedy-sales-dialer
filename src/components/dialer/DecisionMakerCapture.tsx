@@ -186,7 +186,11 @@ export function DecisionMakerCapture({
     hasExistingContext,
   ]);
 
-  const hasDmData = !!(existingDmName || existingDmPhone);
+  // Summary chrome renders from LOCAL state (falling back to props) so the
+  // badge reflects what the rep just typed/saved — the claim-time snapshot
+  // props don't refresh mid-serve, which made saved edits look ignored.
+  const displayDmName = dmName.trim() || existingDmName || "";
+  const hasDmData = !!(displayDmName || dmPhone.trim() || existingDmPhone);
   const hasGatekeeperData = !!existingGatekeeperName;
   const hasBestRoute = !!existingBestRouteToDecisionMaker;
   const hasBestTime = !!existingBestTimeToCall;
@@ -297,7 +301,7 @@ export function DecisionMakerCapture({
               Decision Maker
               {hasDmData && (
                 <span className="rounded-full bg-green-500/15 dark:bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                  {existingDmName || "Direct line captured"}
+                  {displayDmName || "Direct line captured"}
                 </span>
               )}
               {!hasDmData && hasGatekeeperData && (
