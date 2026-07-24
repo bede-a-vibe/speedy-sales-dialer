@@ -420,6 +420,30 @@ export type Database = {
           },
         ]
       }
+      contact_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          changes: Json
+          contact_id: string
+          id: number
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          changes: Json
+          contact_id: string
+          id?: never
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          changes?: Json
+          contact_id?: string
+          id?: never
+        }
+        Relationships: []
+      }
       contact_notes: {
         Row: {
           contact_id: string
@@ -744,6 +768,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      deal_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          changes: Json
+          contact_id: string | null
+          deal_id: string
+          id: number
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          changes: Json
+          contact_id?: string | null
+          deal_id: string
+          id?: never
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          changes?: Json
+          contact_id?: string | null
+          deal_id?: string
+          id?: never
+        }
+        Relationships: []
       }
       dialer_lead_locks: {
         Row: {
@@ -1463,24 +1514,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_roles: {
-        Row: {
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
       training_progress: {
         Row: {
           completed_at: string
@@ -1498,6 +1531,24 @@ export type Database = {
           completed_at?: string
           id?: string
           step_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
