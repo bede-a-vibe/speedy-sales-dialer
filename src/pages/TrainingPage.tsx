@@ -13,6 +13,7 @@ import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
+import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { useIsAdmin } from "@/hooks/useUserRole";
 
 const openerScript = [
@@ -359,7 +360,10 @@ export default function TrainingPage() {
 
                 {isAdmin && (
                   <TabsContent value="manager">
-                    <ManagerPlaybook />
+                    <div className="space-y-3">
+                      <ManagerMetrics />
+                      <ManagerPlaybook />
+                    </div>
                   </TabsContent>
                 )}
 
