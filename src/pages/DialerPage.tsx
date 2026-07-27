@@ -1837,9 +1837,11 @@ export default function DialerPage() {
       return;
     }
 
-    if (!dialpad.isCallTerminal) {
-      void dialpad.cancelActiveCall();
-    }
+    // Skip = hang up whatever is live, both legs, same emergency semantics as
+    // the Hang Up button: iframe hangUpAll for the WebRTC leg + server-side
+    // cancel/force-hangup for tracked AND orphaned calls. No-ops when idle.
+    handleNativeHangUp();
+    dialpad.fireAndForgetHangup();
 
     // If the rep flagged "mobile reaches a gatekeeper" and then skipped
     // (instead of logging), still log the call as a gatekeeper outcome so it
@@ -1881,7 +1883,7 @@ export default function DialerPage() {
     if (session.currentIndex >= nextLength) {
       session.setCurrentIndex(nextLength - 1);
     }
-  }, [session, dialpad, isOnline, updateContact]);
+  }, [session, dialpad, isOnline, updateContact, handleNativeHangUp]);
 
   // Compliance auto-skip: when the current lead is outside its permitted
   // calling window, discard it WITHOUT bumping call_attempt_count (this
