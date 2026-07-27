@@ -183,6 +183,20 @@ export function useDialerDialpad({
     activeDialRequestRef.current = null;
   }, []);
 
+  // Re-arm auto-dial across pauses: a placement key consumed by an attempt
+  // that got interrupted (inbound-callback pause, session stop, or a dial
+  // that failed all retries) must not block redialling the SAME lead on
+  // resume — otherwise the session sits at READY and never places the call.
+  // Clearing the key also makes any in-flight attempt stale (isStaleAttempt),
+  // so this can't double-dial: it only runs while paused/stopped with no
+  // active call, and the place effect re-fires only once dialing resumes.
+  useEffect(() => {
+    if ((isSessionPaused || !isDialing) && !activeDialpadCallId && !isEndingCall && !isCallResolving) {
+      clearActiveDialRequestLock(activeDialRequestRef.current);
+      activeDialRequestRef.current = null;
+    }
+  }, [isSessionPaused, isDialing, activeDialpadCallId, isEndingCall, isCallResolving]);
+
   const markCallAsEnded = useCallback((nextState: string | null = "hangup") => {
     clearActiveDialRequest();
     setSyncTrackedDialpadCallId((current) => current || activeDialpadCallId || lastDialpadCallIdRef.current);
