@@ -81,6 +81,12 @@ interface ContactCardProps {
 }
 
 export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, headerActions }: ContactCardProps) {
+  // A "DM number" identical to the office line is enrichment noise, not a
+  // decision-maker route — never render it as one (last-9 digits compare).
+  const cardLast9 = (v?: string | null) => (v ?? "").replace(/\D/g, "").slice(-9);
+  if (contact.dm_phone && cardLast9(contact.dm_phone) === cardLast9(contact.phone)) {
+    contact = { ...contact, dm_phone: null, dm_phone_type: null };
+  }
   const phoneType = PHONE_TYPE_CONFIG[contact.phone_type || "unknown"] || PHONE_TYPE_CONFIG.unknown;
   const PhoneIcon = phoneType.icon;
   const hasDM = contact.dm_name || contact.dm_phone;
