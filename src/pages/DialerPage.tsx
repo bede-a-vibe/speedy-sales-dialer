@@ -514,7 +514,13 @@ export default function DialerPage() {
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
   const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
-  const [mobileGatekeeper, setMobileGatekeeper] = useState<string>(() => storedFilters?.mobileGatekeeper ?? "all");
+  // Gatekeeper-flagged mobiles are their OWN queue: hidden from normal
+  // dialling by default, opted into via "Only gatekeeper mobiles". Legacy
+  // stored "all" was only ever the passive default — treat it as hidden.
+  const [mobileGatekeeper, setMobileGatekeeper] = useState<string>(() => {
+    const stored = storedFilters?.mobileGatekeeper;
+    return stored && stored !== "all" ? stored : "hide";
+  });
   const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
   const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
   const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
@@ -565,7 +571,7 @@ export default function DialerPage() {
     if (buyingSignalStrength !== "all") count++;
     if (phoneType !== "all") count++;
     if (hasDmPhone !== "all") count++;
-    if (mobileGatekeeper !== "all") count++;
+    if (mobileGatekeeper !== "hide") count++;
     return count;
   }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper]);
 
@@ -1090,7 +1096,7 @@ export default function DialerPage() {
       buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
       phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
       hasDmPhone !== "all" ? { key: "hasDmPhone", label: `DM reachability: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
-      mobileGatekeeper !== "all" ? { key: "mobileGatekeeper", label: `Mobile gatekeeper: ${mobileGatekeeper === "hide" ? "hidden" : "only these"}`, clear: () => setMobileGatekeeper("all") } : null,
+      mobileGatekeeper !== "hide" ? { key: "mobileGatekeeper", label: `Mobile gatekeeper: ${mobileGatekeeper === "only" ? "only these" : "included"}`, clear: () => setMobileGatekeeper("hide") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
       minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
     ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
