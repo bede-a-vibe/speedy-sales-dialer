@@ -1113,6 +1113,18 @@ Deno.serve(async (req) => {
     "Crawled mobile matched another lead's number — likely shared/template number, not written";
   const APPEND_NOTE_EMAIL =
     "Crawled email matched 3+ other leads — likely template/generic address, not written";
+  const APPEND_NOTE_SELF_PHONE =
+    "Crawled mobile matched the contact's own office number — no DM route found";
+
+  function last9(s: string | null | undefined): string {
+    const d = (s ?? "").replace(/[^0-9]/g, "");
+    return d.length >= 9 ? d.slice(-9) : "";
+  }
+  function sameAsOwnPhone(candidate: string | null | undefined, ownPhone: string | null | undefined): boolean {
+    const a = last9(candidate);
+    const b = last9(ownPhone);
+    return !!a && a === b;
+  }
 
   async function isDuplicatePhone(candidate: string, excludeId: string): Promise<boolean> {
     try {
@@ -1216,7 +1228,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, dm_name, dm_phone, dm_email, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
+      .select("id, website, phone, dm_name, dm_phone, dm_email, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1293,7 +1305,9 @@ Deno.serve(async (req) => {
           d_names++;
         }
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-          if (await isDuplicatePhone(r.mobile, c.id)) {
+          if (sameAsOwnPhone(r.mobile, c.phone)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_SELF_PHONE);
+          } else if (await isDuplicatePhone(r.mobile, c.id)) {
             appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
           } else {
             update.dm_phone = r.mobile;
@@ -1480,7 +1494,9 @@ Deno.serve(async (req) => {
       }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
-        if (await isDuplicatePhone(r.mobile, c.id)) {
+        if (sameAsOwnPhone(r.mobile, c.phone)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_SELF_PHONE);
+        } else if (await isDuplicatePhone(r.mobile, c.id)) {
           appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
         } else {
           update.dm_phone = r.mobile;
