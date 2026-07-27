@@ -627,9 +627,9 @@ export function AdvancedFilters({
                   <SelectValue placeholder="Any" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="hide">Hide gatekeeper mobiles</SelectItem>
+                  <SelectItem value="hide">Hide gatekeeper mobiles (default)</SelectItem>
                   <SelectItem value="only">Only gatekeeper mobiles</SelectItem>
+                  <SelectItem value="all">Include gatekeeper mobiles</SelectItem>
                 </SelectContent>
               </Select>
             </div> : null}
