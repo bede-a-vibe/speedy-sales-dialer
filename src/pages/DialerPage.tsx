@@ -3150,8 +3150,15 @@ export default function DialerPage() {
                           variant="destructive"
                           size="sm"
                           className="h-7 px-2 text-[11px]"
-                          onClick={handleNativeHangUp}
-                          disabled={nativeCallState === "idle" || nativeCallState === "ended"}
+                          // Emergency semantics: always clickable, kills BOTH legs.
+                          // The app's call state can lie (orphaned placements show
+                          // READY while a real call rings) — the iframe hangUpAll
+                          // no-ops harmlessly when idle, and the server-side
+                          // force-hangup finds untracked calls by user + number.
+                          onClick={() => {
+                            handleNativeHangUp();
+                            dialpad.fireAndForgetHangup();
+                          }}
                         >
                           <PhoneOff className="mr-1 h-3 w-3" />
                           Hang Up
