@@ -1404,13 +1404,26 @@ export default function DialerPage() {
       const digits9 = (p?: string | null) => (p ?? "").replace(/\D/g, "").slice(-9);
       const incoming = digits9(payload.external_number);
       const target = digits9(dialpad.dialNumber);
+      // A placement in flight (or a live call) must never be interrupted by an
+      // inbound ring — pausing mid-placement orphans the outbound call and the
+      // UI wedges on CALLING. With callbacks now common (rotating caller IDs),
+      // only pause when the dialer is genuinely between calls; otherwise let
+      // the callback ring through to voicemail/missed and tell the rep.
+      const placementBusy = Boolean(dialpad.activeDialpadCallId) || dialpad.isCallResolving || dialpad.isEndingCall;
       if (incoming && incoming !== target && session.isDialing && !session.isSessionPaused) {
-        session.pauseSession();
-        setDialpadRevealed(true);
-        toast.info(
-          `Incoming call from ${payload.external_number} — session paused so it doesn't clash with dialing. Take it in the Dialpad panel, then hit Resume.`,
-          { duration: 10000 },
-        );
+        if (placementBusy) {
+          toast.info(
+            `Missed callback from ${payload.external_number} while you were on a call — it'll show in Dialpad recents. Ring them back between leads.`,
+            { duration: 8000 },
+          );
+        } else {
+          session.pauseSession();
+          setDialpadRevealed(true);
+          toast.info(
+            `Incoming call from ${payload.external_number} — session paused so it doesn't clash with dialing. Take it in the Dialpad panel, then hit Resume.`,
+            { duration: 10000 },
+          );
+        }
       }
       setNativeCallState((prev) => (prev === "connected" || prev === "ended" ? prev : "ringing"));
     } else if (payload?.state === "off") {
@@ -1442,7 +1455,7 @@ export default function DialerPage() {
         .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.currentContact?.id, dialpad.dialNumber, session.isDialing, session.isSessionPaused]);
+  }, [session.currentContact?.id, dialpad.dialNumber, session.isDialing, session.isSessionPaused, dialpad.activeDialpadCallId, dialpad.isCallResolving, dialpad.isEndingCall]);
 
   const handleDialpadCTIAuthChange = useCallback((authed: boolean) => {
     setDialpadCTIAuthed(authed);
