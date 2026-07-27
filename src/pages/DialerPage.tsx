@@ -1658,6 +1658,14 @@ export default function DialerPage() {
               ? (pipelineNotes || contactFollowUpNote || null)
               : null,
             ...(outcomeToLog === "voicemail" ? { voicemail_count: currentVoicemailCount + 1 } : {}),
+            // Gatekeeper outcome on a MOBILE dial = the same discovery as the
+            // "mobile reaches a gatekeeper" checkbox: this number is screened.
+            // Auto-set the flag so the lead moves into the gatekeeper queue
+            // (hidden from the mobile run) without needing the checkbox too.
+            ...(outcomeToLog === "gatekeeper"
+              && /^(61)?0?4/.test((dialpad.placedDialNumber ?? dialpad.dialNumber ?? "").replace(/\D/g, ""))
+              ? { mobile_reaches_gatekeeper: true }
+              : {}),
             ...(outcomeToLog === "disqualified"
               ? {
                   disqualified: true,
