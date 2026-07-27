@@ -1029,6 +1029,27 @@ export type Database = {
         }
         Relationships: []
       }
+      dm_selfdup_backup: {
+        Row: {
+          backed_up_at: string | null
+          contact_id: string | null
+          dm_phone: string | null
+          dm_phone_type: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          contact_id?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          contact_id?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+        }
+        Relationships: []
+      }
       enrichment_ai_budget: {
         Row: {
           calls_used: number
