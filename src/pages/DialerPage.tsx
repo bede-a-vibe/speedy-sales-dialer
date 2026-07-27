@@ -3103,10 +3103,12 @@ export default function DialerPage() {
                         connectedAt={nativeConnectedAt}
                         dialpadAuthenticated={dialpadCTIAuthed}
                       />
-                      {dialpad.dialNumber && (
-                        <span className="font-mono text-[11px] text-muted-foreground" title="The number this lead is dialed on">
-                          → {dialpad.dialNumber}
-                          {dialpad.isDmDirect && <span className="ml-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1 text-[9px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">DM direct</span>}
+                      {(dialpad.placedDialNumber ?? dialpad.dialNumber) && (
+                        <span className="font-mono text-[11px] text-muted-foreground" title="The number this call was actually placed to">
+                          → {dialpad.placedDialNumber ?? dialpad.dialNumber}
+                          {(dialpad.placedDialNumber ? dialpad.placedWasDmDirect : dialpad.isDmDirect) && (
+                            <span className="ml-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1 text-[9px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">DM direct</span>
+                          )}
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-2">
