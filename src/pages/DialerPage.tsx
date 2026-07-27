@@ -21,6 +21,7 @@ import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligenc
 import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
+import { LiveCoachPanel } from "@/components/dialer/LiveCoachPanel";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -3111,6 +3112,8 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+              {/* Live coach: instant brush-off lines + ask box, right where the rep is looking mid-call */}
+              <LiveCoachPanel />
               {/* Log This Call — outcomes + conversation tagging in one card */}
               <div data-coach-step="log-call-panel">
               <LogCallPanel
