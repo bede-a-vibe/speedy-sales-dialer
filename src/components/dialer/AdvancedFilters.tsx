@@ -121,6 +121,7 @@ interface AdvancedFiltersProps {
 const PHONE_TYPE_LABELS: Record<string, string> = {
   mobile: "Mobile",
   landline: "Landline",
+  business_line: "Business line (1300/1800/13)",
   unknown: "Unknown",
 };
 
