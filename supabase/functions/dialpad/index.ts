@@ -2537,15 +2537,20 @@ async function extractBookedCallScoring(params: {
 
 // Reads the AI budget row for booked_call_scoring, resets counters if the
 // Melbourne day rolled over, and returns a reserver + persistor.
-async function loadBookedScoringBudget(adminClient: ReturnType<typeof createClient>) {
+async function loadBookedScoringBudget(
+  adminClient: ReturnType<typeof createClient>,
+  opts?: { kind?: string; defaultCap?: number },
+) {
+  const kind = opts?.kind ?? "booked_call_scoring";
+  const defaultCap = opts?.defaultCap ?? 100;
   const melbTodayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
   const { data } = await adminClient
     .from("enrichment_ai_budget")
     .select("id, day, calls_used, daily_cap")
-    .eq("kind", "booked_call_scoring")
+    .eq("kind", kind)
     .maybeSingle();
   const row = data as { id: string; day: string; calls_used: number; daily_cap: number } | null;
-  const dailyCap = row?.daily_cap ?? 100;
+  const dailyCap = row?.daily_cap ?? defaultCap;
   const usedToday = row?.day === melbTodayIso ? (row?.calls_used ?? 0) : 0;
   const remaining = Math.max(0, dailyCap - usedToday);
   const state = { made: 0 };
@@ -2559,12 +2564,18 @@ async function loadBookedScoringBudget(adminClient: ReturnType<typeof createClie
       return true;
     },
     async persist() {
-      if (!row?.id || state.made === 0) return;
-      const newUsed = row.day === melbTodayIso ? usedToday + state.made : state.made;
-      await adminClient
-        .from("enrichment_ai_budget")
-        .update({ day: melbTodayIso, calls_used: newUsed, updated_at: new Date().toISOString() })
-        .eq("id", row.id);
+      if (state.made === 0) return;
+      const newUsed = row?.day === melbTodayIso ? usedToday + state.made : state.made;
+      if (row?.id) {
+        await adminClient
+          .from("enrichment_ai_budget")
+          .update({ day: melbTodayIso, calls_used: newUsed, updated_at: new Date().toISOString() })
+          .eq("id", row.id);
+      } else {
+        await adminClient
+          .from("enrichment_ai_budget")
+          .upsert({ kind, day: melbTodayIso, calls_used: newUsed, daily_cap: dailyCap, updated_at: new Date().toISOString() }, { onConflict: "kind" });
+      }
     },
     made: () => state.made,
   };
@@ -3155,7 +3166,10 @@ async function coachCalls(params: {
     return { ok: false as const, reason: "no_lovable_api_key" };
   }
 
-  const budget = await loadBookedScoringBudget(params.adminClient);
+  // Coach has its OWN budget lane so booked_call_scoring hitting its cap
+  // doesn't silently starve coaching (that regression froze coaching from
+  // 24 Jul onward). Default cap 100 coach ops/day.
+  const budget = await loadBookedScoringBudget(params.adminClient, { kind: "coach_calls", defaultCap: 100 });
   if (budget.remaining <= 0) {
     return {
       ok: true as const,
