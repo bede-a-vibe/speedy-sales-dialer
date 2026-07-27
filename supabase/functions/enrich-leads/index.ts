@@ -1113,6 +1113,18 @@ Deno.serve(async (req) => {
     "Crawled mobile matched another lead's number — likely shared/template number, not written";
   const APPEND_NOTE_EMAIL =
     "Crawled email matched 3+ other leads — likely template/generic address, not written";
+  const APPEND_NOTE_SELF_PHONE =
+    "Crawled mobile matched the contact's own office number — no DM route found";
+
+  function last9(s: string | null | undefined): string {
+    const d = (s ?? "").replace(/[^0-9]/g, "");
+    return d.length >= 9 ? d.slice(-9) : "";
+  }
+  function sameAsOwnPhone(candidate: string | null | undefined, ownPhone: string | null | undefined): boolean {
+    const a = last9(candidate);
+    const b = last9(ownPhone);
+    return !!a && a === b;
+  }
 
   async function isDuplicatePhone(candidate: string, excludeId: string): Promise<boolean> {
     try {
