@@ -22,15 +22,25 @@ export function useDialpadCallStats(dateFrom: string, dateTo: string) {
     queryFn: async () => {
       const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
       const toIso = new Date(`${dateTo}T23:59:59.999`).toISOString();
-      const { data, error } = await supabase
-        .from("dialpad_calls")
-        .select("user_id, talk_time_seconds, total_duration_seconds, started_at, is_connected, direction")
-        .gte("started_at", fromIso)
-        .lte("started_at", toIso)
-        .not("started_at", "is", null)
-        .limit(20000);
-      if (error) throw error;
-      return (data ?? []) as DialpadCallStatRow[];
+      // PostgREST caps every response at its server max-rows (1,000) no matter
+      // what .limit() asks for — a single request silently truncates busy
+      // ranges to exactly 1,000 calls. Page until a short page.
+      const PAGE = 1000;
+      const rows: DialpadCallStatRow[] = [];
+      for (let fromIdx = 0; ; fromIdx += PAGE) {
+        const { data, error } = await supabase
+          .from("dialpad_calls")
+          .select("user_id, talk_time_seconds, total_duration_seconds, started_at, is_connected, direction")
+          .gte("started_at", fromIso)
+          .lte("started_at", toIso)
+          .not("started_at", "is", null)
+          .order("started_at", { ascending: true })
+          .range(fromIdx, fromIdx + PAGE - 1);
+        if (error) throw error;
+        rows.push(...((data ?? []) as DialpadCallStatRow[]));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
     },
   });
 }
