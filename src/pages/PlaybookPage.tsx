@@ -195,7 +195,6 @@ export default function PlaybookPage() {
               <Button
                 variant="outline"
                 onClick={() => openRoleplay(askQuestion.trim() || "")}
-                disabled={roleplayLoading}
               >
                 <MessageSquareText className="h-4 w-4 mr-2" />
                 Roleplay
