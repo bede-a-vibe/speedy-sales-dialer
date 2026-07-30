@@ -53,6 +53,7 @@ export type DialerFilterSnapshot = {
   buyingSignalStrength: string;
   phoneType: string;
   hasDmPhone: string;
+  mobileGatekeeper?: string;
   hasExistingAgency: string;
   existingAgencyServices: string[];
   includeDisqualified: boolean;

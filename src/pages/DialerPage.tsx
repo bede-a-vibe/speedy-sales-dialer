@@ -22,6 +22,7 @@ import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { LiveCoachPanel } from "@/components/dialer/LiveCoachPanel";
+import { SmartViewsBar } from "@/components/dialer/SmartViewsBar";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -591,7 +592,8 @@ export default function DialerPage() {
     setBuyingSignalStrength("all");
     setPhoneType("all");
     setHasDmPhone("all");
-    setMobileGatekeeper("all");
+    // Gatekeeper-flagged mobiles stay their own queue even after a reset.
+    setMobileGatekeeper("hide");
     setHasExistingAgency("all");
     setExistingAgencyServices([]);
     setIncludeDisqualified(false);
@@ -622,10 +624,11 @@ export default function DialerPage() {
     buyingSignalStrength,
     phoneType,
     hasDmPhone,
+    mobileGatekeeper,
     hasExistingAgency,
     existingAgencyServices,
     includeDisqualified,
-  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, hasExistingAgency, existingAgencyServices, includeDisqualified]);
+  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, hasExistingAgency, existingAgencyServices, includeDisqualified]);
 
   const applySmartList = useCallback((f: Partial<DialerFilterSnapshot>) => {
     if (f.leadType !== undefined) setLeadType(f.leadType);
@@ -646,6 +649,7 @@ export default function DialerPage() {
     if (f.buyingSignalStrength !== undefined) setBuyingSignalStrength(f.buyingSignalStrength);
     if (f.phoneType !== undefined) setPhoneType(f.phoneType);
     if (f.hasDmPhone !== undefined) setHasDmPhone(f.hasDmPhone);
+    if (f.mobileGatekeeper !== undefined) setMobileGatekeeper(f.mobileGatekeeper);
     if (f.hasExistingAgency !== undefined) setHasExistingAgency(f.hasExistingAgency);
     if (f.existingAgencyServices !== undefined) setExistingAgencyServices(f.existingAgencyServices);
     if (f.includeDisqualified !== undefined) setIncludeDisqualified(f.includeDisqualified);
@@ -2961,6 +2965,19 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
+            {/* Smart views: one-tap queue configurations + team-saved filter sets */}
+            <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2.5">
+              <SmartViewsBar
+                currentFilters={currentFilterSnapshot}
+                onReset={resetAdvancedFilters}
+                onApply={applySmartList}
+                disabled={session.isSessionActive}
+              />
+              {session.isSessionActive && (
+                <p className="mt-1 text-[11px] text-muted-foreground">Stop the session to switch views — the queue rebuilds on the next start.</p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
               <RecentCallWarning
