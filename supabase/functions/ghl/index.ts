@@ -1191,6 +1191,7 @@ Deno.serve(async (req) => {
       "create_followup_task",
       "bulk_link_contacts",
       "bulk_import_from_ghl",
+      "pull_inbound_leads",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -1202,6 +1203,16 @@ Deno.serve(async (req) => {
       case "get_location_id":
         result = { locationId: GHL_LOCATION_ID };
         break;
+
+      case "pull_inbound_leads": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await pullInboundLeads(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+          maxPages: Number(body.maxPages) || undefined,
+          lookbackMinutes: Number(body.lookbackMinutes) || undefined,
+        });
+        break;
+      }
 
       case "search_contacts":
         result = await searchContacts(GHL_API_KEY, GHL_LOCATION_ID, body.payload ?? {});
