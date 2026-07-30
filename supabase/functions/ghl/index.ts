@@ -701,6 +701,242 @@ function normalisePhoneE164(raw: string | null | undefined): string | null {
   return null;
 }
 
+// ── Speed-to-lead intake ───────────────────────────────────────────────────
+
+const INTAKE_CURSOR_KEY = "ghl_inbound_intake";
+const BEDE_USER_ID = "35a0fecd-d996-414e-9402-ec3d1e08bfd9";
+
+function last9(raw: string | null | undefined): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.length < 9) return null;
+  return digits.slice(-9);
+}
+
+function ghlDateToIso(v: unknown): string | null {
+  if (!v) return null;
+  if (typeof v === "number") return new Date(v).toISOString();
+  const d = new Date(String(v));
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * pull_inbound_leads
+ *
+ * Every-2-minute intake: pulls GHL contacts created since a persisted cursor
+ * (dialpad_sync_state.key = 'ghl_inbound_intake'), then inserts them into
+ * contacts as inbound ad leads, or stamps an existing match. Idempotent:
+ * cursor + dedupe on ghl_contact_id then phone last-9.
+ */
+async function pullInboundLeads(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  opts: { maxPages?: number; lookbackMinutes?: number } = {},
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const startedAt = new Date().toISOString();
+  const maxPages = Math.min(Math.max(opts.maxPages ?? 3, 1), 10);
+
+  // 1. Load cursor
+  const { data: stateRow } = await supabase
+    .from("dialpad_sync_state")
+    .select("last_synced_at")
+    .eq("key", INTAKE_CURSOR_KEY)
+    .maybeSingle();
+
+  const fallbackMinutes = Math.max(opts.lookbackMinutes ?? 60, 1);
+  const cursorIso: string =
+    (stateRow?.last_synced_at as string | null) ??
+    new Date(Date.now() - fallbackMinutes * 60_000).toISOString();
+  const cursorMs = new Date(cursorIso).getTime();
+
+  let pulled = 0;
+  let inserted = 0;
+  let matched = 0;
+  let skipped = 0;
+  const errors: Array<{ ghlId: string; error: string }> = [];
+  let newestSeenMs = cursorMs;
+
+  try {
+    for (let page = 1; page <= maxPages; page++) {
+      const resp = await ghlFetch("/contacts/search", apiKey, {
+        method: "POST",
+        body: {
+          locationId,
+          page,
+          pageSize: 100,
+          sort: [{ field: "dateAdded", direction: "desc" }],
+        },
+      });
+
+      const ghlContacts: Array<Record<string, unknown>> = resp.contacts ?? [];
+      if (ghlContacts.length === 0) break;
+
+      let reachedCursor = false;
+
+      for (const gc of ghlContacts) {
+        const ghlId = gc.id as string | undefined;
+        const addedIso = ghlDateToIso(gc.dateAdded ?? gc.createdAt ?? gc.dateUpdated);
+        const addedMs = addedIso ? new Date(addedIso).getTime() : 0;
+
+        if (addedMs && addedMs <= cursorMs) {
+          reachedCursor = true;
+          continue;
+        }
+        if (!ghlId) { skipped++; continue; }
+
+        pulled++;
+        if (addedMs > newestSeenMs) newestSeenMs = addedMs;
+
+        try {
+          const rawPhone = ((gc.phone as string | undefined) ?? "").trim();
+          const phoneE164 = normalisePhoneE164(rawPhone);
+          if (!phoneE164) { skipped++; continue; }
+
+          const tags = Array.isArray(gc.tags) ? (gc.tags as string[]) : [];
+          const leadSource =
+            ((gc.source as string | undefined) ?? "").trim() ||
+            (tags[0] ?? "").trim() ||
+            "GHL";
+
+          // Dedupe 1: already linked by ghl_contact_id
+          const { data: byGhl } = await supabase
+            .from("contacts")
+            .select("id, lead_source")
+            .eq("ghl_contact_id", ghlId)
+            .maybeSingle();
+
+          if (byGhl) {
+            if (!byGhl.lead_source) {
+              await supabase.from("contacts").update({ lead_source: leadSource }).eq("id", byGhl.id);
+            }
+            matched++;
+            continue;
+          }
+
+          // Dedupe 2: phone last-9
+          const digits9 = last9(phoneE164);
+          if (digits9) {
+            const { data: phoneMatches } = await supabase.rpc("find_contacts_by_phone_digits", {
+              _digits: digits9,
+            });
+            const existingId = (phoneMatches as Array<{ id: string }> | null)?.[0]?.id;
+            if (existingId) {
+              const { data: existing } = await supabase
+                .from("contacts")
+                .select("id, lead_source, ghl_contact_id")
+                .eq("id", existingId)
+                .maybeSingle();
+              const patch: Record<string, unknown> = {};
+              if (!existing?.ghl_contact_id) patch.ghl_contact_id = ghlId;
+              if (!existing?.lead_source) patch.lead_source = leadSource;
+              if (Object.keys(patch).length > 0) {
+                await supabase.from("contacts").update(patch).eq("id", existingId);
+              }
+              matched++;
+              continue;
+            }
+          }
+
+          // Classify phone type (best-effort)
+          let phoneType: string | null = null;
+          try {
+            const { data: pt } = await supabase.rpc("classify_au_phone_type", {
+              phone_number: phoneE164,
+            });
+            phoneType = (pt as string | null) ?? null;
+          } catch (_e) {
+            phoneType = null;
+          }
+
+          const firstName = ((gc.firstName as string) ?? "").trim();
+          const lastName = ((gc.lastName as string) ?? "").trim();
+          const contactPerson = [firstName, lastName].filter(Boolean).join(" ") || null;
+          const businessName =
+            (((gc.companyName as string) ?? "").trim() || contactPerson || "Inbound Lead");
+
+          const { error: insErr } = await supabase.from("contacts").insert({
+            business_name: businessName,
+            contact_person: contactPerson,
+            phone: phoneE164,
+            email: (((gc.email as string) ?? "").trim().toLowerCase()) || null,
+            website: (gc.website as string | undefined) ?? null,
+            city: (gc.city as string | undefined) ?? null,
+            state: (gc.state as string | undefined) ?? null,
+            industry: "Unknown",
+            status: "uncalled",
+            is_dnc: false,
+            ghl_contact_id: ghlId,
+            lead_type: "inbound",
+            lead_channel: "ads",
+            lead_source: leadSource,
+            lifecycle_stage: "new",
+            ...(phoneType ? { phone_type: phoneType } : {}),
+            uploaded_by: BEDE_USER_ID,
+          });
+
+          if (insErr) {
+            errors.push({ ghlId, error: insErr.message });
+          } else {
+            inserted++;
+          }
+        } catch (err) {
+          errors.push({ ghlId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      if (reachedCursor || ghlContacts.length < 100) break;
+    }
+
+    // Advance cursor only on a clean run
+    const nextCursor = new Date(Math.max(newestSeenMs, cursorMs)).toISOString();
+    await supabase.from("dialpad_sync_state").upsert(
+      {
+        key: INTAKE_CURSOR_KEY,
+        last_synced_at: nextCursor,
+        last_run_at: startedAt,
+        last_pulled: pulled,
+        last_linked: inserted + matched,
+        last_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 5)) : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+
+    console.log(
+      `[pull_inbound_leads] pulled=${pulled} inserted=${inserted} matched=${matched} skipped=${skipped} errors=${errors.length} cursor=${nextCursor}`,
+    );
+
+    return {
+      ok: true,
+      cursorFrom: cursorIso,
+      cursorTo: nextCursor,
+      pulled,
+      inserted,
+      matched,
+      skipped,
+      errors: errors.slice(0, 10),
+    };
+  } catch (err) {
+    // Fail quietly: log the run, never block other sync jobs
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[pull_inbound_leads] failed:", msg);
+    await supabase.from("dialpad_sync_state").upsert(
+      {
+        key: INTAKE_CURSOR_KEY,
+        last_run_at: startedAt,
+        last_pulled: pulled,
+        last_linked: inserted + matched,
+        last_error: msg,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+    return { ok: false, error: msg, pulled, inserted, matched, skipped };
+  }
+}
+
 /**
  * bulk_import_from_ghl
  *
