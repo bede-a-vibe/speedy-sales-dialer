@@ -765,7 +765,7 @@ async function pullInboundLeads(
         body: {
           locationId,
           page,
-          pageSize: 100,
+          pageLimit: 100,
           sort: [{ field: "dateAdded", direction: "desc" }],
         },
       });
