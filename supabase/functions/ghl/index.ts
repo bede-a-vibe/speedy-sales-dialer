@@ -1122,6 +1122,24 @@ Deno.serve(async (req) => {
 
     // Authenticate the caller via Supabase JWT or service role key
     const authHeader = req.headers.get("Authorization");
+
+    // Cron lane: internal scheduled intake (no JWT, shared secret header)
+    const cronSecret = Deno.env.get("DIALPAD_INTERNAL_CRON_SECRET");
+    const incomingCronSecret = req.headers.get("x-cron-secret");
+    if (!authHeader && cronSecret && incomingCronSecret === cronSecret) {
+      const cronBody = await req.json().catch(() => ({}));
+      if (cronBody.action !== "pull_inbound_leads") {
+        return json({ error: "Unsupported cron action" }, 400);
+      }
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const cronResult = await pullInboundLeads(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+        maxPages: Number(cronBody.maxPages) || undefined,
+        lookbackMinutes: Number(cronBody.lookbackMinutes) || undefined,
+      });
+      return json(cronResult);
+    }
+
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
     }
