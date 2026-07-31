@@ -3343,6 +3343,83 @@ async function coachCalls(params: {
   };
 }
 
+// Repair pass: rows coached while the prompt was missing first_broken_stage /
+// pillar_scores. We regenerate ONLY those two fields from the transcript and
+// merge them into the existing coaching jsonb — every other field is untouched.
+const COACH_FIELDS_PROMPT = `You are an Australian cold-call coach. Read ONE call transcript and return ONLY the funnel diagnosis and pillar scores.
+
+FUNNEL: identify the FIRST stage where the call broke, in order: opener → resistance (first-minute brush-off) → discovery → problem_awareness → gap_build → ask (booking ask) → objections. Use "none" only for a genuinely clean call.
+PILLARS: score 1-5 (1 poor, 5 excellent). objection_handling may be null ONLY if no objection surfaced. Never null the other four.
+
+Output STRICT JSON only, no markdown:
+{"first_broken_stage":"opener|resistance|discovery|problem_awareness|gap_build|ask|objections|none","pillar_scores":{"tonality":1-5,"command_of_call":1-5,"probing":1-5,"word_economy":1-5,"objection_handling":1-5 or null}}`;
+
+async function backfillCoachFields(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const cap = Math.min(Math.max(params.limit ?? 25, 1), 60);
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return { ok: false as const, reason: "no_lovable_api_key" };
+
+  const { data: rows, error } = await params.adminClient
+    .from("call_coaching")
+    .select("id, coaching, outcome, call_logs:call_logs!inner(dialpad_transcript)")
+    .is("coaching->first_broken_stage", null)
+    .order("created_at", { ascending: true })
+    .limit(cap);
+  if (error) return { ok: false as const, reason: error.message };
+
+  let updated = 0;
+  const errors: string[] = [];
+  let sample: any = null;
+
+  for (const row of rows ?? []) {
+    const transcript = ((row as any).call_logs?.dialpad_transcript ?? "") as string;
+    if (!transcript || transcript.length < 200) { errors.push(`${(row as any).id}: no transcript`); continue; }
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: COACH_MODEL,
+          messages: [
+            { role: "system", content: COACH_FIELDS_PROMPT },
+            { role: "user", content: `OUTCOME: ${(row as any).outcome ?? "unknown"}\n\nTRANSCRIPT:\n${transcript.slice(0, 24000)}` },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!resp.ok) { errors.push(`${(row as any).id}: gateway ${resp.status}`); continue; }
+      const j = await resp.json().catch(() => null);
+      const parsed = tryParseJson(j?.choices?.[0]?.message?.content ?? "");
+      if (!parsed || typeof parsed !== "object") { errors.push(`${(row as any).id}: unparseable`); continue; }
+      normaliseCoachFields(parsed);
+      const merged = {
+        ...(((row as any).coaching ?? {}) as Record<string, unknown>),
+        first_broken_stage: parsed.first_broken_stage,
+        pillar_scores: parsed.pillar_scores,
+      };
+      const { error: upErr } = await params.adminClient
+        .from("call_coaching")
+        .update({ coaching: merged })
+        .eq("id", (row as any).id);
+      if (upErr) { errors.push(`${(row as any).id}: ${upErr.message}`); continue; }
+      updated++;
+      if (!sample) sample = { id: (row as any).id, first_broken_stage: parsed.first_broken_stage, pillar_scores: parsed.pillar_scores };
+    } catch (err) {
+      errors.push(`${(row as any).id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const { count: remaining } = await params.adminClient
+    .from("call_coaching")
+    .select("id", { count: "exact", head: true })
+    .is("coaching->first_broken_stage", null);
+
+  return { ok: true as const, candidates: (rows ?? []).length, updated, remaining: remaining ?? null, sample, errors: errors.slice(0, 10) };
+}
+
 
 // One-off backfill: correct EXISTING booked-call transcripts using the same
 // correction lane. For each candidate we (a) read raw transcript from
