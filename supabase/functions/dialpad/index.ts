@@ -3078,6 +3078,7 @@ async function coachOneCall(params: {
     if (!parsed || typeof parsed !== "object") return null;
     // Minimal shape check — at least a key_moment + better_path.
     if (!parsed.key_moment || !parsed.better_path) return null;
+    normaliseCoachFields(parsed);
     return parsed;
   } catch (err) {
     console.error("[coach_calls] coachOneCall failed:", err);
