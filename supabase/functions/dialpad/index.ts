@@ -2789,6 +2789,10 @@ HARD RULES:
 - Do NOT use absolute industry benchmarks (e.g. "you should hit 90% pickup-to-conversation"). Only reference the INTERNAL BENCHMARK numbers supplied in the prompt — those are our real ceiling to coach toward.
 - Output STRICT JSON only. No prose before or after. No markdown fences.
 
+FUNNEL DIAGNOSIS (required): identify the FIRST stage of the 7-stage funnel where the call broke. Fix top-first — a broken opener makes everything downstream irrelevant. Stages in order: opener → resistance (first-minute brush-off) → discovery → problem_awareness → gap_build → ask (the booking ask) → objections. Use "none" only for a genuinely clean call.
+
+FIVE PILLARS (required): score 1-5 (1 = poor, 5 = excellent) on tonality, command_of_call, probing, word_economy, objection_handling. Use null for objection_handling ONLY when no objection ever surfaced. Never null the other four.
+
 Return this exact shape:
 {
   "summary": "one line on what happened",
@@ -2798,7 +2802,9 @@ Return this exact shape:
   "example_lines": ["1-3 exact things the rep could have said in their own casual Aussie style"],
   "skill_tag": "one of: opening, discovery, objection_handling, gatekeeper, closing_ask, follow_up_setup, tonality_pace",
   "went_well": "one thing done well",
-  "drill": "a one-line roleplay drill instruction to practice the better path"
+  "drill": "a one-line roleplay drill instruction to practice the better path",
+  "first_broken_stage": "one of: opener, resistance, discovery, problem_awareness, gap_build, ask, objections, none",
+  "pillar_scores": { "tonality": 1-5, "command_of_call": 1-5, "probing": 1-5, "word_economy": 1-5, "objection_handling": 1-5 or null }
 }`;
 
 const REP_PROFILE_SYSTEM_PROMPT = `You are a sales manager writing a short coaching profile for ONE rep, based on their recent per-call coaching notes.
@@ -2995,6 +3001,28 @@ const STREAM_RUBRICS: Record<string, string> = {
 };
 
 function tryParseJson(raw: string): any | null {
+  return tryParseJsonImpl(raw);
+}
+
+const FUNNEL_STAGES = ["opener", "resistance", "discovery", "problem_awareness", "gap_build", "ask", "objections", "none"] as const;
+const PILLAR_KEYS = ["tonality", "command_of_call", "probing", "word_economy", "objection_handling"] as const;
+
+/** Coerce first_broken_stage + pillar_scores into the exact contract shape. */
+function normaliseCoachFields(obj: any): any {
+  const stage = String(obj?.first_broken_stage ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  obj.first_broken_stage = (FUNNEL_STAGES as readonly string[]).includes(stage) ? stage : "none";
+  const raw = obj?.pillar_scores && typeof obj.pillar_scores === "object" ? obj.pillar_scores : {};
+  const scores: Record<string, number | null> = {};
+  for (const k of PILLAR_KEYS) {
+    const v = Number((raw as any)[k]);
+    if (Number.isFinite(v)) scores[k] = Math.min(5, Math.max(1, Math.round(v)));
+    else scores[k] = k === "objection_handling" ? null : 3;
+  }
+  obj.pillar_scores = scores;
+  return obj;
+}
+
+function tryParseJsonImpl(raw: string): any | null {
   if (!raw) return null;
   const cleaned = raw
     .replace(/^\s*```(?:json)?\s*/i, "")
@@ -3072,6 +3100,7 @@ async function coachOneCall(params: {
     if (!parsed || typeof parsed !== "object") return null;
     // Minimal shape check — at least a key_moment + better_path.
     if (!parsed.key_moment || !parsed.better_path) return null;
+    normaliseCoachFields(parsed);
     return parsed;
   } catch (err) {
     console.error("[coach_calls] coachOneCall failed:", err);
@@ -3160,6 +3189,7 @@ async function rebuildRepCoachingProfile(params: {
 async function coachCalls(params: {
   adminClient: ReturnType<typeof createClient>;
   limit?: number;
+  newestFirst?: boolean;
 }) {
   const cap = Math.min(Math.max(params.limit ?? 15, 1), 30);
   if (!Deno.env.get("LOVABLE_API_KEY")) {
@@ -3181,29 +3211,39 @@ async function coachCalls(params: {
     };
   }
 
-  // Eligibility: transcript >200 chars, allowed outcome, no existing coaching row.
-  // We fetch a wider pool then filter out any call_log_ids that already have a
-  // call_coaching row (LEFT JOIN via a second query — cheaper than a NOT IN
-  // subquery on a growing table).
-  const { data: candidates, error } = await params.adminClient
-    .from("call_logs")
-    .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry, lead_source, client_follow_up_date)")
-    .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
-    .not("dialpad_transcript", "is", null)
-    .order("created_at", { ascending: true })
-    .limit(cap * 8);
-  if (error) return { ok: false as const, reason: error.message };
-  const pool = (candidates ?? []).filter((r: any) => typeof r.dialpad_transcript === "string" && r.dialpad_transcript.length > 200);
-  if (pool.length === 0) {
-    return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "no_candidates" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
+  // Eligibility is a PURE ANTI-JOIN — no cursor, no date window:
+  //   transcript > 200 chars + eligible outcome + NOT EXISTS a call_coaching row,
+  //   oldest first, capped per run.
+  // The old version fetched only the first cap*8 rows oldest-first and THEN
+  // anti-joined, so once the oldest ~120 calls were all coached the newer
+  // uncoached backlog was never reached ("backlog_empty" forever). We now page
+  // through until we collect `cap` genuinely uncoached calls.
+  const PAGE = 500;
+  const eligible: any[] = [];
+  for (let offset = 0; offset < 20000 && eligible.length < cap; offset += PAGE) {
+    const { data: candidates, error } = await params.adminClient
+      .from("call_logs")
+      .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry, lead_source, client_follow_up_date)")
+      .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
+      .not("dialpad_transcript", "is", null)
+      .order("created_at", { ascending: !params.newestFirst })
+      .range(offset, offset + PAGE - 1);
+    if (error) return { ok: false as const, reason: error.message };
+    const page = candidates ?? [];
+    const pool = page.filter((r: any) => typeof r.dialpad_transcript === "string" && r.dialpad_transcript.length > 200);
+    if (pool.length > 0) {
+      const { data: existing } = await params.adminClient
+        .from("call_coaching")
+        .select("call_log_id")
+        .in("call_log_id", pool.map((r: any) => r.id));
+      const already = new Set((existing ?? []).map((r: any) => r.call_log_id));
+      for (const r of pool) {
+        if (!already.has((r as any).id)) eligible.push(r);
+        if (eligible.length >= cap) break;
+      }
+    }
+    if (page.length < PAGE) break;
   }
-  const ids = pool.map((r: any) => r.id);
-  const { data: existing } = await params.adminClient
-    .from("call_coaching")
-    .select("call_log_id")
-    .in("call_log_id", ids);
-  const already = new Set((existing ?? []).map((r: any) => r.call_log_id));
-  const eligible = pool.filter((r: any) => !already.has(r.id)).slice(0, cap);
 
   if (eligible.length === 0) {
     return { ok: true as const, coached: 0, considered: 0, profiles_rebuilt: 0, reason: "backlog_empty" as const, budget: { daily_cap: budget.dailyCap, used_today: budget.usedToday, remaining: budget.remaining } };
@@ -3302,6 +3342,83 @@ async function coachCalls(params: {
       remaining: Math.max(0, budget.remaining - budget.made()),
     },
   };
+}
+
+// Repair pass: rows coached while the prompt was missing first_broken_stage /
+// pillar_scores. We regenerate ONLY those two fields from the transcript and
+// merge them into the existing coaching jsonb — every other field is untouched.
+const COACH_FIELDS_PROMPT = `You are an Australian cold-call coach. Read ONE call transcript and return ONLY the funnel diagnosis and pillar scores.
+
+FUNNEL: identify the FIRST stage where the call broke, in order: opener → resistance (first-minute brush-off) → discovery → problem_awareness → gap_build → ask (booking ask) → objections. Use "none" only for a genuinely clean call.
+PILLARS: score 1-5 (1 poor, 5 excellent). objection_handling may be null ONLY if no objection surfaced. Never null the other four.
+
+Output STRICT JSON only, no markdown:
+{"first_broken_stage":"opener|resistance|discovery|problem_awareness|gap_build|ask|objections|none","pillar_scores":{"tonality":1-5,"command_of_call":1-5,"probing":1-5,"word_economy":1-5,"objection_handling":1-5 or null}}`;
+
+async function backfillCoachFields(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+}) {
+  const cap = Math.min(Math.max(params.limit ?? 25, 1), 60);
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return { ok: false as const, reason: "no_lovable_api_key" };
+
+  const { data: rows, error } = await params.adminClient
+    .from("call_coaching")
+    .select("id, coaching, outcome, call_logs:call_logs!inner(dialpad_transcript)")
+    .is("coaching->first_broken_stage", null)
+    .order("created_at", { ascending: true })
+    .limit(cap);
+  if (error) return { ok: false as const, reason: error.message };
+
+  let updated = 0;
+  const errors: string[] = [];
+  let sample: any = null;
+
+  for (const row of rows ?? []) {
+    const transcript = ((row as any).call_logs?.dialpad_transcript ?? "") as string;
+    if (!transcript || transcript.length < 200) { errors.push(`${(row as any).id}: no transcript`); continue; }
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: COACH_MODEL,
+          messages: [
+            { role: "system", content: COACH_FIELDS_PROMPT },
+            { role: "user", content: `OUTCOME: ${(row as any).outcome ?? "unknown"}\n\nTRANSCRIPT:\n${transcript.slice(0, 24000)}` },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!resp.ok) { errors.push(`${(row as any).id}: gateway ${resp.status}`); continue; }
+      const j = await resp.json().catch(() => null);
+      const parsed = tryParseJson(j?.choices?.[0]?.message?.content ?? "");
+      if (!parsed || typeof parsed !== "object") { errors.push(`${(row as any).id}: unparseable`); continue; }
+      normaliseCoachFields(parsed);
+      const merged = {
+        ...(((row as any).coaching ?? {}) as Record<string, unknown>),
+        first_broken_stage: parsed.first_broken_stage,
+        pillar_scores: parsed.pillar_scores,
+      };
+      const { error: upErr } = await params.adminClient
+        .from("call_coaching")
+        .update({ coaching: merged })
+        .eq("id", (row as any).id);
+      if (upErr) { errors.push(`${(row as any).id}: ${upErr.message}`); continue; }
+      updated++;
+      if (!sample) sample = { id: (row as any).id, first_broken_stage: parsed.first_broken_stage, pillar_scores: parsed.pillar_scores };
+    } catch (err) {
+      errors.push(`${(row as any).id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const { count: remaining } = await params.adminClient
+    .from("call_coaching")
+    .select("id", { count: "exact", head: true })
+    .is("coaching->first_broken_stage", null);
+
+  return { ok: true as const, candidates: (rows ?? []).length, updated, remaining: remaining ?? null, sample, errors: errors.slice(0, 10) };
 }
 
 
@@ -5739,6 +5856,7 @@ Deno.serve(async (req) => {
     "backfill_correct_booked_transcripts",
     "coach_calls",
     "preview_coach_context",
+    "backfill_coach_fields",
   ]);
   let peekedAction: string | null = null;
   if (req.method === "POST") {
@@ -5865,7 +5983,12 @@ Deno.serve(async (req) => {
     }
     if (action === "coach_calls") {
       const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 30) : 15;
-      const result = await coachCalls({ adminClient, limit });
+      const result = await coachCalls({ adminClient, limit, newestFirst: body.newest_first === true });
+      return jsonResponse(result, 200);
+    }
+    if (action === "backfill_coach_fields") {
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 60) : 25;
+      const result = await backfillCoachFields({ adminClient, limit });
       return jsonResponse(result, 200);
     }
     if (action === "preview_coach_context") {
