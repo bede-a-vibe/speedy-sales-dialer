@@ -3189,6 +3189,7 @@ async function rebuildRepCoachingProfile(params: {
 async function coachCalls(params: {
   adminClient: ReturnType<typeof createClient>;
   limit?: number;
+  newestFirst?: boolean;
 }) {
   const cap = Math.min(Math.max(params.limit ?? 15, 1), 30);
   if (!Deno.env.get("LOVABLE_API_KEY")) {
@@ -3225,7 +3226,7 @@ async function coachCalls(params: {
       .select("id, contact_id, user_id, outcome, dialpad_transcript, created_at, contacts:contacts(business_name, industry, lead_source, client_follow_up_date)")
       .in("outcome", ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"])
       .not("dialpad_transcript", "is", null)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: !params.newestFirst })
       .range(offset, offset + PAGE - 1);
     if (error) return { ok: false as const, reason: error.message };
     const page = candidates ?? [];
