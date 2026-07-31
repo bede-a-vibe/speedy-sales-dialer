@@ -5907,6 +5907,11 @@ Deno.serve(async (req) => {
       const result = await coachCalls({ adminClient, limit });
       return jsonResponse(result, 200);
     }
+    if (action === "backfill_coach_fields") {
+      const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 60) : 25;
+      const result = await backfillCoachFields({ adminClient, limit });
+      return jsonResponse(result, 200);
+    }
     if (action === "preview_coach_context") {
       // Read-only preview of what the coach prompt is grounded in on this run:
       // the empirical internal benchmark, the winning-patterns digest, and
