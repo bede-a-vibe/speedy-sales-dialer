@@ -5983,7 +5983,7 @@ Deno.serve(async (req) => {
     }
     if (action === "coach_calls") {
       const limit = typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 30) : 15;
-      const result = await coachCalls({ adminClient, limit });
+      const result = await coachCalls({ adminClient, limit, newestFirst: body.newest_first === true });
       return jsonResponse(result, 200);
     }
     if (action === "backfill_coach_fields") {
