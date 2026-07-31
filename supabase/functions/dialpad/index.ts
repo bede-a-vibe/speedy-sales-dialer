@@ -2789,6 +2789,10 @@ HARD RULES:
 - Do NOT use absolute industry benchmarks (e.g. "you should hit 90% pickup-to-conversation"). Only reference the INTERNAL BENCHMARK numbers supplied in the prompt — those are our real ceiling to coach toward.
 - Output STRICT JSON only. No prose before or after. No markdown fences.
 
+FUNNEL DIAGNOSIS (required): identify the FIRST stage of the 7-stage funnel where the call broke. Fix top-first — a broken opener makes everything downstream irrelevant. Stages in order: opener → resistance (first-minute brush-off) → discovery → problem_awareness → gap_build → ask (the booking ask) → objections. Use "none" only for a genuinely clean call.
+
+FIVE PILLARS (required): score 1-5 (1 = poor, 5 = excellent) on tonality, command_of_call, probing, word_economy, objection_handling. Use null for objection_handling ONLY when no objection ever surfaced. Never null the other four.
+
 Return this exact shape:
 {
   "summary": "one line on what happened",
@@ -2798,7 +2802,9 @@ Return this exact shape:
   "example_lines": ["1-3 exact things the rep could have said in their own casual Aussie style"],
   "skill_tag": "one of: opening, discovery, objection_handling, gatekeeper, closing_ask, follow_up_setup, tonality_pace",
   "went_well": "one thing done well",
-  "drill": "a one-line roleplay drill instruction to practice the better path"
+  "drill": "a one-line roleplay drill instruction to practice the better path",
+  "first_broken_stage": "one of: opener, resistance, discovery, problem_awareness, gap_build, ask, objections, none",
+  "pillar_scores": { "tonality": 1-5, "command_of_call": 1-5, "probing": 1-5, "word_economy": 1-5, "objection_handling": 1-5 or null }
 }`;
 
 const REP_PROFILE_SYSTEM_PROMPT = `You are a sales manager writing a short coaching profile for ONE rep, based on their recent per-call coaching notes.
