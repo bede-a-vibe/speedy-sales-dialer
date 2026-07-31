@@ -161,7 +161,7 @@ async function runTool(name: string, args: Record<string, any>) {
   if (name === "get_call_transcript") {
     let q = db
       .from("call_logs")
-      .select("id, user_id, outcome, created_at, dialpad_transcript, dialpad_summary, dialpad_talk_time_seconds, contacts(business_name, industry, state)")
+      .select("id, user_id, outcome, created_at, dialpad_transcript, dialpad_summary, dialpad_talk_time_seconds, contacts!inner(business_name, industry, state)")
       .not("dialpad_transcript", "is", null)
       .order("created_at", { ascending: false })
       .limit(1);
