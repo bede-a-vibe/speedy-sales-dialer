@@ -3001,6 +3001,28 @@ const STREAM_RUBRICS: Record<string, string> = {
 };
 
 function tryParseJson(raw: string): any | null {
+  return tryParseJsonImpl(raw);
+}
+
+const FUNNEL_STAGES = ["opener", "resistance", "discovery", "problem_awareness", "gap_build", "ask", "objections", "none"] as const;
+const PILLAR_KEYS = ["tonality", "command_of_call", "probing", "word_economy", "objection_handling"] as const;
+
+/** Coerce first_broken_stage + pillar_scores into the exact contract shape. */
+function normaliseCoachFields(obj: any): any {
+  const stage = String(obj?.first_broken_stage ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  obj.first_broken_stage = (FUNNEL_STAGES as readonly string[]).includes(stage) ? stage : "none";
+  const raw = obj?.pillar_scores && typeof obj.pillar_scores === "object" ? obj.pillar_scores : {};
+  const scores: Record<string, number | null> = {};
+  for (const k of PILLAR_KEYS) {
+    const v = Number((raw as any)[k]);
+    if (Number.isFinite(v)) scores[k] = Math.min(5, Math.max(1, Math.round(v)));
+    else scores[k] = k === "objection_handling" ? null : 3;
+  }
+  obj.pillar_scores = scores;
+  return obj;
+}
+
+function tryParseJsonImpl(raw: string): any | null {
   if (!raw) return null;
   const cleaned = raw
     .replace(/^\s*```(?:json)?\s*/i, "")
