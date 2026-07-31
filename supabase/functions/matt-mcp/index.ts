@@ -20,11 +20,14 @@ const json = (body: unknown, status = 200) =>
 
 /** Strip phone numbers, emails and street addresses from any string output. */
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
-const PHONE_RE = /(\+?\d[\d\s().-]{7,}\d)/g;
+const PHONE_RE = /(?<![\d-])(\+?61|0)[\s-]?[2-9](?:[\s().-]?\d){7,9}(?![\d-])/g;
+/** ISO timestamps / dates must survive scrubbing — they are not phone numbers. */
+const ISO_RE = /^\d{4}-\d{2}-\d{2}([T ]|$)/;
 const ADDRESS_RE = /\b\d+[a-zA-Z]?[\s,]+[A-Za-z' ]{2,30}\s(st|street|rd|road|ave|avenue|dr|drive|ct|court|pde|parade|hwy|highway|ln|lane|cres|crescent|blvd|boulevard|way|pl|place)\b\.?/gi;
 
 function scrub(value: unknown): unknown {
   if (typeof value === "string") {
+    if (ISO_RE.test(value)) return value;
     return value.replace(EMAIL_RE, "[email removed]").replace(PHONE_RE, "[phone removed]").replace(ADDRESS_RE, "[address removed]");
   }
   if (Array.isArray(value)) return value.map(scrub);
