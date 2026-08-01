@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, TrendingDown, TrendingUp, Minus, BarChart3 } from "lucide-react";
+import { AlertTriangle, TrendingDown, TrendingUp, Minus, BarChart3, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,38 @@ interface LogRow { user_id: string; outcome: string; talk: number | null; create
 interface ApptRow { assigned_user_id: string | null; appointment_outcome: string | null; scheduled_for: string | null }
 interface CoachRow { user_id: string; stage: string | null; pillars: Record<string, number | null> | null; created_at: string }
 interface RoundRow { user_id: string; mode: string; passed: boolean | null; created_at: string }
+
+interface InboundLead { id: string; created_at: string; firstDialAt: string | null }
+
+/** Speed-to-lead: minutes from an inbound (ad) lead landing to its first dial. */
+function useSpeedToLead() {
+  return useQuery({
+    queryKey: ["speed-to-lead"],
+    staleTime: 60_000,
+    queryFn: async (): Promise<InboundLead[]> => {
+      const since = new Date(Date.now() - 14 * DAY).toISOString();
+      const { data: leads, error } = await supabase
+        .from("contacts")
+        .select("id, created_at")
+        .eq("lead_type", "inbound")
+        .gte("created_at", since);
+      if (error) throw error;
+      if (!leads?.length) return [];
+      const ids = leads.map((l) => l.id);
+      const { data: logs, error: logErr } = await supabase
+        .from("call_logs")
+        .select("contact_id, created_at")
+        .in("contact_id", ids)
+        .order("created_at", { ascending: true });
+      if (logErr) throw logErr;
+      const firstDial = new Map<string, string>();
+      for (const l of logs ?? []) {
+        if (!firstDial.has(l.contact_id)) firstDial.set(l.contact_id, l.created_at);
+      }
+      return leads.map((l) => ({ id: l.id, created_at: l.created_at, firstDialAt: firstDial.get(l.id) ?? null }));
+    },
+  });
+}
 
 function useManagerData() {
   return useQuery({
@@ -83,6 +115,24 @@ function Delta({ now, prev }: { now: number | null; prev: number | null }) {
 export function ManagerMetrics() {
   const { data, isLoading } = useManagerData();
   const { data: reps = [] } = useSalesReps();
+  const { data: inboundLeads = [] } = useSpeedToLead();
+
+  const speedToLead = useMemo(() => {
+    if (!inboundLeads.length) return null;
+    const dialled = inboundLeads.filter((l) => l.firstDialAt);
+    const minutes = dialled
+      .map((l) => (new Date(l.firstDialAt!).getTime() - new Date(l.created_at).getTime()) / 60_000)
+      .filter((m) => m >= 0)
+      .sort((a, b) => a - b);
+    const median = minutes.length ? minutes[Math.floor(minutes.length / 2)] : null;
+    const within5 = minutes.filter((m) => m <= 5).length;
+    return {
+      total: inboundLeads.length,
+      undialled: inboundLeads.length - dialled.length,
+      median,
+      within5Pct: minutes.length ? Math.round((100 * within5) / minutes.length) : null,
+    };
+  }, [inboundLeads]);
 
   const now = Date.now();
   const model = useMemo(() => {
@@ -170,6 +220,38 @@ export function ManagerMetrics() {
 
   return (
     <div className="space-y-3">
+      {speedToLead && (
+        <Card className="border-amber-500/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Speed to lead (inbound, last 14 days)
+            </CardTitle>
+            <CardDescription>Within 5 minutes of the form ≈ 100x. This is the one metric where minutes matter.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-6 text-sm">
+            <div>
+              <p className="font-mono text-2xl font-semibold">{speedToLead.total}</p>
+              <p className="text-xs text-muted-foreground">inbound leads</p>
+            </div>
+            <div>
+              <p className={cn("font-mono text-2xl font-semibold", (speedToLead.median ?? 99) <= 5 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+                {speedToLead.median != null ? `${Math.round(speedToLead.median)}m` : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">median to first dial</p>
+            </div>
+            <div>
+              <p className="font-mono text-2xl font-semibold">{speedToLead.within5Pct != null ? `${speedToLead.within5Pct}%` : "—"}</p>
+              <p className="text-xs text-muted-foreground">dialled within 5 min</p>
+            </div>
+            {speedToLead.undialled > 0 && (
+              <div>
+                <p className="font-mono text-2xl font-semibold text-destructive">{speedToLead.undialled}</p>
+                <p className="text-xs text-muted-foreground">never dialled — burning intent</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">

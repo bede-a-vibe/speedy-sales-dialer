@@ -19,6 +19,25 @@ interface Row {
   created_at: string;
 }
 
+interface ConfusionRow { day: string; transcript_calls: number; confusion_calls: number }
+
+/** Daily identity-confusion aggregates ("from where, sorry?" openings), refreshed hourly by cron. */
+function useOpenerConfusion(dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: ["opener-confusion", dateFrom, dateTo],
+    staleTime: 60_000,
+    queryFn: async (): Promise<ConfusionRow[]> => {
+      const { data, error } = await supabase
+        .from("opener_confusion_daily" as never)
+        .select("day, transcript_calls, confusion_calls")
+        .gte("day", dateFrom)
+        .lte("day", dateTo);
+      if (error) throw error;
+      return (data ?? []) as unknown as ConfusionRow[];
+    },
+  });
+}
+
 function useAnsweredCalls(dateFrom: string, dateTo: string) {
   return useQuery({
     queryKey: ["opener-survival", dateFrom, dateTo],
@@ -49,7 +68,14 @@ function useAnsweredCalls(dateFrom: string, dateTo: string) {
  */
 export function OpenerSurvivalCard({ dateFrom, dateTo, activeRepId }: { dateFrom: string; dateTo: string; activeRepId?: string }) {
   const { data: rows = [], isLoading } = useAnsweredCalls(dateFrom, dateTo);
+  const { data: confusion = [] } = useOpenerConfusion(dateFrom, dateTo);
   const { data: reps = [] } = useSalesReps();
+
+  const confusionStats = useMemo(() => {
+    const calls = confusion.reduce((a, r) => a + r.transcript_calls, 0);
+    const confused = confusion.reduce((a, r) => a + r.confusion_calls, 0);
+    return calls >= 5 ? { pct: Math.round((100 * confused) / calls), calls } : null;
+  }, [confusion]);
 
   const repName = useMemo(() => {
     const m = new Map(reps.map((r) => [r.user_id, r.display_name || r.email || "Rep"]));
@@ -97,6 +123,16 @@ export function OpenerSurvivalCard({ dateFrom, dateTo, activeRepId }: { dateFrom
                 on this volume. Tag your opener on every call — the Funnel tab compares them.
               </p>
             </div>
+            {confusionStats && (
+              <div>
+                <p className={cn("font-mono text-3xl font-semibold", confusionStats.pct >= 30 ? "text-destructive" : confusionStats.pct >= 15 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
+                  {confusionStats.pct}%
+                </p>
+                <p className="text-xs text-muted-foreground" title='Conversations opening with "from where, sorry?" / "who is this?" — the name didn&apos;t land first time'>
+                  name didn't land first time ({confusionStats.calls} convos)
+                </p>
+              </div>
+            )}
           </div>
           {!activeRepId && perRep.length > 1 && (
             <div className="space-y-1.5">
