@@ -187,12 +187,6 @@ export async function ghlExportLegacy(phase: LegacyExportPhase, cursor?: string 
   });
 }
 
-interface _GHLUpsertResultUnused {
-  ghlContactId: string;
-  isNew: boolean;
-  contact: Record<string, unknown>;
-}
-
 export async function ghlUpsertContact(
   payload: {
     phone: string;
