@@ -1456,6 +1456,7 @@ Deno.serve(async (req) => {
       "bulk_import_from_ghl",
       "pull_inbound_leads",
       "relink_from_dialer_id",
+      "push_fields_to_ghl",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -1479,6 +1480,23 @@ Deno.serve(async (req) => {
       }
 
       case "relink_from_dialer_id": {
+        break;
+      }
+
+      case "push_fields_to_ghl": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await pushFieldsToGhl(
+          GHL_API_KEY,
+          supabaseUrl,
+          svcKey,
+          Number(body.batchSize) || 50,
+          Number(body.offset) || 0,
+        );
+        break;
+      }
+
+      case "__relink_from_dialer_id_impl": {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         result = await relinkFromDialerId(
