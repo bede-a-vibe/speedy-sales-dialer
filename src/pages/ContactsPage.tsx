@@ -1440,6 +1440,21 @@ export default function ContactsPage() {
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportForGhl}
+                disabled={ghlExporting}
+                className="border-border"
+                aria-live="polite"
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                {ghlExporting
+                  ? `Building… ${ghlExportCount.toLocaleString()} rows`
+                  : "Export for GHL"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setDuplicatesOpen(true)} className="border-border">
               <Copy className="mr-1.5 h-3.5 w-3.5" />Duplicates
             </Button>
