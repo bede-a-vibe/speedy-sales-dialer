@@ -791,6 +791,21 @@ async function bulkLinkContacts(
 ) {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // Hard safety guard: only ever link against the MAIN Odin Digital location
+  const MAIN_LOCATION_ID = "N6ZNHc1OmVcRne4Sprhq";
+  if (locationId !== MAIN_LOCATION_ID) {
+    return {
+      error: `bulk_link_contacts aborted: GHL_LOCATION_ID is not the main Odin Digital location`,
+      processed: 0,
+      total: 0,
+      linked: 0,
+      failed: 0,
+      skipped: 0,
+      hasMore: false,
+      nextOffset: offset,
+    };
+  }
+
   // Count remaining unlinked rows so the client can show progress
   const countQueryBuilder = supabase
     .from("contacts")
