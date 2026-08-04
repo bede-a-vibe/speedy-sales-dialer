@@ -1508,7 +1508,7 @@ async function exportLegacyGhl(
     const body: Record<string, unknown> = {
       locationId,
       pageLimit: 100,
-softsort:      };
+    };
     if (cursor) {
       try {
         body.searchAfter = JSON.parse(cursor);
