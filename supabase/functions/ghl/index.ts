@@ -1479,10 +1479,6 @@ Deno.serve(async (req) => {
         break;
       }
 
-      case "relink_from_dialer_id": {
-        break;
-      }
-
       case "push_fields_to_ghl": {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1496,7 +1492,7 @@ Deno.serve(async (req) => {
         break;
       }
 
-      case "__relink_from_dialer_id_impl": {
+      case "relink_from_dialer_id": {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         result = await relinkFromDialerId(
