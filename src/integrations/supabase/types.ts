@@ -1275,6 +1275,27 @@ export type Database = {
           },
         ]
       }
+      opener_confusion_daily: {
+        Row: {
+          confusion_calls: number
+          day: string
+          transcript_calls: number
+          updated_at: string
+        }
+        Insert: {
+          confusion_calls?: number
+          day: string
+          transcript_calls?: number
+          updated_at?: string
+        }
+        Update: {
+          confusion_calls?: number
+          day?: string
+          transcript_calls?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pending_ghl_pushes: {
         Row: {
           ai_fields: Json | null

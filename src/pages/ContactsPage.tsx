@@ -26,6 +26,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { DuplicatesDialog } from "@/components/contacts/DuplicatesDialog";
+import { buildGhlCsv, downloadGhlCsv, fetchAllContactsForGhl } from "@/lib/ghlContactExport";
 import { INDUSTRIES, OUTCOME_CONFIG, CallOutcome } from "@/data/mockData";
 import { LIFECYCLE_STAGES, LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -917,6 +918,23 @@ export default function ContactsPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
 
   const isAdmin = useIsAdmin();
+  const [ghlExporting, setGhlExporting] = useState(false);
+  const [ghlExportCount, setGhlExportCount] = useState(0);
+
+  const exportForGhl = async () => {
+    if (ghlExporting) return;
+    setGhlExporting(true);
+    setGhlExportCount(0);
+    try {
+      const rows = await fetchAllContactsForGhl(setGhlExportCount);
+      downloadGhlCsv(buildGhlCsv(rows));
+      toast.success(`Exported ${rows.length.toLocaleString()} contacts for GoHighLevel`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setGhlExporting(false);
+    }
+  };
   const updateContact = useUpdateContact();
   const createContact = useCreateContact();
   const createPipelineItem = useCreatePipelineItem();
@@ -1422,6 +1440,21 @@ export default function ContactsPage() {
             <Button variant="outline" size="sm" onClick={exportCSV} className="border-border">
               <Download className="mr-1.5 h-3.5 w-3.5" />Export
             </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportForGhl}
+                disabled={ghlExporting}
+                className="border-border"
+                aria-live="polite"
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                {ghlExporting
+                  ? `Building… ${ghlExportCount.toLocaleString()} rows`
+                  : "Export for GHL"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setDuplicatesOpen(true)} className="border-border">
               <Copy className="mr-1.5 h-3.5 w-3.5" />Duplicates
             </Button>
