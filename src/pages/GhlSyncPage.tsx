@@ -2,11 +2,13 @@ import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Pause, Play, RefreshCw, Loader2, RotateCcw } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { GhlCutoverCard } from "@/components/ghl/GhlCutoverCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useIsAdmin } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import {
   cancelBackgroundGhlSync,
@@ -142,6 +144,7 @@ async function fetchPushHealth(): Promise<PushHealth> {
 
 export default function GhlSyncPage() {
   const { toast } = useToast();
+  const isAdmin = useIsAdmin();
   const countsQuery = useQuery({
     queryKey: ["ghl-sync-counts"],
     queryFn: fetchCounts,
