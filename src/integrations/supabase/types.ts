@@ -1212,6 +1212,36 @@ export type Database = {
         }
         Relationships: []
       }
+      no_show_revival_backup_20260804: {
+        Row: {
+          backed_up_at: string | null
+          follow_up_note: string | null
+          id: string | null
+          lifecycle_stage: string | null
+          next_followup_date: string | null
+          prospect_tier: string | null
+          status: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       objection_bank: {
         Row: {
           booked_count: number
@@ -1655,6 +1685,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      verbal_commit_revival_backup_20260804: {
+        Row: {
+          backed_up_at: string | null
+          follow_up_note: string | null
+          id: string | null
+          lifecycle_stage: string | null
+          next_followup_date: string | null
+          prospect_tier: string | null
+          status: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
         }
         Relationships: []
       }
