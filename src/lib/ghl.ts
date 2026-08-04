@@ -167,6 +167,26 @@ export interface GHLUpsertResult {
   contact: Record<string, unknown>;
 }
 
+export type LegacyExportPhase = "pipelines" | "opportunities" | "contacts" | "notes";
+
+export interface GHLLegacyExportResult {
+  phase: LegacyExportPhase;
+  processed: number;
+  upserted: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number;
+  errors: string[];
+}
+
+export async function ghlExportLegacy(phase: LegacyExportPhase, cursor?: string | null) {
+  return invokeGHL<GHLLegacyExportResult>({
+    action: "export_legacy_ghl",
+    phase,
+    ...(cursor ? { cursor } : {}),
+  });
+}
+
 export async function ghlUpsertContact(
   payload: {
     phone: string;

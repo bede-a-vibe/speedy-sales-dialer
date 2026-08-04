@@ -1191,6 +1191,180 @@ export type Database = {
         }
         Relationships: []
       }
+      legacy_ghl_contacts: {
+        Row: {
+          company_name: string | null
+          custom_fields: Json | null
+          date_added: string | null
+          dnd: boolean | null
+          email: string | null
+          fetched_at: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          raw: Json | null
+          source: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          company_name?: string | null
+          custom_fields?: Json | null
+          date_added?: string | null
+          dnd?: boolean | null
+          email?: string | null
+          fetched_at?: string
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          phone?: string | null
+          raw?: Json | null
+          source?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          company_name?: string | null
+          custom_fields?: Json | null
+          date_added?: string | null
+          dnd?: boolean | null
+          email?: string | null
+          fetched_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          raw?: Json | null
+          source?: string | null
+          tags?: string[] | null
+        }
+        Relationships: []
+      }
+      legacy_ghl_notes: {
+        Row: {
+          body: string | null
+          contact_id: string | null
+          created_at_ghl: string | null
+          created_by: string | null
+          fetched_at: string
+          id: string
+          raw: Json | null
+        }
+        Insert: {
+          body?: string | null
+          contact_id?: string | null
+          created_at_ghl?: string | null
+          created_by?: string | null
+          fetched_at?: string
+          id: string
+          raw?: Json | null
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string | null
+          created_at_ghl?: string | null
+          created_by?: string | null
+          fetched_at?: string
+          id?: string
+          raw?: Json | null
+        }
+        Relationships: []
+      }
+      legacy_ghl_opportunities: {
+        Row: {
+          assigned_to: string | null
+          contact_email: string | null
+          contact_id: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at_ghl: string | null
+          custom_fields: Json | null
+          fetched_at: string
+          id: string
+          lost_reason_id: string | null
+          lost_reason_name: string | null
+          monetary_value: number | null
+          name: string | null
+          pipeline_id: string | null
+          pipeline_stage_id: string | null
+          raw: Json | null
+          source: string | null
+          stage_name: string | null
+          status: string | null
+          tags: string[] | null
+          updated_at_ghl: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at_ghl?: string | null
+          custom_fields?: Json | null
+          fetched_at?: string
+          id: string
+          lost_reason_id?: string | null
+          lost_reason_name?: string | null
+          monetary_value?: number | null
+          name?: string | null
+          pipeline_id?: string | null
+          pipeline_stage_id?: string | null
+          raw?: Json | null
+          source?: string | null
+          stage_name?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at_ghl?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at_ghl?: string | null
+          custom_fields?: Json | null
+          fetched_at?: string
+          id?: string
+          lost_reason_id?: string | null
+          lost_reason_name?: string | null
+          monetary_value?: number | null
+          name?: string | null
+          pipeline_id?: string | null
+          pipeline_stage_id?: string | null
+          raw?: Json | null
+          source?: string | null
+          stage_name?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at_ghl?: string | null
+        }
+        Relationships: []
+      }
+      legacy_ghl_pipelines: {
+        Row: {
+          fetched_at: string
+          id: string
+          name: string | null
+          raw: Json | null
+          stages: Json | null
+        }
+        Insert: {
+          fetched_at?: string
+          id: string
+          name?: string | null
+          raw?: Json | null
+          stages?: Json | null
+        }
+        Update: {
+          fetched_at?: string
+          id?: string
+          name?: string | null
+          raw?: Json | null
+          stages?: Json | null
+        }
+        Relationships: []
+      }
       mcp_auth: {
         Row: {
           bearer_token: string
@@ -1209,6 +1383,36 @@ export type Database = {
           created_at?: string
           id?: number
           label?: string | null
+        }
+        Relationships: []
+      }
+      no_show_revival_backup_20260804: {
+        Row: {
+          backed_up_at: string | null
+          follow_up_note: string | null
+          id: string | null
+          lifecycle_stage: string | null
+          next_followup_date: string | null
+          prospect_tier: string | null
+          status: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -1655,6 +1859,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      verbal_commit_revival_backup_20260804: {
+        Row: {
+          backed_up_at: string | null
+          follow_up_note: string | null
+          id: string | null
+          lifecycle_stage: string | null
+          next_followup_date: string | null
+          prospect_tier: string | null
+          status: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          next_followup_date?: string | null
+          prospect_tier?: string | null
+          status?: string | null
         }
         Relationships: []
       }
