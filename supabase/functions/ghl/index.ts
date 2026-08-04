@@ -545,6 +545,240 @@ async function relinkFromDialerId(
   };
 }
 
+// ── Cutover backfill: push dialer field data up to GHL ─────────────────
+
+const IMPORT_BATCH_VALUE = "dialer-2026-08-04";
+
+/** Direct GHL custom-field IDs used by the cutover backfill. */
+const CUTOVER_FIELD_IDS = {
+  dialerContactId: "6teOm5mV7adBxuifGj1M",
+  importBatch: "gGdOpEyLBLYIusTc0QRk",
+  leadStatus: "jkEml3ZgsT39j0dw5wb4",
+  lifecycleStage: "P2jB7XrffoxEXQjhlBSD",
+  leadSourceChannel: "jDoscxdqzhHNh6lHqFcP",
+  prospectTier: "tj6IENIKIjrRNOwAlQrH",
+  segment: "yNZ7hCIwoY37vTZD27Ws",
+  brand: "6Sudcgra1Mg2Ird0wIIJ",
+  appointmentStatus: "atUoeSFgJf44uN6cbGHV",
+} as const;
+
+const LEAD_STATUS_BY_LIFECYCLE: Record<string, string> = {
+  new: "New",
+  attempting: "Attempting",
+  connected: "Connected",
+  booked: "Booked",
+  won: "Booked",
+  lost: "Not Interested",
+};
+
+const LIFECYCLE_STAGE_BY_LIFECYCLE: Record<string, string> = {
+  new: "Lead",
+  attempting: "Lead",
+  connected: "MQL",
+  booked: "SQL",
+  won: "Customer",
+  lost: "Lost",
+};
+
+const LEAD_SOURCE_CHANNEL_MAP: Record<string, string> = {
+  "cold call": "Cold Call",
+  "cold email": "Cold Email",
+  "website": "Website Form",
+  "student": "Student",
+  "referral": "Referral",
+  "partnership": "Partnership",
+  "linkedin": "LinkedIn",
+};
+
+/** Dialer column → GHL custom-field key (resolved through GHL_FIELD_KEY_TO_ID). */
+const CUTOVER_COLUMN_TO_FIELD_KEY: Array<[string, string]> = [
+  ["call_attempt_count", "contact.total_call_attempts"],
+  ["gmb_link", "contact.google_business_profile"],
+  ["google_rating", "contact.gbp_rating"],
+  ["google_review_count", "contact.review_number"],
+  ["has_google_ads", "contact.has_google_ads"],
+  ["has_facebook_ads", "contact.has_facebookmeta_ads"],
+  ["has_seo", "contact.seo_visibility"],
+  ["buying_signal_strength", "contact.buying_signal_strength"],
+  ["buying_timeline", "contact.buying_timeline"],
+  ["business_size", "contact.business_size"],
+  ["years_in_business", "contact.years_in_business"],
+  ["abn", "contact.abn"],
+  ["trade_type", "contact.trade_type"],
+  ["work_type", "contact.work_type"],
+  ["dm_name", "contact.decision_maker_name"],
+  ["dm_phone", "contact.decision_maker_direct_line"],
+  ["dm_email", "contact.decision_maker_email"],
+  ["dm_linkedin", "contact.decision_maker_linkedin"],
+  ["gatekeeper_name", "contact.gatekeeper_name"],
+  ["gatekeeper_notes", "contact.gatekeeper_notes"],
+  ["best_route_to_decision_maker", "contact.best_route_to_dm"],
+  ["best_time_to_call", "contact.best_time_to_call"],
+  ["authority_level", "contact.authority_level"],
+  ["budget_indication", "contact.budget_indication"],
+  ["last_call_sentiment", "contact.last_call_sentiment"],
+  ["key_quote", "contact.key_quote"],
+  ["agreed_next_steps", "contact.agreed_next_steps"],
+  ["next_followup_date", "contact.next_followup_date"],
+  ["phone_number_quality", "contact.number_quality"],
+];
+
+const CUTOVER_SELECT_COLUMNS = [
+  "id",
+  "ghl_contact_id",
+  "lifecycle_stage",
+  "lead_channel",
+  "prospect_tier",
+  "is_dnc",
+  ...CUTOVER_COLUMN_TO_FIELD_KEY.map(([col]) => col),
+].join(", ");
+
+function hasValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  return true;
+}
+
+function mapLeadSourceChannel(leadChannel: unknown): string {
+  const raw = typeof leadChannel === "string" ? leadChannel.trim() : "";
+  if (!raw) return "Cold Call";
+  return LEAD_SOURCE_CHANNEL_MAP[raw.toLowerCase()] ?? "Other";
+}
+
+function buildCutoverCustomFields(contact: Record<string, unknown>) {
+  const lifecycle = typeof contact.lifecycle_stage === "string" ? contact.lifecycle_stage.trim().toLowerCase() : "";
+  const isDnc = contact.is_dnc === true;
+
+  const leadStatus = isDnc ? "DNC" : (LEAD_STATUS_BY_LIFECYCLE[lifecycle] ?? "New");
+  const lifecycleStage = isDnc ? "Do Not Contact" : (LIFECYCLE_STAGE_BY_LIFECYCLE[lifecycle] ?? "Lead");
+
+  const fields: Array<{ id: string; field_value: unknown }> = [
+    { id: CUTOVER_FIELD_IDS.dialerContactId, field_value: contact.id },
+    { id: CUTOVER_FIELD_IDS.importBatch, field_value: IMPORT_BATCH_VALUE },
+    { id: CUTOVER_FIELD_IDS.leadStatus, field_value: leadStatus },
+    { id: CUTOVER_FIELD_IDS.lifecycleStage, field_value: lifecycleStage },
+    { id: CUTOVER_FIELD_IDS.leadSourceChannel, field_value: mapLeadSourceChannel(contact.lead_channel) },
+    { id: CUTOVER_FIELD_IDS.segment, field_value: "SMB" },
+    { id: CUTOVER_FIELD_IDS.brand, field_value: "Odin Digital" },
+    { id: CUTOVER_FIELD_IDS.appointmentStatus, field_value: "Not Booked" },
+  ];
+
+  if (hasValue(contact.prospect_tier)) {
+    fields.push({ id: CUTOVER_FIELD_IDS.prospectTier, field_value: contact.prospect_tier });
+  }
+
+  for (const [column, key] of CUTOVER_COLUMN_TO_FIELD_KEY) {
+    const value = contact[column];
+    if (!hasValue(value)) continue;
+    const id = GHL_FIELD_KEY_TO_ID[key];
+    if (!id) {
+      console.warn(`[GHL Push] No mapped GHL field ID for "${key}" — skipping`);
+      continue;
+    }
+    fields.push({ id, field_value: value });
+  }
+
+  return fields;
+}
+
+const CUTOVER_DND_SETTINGS = {
+  Call: { status: "active", message: "Dialer cutover backfill" },
+  Email: { status: "active", message: "Dialer cutover backfill" },
+  SMS: { status: "active", message: "Dialer cutover backfill" },
+  WhatsApp: { status: "active", message: "Dialer cutover backfill" },
+  GMB: { status: "active", message: "Dialer cutover backfill" },
+  FB: { status: "active", message: "Dialer cutover backfill" },
+} as const;
+
+/**
+ * Push dialer field data UP to GHL for already-linked contacts.
+ * Only ever PUTs customFields + DND settings — never tags, never opportunities.
+ */
+async function pushFieldsToGhl(
+  apiKey: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 50,
+  offset = 0,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  const { count: total, error: countError } = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .not("ghl_contact_id", "is", null);
+  if (countError) throw new Error(`Failed to count linked contacts: ${countError.message}`);
+
+  const { data: rows, error: fetchError } = await supabase
+    .from("contacts")
+    .select(CUTOVER_SELECT_COLUMNS)
+    .not("ghl_contact_id", "is", null)
+    .order("id", { ascending: true })
+    .range(offset, offset + batchSize - 1);
+  if (fetchError) throw new Error(`Failed to fetch linked contacts: ${fetchError.message}`);
+
+  const contacts = (rows ?? []) as unknown as Array<Record<string, unknown>>;
+
+  let updated = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: Array<{ contactId: string; error: string }> = [];
+
+  for (const contact of contacts) {
+    const ghlContactId = typeof contact.ghl_contact_id === "string" ? contact.ghl_contact_id : "";
+    if (!ghlContactId) {
+      skipped++;
+      continue;
+    }
+
+    const payload = {
+      customFields: buildCutoverCustomFields(contact),
+      dnd: true,
+      dndSettings: CUTOVER_DND_SETTINGS,
+    };
+
+    try {
+      await ghlFetch(`/contacts/${ghlContactId}`, apiKey, { method: "PUT", body: payload });
+      updated++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("GHL 429")) {
+        // Rate limited — back off and retry this contact once.
+        await new Promise((r) => setTimeout(r, 15000));
+        try {
+          await ghlFetch(`/contacts/${ghlContactId}`, apiKey, { method: "PUT", body: payload });
+          updated++;
+          await new Promise((r) => setTimeout(r, 150));
+          continue;
+        } catch (retryErr) {
+          const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          failed++;
+          if (errors.length < 50) errors.push({ contactId: String(contact.id), error: retryMessage });
+          await new Promise((r) => setTimeout(r, 150));
+          continue;
+        }
+      }
+      failed++;
+      if (errors.length < 50) errors.push({ contactId: String(contact.id), error: message });
+    }
+
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  const processed = contacts.length;
+
+  return {
+    processed,
+    updated,
+    failed,
+    skipped,
+    hasMore: processed === batchSize,
+    nextOffset: offset + processed,
+    total: total ?? 0,
+    errors,
+  };
+}
+
 async function bulkLinkContacts(
   apiKey: string,
   locationId: string,
@@ -1222,6 +1456,7 @@ Deno.serve(async (req) => {
       "bulk_import_from_ghl",
       "pull_inbound_leads",
       "relink_from_dialer_id",
+      "push_fields_to_ghl",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -1241,6 +1476,19 @@ Deno.serve(async (req) => {
           maxPages: Number(body.maxPages) || undefined,
           lookbackMinutes: Number(body.lookbackMinutes) || undefined,
         });
+        break;
+      }
+
+      case "push_fields_to_ghl": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await pushFieldsToGhl(
+          GHL_API_KEY,
+          supabaseUrl,
+          svcKey,
+          Number(body.batchSize) || 50,
+          Number(body.offset) || 0,
+        );
         break;
       }
 

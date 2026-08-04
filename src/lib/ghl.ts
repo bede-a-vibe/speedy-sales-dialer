@@ -146,6 +146,21 @@ export async function ghlRelinkFromDialerId(page = 1, pageSize = 100) {
   return invokeGHL<GHLRelinkResult>({ action: "relink_from_dialer_id", page, pageSize });
 }
 
+export interface GHLPushFieldsResult {
+  processed: number;
+  updated: number;
+  failed: number;
+  skipped: number;
+  hasMore: boolean;
+  nextOffset: number;
+  total: number;
+  errors?: Array<{ contactId: string; error: string }>;
+}
+
+export async function ghlPushFieldsToGhl(offset = 0, batchSize = 50) {
+  return invokeGHL<GHLPushFieldsResult>({ action: "push_fields_to_ghl", offset, batchSize });
+}
+
 export interface GHLUpsertResult {
   ghlContactId: string;
   isNew: boolean;

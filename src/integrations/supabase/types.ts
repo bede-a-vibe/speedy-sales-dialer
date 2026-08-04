@@ -530,6 +530,7 @@ export type Database = {
           gatekeeper_notes: string | null
           gbp_rating: number | null
           ghl_contact_id: string | null
+          ghl_contact_id_legacy: string | null
           gmb_link: string | null
           google_rating: number | null
           google_review_count: number | null
@@ -621,6 +622,7 @@ export type Database = {
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
           ghl_contact_id?: string | null
+          ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
           google_rating?: number | null
           google_review_count?: number | null
@@ -712,6 +714,7 @@ export type Database = {
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
           ghl_contact_id?: string | null
+          ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
           google_rating?: number | null
           google_review_count?: number | null
