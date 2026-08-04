@@ -980,6 +980,8 @@ export type Database = {
       }
       dialpad_sync_state: {
         Row: {
+          cursor: string | null
+          done: boolean
           key: string
           last_error: string | null
           last_linked: number | null
@@ -989,6 +991,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cursor?: string | null
+          done?: boolean
           key: string
           last_error?: string | null
           last_linked?: number | null
@@ -998,6 +1002,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cursor?: string | null
+          done?: boolean
           key?: string
           last_error?: string | null
           last_linked?: number | null
