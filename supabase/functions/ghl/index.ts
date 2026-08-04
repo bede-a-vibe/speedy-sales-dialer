@@ -292,77 +292,47 @@ async function getUsers(apiKey: string, locationId: string) {
   });
 }
 
-// Complete GHL custom field key → ID mapping (auto-discovered from GHL API)
+// Complete GHL custom field key → ID mapping for the main "Odin Digital" location
 const GHL_FIELD_KEY_TO_ID: Record<string, string> = {
-  // Contact
-  "contact.google_business_profile": "65Ch3IY56gvPuDCOkEke",
-  "contact.gbp_rating": "NSP6hGGqGzjwmYuABVCz",
-  "contact.review_number": "tKLudPq02DABlpI0Hx9V",
-  // Additional Info
-  "contact.number_quality": "bNY6uI2W2ljTm9ofCnh3",
-  "contact.prospect_tier": "D4OdcFIL4E9Z3SZ5pSUp",
-  "contact.call_disposition": "3mJ0ao8qgLzeFSXFOUpc",
-  "contact.next_followup_date": "rJw13EVt9XTlBBlJFl9V",
-  "contact.objection_notes": "Lp7PJyf414Gh8oIrWfuo",
-  "contact.trade_type": "yt3N3TSYK6hKWHfChjvM",
-  // Call Activity
-  "contact.total_call_attempts": "qpovJ9Z24WizTYL85y2S",
-  "contact.last_contacted_date": "NOtFzQKRUmiTlMdtglJr",
-  "contact.best_time_to_call": "2tWhYqYune00tdwivyIg",
-  "contact.preferred_contact_method": "eWChuREzCpOa0vTm0Gaw",
-  // Gatekeeper Intelligence
-  "contact.gatekeeper_name": "BWHUzUPcHH1GbCXBhKGu",
-  "contact.gatekeeper_role": "O3NUAQLOiMaWuU0idtNC",
-  "contact.gatekeeper_notes": "RgpWvJFkLEluXf3dAXQy",
-  "contact.decision_maker_name": "ag8hSUhF7BSXWc03mkT1",
-  "contact.decision_maker_direct_line": "hQ87Eplr5vyoVgZfdX8k",
-  "contact.decision_maker_email": "AsH9iB1xrRGgIgNU59m4",
-  "contact.decision_maker_linkedin": "ejn4GXAzVIoPcIx6GLFS",
-  "contact.best_route_to_dm": "KQH4FTojsIVvOcmtBBnI",
-  // Business Profile
-  "contact.service_area": "PLnazAPRoj1vF6oWzWAt",
-  "contact.number_of_trucksvans": "2a8aKsqp8hbpR6atzkqm",
-  "contact.website_url": "PMzSkSeg2HX6OLw3Llsi",
-  "contact.abn": "q54XHTwMp4hnlHPWUPWc",
-  "contact.work_type": "rqLROJ9hMIBVzNtWhhUY",
-  "contact.business_size": "8OmWwJo4j712X0RHLv0i",
-  "contact.years_in_business": "rOgbGgGLgO0FrcOne8UY",
-  "contact.estimated_annual_revenue": "NJIhcBMLmOC35oqXLKz8",
-  "contact.website_quality": "DrpNKbTVavczJgIpIVct",
-  // Digital Presence & Opportunity
-  "contact.current_marketing_agency": "1xv4gYR7hfXawtJo0Y9D",
-  "contact.marketing_pain_points": "ZgMZ8T8lpfjNu0TpJpVC",
-  "contact.current_monthly_ad_spend": "9xUGCIB7u03aLq97nVFR",
-  "contact.current_marketing_channels": "CnbfdfgDfSq7fBtugY1F",
-  "contact.has_google_ads": "0JFrMj78LxbVZUbm9Y36",
-  "contact.has_facebookmeta_ads": "H25fGwTofPJoWONu8uMF",
-  "contact.seo_visibility": "lVQFlv6qQywpz8iWJruS",
-  "contact.social_media_presence": "DWDe40ohy7zbjWlOrkEE",
-  "contact.agency_satisfaction": "PXKt81Km2hczS7HcI3A1",
-  "contact.lead_source_dependency": "OkoXjyFTP5lBlMnaGqcS",
-  // Qualification & Buying Signals
-  "contact.budget_indication": "Pzpt97a6OX8yGvt0yA81",
-  "contact.authority_level": "4cFkzARHaqisnkYD66ZE",
-  "contact.need_identified": "uxUmw1fvMaqB3PaY616L",
-  "contact.buying_timeline": "7eQnEUwjJyS1xHAsWyH9",
-  "contact.current_solution_satisfaction": "tNP34vNiUOxMSCiVDW1q",
-  "contact.key_objection": "IC81cpHYCU1H1uMYAtZz",
-  "contact.buying_signal_strength": "wJEveppptnLy1hXMU0MP",
-  "contact.contractlockin_status": "zCvTLQ0ZSVF2KGWZHJVI",
-  // AI Call Intelligence
-  "contact.ai_call_summary": "IL1bpfoLPz0sPlU7ucbe",
-  "contact.last_call_sentiment": "OZ1i5SuCRyzDIS2R8Ws9",
-  "contact.problem_resonance": "2lkCsBJkkiFPJfK81oOY",
-  "contact.key_quote": "sVV6lPbArgky8tMBOAu8",
-  "contact.rep_coaching_notes": "891RFxHknXy5FK8G3Lvv",
-  "contact.competitive_intel": "iAMPbwmiQXXbXSgmGgUC",
-  "contact.agreed_next_steps": "bHOf7gs4tvdT55ceMQFt",
-  // Meeting Attribution
-  "contact.meeting_set_by_role": "ub05PoyGTqPJXZ4ivMjb",
-  "contact.setter_name": "8I19MJ9Le5Hj24GgRNFf",
-  "contact.assigned_closer": "9rFMYzQhXGHZ4XNiG0yL",
-  "contact.meeting_source": "HRl4iXpoQ2nctkvvNZ6B",
-  "contact.meeting_booked_date": "JZBFneC9P7XPE1UBNZTJ",
+  "contact.google_business_profile": "ndqiVBUh3uLV3Ldv2U3y",
+  "contact.gbp_rating": "tURFlUlaFptokRxVtTnY",
+  "contact.review_number": "zFL0ugGivKLRaT66Rb2z",
+  "contact.number_quality": "RwPm1QYWjsKFPGV9yfPn",
+  "contact.prospect_tier": "tj6IENIKIjrRNOwAlQrH",
+  "contact.next_followup_date": "eCycdDk2CeGl8XBx8F9w",
+  "contact.trade_type": "2PCgu75uet5x1Un3LfUW",
+  "contact.total_call_attempts": "YjMRd5Rjibg5QrvtsxUa",
+  "contact.best_time_to_call": "wnwsciJlfvJRXZzPTv6J",
+  "contact.gatekeeper_name": "lCSsKeALjcWqPnta12QT",
+  "contact.gatekeeper_notes": "R8wxTGh9n3EY3LDD6ape",
+  "contact.decision_maker_name": "wJZYqVWVftkCpRKpsh1E",
+  "contact.decision_maker_direct_line": "6OndJoC6WKbN9Ffq4WRp",
+  "contact.decision_maker_email": "eS6oYJUK2UMnXijxSdCZ",
+  "contact.decision_maker_linkedin": "EKgMkT1U5xu2aj6AoWzw",
+  "contact.best_route_to_dm": "9bpBi9hiziafLWKKA0DN",
+  "contact.abn": "iCiidz5RzuRYi8Iw8gVe",
+  "contact.work_type": "axtUmGxV7tWXytJKBfC8",
+  "contact.business_size": "Ew9OeEvZKjU7qqBddGv1",
+  "contact.years_in_business": "XRMlhtuvmgirf0PULKZK",
+  "contact.current_marketing_agency": "gCrMGwsqXWSZtafyRpbz",
+  "contact.has_google_ads": "ZG3QeG2W3Ik6becivAGs",
+  "contact.has_facebookmeta_ads": "38OdKPZZEzcS8R8rjRWD",
+  "contact.seo_visibility": "DmuVdRMa7GUo75ELoAUe",
+  "contact.budget_indication": "xDIkLFvyamCIbjxKFqjP",
+  "contact.authority_level": "TAreuAl3hcsnzbtfL5sN",
+  "contact.buying_timeline": "GnGTus8dpsw9BjoHxaf7",
+  "contact.buying_signal_strength": "mw0QdEQOuoAfRlHZBYSN",
+  "contact.last_call_sentiment": "ybcmHrjLXc8UN8H7jlcl",
+  "contact.key_quote": "aQMw8XHDdYocQrOWft8h",
+  "contact.agreed_next_steps": "XIh2qkCyBZui0vEwND4f",
+  "contact.meeting_booked_date": "f9YIjyfnCTLsPYChFyHo",
+  "contact.dialer_contact_id": "6teOm5mV7adBxuifGj1M",
+  "contact.lead_status": "jkEml3ZgsT39j0dw5wb4",
+  "contact.lifecycle_stage": "P2jB7XrffoxEXQjhlBSD",
+  "contact.vertical": "iuGlU9siAP2jJcpKbXcf",
+  "contact.import_batch": "gGdOpEyLBLYIusTc0QRk",
+  "contact.appointment_status": "atUoeSFgJf44uN6cbGHV",
+  "contact.noshow_count": "k1lvtr2msSPEf8kSqMwI",
 };
 
 /**
@@ -446,9 +416,8 @@ async function upsertContact(
   if (payload.city) body.city = payload.city;
   if (payload.state) body.state = payload.state;
 
-  // Always include "dialer-linked" tag
-  const tags = [...(payload.tags ?? []), "dialer-linked"];
-  body.tags = [...new Set(tags)]; // deduplicate
+  // NOTE: never send tags — adding a tag in the main GHL location triggers
+  // live automation workflows. Tagging is caller-driven via the "add_tag" action only.
 
   const data = await ghlFetch("/contacts/upsert", apiKey, {
     method: "POST",
@@ -485,37 +454,12 @@ async function upsertContact(
       );
 
       if (existingContacts.length > 0) {
-        // Found an existing contact with the same company name.
-        // Use the existing one and delete the duplicate we just created.
         const existing = existingContacts[0];
-        console.log(
-          `[GHL Upsert] Phone mismatch but company match: using existing ${existing.id} instead of new ${upsertedId} for "${payload.companyName}"`,
+        // Possible duplicate by company name. We do NOT delete anything —
+        // company names are not unique enough across 43k contacts.
+        console.warn(
+          `[GHL Upsert] Possible company-name duplicate for "${payload.companyName}": kept new contact ${upsertedId}, existing candidate ${existing.id}. No deletion performed.`,
         );
-
-        // Delete the duplicate contact we just created
-        try {
-          await ghlFetch(`/contacts/${upsertedId}`, apiKey, {
-            method: "DELETE",
-          });
-        } catch (delErr) {
-          console.warn(`[GHL Upsert] Failed to delete duplicate ${upsertedId}:`, delErr);
-        }
-
-        // Add the dialer-linked tag to the existing contact
-        try {
-          await ghlFetch(`/contacts/${existing.id}/tags`, apiKey, {
-            method: "POST",
-            body: { tags: [...new Set(tags)] },
-          });
-        } catch {
-          // Non-critical — tag addition failure is acceptable
-        }
-
-        return {
-          ghlContactId: existing.id,
-          isNew: false,
-          contact: existing,
-        };
       }
     } catch (searchErr) {
       // If the fallback search fails, just use the newly created contact.
@@ -599,9 +543,6 @@ async function bulkLinkContacts(
       }
 
       try {
-        const tags: string[] = [];
-        if (contact.industry) tags.push(`industry:${contact.industry.toLowerCase().replace(/\s+/g, "-")}`);
-
         const result = await upsertContact(apiKey, locationId, {
           phone: contact.phone,
           companyName: contact.business_name || undefined,
@@ -610,7 +551,6 @@ async function bulkLinkContacts(
           website: contact.website || undefined,
           city: contact.city || undefined,
           state: contact.state || undefined,
-          tags,
         });
 
         if (result.ghlContactId) {
