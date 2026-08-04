@@ -1351,6 +1351,278 @@ async function bulkImportFromGhl(
   };
 }
 
+// ── Legacy (Tradies) location export — READ ONLY ───────────────────────
+
+type LegacyPhase = "pipelines" | "opportunities" | "contacts" | "notes";
+
+interface LegacyExportResult {
+  phase: LegacyPhase;
+  processed: number;
+  upserted: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number;
+  errors: string[];
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Read-only GHL fetch with 150ms throttle and a single 15s back-off on 429. */
+async function legacyGhlFetch(
+  path: string,
+  apiKey: string,
+  opts: { method?: "GET" | "POST"; body?: unknown; params?: Record<string, string> } = {},
+): Promise<any> {
+  const method = opts.method ?? "GET";
+  if (method !== "GET" && method !== "POST") throw new Error("Legacy export is read-only");
+
+  const run = async () => {
+    const url = new URL(`${GHL_BASE}${path}`);
+    if (opts.params) {
+      for (const [k, v] of Object.entries(opts.params)) if (v) url.searchParams.set(k, v);
+    }
+    const init: RequestInit = { method, headers: ghlHeaders(apiKey) };
+    if (opts.body) init.body = JSON.stringify(opts.body);
+    return await fetch(url.toString(), init);
+  };
+
+  await sleep(150);
+  let res = await run();
+  if (res.status === 429) {
+    await sleep(15_000);
+    res = await run();
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`GHL ${res.status}: ${JSON.stringify(data).slice(0, 400)}`);
+  return data;
+}
+
+function toIso(v: unknown): string | null {
+  if (!v) return null;
+  const d = new Date(v as string);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+async function exportLegacyGhl(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  opts: { phase: LegacyPhase; cursor?: string | null },
+): Promise<LegacyExportResult> {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const phase = opts.phase;
+  const cursor = opts.cursor ?? null;
+  const errors: string[] = [];
+  let processed = 0;
+  let upserted = 0;
+  let total = 0;
+  let hasMore = false;
+  let nextCursor: string | null = null;
+
+  if (phase === "pipelines") {
+    const data = await legacyGhlFetch("/opportunities/pipelines", apiKey, {
+      params: { locationId },
+    });
+    const pipelines: any[] = data?.pipelines ?? [];
+    processed = pipelines.length;
+    total = pipelines.length;
+    const rows = pipelines.map((p) => ({
+      id: String(p.id),
+      name: p.name ?? null,
+      stages: p.stages ?? [],
+      raw: p,
+      fetched_at: new Date().toISOString(),
+    }));
+    if (rows.length) {
+      const { error } = await supabase.from("legacy_ghl_pipelines").upsert(rows, { onConflict: "id" });
+      if (error) errors.push(error.message);
+      else upserted = rows.length;
+    }
+    return { phase, processed, upserted, hasMore: false, nextCursor: null, total, errors };
+  }
+
+  if (phase === "opportunities") {
+    // Build stage_id -> stage_name lookup from the already-exported pipelines.
+    const stageNames = new Map<string, string>();
+    const { data: pipeRows } = await supabase.from("legacy_ghl_pipelines").select("stages");
+    for (const row of pipeRows ?? []) {
+      for (const st of ((row as any).stages ?? []) as any[]) {
+        if (st?.id) stageNames.set(String(st.id), st.name ?? "");
+      }
+    }
+
+    const params: Record<string, string> = {
+      location_id: locationId,
+      limit: "100",
+    };
+    if (cursor) {
+      const [startAfter, startAfterId] = cursor.split("|");
+      if (startAfter) params.startAfter = startAfter;
+      if (startAfterId) params.startAfterId = startAfterId;
+    }
+
+    const data = await legacyGhlFetch("/opportunities/search", apiKey, { params });
+    const opps: any[] = data?.opportunities ?? [];
+    total = Number(data?.meta?.total ?? data?.total ?? 0);
+    processed = opps.length;
+
+    const rows = opps.map((o) => ({
+      id: String(o.id),
+      name: o.name ?? null,
+      pipeline_id: o.pipelineId ?? null,
+      pipeline_stage_id: o.pipelineStageId ?? null,
+      stage_name: o.pipelineStageId ? (stageNames.get(String(o.pipelineStageId)) ?? null) : null,
+      status: o.status ?? null,
+      monetary_value: typeof o.monetaryValue === "number" ? o.monetaryValue : null,
+      source: o.source ?? null,
+      contact_id: o.contactId ?? o.contact?.id ?? null,
+      contact_name: o.contact?.name ?? null,
+      contact_phone: o.contact?.phone ?? null,
+      contact_email: o.contact?.email ?? null,
+      assigned_to: o.assignedTo ?? null,
+      lost_reason_id: o.lostReasonId ?? null,
+      lost_reason_name: o.lostReasonName ?? null,
+      tags: Array.isArray(o.contact?.tags) ? o.contact.tags : (Array.isArray(o.tags) ? o.tags : null),
+      created_at_ghl: toIso(o.createdAt),
+      updated_at_ghl: toIso(o.updatedAt),
+      custom_fields: o.customFields ?? null,
+      raw: o,
+      fetched_at: new Date().toISOString(),
+    }));
+
+    if (rows.length) {
+      const { error } = await supabase.from("legacy_ghl_opportunities").upsert(rows, { onConflict: "id" });
+      if (error) errors.push(error.message);
+      else upserted = rows.length;
+    }
+
+    const metaAfter = data?.meta?.startAfter;
+    const metaAfterId = data?.meta?.startAfterId;
+    hasMore = opps.length > 0 && Boolean(metaAfterId ?? data?.meta?.nextPageUrl);
+    nextCursor = hasMore ? `${metaAfter ?? ""}|${metaAfterId ?? ""}` : null;
+    return { phase, processed, upserted, hasMore, nextCursor, total, errors };
+  }
+
+  if (phase === "contacts") {
+    const body: Record<string, unknown> = {
+      locationId,
+      pageLimit: 100,
+softsort:      };
+    if (cursor) {
+      try {
+        body.searchAfter = JSON.parse(cursor);
+      } catch {
+        /* ignore malformed cursor */
+      }
+    }
+
+    const data = await legacyGhlFetch("/contacts/search", apiKey, { method: "POST", body });
+    const contacts: any[] = data?.contacts ?? [];
+    total = Number(data?.total ?? 0);
+    processed = contacts.length;
+
+    const rows = contacts.map((c) => ({
+      id: String(c.id),
+      first_name: c.firstName ?? c.firstNameLowerCase ?? null,
+      last_name: c.lastName ?? c.lastNameLowerCase ?? null,
+      company_name: c.companyName ?? null,
+      phone: c.phone ?? null,
+      email: c.email ?? null,
+      tags: Array.isArray(c.tags) ? c.tags : null,
+      source: c.source ?? null,
+      dnd: typeof c.dnd === "boolean" ? c.dnd : null,
+      date_added: toIso(c.dateAdded ?? c.createdAt),
+      custom_fields: c.customFields ?? null,
+      raw: c,
+      fetched_at: new Date().toISOString(),
+    }));
+
+    if (rows.length) {
+      const { error } = await supabase.from("legacy_ghl_contacts").upsert(rows, { onConflict: "id" });
+      if (error) errors.push(error.message);
+      else upserted = rows.length;
+    }
+
+    const last = contacts[contacts.length - 1];
+    const searchAfter = last?.searchAfter;
+    hasMore = contacts.length === 100 && Array.isArray(searchAfter) && searchAfter.length > 0;
+    nextCursor = hasMore ? JSON.stringify(searchAfter) : null;
+    return { phase, processed, upserted, hasMore, nextCursor, total, errors };
+  }
+
+  // phase === "notes"
+  const BATCH = 25;
+  const offset = cursor ? Number(cursor) || 0 : 0;
+
+  // Contacts that have at least one opportunity — the valuable ones, done first.
+  const { data: oppContacts, error: oppErr } = await supabase
+    .from("legacy_ghl_opportunities")
+    .select("contact_id")
+    .not("contact_id", "is", null);
+  if (oppErr) errors.push(oppErr.message);
+
+  const withOpps: string[] = [];
+  const seen = new Set<string>();
+  for (const r of oppContacts ?? []) {
+    const id = (r as any).contact_id as string;
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      withOpps.push(id);
+    }
+  }
+
+  // Only keep ones we actually have a legacy contact row for.
+  const { data: legacyContacts, error: lcErr } = await supabase
+    .from("legacy_ghl_contacts")
+    .select("id");
+  if (lcErr) errors.push(lcErr.message);
+  const known = new Set((legacyContacts ?? []).map((r: any) => String(r.id)));
+
+  const priority = withOpps.filter((id) => known.has(id));
+  const rest = [...known].filter((id) => !seen.has(id)).sort();
+  const ordered = [...priority, ...rest];
+
+  // Skip contacts we already pulled notes for.
+  const { data: doneRows } = await supabase.from("legacy_ghl_notes").select("contact_id");
+  const done = new Set((doneRows ?? []).map((r: any) => String(r.contact_id)));
+  const pending = ordered.filter((id) => !done.has(id));
+
+  total = ordered.length;
+  const slice = pending.slice(offset, offset + BATCH);
+
+  for (const contactId of slice) {
+    processed++;
+    try {
+      const data = await legacyGhlFetch(`/contacts/${contactId}/notes`, apiKey);
+      const notes: any[] = data?.notes ?? [];
+      if (!notes.length) continue;
+      const rows = notes.map((n) => ({
+        id: String(n.id),
+        contact_id: contactId,
+        body: n.body ?? null,
+        created_at_ghl: toIso(n.dateAdded ?? n.createdAt),
+        created_by: n.userId ?? null,
+        raw: n,
+        fetched_at: new Date().toISOString(),
+      }));
+      const { error } = await supabase.from("legacy_ghl_notes").upsert(rows, { onConflict: "id" });
+      if (error) errors.push(`${contactId}: ${error.message}`);
+      else upserted += rows.length;
+    } catch (err) {
+      errors.push(`${contactId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Contacts with no notes never land in legacy_ghl_notes, so advance the offset
+  // past them rather than relying purely on the "already present" skip.
+  const nextOffset = offset + slice.length;
+  hasMore = nextOffset < pending.length;
+  nextCursor = hasMore ? String(nextOffset) : null;
+
+  return { phase, processed, upserted, hasMore, nextCursor, total, errors: errors.slice(0, 20) };
+}
+
 // ── Main handler ───────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -1457,6 +1729,7 @@ Deno.serve(async (req) => {
       "pull_inbound_leads",
       "relink_from_dialer_id",
       "push_fields_to_ghl",
+      "export_legacy_ghl",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -1663,6 +1936,21 @@ Deno.serve(async (req) => {
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);
         result = await searchOpportunities(GHL_API_KEY, GHL_LOCATION_ID, body.pipelineId, body.contactId);
         break;
+
+      case "export_legacy_ghl": {
+        const validPhases = ["pipelines", "opportunities", "contacts", "notes"];
+        const phase = String(body.phase ?? "");
+        if (!validPhases.includes(phase)) {
+          return json({ error: "Invalid phase" }, 400);
+        }
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await exportLegacyGhl(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+          phase: phase as LegacyPhase,
+          cursor: typeof body.cursor === "string" ? body.cursor : null,
+        });
+        break;
+      }
 
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
