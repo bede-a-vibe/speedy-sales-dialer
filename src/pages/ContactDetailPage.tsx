@@ -26,6 +26,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
+import { getGhlContactUrl } from "@/lib/ghlUrls";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -207,6 +208,7 @@ export default function ContactDetailPage() {
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
   const websiteUrl = normaliseExternalUrl(contact?.website);
   const gmbUrl = normaliseExternalUrl(contact?.gmb_link);
+  const ghlUrl = getGhlContactUrl((contact as unknown as { ghl_contact_id?: string | null })?.ghl_contact_id);
   const nextPipelineItem = pipelineItems.find((item: any) => item.scheduled_for && item.status !== "completed") ?? pipelineItems[0];
   const nextFollowUp = useMemo(() => {
     const now = Date.now();
@@ -764,7 +766,7 @@ export default function ContactDetailPage() {
                     </p>
                   </div>
                 )}
-                {(websiteUrl || gmbUrl) && (
+                {(websiteUrl || gmbUrl || ghlUrl) && (
                   <div className="flex flex-wrap gap-3 text-xs">
                     {websiteUrl && (
                       <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
@@ -774,6 +776,11 @@ export default function ContactDetailPage() {
                     {gmbUrl && (
                       <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
                         <ExternalLink className="h-3.5 w-3.5" /> GMB
+                      </a>
+                    )}
+                    {ghlUrl && (
+                      <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="h-3.5 w-3.5" /> Open in GHL
                       </a>
                     )}
                   </div>
