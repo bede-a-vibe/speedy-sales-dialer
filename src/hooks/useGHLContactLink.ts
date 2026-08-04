@@ -73,12 +73,7 @@ export function useGHLContactLink() {
     // 5. Start the upsert
     const linkPromise = (async (): Promise<LinkResult | null> => {
       try {
-        // Build tags from industry
-        const tags: string[] = [];
-        if (contact.industry) {
-          tags.push(`industry:${contact.industry.toLowerCase().replace(/\s+/g, "-")}`);
-        }
-
+        // NOTE: never send tags — tagging in the main GHL location triggers automations.
         const result = await ghlUpsertContact(
           {
             phone: contact.phone,
@@ -88,7 +83,6 @@ export function useGHLContactLink() {
             website: contact.website || undefined,
             city: contact.city || undefined,
             state: contact.state || undefined,
-            tags,
           },
           contact.id, // supabaseContactId — edge function will save ghl_contact_id
         );
@@ -124,11 +118,6 @@ export function useGHLContactLink() {
         try {
           await new Promise((r) => setTimeout(r, 2000));
 
-          const tags: string[] = [];
-          if (contact.industry) {
-            tags.push(`industry:${contact.industry.toLowerCase().replace(/\s+/g, "-")}`);
-          }
-
           const retryResult = await ghlUpsertContact(
             {
               phone: contact.phone,
@@ -138,7 +127,6 @@ export function useGHLContactLink() {
               website: contact.website || undefined,
               city: contact.city || undefined,
               state: contact.state || undefined,
-              tags,
             },
             contact.id,
           );
