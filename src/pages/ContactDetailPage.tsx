@@ -26,6 +26,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
+import { getGhlContactUrl } from "@/lib/ghlUrls";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -207,6 +208,7 @@ export default function ContactDetailPage() {
   const allNotes = useMemo(() => notePages?.pages.flatMap((p) => p.items) ?? [], [notePages]);
   const websiteUrl = normaliseExternalUrl(contact?.website);
   const gmbUrl = normaliseExternalUrl(contact?.gmb_link);
+  const ghlUrl = getGhlContactUrl((contact as unknown as { ghl_contact_id?: string | null })?.ghl_contact_id);
   const nextPipelineItem = pipelineItems.find((item: any) => item.scheduled_for && item.status !== "completed") ?? pipelineItems[0];
   const nextFollowUp = useMemo(() => {
     const now = Date.now();
@@ -235,6 +237,13 @@ export default function ContactDetailPage() {
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
   const directDecisionMakerPhone = contact?.dm_phone?.trim() || null;
   const hasDecisionMakerDial = Boolean(directDecisionMakerPhone);
+  const gatekeeperName = contact?.gatekeeper_name ?? null;
+  const gatekeeperNotes = (contact as unknown as { gatekeeper_notes?: string | null })?.gatekeeper_notes ?? null;
+  const routeToDecisionMaker =
+    contact?.best_route_to_decision_maker ??
+    (contact as unknown as { best_route_to_dm?: string | null })?.best_route_to_dm ??
+    null;
+  const bestTimeToCall = contact?.best_time_to_call ?? null;
 
   const placeCall = async (phone: string | null) => {
     if (!phone) return;
@@ -764,7 +773,7 @@ export default function ContactDetailPage() {
                     </p>
                   </div>
                 )}
-                {(websiteUrl || gmbUrl) && (
+                {(websiteUrl || gmbUrl || ghlUrl) && (
                   <div className="flex flex-wrap gap-3 text-xs">
                     {websiteUrl && (
                       <a href={websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
@@ -774,6 +783,11 @@ export default function ContactDetailPage() {
                     {gmbUrl && (
                       <a href={gmbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
                         <ExternalLink className="h-3.5 w-3.5" /> GMB
+                      </a>
+                    )}
+                    {ghlUrl && (
+                      <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="h-3.5 w-3.5" /> Open in GHL
                       </a>
                     )}
                   </div>
@@ -795,6 +809,22 @@ export default function ContactDetailPage() {
                         <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {(gatekeeperName || routeToDecisionMaker || bestTimeToCall) && (
+                  <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 text-xs space-y-1">
+                    <p className="text-[11px] uppercase tracking-widest text-orange-700 dark:text-orange-300">Route to decision maker</p>
+                    {gatekeeperName && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Gatekeeper:</span> {gatekeeperName}</p>
+                    )}
+                    {gatekeeperNotes && <p className="text-foreground">{gatekeeperNotes}</p>}
+                    {routeToDecisionMaker && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Best route:</span> {routeToDecisionMaker}</p>
+                    )}
+                    {bestTimeToCall && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Best time:</span> {bestTimeToCall}</p>
+                    )}
                   </div>
                 )}
 
