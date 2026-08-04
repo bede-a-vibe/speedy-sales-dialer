@@ -5,8 +5,9 @@ type GhlPipelineType = "follow_up" | "booked";
 
 const GHL_PIPELINE_DEFAULTS = {
   follow_up: {
-    pipelineId: "QuBn7UX5zebPTd4fqW9x",
-    stageId: "5102204c-7b00-48f9-94fb-70ca529841b9",
+    // Main "Odin Digital" location — Sales Pipeline / Contacted stage
+    pipelineId: "6CHrrf2yQfsHCOJ8RkwK",
+    stageId: "0b02d920-b119-4e69-9c6a-8b543aa612b0",
   },
 } as const;
 
