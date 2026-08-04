@@ -791,6 +791,21 @@ async function bulkLinkContacts(
 ) {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // Hard safety guard: only ever link against the MAIN Odin Digital location
+  const MAIN_LOCATION_ID = "N6ZNHc1OmVcRne4Sprhq";
+  if (locationId !== MAIN_LOCATION_ID) {
+    return {
+      error: `bulk_link_contacts aborted: GHL_LOCATION_ID is not the main Odin Digital location`,
+      processed: 0,
+      total: 0,
+      linked: 0,
+      failed: 0,
+      skipped: 0,
+      hasMore: false,
+      nextOffset: offset,
+    };
+  }
+
   // Count remaining unlinked rows so the client can show progress
   const countQueryBuilder = supabase
     .from("contacts")
@@ -1645,11 +1660,25 @@ Deno.serve(async (req) => {
     const incomingCronSecret = req.headers.get("x-cron-secret");
     if (!authHeader && cronSecret && incomingCronSecret === cronSecret) {
       const cronBody = await req.json().catch(() => ({}));
-      if (cronBody.action !== "pull_inbound_leads") {
+      const allowedCronActions = new Set(["pull_inbound_leads", "bulk_link_contacts"]);
+      if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
       }
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      if (cronBody.action === "bulk_link_contacts") {
+        const linkResult = await bulkLinkContacts(
+          GHL_API_KEY,
+          GHL_LOCATION_ID,
+          supabaseUrl,
+          svcKey,
+          75,
+          0,
+          0,
+          "all",
+        );
+        return json(linkResult);
+      }
       const cronResult = await pullInboundLeads(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
         maxPages: Number(cronBody.maxPages) || undefined,
         lookbackMinutes: Number(cronBody.lookbackMinutes) || undefined,
