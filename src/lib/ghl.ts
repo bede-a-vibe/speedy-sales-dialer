@@ -132,6 +132,20 @@ export async function ghlGetUsers() {
   return invokeGHL({ action: "get_users" });
 }
 
+export interface GHLRelinkResult {
+  page: number;
+  processed: number;
+  relinked: number;
+  skipped: number;
+  hasMore: boolean;
+  nextPage: number;
+  totalGhl: number;
+}
+
+export async function ghlRelinkFromDialerId(page = 1, pageSize = 100) {
+  return invokeGHL<GHLRelinkResult>({ action: "relink_from_dialer_id", page, pageSize });
+}
+
 export interface GHLUpsertResult {
   ghlContactId: string;
   isNew: boolean;
