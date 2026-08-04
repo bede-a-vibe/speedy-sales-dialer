@@ -237,6 +237,13 @@ export default function ContactDetailPage() {
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
   const directDecisionMakerPhone = contact?.dm_phone?.trim() || null;
   const hasDecisionMakerDial = Boolean(directDecisionMakerPhone);
+  const gatekeeperName = contact?.gatekeeper_name ?? null;
+  const gatekeeperNotes = (contact as unknown as { gatekeeper_notes?: string | null })?.gatekeeper_notes ?? null;
+  const routeToDecisionMaker =
+    contact?.best_route_to_decision_maker ??
+    (contact as unknown as { best_route_to_dm?: string | null })?.best_route_to_dm ??
+    null;
+  const bestTimeToCall = contact?.best_time_to_call ?? null;
 
   const placeCall = async (phone: string | null) => {
     if (!phone) return;
@@ -802,6 +809,22 @@ export default function ContactDetailPage() {
                         <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {(gatekeeperName || routeToDecisionMaker || bestTimeToCall) && (
+                  <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 text-xs space-y-1">
+                    <p className="text-[11px] uppercase tracking-widest text-orange-700 dark:text-orange-300">Route to decision maker</p>
+                    {gatekeeperName && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Gatekeeper:</span> {gatekeeperName}</p>
+                    )}
+                    {gatekeeperNotes && <p className="text-foreground">{gatekeeperNotes}</p>}
+                    {routeToDecisionMaker && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Best route:</span> {routeToDecisionMaker}</p>
+                    )}
+                    {bestTimeToCall && (
+                      <p className="text-foreground"><span className="text-muted-foreground">Best time:</span> {bestTimeToCall}</p>
+                    )}
                   </div>
                 )}
 
