@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "@/pages/DashboardPage";
 import { installDemoFetchInterceptor, setDemoModeActive } from "@/lib/demoMode";
+import { fetchGhlLocationId } from "@/lib/ghlUrls";
 import { PageTransition } from "@/components/PageTransition";
 
 const DialerPage = lazy(() => import("@/pages/DialerPage"));
@@ -68,6 +69,14 @@ function DemoModeSync() {
   return null;
 }
 
+/** Resolves the GHL location ID once per authenticated session, any entry point. */
+function GhlLocationSync() {
+  useEffect(() => {
+    void fetchGhlLocationId();
+  }, []);
+  return null;
+}
+
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
@@ -80,6 +89,7 @@ function ProtectedRoutes() {
   return (
     <Suspense fallback={<FullPageLoading />}>
       <DemoModeSync />
+      <GhlLocationSync />
       <PageTransition>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
