@@ -475,6 +475,76 @@ async function upsertContact(
   };
 }
 
+const DIALER_CONTACT_ID_FIELD = "6teOm5mV7adBxuifGj1M";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Re-link Supabase contacts to the main GHL location using the
+ * "Dialer Contact ID" custom field rather than guessing by phone.
+ */
+async function relinkFromDialerId(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  page = 1,
+  pageSize = 100,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  const searchResult = await ghlFetch("/contacts/search", apiKey, {
+    method: "POST",
+    body: { locationId, page, pageSize },
+  });
+
+  const contacts: Array<Record<string, unknown>> = searchResult.contacts ?? [];
+  const totalGhl = Number(searchResult.total ?? 0);
+
+  let relinked = 0;
+  let skipped = 0;
+
+  for (const gc of contacts) {
+    const ghlId = gc.id as string | undefined;
+    const customFields = Array.isArray(gc.customFields)
+      ? (gc.customFields as Array<Record<string, unknown>>)
+      : [];
+    const field = customFields.find((f) => f.id === DIALER_CONTACT_ID_FIELD);
+    const raw = field ? (field.value ?? (field as { field_value?: unknown }).field_value) : undefined;
+    const dialerId = typeof raw === "string" ? raw.trim() : "";
+
+    if (!ghlId || !dialerId || !UUID_RE.test(dialerId)) {
+      skipped++;
+      continue;
+    }
+
+    const { data, error } = await supabase
+      .from("contacts")
+      .update({ ghl_contact_id: ghlId })
+      .eq("id", dialerId)
+      .select("id");
+
+    if (error || !data || data.length === 0) {
+      if (error) console.warn(`[GHL Relink] Failed to update ${dialerId}:`, error.message);
+      skipped++;
+      continue;
+    }
+    relinked++;
+  }
+
+  const processed = contacts.length;
+  const hasMore = processed === pageSize;
+
+  return {
+    page,
+    processed,
+    relinked,
+    skipped,
+    hasMore,
+    nextPage: page + 1,
+    totalGhl,
+  };
+}
+
 async function bulkLinkContacts(
   apiKey: string,
   locationId: string,
