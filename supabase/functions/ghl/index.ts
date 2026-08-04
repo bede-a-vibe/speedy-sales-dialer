@@ -1660,11 +1660,25 @@ Deno.serve(async (req) => {
     const incomingCronSecret = req.headers.get("x-cron-secret");
     if (!authHeader && cronSecret && incomingCronSecret === cronSecret) {
       const cronBody = await req.json().catch(() => ({}));
-      if (cronBody.action !== "pull_inbound_leads") {
+      const allowedCronActions = new Set(["pull_inbound_leads", "bulk_link_contacts"]);
+      if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
       }
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      if (cronBody.action === "bulk_link_contacts") {
+        const linkResult = await bulkLinkContacts(
+          GHL_API_KEY,
+          GHL_LOCATION_ID,
+          supabaseUrl,
+          svcKey,
+          75,
+          0,
+          0,
+          "all",
+        );
+        return json(linkResult);
+      }
       const cronResult = await pullInboundLeads(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
         maxPages: Number(cronBody.maxPages) || undefined,
         lookbackMinutes: Number(cronBody.lookbackMinutes) || undefined,
