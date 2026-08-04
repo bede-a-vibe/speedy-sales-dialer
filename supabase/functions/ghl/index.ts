@@ -692,7 +692,8 @@ const CUTOVER_DND_SETTINGS = {
 
 /**
  * Push dialer field data UP to GHL for already-linked contacts.
- * Only ever PUTs customFields + DND settings — never tags, never opportunities.
+ * Only ever PUTs customFields — never tags, never opportunities.
+ * DND is only ever set for genuine opt-outs (contacts.is_dnc = true).
  */
 async function pushFieldsToGhl(
   apiKey: string,
@@ -700,6 +701,7 @@ async function pushFieldsToGhl(
   serviceRoleKey: string,
   batchSize = 50,
   offset = 0,
+  useCursor = false,
 ) {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -709,12 +711,29 @@ async function pushFieldsToGhl(
     .not("ghl_contact_id", "is", null);
   if (countError) throw new Error(`Failed to count linked contacts: ${countError.message}`);
 
-  const { data: rows, error: fetchError } = await supabase
+  const CURSOR_KEY = "ghl_field_push";
+  let cursorId: string | null = null;
+  if (useCursor) {
+    const { data: stateRow } = await supabase
+      .from("dialpad_sync_state")
+      .select("cursor, done")
+      .eq("key", CURSOR_KEY)
+      .maybeSingle();
+    if (stateRow?.done) {
+      return { processed: 0, updated: 0, failed: 0, skipped: 0, hasMore: false, nextOffset: offset, total: total ?? 0, done: true, errors: [] };
+    }
+    cursorId = (stateRow?.cursor as string | null) ?? null;
+  }
+
+  let query = supabase
     .from("contacts")
     .select(CUTOVER_SELECT_COLUMNS)
     .not("ghl_contact_id", "is", null)
-    .order("id", { ascending: true })
-    .range(offset, offset + batchSize - 1);
+    .order("id", { ascending: true });
+  query = useCursor
+    ? (cursorId ? query.gt("id", cursorId) : query).limit(batchSize)
+    : query.range(offset, offset + batchSize - 1);
+  const { data: rows, error: fetchError } = await query;
   if (fetchError) throw new Error(`Failed to fetch linked contacts: ${fetchError.message}`);
 
   const contacts = (rows ?? []) as unknown as Array<Record<string, unknown>>;
@@ -731,10 +750,10 @@ async function pushFieldsToGhl(
       continue;
     }
 
-    const payload = {
+    const isDnc = contact.is_dnc === true;
+    const payload: Record<string, unknown> = {
       customFields: buildCutoverCustomFields(contact),
-      dnd: true,
-      dndSettings: CUTOVER_DND_SETTINGS,
+      ...(isDnc ? { dnd: true, dndSettings: CUTOVER_DND_SETTINGS } : {}),
     };
 
     try {
@@ -767,6 +786,21 @@ async function pushFieldsToGhl(
 
   const processed = contacts.length;
 
+  if (useCursor) {
+    const lastId = processed > 0 ? String(contacts[processed - 1].id) : cursorId;
+    await supabase.from("dialpad_sync_state").upsert(
+      {
+        key: CURSOR_KEY,
+        cursor: lastId,
+        done: processed === 0,
+        last_run_at: new Date().toISOString(),
+        last_pulled: processed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+  }
+
   return {
     processed,
     updated,
@@ -775,6 +809,7 @@ async function pushFieldsToGhl(
     hasMore: processed === batchSize,
     nextOffset: offset + processed,
     total: total ?? 0,
+    ...(useCursor ? { done: processed === 0, cursor: processed > 0 ? String(contacts[processed - 1].id) : cursorId } : {}),
     errors,
   };
 }
