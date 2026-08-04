@@ -918,6 +918,23 @@ export default function ContactsPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / CONTACTS_PER_PAGE));
 
   const isAdmin = useIsAdmin();
+  const [ghlExporting, setGhlExporting] = useState(false);
+  const [ghlExportCount, setGhlExportCount] = useState(0);
+
+  const exportForGhl = async () => {
+    if (ghlExporting) return;
+    setGhlExporting(true);
+    setGhlExportCount(0);
+    try {
+      const rows = await fetchAllContactsForGhl(setGhlExportCount);
+      downloadGhlCsv(buildGhlCsv(rows));
+      toast.success(`Exported ${rows.length.toLocaleString()} contacts for GoHighLevel`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setGhlExporting(false);
+    }
+  };
   const updateContact = useUpdateContact();
   const createContact = useCreateContact();
   const createPipelineItem = useCreatePipelineItem();
