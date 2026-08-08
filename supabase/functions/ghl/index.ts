@@ -272,6 +272,87 @@ async function getPipelines(apiKey: string, locationId: string) {
   });
 }
 
+async function syncGhlAppointments(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  const calendarsRes = await getCalendars(apiKey, locationId) as {
+    calendars?: Array<{ id?: string; name?: string }>;
+  };
+  const calendars = calendarsRes?.calendars ?? [];
+  const nameById = new Map<string, string>();
+  for (const c of calendars) {
+    if (c?.id) nameById.set(c.id, c.name ?? "");
+  }
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const startTime = String(now - 120 * DAY_MS);
+  const endTime = String(now + 120 * DAY_MS);
+
+  let eventsPulled = 0;
+  let upserted = 0;
+  const errors: string[] = [];
+
+  for (const cal of calendars) {
+    if (!cal?.id) continue;
+    try {
+      const res = await ghlFetch("/calendars/events", apiKey, {
+        params: { locationId, calendarId: cal.id, startTime, endTime },
+      }) as { events?: Array<Record<string, unknown>> };
+      const events = res?.events ?? [];
+      eventsPulled += events.length;
+
+      const rows = events
+        .filter((e) => e?.deleted !== true && e?.id)
+        .map((e) => ({
+          ghl_event_id: String(e.id),
+          ghl_contact_id: (e.contactId as string) ?? null,
+          calendar_id: (e.calendarId as string) ?? cal.id,
+          calendar_name: nameById.get((e.calendarId as string) ?? cal.id!) ?? cal.name ?? null,
+          ghl_assigned_user_id: (e.assignedUserId as string) ?? null,
+          appointment_status: (e.appointmentStatus as string) ?? null,
+          title: (e.title as string) ?? null,
+          start_time: (e.startTime as string) ?? null,
+          end_time: (e.endTime as string) ?? null,
+          booked_at: (e.dateAdded as string) ?? null,
+          ghl_updated_at: (e.dateUpdated as string) ?? null,
+          meeting_link: (e.address as string) ?? null,
+          created_by_source:
+            ((e.createdBy as Record<string, unknown> | undefined)?.source as string) ?? null,
+          raw: e,
+          synced_at: new Date().toISOString(),
+        }));
+
+      if (rows.length) {
+        const { error } = await supabase
+          .from("ghl_appointments")
+          .upsert(rows, { onConflict: "ghl_event_id" });
+        if (error) {
+          errors.push(`${cal.id}: ${error.message}`);
+        } else {
+          upserted += rows.length;
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[sync_ghl_appointments] calendar ${cal.id} failed:`, msg);
+      errors.push(`${cal.id}: ${msg}`);
+    }
+  }
+
+  return {
+    calendars: calendars.length,
+    events_pulled: eventsPulled,
+    upserted,
+    ...(errors.length ? { errors } : {}),
+  };
+}
+
 async function getSmartLists(apiKey: string, locationId: string) {
   // GHL search endpoint with empty filters returns all contacts;
   // smart lists are fetched via saved search / filters
@@ -1695,7 +1776,12 @@ Deno.serve(async (req) => {
     const incomingCronSecret = req.headers.get("x-cron-secret");
     if (!authHeader && cronSecret && incomingCronSecret === cronSecret) {
       const cronBody = await req.json().catch(() => ({}));
-      const allowedCronActions = new Set(["pull_inbound_leads", "bulk_link_contacts", "push_fields_to_ghl"]);
+      const allowedCronActions = new Set([
+        "pull_inbound_leads",
+        "bulk_link_contacts",
+        "push_fields_to_ghl",
+        "sync_ghl_appointments",
+      ]);
       if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
       }
@@ -1717,6 +1803,15 @@ Deno.serve(async (req) => {
       if (cronBody.action === "push_fields_to_ghl") {
         const pushResult = await pushFieldsToGhl(GHL_API_KEY, supabaseUrl, svcKey, 50, 0, true);
         return json(pushResult);
+      }
+      if (cronBody.action === "sync_ghl_appointments") {
+        const apptResult = await syncGhlAppointments(
+          GHL_API_KEY,
+          GHL_LOCATION_ID,
+          supabaseUrl,
+          svcKey,
+        );
+        return json(apptResult);
       }
       const cronResult = await pullInboundLeads(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
         maxPages: Number(cronBody.maxPages) || undefined,
