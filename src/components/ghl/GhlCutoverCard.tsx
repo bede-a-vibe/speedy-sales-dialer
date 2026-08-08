@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
-import { Loader2, Link2, UploadCloud, Download } from "lucide-react";
+import { Loader2, Link2, UploadCloud, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ghlBulkLinkContacts, ghlPushFieldsToGhl, ghlExportLegacy, type LegacyExportPhase } from "@/lib/ghl";
+import { ghlBulkLinkContacts, ghlPushFieldsToGhl, ghlExportLegacy, ghlSyncAppointments, type LegacyExportPhase } from "@/lib/ghl";
 
 const LEGACY_PHASES: Array<{ phase: LegacyExportPhase; label: string }> = [
   { phase: "pipelines", label: "Pipelines" },
@@ -37,6 +37,26 @@ export function GhlCutoverCard() {
   const [pushTotals, setPushTotals] = useState<RunTotals>(EMPTY);
   const [legacyPhase, setLegacyPhase] = useState<LegacyExportPhase | null>(null);
   const [legacyTotals, setLegacyTotals] = useState<Record<string, LegacyTotals>>({});
+  const [syncingAppts, setSyncingAppts] = useState(false);
+
+  const runApptSync = useCallback(async () => {
+    setSyncingAppts(true);
+    try {
+      const res = await ghlSyncAppointments();
+      toast({
+        title: "Appointments refreshed",
+        description: `${res.upserted.toLocaleString()} appointments saved from ${res.calendars} calendars.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Appointment refresh failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingAppts(false);
+    }
+  }, [toast]);
 
   const runLegacy = useCallback(
     async (phase: LegacyExportPhase) => {
@@ -130,6 +150,18 @@ export function GhlCutoverCard() {
   return (
     <Card>
       <CardHeader>
+        <CardTitle className="text-base">Appointments</CardTitle>
+        <CardDescription>
+          Bookings sync automatically at the end of each day. Hit refresh to pull the latest now.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant="outline" onClick={runApptSync} disabled={syncingAppts}>
+          {syncingAppts ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Refresh appointments
+        </Button>
+      </CardContent>
+      <CardHeader className="pt-0">
         <CardTitle className="text-base">GHL Cutover</CardTitle>
         <CardDescription>
           One-off backfill for the main location: link contacts by phone, then push dialer fields up to GHL.

@@ -80,6 +80,12 @@ export async function ghlCreateAppointment(payload: Record<string, unknown>) {
   return invokeGHL({ action: "create_appointment", payload });
 }
 
+export async function ghlSyncAppointments() {
+  return invokeGHL<{ calendars: number; events_pulled: number; upserted: number }>({
+    action: "sync_ghl_appointments",
+  });
+}
+
 export async function ghlGetCalendars() {
   return invokeGHL({ action: "get_calendars" });
 }

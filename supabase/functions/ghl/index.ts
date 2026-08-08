@@ -1893,6 +1893,7 @@ Deno.serve(async (req) => {
       "relink_from_dialer_id",
       "push_fields_to_ghl",
       "export_legacy_ghl",
+      "sync_ghl_appointments",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -1925,6 +1926,13 @@ Deno.serve(async (req) => {
           Number(body.batchSize) || 50,
           Number(body.offset) || 0,
         );
+        break;
+      }
+
+      case "sync_ghl_appointments": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await syncGhlAppointments(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey);
         break;
       }
 
