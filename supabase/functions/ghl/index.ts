@@ -653,9 +653,22 @@ function hasValue(v: unknown): boolean {
   return true;
 }
 
-function mapLeadSourceChannel(leadChannel: unknown): string {
+/**
+ * Lead Source Channel = where the lead actually CAME FROM, set once at the first
+ * real conversion (they book off a cold call, or opt in via an ad).
+ *
+ * Sitting on the cold list is NOT a source — a scraped or purchased record is
+ * inventory, not attribution. Defaulting a blank channel to "Cold Call" stamped
+ * 30,193 contacts, of which ZERO had ever been booked, making Cold Call look like
+ * 85% of all lead flow when it had produced no bookings at all.
+ *
+ * Returns null when there is no real channel yet; the caller omits the field so
+ * it stays empty until something genuine sets it. Never overwrite a value that
+ * is already there — first real touch wins.
+ */
+function mapLeadSourceChannel(leadChannel: unknown): string | null {
   const raw = typeof leadChannel === "string" ? leadChannel.trim() : "";
-  if (!raw) return "Cold Call";
+  if (!raw) return null;
   return LEAD_SOURCE_CHANNEL_MAP[raw.toLowerCase()] ?? "Other";
 }
 
@@ -671,11 +684,17 @@ function buildCutoverCustomFields(contact: Record<string, unknown>) {
     { id: CUTOVER_FIELD_IDS.importBatch, field_value: IMPORT_BATCH_VALUE },
     { id: CUTOVER_FIELD_IDS.leadStatus, field_value: leadStatus },
     { id: CUTOVER_FIELD_IDS.lifecycleStage, field_value: lifecycleStage },
-    { id: CUTOVER_FIELD_IDS.leadSourceChannel, field_value: mapLeadSourceChannel(contact.lead_channel) },
     { id: CUTOVER_FIELD_IDS.segment, field_value: "SMB" },
     { id: CUTOVER_FIELD_IDS.brand, field_value: "Odin Digital" },
     { id: CUTOVER_FIELD_IDS.appointmentStatus, field_value: "Not Booked" },
   ];
+
+  // Only carry a source once there is a real one. A blank here leaves the CRM
+  // field empty rather than falsely attributing the lead to cold calling.
+  const leadSourceChannel = mapLeadSourceChannel(contact.lead_channel);
+  if (leadSourceChannel) {
+    fields.push({ id: CUTOVER_FIELD_IDS.leadSourceChannel, field_value: leadSourceChannel });
+  }
 
   if (hasValue(contact.prospect_tier)) {
     fields.push({ id: CUTOVER_FIELD_IDS.prospectTier, field_value: contact.prospect_tier });
