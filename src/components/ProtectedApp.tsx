@@ -15,6 +15,7 @@ const InsightsPage = lazy(() => import("@/pages/InsightsPage"));
 const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
+const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
 const PlaybookPage = lazy(() => import("@/pages/PlaybookPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
@@ -99,6 +100,7 @@ function ProtectedRoutes() {
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/training" element={<TrainingPage />} />
+        <Route path="/eod" element={<EodReportPage />} />
         <Route path="/playbook" element={<PlaybookPage />} />
         <Route
           path="/insights"
