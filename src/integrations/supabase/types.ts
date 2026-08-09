@@ -1683,6 +1683,96 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          ghl_role: string | null
+          ghl_type: string | null
+          ghl_user_id: string
+          is_deleted: boolean
+          last_name: string | null
+          name: string | null
+          needs_dialpad: boolean
+          phone: string | null
+          provisioned_user_id: string | null
+          synced_at: string
+          takes_meetings: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id: string
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id?: string
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meeting_outcome_log: {
+        Row: {
+          appointment_id: string
+          id: string
+          notes: string | null
+          outcome: string | null
+          outcome_reason: string | null
+          recorded_at: string
+          recorded_by: string | null
+          scheduled_for: string | null
+          source: string
+        }
+        Insert: {
+          appointment_id: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
+        }
+        Update: {
+          appointment_id?: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       ghl_import_exclude: {
         Row: {
           ghl_id: string
@@ -2526,8 +2616,14 @@ export type Database = {
           meeting_link: string | null
           meeting_type: string | null
           mrr: number | null
+          original_start_time: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
           owner_id: string | null
           phone: string | null
+          rep_name: string | null
+          rep_user_id: string | null
+          reschedule_count: number | null
           resolved_outcome: string | null
           source: string | null
           start_time: string | null
@@ -2690,6 +2786,9 @@ export type Database = {
           mrr: number
           noshow: number
           pending: number
+          reschedule_rate_pct: number
+          reschedules: number
+          rescheduled: number
           show_rate_pct: number
           showed: number
           source: string
@@ -2697,9 +2796,34 @@ export type Database = {
           upcoming: number
         }[]
       }
+      get_rep_meeting_stats: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          cancelled: number
+          contacts_won: number
+          ghl_user_id: string
+          has_dialer_account: boolean
+          meetings_booked: number
+          noshow: number
+          pending: number
+          rep_name: string
+          rep_user_id: string
+          reschedule_rate_pct: number
+          reschedules: number
+          rescheduled: number
+          show_rate_pct: number
+          showed: number
+          upcoming: number
+        }[]
+      }
       relink_ghl_appointments: { Args: never; Returns: Json }
       set_appointment_outcome: {
-        Args: { _appointment_id: string; _notes?: string; _outcome: string }
+        Args: {
+          _appointment_id: string
+          _notes?: string
+          _outcome: string
+          _reason?: string
+        }
         Returns: undefined
       }
       has_role: {

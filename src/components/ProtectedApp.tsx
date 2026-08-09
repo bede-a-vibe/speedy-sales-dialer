@@ -21,6 +21,7 @@ const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
 const RolesPage = lazy(() => import("@/pages/RolesPage"));
+const TeamPage = lazy(() => import("@/pages/TeamPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -143,6 +144,14 @@ function ProtectedRoutes() {
           element={(
             <AdminRoute>
               <ClientsPage />
+            </AdminRoute>
+          )}
+        />
+        <Route
+          path="/admin/team"
+          element={(
+            <AdminRoute>
+              <TeamPage />
             </AdminRoute>
           )}
         />

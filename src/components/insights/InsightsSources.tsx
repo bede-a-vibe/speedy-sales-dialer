@@ -71,6 +71,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
       showed,
       noshow,
       pending: sum("pending"),
+      reschedules: sum("reschedules"),
       upcoming: sum("upcoming"),
       won,
       mrr: sum("mrr"),
@@ -181,6 +182,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
                   <TableHead className="text-right">Showed</TableHead>
                   <TableHead className="text-right">No-show</TableHead>
                   <TableHead className="text-right">Show rate</TableHead>
+                  <TableHead className="text-right">Moved</TableHead>
                   <TableHead className="text-right">Won</TableHead>
                   <TableHead className="text-right">Close / show</TableHead>
                   <TableHead className="text-right">Close / booked</TableHead>
@@ -207,6 +209,12 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
                       className={cn("text-right font-medium tabular-nums", rateTone(row.show_rate_pct, 60, 35))}
                     >
                       {pct(row.show_rate_pct)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {row.reschedules || "—"}
+                      {row.reschedule_rate_pct ? (
+                        <span className="ml-1 text-[10px]">({row.reschedule_rate_pct}%)</span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.contacts_won}</TableCell>
                     <TableCell
@@ -235,6 +243,9 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
                   <TableCell className="text-right tabular-nums">{totals.showed}</TableCell>
                   <TableCell className="text-right tabular-nums">{totals.noshow}</TableCell>
                   <TableCell className="text-right tabular-nums">{pct(totals.showRate)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {totals.reschedules || "—"}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{totals.won}</TableCell>
                   <TableCell className="text-right tabular-nums">{pct(totals.closeFromShow)}</TableCell>
                   <TableCell className="text-right tabular-nums">{pct(totals.closeFromBooked)}</TableCell>
@@ -255,7 +266,9 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
           Show rate = showed ÷ (showed + no-show). Meetings with no recorded outcome are excluded
-          from the denominator rather than counted as no-shows. Close rate counts distinct contacts
+          from the denominator rather than counted as no-shows, and a rescheduled meeting is counted
+          as moved rather than missed — "Moved" is how many times meetings were pushed, with the
+          share of meetings affected in brackets. Close rate counts distinct contacts
           with a signed deal dated on or after the booking, so one client with three meetings counts
           once.
         </p>
