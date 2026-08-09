@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  EOD_STATE_OF_BEING_COLUMNS,
+  type EodStateOfBeingAnswers,
+} from "@/lib/eodStateOfBeing";
 
 // `eod_reports` + `get_rep_eod_metrics` are live in production but not yet in the
 // generated Supabase types (src/integrations/supabase/types.ts). Follow the repo's
@@ -27,6 +31,10 @@ export type EodMetrics = {
   flagged_metric: EodFlaggedMetric | null;
 };
 
+// The six State of Being & Discipline answers are `Partial<>` on the read type:
+// until the migration in supabase/migrations lands they simply aren't columns on
+// the row, so every field can be `undefined` as well as null. Read them with
+// `readAnswer()` from @/lib/eodStateOfBeing rather than touching them directly.
 export type EodReport = {
   id: string;
   user_id: string;
@@ -44,7 +52,7 @@ export type EodReport = {
   submitted_at: string | null;
   created_at: string;
   updated_at: string;
-};
+} & Partial<EodStateOfBeingAnswers>;
 
 export type EodReportUpsert = {
   user_id: string;
@@ -57,7 +65,7 @@ export type EodReportUpsert = {
   flagged_response: string | null;
   auto_metrics: EodMetrics | null;
   submitted_at: string;
-};
+} & EodStateOfBeingAnswers;
 
 const EOD_REPORT_KEY = "eod-report";
 const EOD_METRICS_KEY = "eod-metrics";
@@ -98,20 +106,54 @@ export function useEodReport(userId: string | undefined, date: string) {
   });
 }
 
+/**
+ * True when PostgREST rejected the write because the State of Being & Discipline
+ * columns don't exist yet — i.e. the migration in supabase/migrations hasn't been
+ * applied to this project. PGRST204 is "column not found in the schema cache";
+ * 42703 is Postgres' own undefined_column.
+ */
+function isMissingStateOfBeingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code !== "PGRST204" && error.code !== "42703") return false;
+  const message = (error.message ?? "").toLowerCase();
+  if (!message) return true;
+  return EOD_STATE_OF_BEING_COLUMNS.some((column) => message.includes(column));
+}
+
+export type EodUpsertResult = {
+  report: EodReport;
+  /**
+   * False when the report saved but the six State of Being answers were dropped
+   * because the columns are missing. The UI warns instead of silently losing them.
+   */
+  stateOfBeingSaved: boolean;
+};
+
 /** Rep submit/edit: upsert on the (user_id, report_date) unique key. */
 export function useUpsertEodReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: EodReportUpsert) => {
-      const { data, error } = await supabase
-        .from("eod_reports" as never)
-        .upsert(payload as never, { onConflict: "user_id,report_date" })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as unknown as EodReport;
+    mutationFn: async (payload: EodReportUpsert): Promise<EodUpsertResult> => {
+      const write = async (body: Record<string, unknown>) =>
+        supabase
+          .from("eod_reports" as never)
+          .upsert(body as never, { onConflict: "user_id,report_date" })
+          .select()
+          .single();
+
+      const { data, error } = await write(payload as unknown as Record<string, unknown>);
+      if (!error) return { report: data as unknown as EodReport, stateOfBeingSaved: true };
+
+      // Degrade gracefully: the rest of the report is still worth saving.
+      if (!isMissingStateOfBeingColumn(error)) throw error;
+
+      const fallback = { ...(payload as unknown as Record<string, unknown>) };
+      for (const column of EOD_STATE_OF_BEING_COLUMNS) delete fallback[column];
+      const retry = await write(fallback);
+      if (retry.error) throw retry.error;
+      return { report: retry.data as unknown as EodReport, stateOfBeingSaved: false };
     },
-    onSuccess: (report) => {
+    onSuccess: ({ report }) => {
       qc.invalidateQueries({ queryKey: [EOD_REPORT_KEY, report.user_id, report.report_date] });
       qc.invalidateQueries({ queryKey: [EOD_TEAM_KEY, report.report_date] });
     },

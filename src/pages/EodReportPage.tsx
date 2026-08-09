@@ -20,6 +20,15 @@ import { ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
+import { addDaysIso, formatLongDate, melbourneTodayIso } from "@/lib/eodDates";
+import {
+  emptyStateOfBeing,
+  stateOfBeingFromReport,
+  unansweredStateOfBeing,
+  StateOfBeingForm,
+  StateOfBeingSummary,
+} from "@/components/eod/StateOfBeingBlock";
+import type { EodStateOfBeingAnswers } from "@/lib/eodStateOfBeing";
 import {
   useEodMetrics,
   useEodReport,
@@ -30,33 +39,8 @@ import {
   type EodReport,
 } from "@/hooks/useEodReports";
 
-const MELBOURNE_TZ = "Australia/Melbourne";
-
-/** Today's calendar date in Melbourne as YYYY-MM-DD. */
-function melbourneTodayIso(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: MELBOURNE_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-function formatLongDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "UTC",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(Date.UTC(y, m - 1, d)));
-}
+// Date helpers live in @/lib/eodDates so the dashboard entry-point card resolves
+// the exact same Melbourne report date as this page.
 
 function formatTalkTime(seconds: number | null | undefined): string {
   const s = Math.max(0, Math.round(seconds ?? 0));
@@ -121,6 +105,7 @@ type EodFormState = {
   takeaways: string[];
   commitments: string[];
   flaggedResponse: string;
+  stateOfBeing: EodStateOfBeingAnswers;
 };
 
 const emptyForm: EodFormState = {
@@ -129,6 +114,7 @@ const emptyForm: EodFormState = {
   takeaways: ["", "", ""],
   commitments: ["", "", ""],
   flaggedResponse: "",
+  stateOfBeing: emptyStateOfBeing,
 };
 
 function formFromReport(report: EodReport): EodFormState {
@@ -143,6 +129,7 @@ function formFromReport(report: EodReport): EodFormState {
     takeaways: pad3(report.takeaways),
     commitments: pad3(report.commitments),
     flaggedResponse: report.flagged_response ?? "",
+    stateOfBeing: stateOfBeingFromReport(report),
   };
 }
 
@@ -175,8 +162,18 @@ function RepView({ userId }: { userId: string }) {
     setForm((f) => ({ ...f, takeaways: f.takeaways.map((t, i) => (i === idx ? value : t)) }));
   const setCommitment = (idx: number, value: string) =>
     setForm((f) => ({ ...f, commitments: f.commitments.map((c, i) => (i === idx ? value : c)) }));
+  const setStateOfBeing = (patch: Partial<EodStateOfBeingAnswers>) =>
+    setForm((f) => ({ ...f, stateOfBeing: { ...f.stateOfBeing, ...patch } }));
 
   const handleSubmit = async () => {
+    const missing = unansweredStateOfBeing(form.stateOfBeing);
+    if (missing.length > 0) {
+      return void toast.error(
+        missing.length === 1
+          ? `Answer: ${missing[0].question}`
+          : `${missing.length} state of being & discipline questions still need an answer.`,
+      );
+    }
     if (!form.wentWell.trim()) return void toast.error("What went well is required.");
     if (!form.doDifferently.trim()) return void toast.error("What you'd do differently is required.");
     if (form.takeaways.some((t) => !t.trim())) return void toast.error("All 3 takeaways are required.");
@@ -186,7 +183,7 @@ function RepView({ userId }: { userId: string }) {
     }
 
     try {
-      await upsert.mutateAsync({
+      const { stateOfBeingSaved } = await upsert.mutateAsync({
         user_id: userId,
         report_date: today,
         went_well: form.wentWell.trim(),
@@ -197,9 +194,16 @@ function RepView({ userId }: { userId: string }) {
         flagged_response: flagged ? form.flaggedResponse.trim() : null,
         auto_metrics: metrics,
         submitted_at: new Date().toISOString(),
+        ...form.stateOfBeing,
       });
       setEditing(false);
-      toast.success("End of day report submitted.");
+      if (stateOfBeingSaved) {
+        toast.success("End of day report submitted.");
+      } else {
+        // The columns aren't on eod_reports yet — the migration in
+        // supabase/migrations hasn't been applied to this project.
+        toast.warning("Report submitted, but the state of being answers couldn't be saved yet.");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't submit the report.");
     }
@@ -273,6 +277,9 @@ function RepView({ userId }: { userId: string }) {
       ) : null}
 
       {reportQuery.isLoading ? <ListRowsSkeleton rows={4} /> : null}
+
+      {/* Discipline before reflection — the taps come first, the writing second. */}
+      {showForm ? <StateOfBeingForm value={form.stateOfBeing} onChange={setStateOfBeing} /> : null}
 
       {showForm ? (
         <div className="rounded-lg border border-border bg-card p-4 space-y-4">
@@ -374,6 +381,8 @@ function RepView({ userId }: { userId: string }) {
               </Button>
             ) : null}
           </div>
+
+          <StateOfBeingSummary report={report} />
 
           <ReportReflection report={report} />
 
@@ -477,6 +486,9 @@ function TeamReportCard({
       </div>
 
       <MetricsRow metrics={report.auto_metrics} compact />
+
+      {/* Did they do the work, not just hit the numbers. */}
+      <StateOfBeingSummary report={report} variant="manager" />
 
       {flagged ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">

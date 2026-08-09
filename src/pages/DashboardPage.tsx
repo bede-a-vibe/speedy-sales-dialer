@@ -10,6 +10,7 @@ import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
+import { EodReportCard } from "@/components/dashboard/EodReportCard";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAchievementData } from "@/hooks/useAchievementData";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
@@ -66,6 +67,9 @@ export default function DashboardPage() {
 
         {/* Row 8: Long-term achievements */}
         <LongTermAchievements data={achievementData} />
+
+        {/* Row 9: End of day — the last thing a rep sees before they knock off */}
+        <EodReportCard />
       </div>
     </AppLayout>
   );
