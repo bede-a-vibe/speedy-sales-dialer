@@ -1545,13 +1545,19 @@ export type Database = {
           commitments: string[]
           created_at: string
           do_differently: string | null
+          energy_rating: number | null
           flagged_metric: Json | null
           flagged_response: string | null
           id: string
           manager_comment: string | null
           manager_commented_at: string | null
           manager_id: string | null
+          precall_checklist_done: boolean | null
+          recordings_reviewed: number | null
           report_date: string
+          right_headspace: boolean | null
+          script_reviewed_morning: boolean | null
+          script_reviewed_tonight: boolean | null
           submitted_at: string
           takeaways: string[]
           updated_at: string
@@ -1563,13 +1569,19 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
+          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
+          precall_checklist_done?: boolean | null
+          recordings_reviewed?: number | null
           report_date: string
+          right_headspace?: boolean | null
+          script_reviewed_morning?: boolean | null
+          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
@@ -1581,13 +1593,19 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
+          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
+          precall_checklist_done?: boolean | null
+          recordings_reviewed?: number | null
           report_date?: string
+          right_headspace?: boolean | null
+          script_reviewed_morning?: boolean | null
+          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
@@ -1599,6 +1617,9 @@ export type Database = {
       ghl_appointments: {
         Row: {
           appointment_status: string | null
+          attributed_at: string | null
+          attributed_channel: string | null
+          attributed_source: string | null
           booked_at: string | null
           calendar_id: string
           calendar_name: string | null
@@ -1612,6 +1633,10 @@ export type Database = {
           ghl_updated_at: string | null
           id: string
           meeting_link: string | null
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
           raw: Json | null
           start_time: string | null
           synced_at: string
@@ -1620,6 +1645,9 @@ export type Database = {
         }
         Insert: {
           appointment_status?: string | null
+          attributed_at?: string | null
+          attributed_channel?: string | null
+          attributed_source?: string | null
           booked_at?: string | null
           calendar_id: string
           calendar_name?: string | null
@@ -1633,6 +1661,10 @@ export type Database = {
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           raw?: Json | null
           start_time?: string | null
           synced_at?: string
@@ -1641,6 +1673,9 @@ export type Database = {
         }
         Update: {
           appointment_status?: string | null
+          attributed_at?: string | null
+          attributed_channel?: string | null
+          attributed_source?: string | null
           booked_at?: string | null
           calendar_id?: string
           calendar_name?: string | null
@@ -1654,6 +1689,10 @@ export type Database = {
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           raw?: Json | null
           start_time?: string | null
           synced_at?: string
@@ -2473,6 +2512,41 @@ export type Database = {
       }
     }
     Views: {
+      v_appointment_attribution: {
+        Row: {
+          appointment_status: string | null
+          booked_at: string | null
+          business_name: string | null
+          calendar_id: string | null
+          calendar_name: string | null
+          channel: string | null
+          contact_id: string | null
+          contact_person: string | null
+          deal_count: number | null
+          end_time: string | null
+          first_deal_at: string | null
+          ghl_assigned_user_id: string | null
+          ghl_event_id: string | null
+          id: string | null
+          is_linked: boolean | null
+          led_to_deal: boolean | null
+          lifecycle_stage: string | null
+          meeting_link: string | null
+          mrr: number | null
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
+          owner_id: string | null
+          phone: string | null
+          resolved_outcome: string | null
+          source: string | null
+          start_time: string | null
+          title: string | null
+          total_amount: number | null
+        }
+        Relationships: []
+      }
       v_ghl_show_rate: {
         Row: {
           avg_days_booked_ahead: number | null
@@ -2484,6 +2558,35 @@ export type Database = {
           showed: number | null
           undispositioned_past: number | null
           week: string | null
+        }
+        Relationships: []
+      }
+      v_meetings_unified: {
+        Row: {
+          assigned_user_id: string | null
+          booked_at: string | null
+          business_name: string | null
+          channel: string | null
+          contact_id: string | null
+          contact_person: string | null
+          dialer_dispositioned: boolean | null
+          first_deal_at: string | null
+          ghl_user_id: string | null
+          id: string | null
+          is_linked: boolean | null
+          led_to_deal: boolean | null
+          lifecycle_stage: string | null
+          meeting_link: string | null
+          meeting_type: string | null
+          mrr: number | null
+          owner_id: string | null
+          phone: string | null
+          resolved_outcome: string | null
+          source: string | null
+          start_time: string | null
+          stream: string | null
+          title: string | null
+          total_amount: number | null
         }
         Relationships: []
       }
@@ -2539,6 +2642,10 @@ export type Database = {
       }
       classify_au_phone_type: {
         Args: { phone_number: string }
+        Returns: string
+      }
+      contact_channel: {
+        Args: { _lead_channel: string; _lead_type: string }
         Returns: string
       }
       count_contacts_with_dm_email: {
@@ -2620,6 +2727,33 @@ export type Database = {
         Args: { _date: string; _user_id: string }
         Returns: Json
       }
+      get_source_funnel: {
+        Args: {
+          _basis?: string
+          _from: string
+          _group?: string
+          _stream?: string
+          _to: string
+        }
+        Returns: {
+          cancelled: number
+          channel: string
+          close_from_booked_pct: number
+          close_from_show_pct: number
+          contacts_booked: number
+          contacts_showed: number
+          contacts_won: number
+          meetings_booked: number
+          mrr: number
+          noshow: number
+          pending: number
+          show_rate_pct: number
+          showed: number
+          source: string
+          total_amount: number
+          upcoming: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2637,6 +2771,7 @@ export type Database = {
         Args: { _losers: string[]; _master: string }
         Returns: Json
       }
+      normalise_lead_channel: { Args: { _v: string }; Returns: string }
       preview_dialer_leads:
         | {
             Args: {
@@ -2697,6 +2832,11 @@ export type Database = {
       release_dialer_lead_locks: {
         Args: { _contact_ids?: string[]; _session_id: string }
         Returns: number
+      }
+      relink_ghl_appointments: { Args: never; Returns: Json }
+      set_appointment_outcome: {
+        Args: { _appointment_id: string; _notes?: string; _outcome: string }
+        Returns: undefined
       }
       set_ghl_contact_id: {
         Args: { p_contact_id: string; p_ghl_contact_id: string }
