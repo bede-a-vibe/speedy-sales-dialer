@@ -1545,13 +1545,19 @@ export type Database = {
           commitments: string[]
           created_at: string
           do_differently: string | null
+          energy_rating: number | null
           flagged_metric: Json | null
           flagged_response: string | null
           id: string
           manager_comment: string | null
           manager_commented_at: string | null
           manager_id: string | null
+          precall_checklist_done: boolean | null
+          recordings_reviewed: number | null
           report_date: string
+          right_headspace: boolean | null
+          script_reviewed_morning: boolean | null
+          script_reviewed_tonight: boolean | null
           submitted_at: string
           takeaways: string[]
           updated_at: string
@@ -1563,13 +1569,19 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
+          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
+          precall_checklist_done?: boolean | null
+          recordings_reviewed?: number | null
           report_date: string
+          right_headspace?: boolean | null
+          script_reviewed_morning?: boolean | null
+          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
@@ -1581,13 +1593,19 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
+          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
+          precall_checklist_done?: boolean | null
+          recordings_reviewed?: number | null
           report_date?: string
+          right_headspace?: boolean | null
+          script_reviewed_morning?: boolean | null
+          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
