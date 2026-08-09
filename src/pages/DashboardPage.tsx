@@ -10,6 +10,7 @@ import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
 import { MilestonePopup } from "@/components/dashboard/MilestonePopup";
+import { EodReportCard } from "@/components/dashboard/EodReportCard";
 import { useTodayCallCount } from "@/hooks/useCallLogs";
 import { useAchievementData } from "@/hooks/useAchievementData";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
@@ -37,6 +38,11 @@ export default function DashboardPage() {
     <AppLayout title="Dashboard">
       <MilestonePopup todaysCalls={todaysCalls} dailyTarget={dailyTarget} />
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Row 0: End of day — slim bar, pinned top. Deliberately one line:
+            it sits above everything a rep reads all day, so it earns the space
+            by being thin rather than loud. */}
+        <EodReportCard />
+
         {/* Row 1: Greeting */}
         <DashboardGreeting />
 
