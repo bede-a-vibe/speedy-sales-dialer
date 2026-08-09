@@ -356,3 +356,82 @@ $fn$;
 grant execute on function public.set_appointment_outcome(uuid, text, text, text) to authenticated;
 grant execute on function public.get_source_funnel(timestamptz, timestamptz, text, text, text) to authenticated;
 grant execute on function public.get_rep_meeting_stats(timestamptz, timestamptz) to authenticated;
+
+-- ── 7. Active vs former team members ──────────────────────────────────────────
+-- Dean Lodge and Kobi Miller have left. Their 40 meetings stay attributed so past
+-- show rates and source numbers do not change; they are simply excluded from the
+-- rep leaderboard.
+
+alter table public.profiles   add column if not exists is_active boolean not null default true;
+alter table public.ghl_users  add column if not exists is_active boolean not null default true;
+
+update public.profiles set is_active = false
+ where ghl_user_id in ('YmANuBMRtWVjCVDZ2mRV','ikvOR4Mk6ntXL1DPaBd1');
+
+-- One row per person whether they exist in GHL, the dialer, or both. A dialer
+-- login is what lets someone record their own outcomes; a Dialpad seat is a
+-- separate, paid thing needed only for outbound dialling.
+create or replace view public.v_team_members as
+select
+  coalesce(gu.ghl_user_id, p.ghl_user_id)               as ghl_user_id,
+  p.user_id                                             as dialer_user_id,
+  coalesce(gu.name, p.display_name, p.email, 'Unknown') as name,
+  coalesce(gu.email, p.email)                           as email,
+  gu.phone,
+  gu.ghl_role,
+  (gu.ghl_user_id is not null)                          as in_ghl,
+  (p.user_id is not null)                               as has_dialer_login,
+  coalesce(gu.needs_dialpad, false)                     as needs_dialpad,
+  (select count(*) > 0 from dialpad_settings d
+    where d.user_id = p.user_id and d.is_active)        as has_dialpad_seat,
+  coalesce(p.is_active, gu.is_active, true)             as is_active
+from public.ghl_users gu
+full outer join public.profiles p on p.ghl_user_id = gu.ghl_user_id
+where coalesce(gu.is_deleted, false) = false;
+
+alter view public.v_team_members set (security_invoker = true);
+grant select on public.v_team_members to authenticated;
+
+drop function if exists public.get_rep_meeting_stats(timestamptz, timestamptz);
+
+create function public.get_rep_meeting_stats(
+  _from timestamptz, _to timestamptz, _include_former boolean default false
+) returns table (
+  ghl_user_id text, rep_name text, rep_user_id uuid, has_dialer_account boolean,
+  is_active boolean, meetings_booked bigint, showed bigint, noshow bigint,
+  cancelled bigint, rescheduled bigint, reschedules bigint, pending bigint,
+  upcoming bigint, contacts_won bigint, show_rate_pct numeric, reschedule_rate_pct numeric
+) language sql stable security invoker set search_path to 'public' as $fn$
+  with scoped as (
+    select v.*,
+           coalesce(
+             (select t.is_active from v_team_members t
+               where (t.dialer_user_id is not null and t.dialer_user_id = v.rep_user_id)
+                  or (t.ghl_user_id is not null and t.ghl_user_id = v.ghl_user_id)
+               limit 1),
+             true
+           ) as rep_active
+      from public.v_meetings_unified v
+     where v.start_time >= _from and v.start_time < _to
+  )
+  select
+    s.ghl_user_id, s.rep_name, s.rep_user_id, (s.rep_user_id is not null), bool_and(s.rep_active),
+    count(*),
+    count(*) filter (where s.resolved_outcome='showed'),
+    count(*) filter (where s.resolved_outcome='noshow'),
+    count(*) filter (where s.resolved_outcome='cancelled'),
+    count(*) filter (where s.resolved_outcome='rescheduled'),
+    coalesce(sum(s.reschedule_count), 0),
+    count(*) filter (where s.resolved_outcome='pending'),
+    count(*) filter (where s.resolved_outcome='upcoming'),
+    count(distinct s.contact_id) filter (where s.led_to_deal),
+    round(100.0 * count(*) filter (where s.resolved_outcome='showed')
+          / nullif(count(*) filter (where s.resolved_outcome in ('showed','noshow')), 0), 1),
+    round(100.0 * count(*) filter (where s.reschedule_count > 0) / nullif(count(*), 0), 1)
+  from scoped s
+  where _include_former or s.rep_active
+  group by s.ghl_user_id, s.rep_name, s.rep_user_id
+  order by count(*) desc;
+$fn$;
+
+grant execute on function public.get_rep_meeting_stats(timestamptz, timestamptz, boolean) to authenticated;

@@ -1691,6 +1691,7 @@ export type Database = {
           ghl_role: string | null
           ghl_type: string | null
           ghl_user_id: string
+          is_active: boolean
           is_deleted: boolean
           last_name: string | null
           name: string | null
@@ -1708,6 +1709,7 @@ export type Database = {
           ghl_role?: string | null
           ghl_type?: string | null
           ghl_user_id: string
+          is_active?: boolean
           is_deleted?: boolean
           last_name?: string | null
           name?: string | null
@@ -1725,6 +1727,7 @@ export type Database = {
           ghl_role?: string | null
           ghl_type?: string | null
           ghl_user_id?: string
+          is_active?: boolean
           is_deleted?: boolean
           last_name?: string | null
           name?: string | null
@@ -2379,6 +2382,7 @@ export type Database = {
           email: string | null
           ghl_user_id: string | null
           id: string
+          is_active: boolean
           updated_at: string
           user_id: string
         }
@@ -2388,6 +2392,7 @@ export type Database = {
           email?: string | null
           ghl_user_id?: string | null
           id?: string
+          is_active?: boolean
           updated_at?: string
           user_id: string
         }
@@ -2397,6 +2402,7 @@ export type Database = {
           email?: string | null
           ghl_user_id?: string | null
           id?: string
+          is_active?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -2595,6 +2601,22 @@ export type Database = {
           showed: number | null
           undispositioned_past: number | null
           week: string | null
+        }
+        Relationships: []
+      }
+      v_team_members: {
+        Row: {
+          dialer_user_id: string | null
+          email: string | null
+          ghl_role: string | null
+          ghl_user_id: string | null
+          has_dialer_login: boolean | null
+          has_dialpad_seat: boolean | null
+          in_ghl: boolean | null
+          is_active: boolean | null
+          name: string | null
+          needs_dialpad: boolean | null
+          phone: string | null
         }
         Relationships: []
       }
@@ -2797,12 +2819,13 @@ export type Database = {
         }[]
       }
       get_rep_meeting_stats: {
-        Args: { _from: string; _to: string }
+        Args: { _from: string; _include_former?: boolean; _to: string }
         Returns: {
           cancelled: number
           contacts_won: number
           ghl_user_id: string
           has_dialer_account: boolean
+          is_active: boolean
           meetings_booked: number
           noshow: number
           pending: number

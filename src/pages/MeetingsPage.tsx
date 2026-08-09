@@ -4,7 +4,7 @@ import { format, isToday, isTomorrow } from "date-fns";
 import { CalendarCheck, CheckCircle2, ExternalLink, RotateCcw } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import {
   useMeetingsNeedingOutcome,
   useMyGhlUserId,
   useRecentMeetings,
+  useRepMeetingStats,
   useUpcomingMeetings,
   type MeetingRow,
 } from "@/hooks/useMeetings";
@@ -189,12 +190,23 @@ export default function MeetingsPage() {
   const isAdmin = useCanViewAdmin();
   const { data: myGhlUserId } = useMyGhlUserId();
 
-  // Reps only ever see their own calendar. Admins can widen it, but "mine" is the
-  // default for everyone — the disposition queue is a personal to-do, not a report.
-  const [scope, setScope] = useState<"mine" | "all">("mine");
-  const mine = scope === "mine";
+  // Reps only ever see their own calendar. "Mine" is the default for everyone —
+  // the queue is a personal to-do, not a report. Admins can switch to another rep,
+  // which is how meetings taken by people without a dialer login get recorded.
+  const [scope, setScope] = useState<string>("mine");
+  const today = new Date().toISOString().split("T")[0];
+  const rangeStart = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
+  const { data: reps = [] } = useRepMeetingStats(rangeStart, today);
 
-  const filters = mine ? { ghlUserId: myGhlUserId ?? null, myUserId: user?.id ?? null } : {};
+  const mine = scope === "mine";
+  const everyone = scope === "all";
+  const selectedRep = reps.find((rep) => (rep.ghl_user_id ?? rep.rep_user_id) === scope);
+
+  const filters = mine
+    ? { ghlUserId: myGhlUserId ?? null, repUserId: user?.id ?? null }
+    : everyone
+      ? {}
+      : { ghlUserId: selectedRep?.ghl_user_id ?? null, repUserId: selectedRep?.rep_user_id ?? null };
 
   const { data: pending = [], isLoading: pendingLoading } = useMeetingsNeedingOutcome(filters);
   const { data: upcoming = [], isLoading: upcomingLoading } = useUpcomingMeetings(filters);
@@ -209,6 +221,7 @@ export default function MeetingsPage() {
   };
 
   const unlinkedIdentity = mine && !myGhlUserId;
+  const showRep = !mine;
 
   return (
     <AppLayout title="Meetings">
@@ -218,26 +231,42 @@ export default function MeetingsPage() {
             <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">
-                Your meetings, from GHL calendars and the dialer.
+                {mine
+                  ? "Your meetings, from GHL calendars and the dialer."
+                  : everyone
+                    ? "Everyone's meetings, from GHL calendars and the dialer."
+                    : `${selectedRep?.rep_name ?? "Rep"}'s meetings.`}
               </p>
               <p className="text-xs text-muted-foreground">
                 A meeting with no recorded outcome is left out of show rate entirely — it counts as
                 unknown, not as a no-show. Reschedules are tracked separately, so moving a meeting
-                never reads as a miss.
+                never reads as a miss. Pick a rep above to record outcomes for someone who does not
+                have a dialer login of their own.
               </p>
             </div>
           </div>
 
           {isAdmin ? (
-            <ToggleGroup
-              type="single"
-              size="sm"
-              value={scope}
-              onValueChange={(value) => value && setScope(value as "mine" | "all")}
-            >
-              <ToggleGroupItem value="mine">Mine</ToggleGroupItem>
-              <ToggleGroupItem value="all">Everyone</ToggleGroupItem>
-            </ToggleGroup>
+            <Select value={scope} onValueChange={setScope}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mine">My meetings</SelectItem>
+                <SelectItem value="all">Everyone</SelectItem>
+                {reps
+                  .filter((rep) => (rep.ghl_user_id ?? rep.rep_user_id) && rep.rep_name !== "Unassigned")
+                  .map((rep) => {
+                    const value = (rep.ghl_user_id ?? rep.rep_user_id) as string;
+                    return (
+                      <SelectItem key={value} value={value}>
+                        {rep.rep_name}
+                        {rep.pending > 0 ? ` (${rep.pending} to record)` : ""}
+                      </SelectItem>
+                    );
+                  })}
+              </SelectContent>
+            </Select>
           ) : null}
         </div>
 
@@ -281,7 +310,7 @@ export default function MeetingsPage() {
               meetings={pending}
               isLoading={pendingLoading}
               onDisposition={handleDisposition}
-              showRep={!mine}
+              showRep={showRep}
               emptyTitle="Nothing waiting on an outcome"
               emptyBody="Every past meeting has been recorded. Show rate is fully measured."
             />
@@ -291,7 +320,7 @@ export default function MeetingsPage() {
             <MeetingList
               meetings={upcoming}
               isLoading={upcomingLoading}
-              showRep={!mine}
+              showRep={showRep}
               emptyTitle="No meetings scheduled"
               emptyBody="Bookings from GHL calendars and the dialer will appear here."
             />
@@ -302,7 +331,7 @@ export default function MeetingsPage() {
               meetings={recent}
               isLoading={recentLoading}
               onDisposition={handleDisposition}
-              showRep={!mine}
+              showRep={showRep}
               emptyTitle="Nothing recorded yet"
               emptyBody="Outcomes you record will show up here so you can correct them."
             />

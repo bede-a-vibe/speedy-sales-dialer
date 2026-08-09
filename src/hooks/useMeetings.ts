@@ -73,6 +73,7 @@ export interface RepMeetingStats {
   rep_name: string;
   rep_user_id: string | null;
   has_dialer_account: boolean;
+  is_active: boolean;
   meetings_booked: number;
   showed: number;
   noshow: number;
@@ -128,14 +129,15 @@ export function useSourceFunnel({
   });
 }
 
-/** Per-rep meeting performance, and whether that rep can even log in yet. */
-export function useRepMeetingStats(from: string, to: string) {
+/** Per-rep meeting performance. Former staff are excluded unless asked for. */
+export function useRepMeetingStats(from: string, to: string, includeFormer = false) {
   return useQuery({
-    queryKey: ["rep-meeting-stats", from, to],
+    queryKey: ["rep-meeting-stats", from, to, includeFormer],
     queryFn: async (): Promise<RepMeetingStats[]> => {
       const { data, error } = await supabase.rpc("get_rep_meeting_stats", {
         _from: toIso(from),
         _to: toIso(to, true),
+        _include_former: includeFormer,
       });
       if (error) throw error;
       return (data ?? []) as RepMeetingStats[];
@@ -167,17 +169,17 @@ interface MeetingQueryArgs {
   outcomes?: MeetingOutcome[];
   /** Restrict to one rep's calendar. Pass null to show everyone's. */
   ghlUserId?: string | null;
-  myUserId?: string | null;
+  repUserId?: string | null;
   ascending?: boolean;
   limit?: number;
   enabled?: boolean;
 }
 
 function useMeetingQuery(key: string, args: MeetingQueryArgs) {
-  const { outcomes, ghlUserId, myUserId, ascending = false, limit = 500, enabled = true } = args;
+  const { outcomes, ghlUserId, repUserId, ascending = false, limit = 500, enabled = true } = args;
 
   return useQuery({
-    queryKey: [key, outcomes, ghlUserId, myUserId, ascending, limit],
+    queryKey: [key, outcomes, ghlUserId, repUserId, ascending, limit],
     queryFn: async (): Promise<MeetingRow[]> => {
       let query = supabase
         .from("v_meetings_unified")
@@ -190,12 +192,12 @@ function useMeetingQuery(key: string, args: MeetingQueryArgs) {
       // A rep owns a meeting through either identity: the GHL calendar it was
       // booked on, or the dialer user it was assigned to. Filtering on only one
       // would hide half of a rep's day.
-      if (ghlUserId && myUserId) {
-        query = query.or(`ghl_user_id.eq.${ghlUserId},rep_user_id.eq.${myUserId}`);
+      if (ghlUserId && repUserId) {
+        query = query.or(`ghl_user_id.eq.${ghlUserId},rep_user_id.eq.${repUserId}`);
       } else if (ghlUserId) {
         query = query.eq("ghl_user_id", ghlUserId);
-      } else if (myUserId) {
-        query = query.eq("rep_user_id", myUserId);
+      } else if (repUserId) {
+        query = query.eq("rep_user_id", repUserId);
       }
 
       const { data, error } = await query;
@@ -348,5 +350,32 @@ export function useUpdateGhlUser() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ghl-users"] }),
+  });
+}
+
+export interface TeamMember {
+  ghl_user_id: string | null;
+  dialer_user_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  ghl_role: string | null;
+  in_ghl: boolean;
+  has_dialer_login: boolean;
+  needs_dialpad: boolean;
+  has_dialpad_seat: boolean;
+  is_active: boolean;
+}
+
+/** Everyone who can take a meeting, whether they came from GHL, the dialer, or both. */
+export function useTeamMembers() {
+  return useQuery({
+    queryKey: ["team-members"],
+    queryFn: async (): Promise<TeamMember[]> => {
+      const { data, error } = await supabase.from("v_team_members").select("*").order("name");
+      if (error) throw error;
+      return (data ?? []) as TeamMember[];
+    },
+    staleTime: 60_000,
   });
 }

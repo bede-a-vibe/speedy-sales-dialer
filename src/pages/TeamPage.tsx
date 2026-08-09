@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Phone, UserPlus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AlertTriangle, Phone } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { Badge } from "@/components/ui/badge";
@@ -7,32 +8,127 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { useGhlUsers, useRepMeetingStats, useUpdateGhlUser } from "@/hooks/useMeetings";
+import {
+  useRepMeetingStats,
+  useTeamMembers,
+  useUpdateGhlUser,
+  type TeamMember,
+} from "@/hooks/useMeetings";
+
+function TeamTable({
+  members,
+  statsFor,
+  onToggleDialpad,
+  muted,
+}: {
+  members: TeamMember[];
+  statsFor: (member: TeamMember) => { meetings_booked: number; pending: number; show_rate_pct: number | null } | undefined;
+  onToggleDialpad?: (member: TeamMember, value: boolean) => void;
+  muted?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead className="text-right">Meetings</TableHead>
+            <TableHead className="text-right">Unrecorded</TableHead>
+            <TableHead className="text-right">Show rate</TableHead>
+            <TableHead>Records own outcomes</TableHead>
+            {onToggleDialpad ? <TableHead className="text-right">Dialpad</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {members.map((member) => {
+            const stats = statsFor(member);
+            const key = member.ghl_user_id ?? member.dialer_user_id ?? member.name;
+            return (
+              <TableRow key={key} className={muted ? "opacity-60" : undefined}>
+                <TableCell className="font-medium">{member.name}</TableCell>
+                <TableCell className="text-muted-foreground">{member.email ?? "—"}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {stats?.meetings_booked ?? 0}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {stats?.pending ? (
+                    <span className="text-amber-600 dark:text-amber-400">{stats.pending}</span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {stats?.show_rate_pct != null ? `${stats.show_rate_pct}%` : "—"}
+                </TableCell>
+                <TableCell>
+                  {member.has_dialer_login ? (
+                    <Badge className="bg-emerald-600 text-[10px] hover:bg-emerald-600">yes</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">
+                      admin records
+                    </Badge>
+                  )}
+                </TableCell>
+                {onToggleDialpad ? (
+                  <TableCell className="text-right">
+                    <Switch
+                      checked={member.needs_dialpad}
+                      disabled={!member.in_ghl}
+                      onCheckedChange={(checked) => onToggleDialpad(member, checked)}
+                      aria-label={`Toggle Dialpad requirement for ${member.name}`}
+                    />
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 export default function TeamPage() {
   const { toast } = useToast();
-  const { data: ghlUsers = [], isLoading } = useGhlUsers();
-  const updateUser = useUpdateGhlUser();
+  const { data: members = [], isLoading } = useTeamMembers();
+  const updateGhlUser = useUpdateGhlUser();
 
   const today = new Date().toISOString().split("T")[0];
   const [from] = useState(new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0]);
-  const { data: repStats = [] } = useRepMeetingStats(from, today);
+  const { data: repStats = [] } = useRepMeetingStats(from, today, true);
 
-  const statsByGhlId = useMemo(
-    () => new Map(repStats.map((stat) => [stat.ghl_user_id, stat])),
-    [repStats],
+  const statsFor = useMemo(() => {
+    const byGhl = new Map(repStats.filter((s) => s.ghl_user_id).map((s) => [s.ghl_user_id, s]));
+    const byUser = new Map(repStats.filter((s) => s.rep_user_id).map((s) => [s.rep_user_id, s]));
+    return (member: TeamMember) =>
+      (member.ghl_user_id ? byGhl.get(member.ghl_user_id) : undefined) ??
+      (member.dialer_user_id ? byUser.get(member.dialer_user_id) : undefined);
+  }, [repStats]);
+
+  const active = members.filter((m) => m.is_active);
+  const former = members.filter((m) => !m.is_active);
+
+  // People taking meetings who cannot log in. Their outcomes have to be recorded
+  // by an admin from the rep picker on the Meetings page, or they never get recorded.
+  const needsAdminRecording = active.filter(
+    (m) => !m.has_dialer_login && (statsFor(m)?.pending ?? 0) > 0,
+  );
+  const totalUnrecorded = needsAdminRecording.reduce(
+    (sum, m) => sum + (statsFor(m)?.pending ?? 0),
+    0,
   );
 
-  const missingAccounts = ghlUsers.filter((user) => !user.provisioned_user_id);
-  const missingWithMeetings = missingAccounts.filter(
-    (user) => (statsByGhlId.get(user.ghl_user_id)?.meetings_booked ?? 0) > 0,
-  );
+  const dialpadFlagged = active.filter((m) => m.needs_dialpad).length;
+  const dialpadSeats = active.filter((m) => m.has_dialpad_seat).length;
 
-  const dialpadCount = ghlUsers.filter((user) => user.needs_dialpad).length;
-
-  const handleToggle = async (ghlUserId: string, needsDialpad: boolean) => {
+  const handleToggle = async (member: TeamMember, needsDialpad: boolean) => {
+    if (!member.ghl_user_id) return;
     try {
-      await updateUser.mutateAsync({ ghlUserId, patch: { needs_dialpad: needsDialpad } });
+      await updateGhlUser.mutateAsync({
+        ghlUserId: member.ghl_user_id,
+        patch: { needs_dialpad: needsDialpad },
+      });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -44,31 +140,29 @@ export default function TeamPage() {
   return (
     <AppLayout title="Team">
       <div className="mx-auto max-w-5xl space-y-4">
-        {missingWithMeetings.length > 0 ? (
+        {needsAdminRecording.length > 0 ? (
           <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="space-y-1 text-xs">
               <p className="font-medium text-foreground">
-                {missingWithMeetings.length}{" "}
-                {missingWithMeetings.length === 1 ? "person is" : "people are"} taking meetings with
-                no dialer login.
+                {totalUnrecorded} meetings taken by{" "}
+                {needsAdminRecording.map((m) => m.name).join(" and ")} have no outcome recorded.
               </p>
               <p className="text-muted-foreground">
-                Their meetings sync in and sit unrecorded, because they have no way to log in and say
-                what happened. Between them:{" "}
-                {missingWithMeetings.reduce(
-                  (sum, user) => sum + (statsByGhlId.get(user.ghl_user_id)?.pending ?? 0),
-                  0,
-                )}{" "}
-                meetings are waiting on an outcome.
+                They take calls but have no dialer login, so nobody can record their outcomes but
+                you. Pick their name from the rep list on the{" "}
+                <Link to="/meetings" className="font-medium underline underline-offset-2">
+                  Meetings page
+                </Link>{" "}
+                to work through the queue.
               </p>
             </div>
           </div>
         ) : null}
 
         <ReportSection
-          title="GHL users and dialer accounts"
-          description="Everyone in the GHL location. A dialer login is what lets someone record their own meeting outcomes; a Dialpad seat is only needed if they make outbound calls."
+          title="Team"
+          description="Everyone who can take a meeting, from GHL and the dialer. A dialer login lets someone record their own outcomes; a Dialpad seat is only needed for outbound dialling and costs per head."
         >
           {isLoading ? (
             <div className="space-y-2">
@@ -77,104 +171,27 @@ export default function TeamPage() {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="text-right">Meetings</TableHead>
-                    <TableHead className="text-right">Unrecorded</TableHead>
-                    <TableHead className="text-right">Show rate</TableHead>
-                    <TableHead>Dialer login</TableHead>
-                    <TableHead className="text-right">Needs Dialpad</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ghlUsers.map((user) => {
-                    const stats = statsByGhlId.get(user.ghl_user_id);
-                    return (
-                      <TableRow key={user.ghl_user_id}>
-                        <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {stats?.meetings_booked ?? 0}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {stats?.pending ? (
-                            <span className="text-amber-600 dark:text-amber-400">{stats.pending}</span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {stats?.show_rate_pct != null ? `${stats.show_rate_pct}%` : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {user.provisioned_user_id ? (
-                            <Badge className="bg-emerald-600 text-[10px] hover:bg-emerald-600">
-                              active
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="gap-1 text-[10px]">
-                              <UserPlus className="h-3 w-3" />
-                              none
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Switch
-                            checked={user.needs_dialpad}
-                            onCheckedChange={(checked) => handleToggle(user.ghl_user_id, checked)}
-                            aria-label={`Toggle Dialpad requirement for ${user.name}`}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <TeamTable members={active} statsFor={statsFor} onToggleDialpad={handleToggle} />
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <Phone className="h-3 w-3" />
-              {dialpadCount} of {ghlUsers.length} flagged as needing a Dialpad seat
+              {dialpadSeats} active Dialpad {dialpadSeats === 1 ? "seat" : "seats"} · {dialpadFlagged}{" "}
+              flagged as needing one
             </span>
-            <span>
-              A dialer login costs nothing. Only tick Dialpad for people who actually dial out.
-            </span>
+            <span>Only tick Dialpad for people who actually dial out.</span>
           </div>
         </ReportSection>
 
-        {missingAccounts.length > 0 ? (
+        {former.length > 0 ? (
           <ReportSection
-            title="Waiting on an account"
-            description="Provisioning creates the login and links it to the GHL user in one step, so their calendar appears on their Meetings page immediately."
+            title="Former team members"
+            description="Kept out of the rep leaderboard. Their historical meetings stay attributed, so past show rates and source numbers are unchanged."
+            collapsible
+            defaultOpen={false}
           >
-            <ul className="space-y-2">
-              {missingAccounts.map((user) => (
-                <li
-                  key={user.ghl_user_id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-2.5 text-sm"
-                >
-                  <span>
-                    <span className="font-medium">{user.name}</span>{" "}
-                    <span className="text-muted-foreground">{user.email}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {statsByGhlId.get(user.ghl_user_id)?.meetings_booked ?? 0} meetings ·{" "}
-                    {statsByGhlId.get(user.ghl_user_id)?.pending ?? 0} unrecorded
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 rounded-md bg-muted p-2.5 text-xs text-muted-foreground">
-              Accounts are created by emailed invite, so each person sets their own password and it
-              is never handled by anyone else. Provisioning is not wired up yet — it needs a
-              service-role edge function, which is the next step.
-            </p>
+            <TeamTable members={former} statsFor={statsFor} muted />
           </ReportSection>
         ) : null}
       </div>
