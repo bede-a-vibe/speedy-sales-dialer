@@ -2818,6 +2818,22 @@ export type Database = {
           upcoming: number
         }[]
       }
+      get_dial_hour_stats: {
+        Args: { _from: string; _to: string; _user_id?: string }
+        Returns: {
+          book_rate_pct: number
+          bookings: number
+          connects: number
+          contact_rate_pct: number
+          conv_2min: number
+          conv_rate_pct: number
+          dials: number
+          hour_of_day: number
+          leads_dialed: number
+          new_leads: number
+          redials: number
+        }[]
+      }
       get_rep_meeting_stats: {
         Args: { _from: string; _include_former?: boolean; _to: string }
         Returns: {
