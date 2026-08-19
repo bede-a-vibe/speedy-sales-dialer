@@ -106,7 +106,9 @@ export default function AuthPage() {
           <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center mx-auto">
             <Phone className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight">SalesDialer</h1>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">
+            Speedy Dialer — Power Dialer &amp; CRM
+          </h1>
           <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">
             {mode === "signup" ? "Create Account" : mode === "forgot" ? "Reset Password" : "Sign In"}
           </p>
