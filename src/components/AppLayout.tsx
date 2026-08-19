@@ -35,7 +35,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
           <header className="h-14 flex items-center border-b border-border px-5 bg-card/70 backdrop-blur-sm shrink-0">
             <SidebarTrigger className="mr-4 text-muted-foreground hover:text-foreground" />
             {title && (
-              <h2 className="text-base font-semibold text-foreground tracking-tight">{title}</h2>
+              <h1 className="text-base font-semibold text-foreground tracking-tight">{title}</h1>
             )}
             <div className="ml-auto flex items-center gap-4">
               <button
@@ -52,7 +52,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
               </button>
               <ThemeToggle />
               <span className="hidden sm:inline text-[11px] font-mono text-muted-foreground">{user?.email}</span>
-              <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="icon" aria-label="Sign out" onClick={signOut} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>

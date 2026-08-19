@@ -1,0 +1,9 @@
+# Speedy Dialer
+
+> Odin Digital's power dialer and CRM for outbound sales teams: fast calling, live pipelines, GoHighLevel sync and rep coaching.
+
+Speedy Dialer is a private, login-only application used by Odin Digital's sales team. Only the pages below are publicly reachable.
+
+## Pages
+
+- [Speedy Dialer](/): Product entry point and sign-in for the dialer and CRM.
