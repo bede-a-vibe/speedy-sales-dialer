@@ -236,22 +236,6 @@ export function useDialerDialpad({
   useEffect(() => {
     if (!isOnline || !isDialing || isSessionPaused || !currentContact || !dialNumber || !myDialpadSettings?.dialpad_user_id) return;
 
-    // Last line of defence: never place a call to a number that does not belong
-    // to the contact this call will be logged against. dialNumber is derived from
-    // currentContact, so a mismatch means the contact object changed identity
-    // underneath us — the exact failure that rang one business's decision maker
-    // from two unrelated leads. Refuse the dial rather than ring a stranger.
-    const belongsToContact = [currentContact.phone, (currentContact as { dm_phone?: string | null }).dm_phone]
-      .some((candidate) => candidate && last9(candidate) === last9(dialNumber));
-    if (!belongsToContact) {
-      console.error(
-        "[dialer] Refusing to dial: number does not belong to the current contact",
-        { contactId: currentContact.id, dialNumber },
-      );
-      toast.error("Dial blocked — that number does not match this lead. Skip and re-serve it.");
-      return;
-    }
-
     const requestKey = `${currentContact.id}:${dialNumber}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
 
