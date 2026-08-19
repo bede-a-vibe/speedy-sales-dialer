@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.2",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://xhcvwhcpaeetmmzkuwyw.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "speedy-dialer",
+      "version": "0.1.0",
+      "title": "Speedy Dialer"
+    },
+    "tools": [
+      {
+        "name": "search_contacts",
+        "title": "Search contacts",
+        "description": "Search the dialer's contacts by business name, contact person or phone number. Returns matching contact records with their IDs.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Business name, person name or phone number fragment."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25,
+              "description": "Maximum contacts to return (default 10)."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_contact",
+        "title": "Get contact detail",
+        "description": "Fetch one contact's full record plus its most recent call logs and notes. Use search_contacts first to find the contact ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "contact_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The contact's UUID."
+            }
+          },
+          "required": [
+            "contact_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "my_call_activity",
+        "title": "My call activity",
+        "description": "Summarise the signed-in rep's own call activity over the last N days: total dials, a breakdown by outcome, and total talk time.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "description": "Look-back window in days (default 7)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_follow_ups",
+        "title": "List my follow-ups and bookings",
+        "description": "List the signed-in rep's scheduled pipeline items (follow-ups and booked appointments) within a date window.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "days_ahead": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 90,
+              "description": "How far forward to look, in days (default 7)."
+            },
+            "days_back": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 90,
+              "description": "How far back to include overdue items (default 7)."
+            },
+            "pipeline_type": {
+              "type": "string",
+              "enum": [
+                "follow_up",
+                "booked"
+              ],
+              "description": "Restrict to one pipeline type. Omit for both."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_contact_note",
+        "title": "Add a contact note",
+        "description": "Add a note to a contact's timeline in the dialer, authored by the signed-in user.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "contact_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The contact's UUID."
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000,
+              "description": "The note text."
+            }
+          },
+          "required": [
+            "contact_id",
+            "content"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
