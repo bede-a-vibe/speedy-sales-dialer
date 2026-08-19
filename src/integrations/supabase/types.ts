@@ -525,10 +525,13 @@ export type Database = {
           existing_agency_name: string | null
           existing_agency_notes: string | null
           existing_agency_services: string[]
+          fbclid: string | null
           follow_up_note: string | null
           gatekeeper_name: string | null
           gatekeeper_notes: string | null
           gbp_rating: number | null
+          gbraid: string | null
+          gclid: string | null
           ghl_contact_id: string | null
           ghl_contact_id_legacy: string | null
           gmb_link: string | null
@@ -543,6 +546,7 @@ export type Database = {
           is_archived: boolean
           is_dnc: boolean
           key_quote: string | null
+          landing_page_url: string | null
           last_call_sentiment: string | null
           last_called_at: string | null
           last_outcome: Database["public"]["Enums"]["call_outcome"] | null
@@ -552,6 +556,7 @@ export type Database = {
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
           lead_channel: string | null
+          lead_ref: string | null
           lead_source: string | null
           lead_type: string
           lifecycle_reason: string | null
@@ -566,6 +571,8 @@ export type Database = {
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
           prospect_tier: string | null
+          qualified: boolean
+          qualified_at: string | null
           review_count: number | null
           state: string | null
           status: string
@@ -573,7 +580,13 @@ export type Database = {
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           voicemail_count: number
+          wbraid: string | null
           website: string | null
           work_type: string | null
           years_in_business: number | null
@@ -617,10 +630,13 @@ export type Database = {
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
+          fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
@@ -635,6 +651,7 @@ export type Database = {
           is_archived?: boolean
           is_dnc?: boolean
           key_quote?: string | null
+          landing_page_url?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -644,6 +661,7 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           lead_channel?: string | null
+          lead_ref?: string | null
           lead_source?: string | null
           lead_type?: string
           lifecycle_reason?: string | null
@@ -658,6 +676,8 @@ export type Database = {
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
+          qualified?: boolean
+          qualified_at?: string | null
           review_count?: number | null
           state?: string | null
           status?: string
@@ -665,7 +685,13 @@ export type Database = {
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           voicemail_count?: number
+          wbraid?: string | null
           website?: string | null
           work_type?: string | null
           years_in_business?: number | null
@@ -709,10 +735,13 @@ export type Database = {
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
+          fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
+          gbraid?: string | null
+          gclid?: string | null
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
@@ -727,6 +756,7 @@ export type Database = {
           is_archived?: boolean
           is_dnc?: boolean
           key_quote?: string | null
+          landing_page_url?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -736,6 +766,7 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           lead_channel?: string | null
+          lead_ref?: string | null
           lead_source?: string | null
           lead_type?: string
           lifecycle_reason?: string | null
@@ -750,6 +781,8 @@ export type Database = {
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
+          qualified?: boolean
+          qualified_at?: string | null
           review_count?: number | null
           state?: string | null
           status?: string
@@ -757,7 +790,13 @@ export type Database = {
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           voicemail_count?: number
+          wbraid?: string | null
           website?: string | null
           work_type?: string | null
           years_in_business?: number | null
@@ -1633,11 +1672,14 @@ export type Database = {
           ghl_updated_at: string | null
           id: string
           meeting_link: string | null
+          original_start_time: string | null
           outcome: string | null
           outcome_notes: string | null
+          outcome_reason: string | null
           outcome_recorded_at: string | null
           outcome_recorded_by: string | null
           raw: Json | null
+          reschedule_count: number
           start_time: string | null
           synced_at: string
           title: string | null
@@ -1661,11 +1703,14 @@ export type Database = {
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
+          original_start_time?: string | null
           outcome?: string | null
           outcome_notes?: string | null
+          outcome_reason?: string | null
           outcome_recorded_at?: string | null
           outcome_recorded_by?: string | null
           raw?: Json | null
+          reschedule_count?: number
           start_time?: string | null
           synced_at?: string
           title?: string | null
@@ -1689,11 +1734,14 @@ export type Database = {
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
+          original_start_time?: string | null
           outcome?: string | null
           outcome_notes?: string | null
+          outcome_reason?: string | null
           outcome_recorded_at?: string | null
           outcome_recorded_by?: string | null
           raw?: Json | null
+          reschedule_count?: number
           start_time?: string | null
           synced_at?: string
           title?: string | null
@@ -1805,6 +1853,63 @@ export type Database = {
           started_at?: string | null
           status?: string
           total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ghl_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          ghl_role: string | null
+          ghl_type: string | null
+          ghl_user_id: string
+          is_active: boolean
+          is_deleted: boolean
+          last_name: string | null
+          name: string | null
+          needs_dialpad: boolean
+          phone: string | null
+          provisioned_user_id: string | null
+          synced_at: string
+          takes_meetings: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id: string
+          is_active?: boolean
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -2003,6 +2108,50 @@ export type Database = {
           label?: string | null
         }
         Relationships: []
+      }
+      meeting_outcome_log: {
+        Row: {
+          appointment_id: string
+          id: string
+          notes: string | null
+          outcome: string | null
+          outcome_reason: string | null
+          recorded_at: string
+          recorded_by: string | null
+          scheduled_for: string | null
+          source: string
+        }
+        Insert: {
+          appointment_id: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
+        }
+        Update: {
+          appointment_id?: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_outcome_log_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       no_show_revival_backup_20260804: {
         Row: {
@@ -2307,6 +2456,7 @@ export type Database = {
           email: string | null
           ghl_user_id: string | null
           id: string
+          is_active: boolean
           updated_at: string
           user_id: string
         }
@@ -2316,6 +2466,7 @@ export type Database = {
           email?: string | null
           ghl_user_id?: string | null
           id?: string
+          is_active?: boolean
           updated_at?: string
           user_id: string
         }
@@ -2325,6 +2476,7 @@ export type Database = {
           email?: string | null
           ghl_user_id?: string | null
           id?: string
+          is_active?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -2512,41 +2664,6 @@ export type Database = {
       }
     }
     Views: {
-      v_appointment_attribution: {
-        Row: {
-          appointment_status: string | null
-          booked_at: string | null
-          business_name: string | null
-          calendar_id: string | null
-          calendar_name: string | null
-          channel: string | null
-          contact_id: string | null
-          contact_person: string | null
-          deal_count: number | null
-          end_time: string | null
-          first_deal_at: string | null
-          ghl_assigned_user_id: string | null
-          ghl_event_id: string | null
-          id: string | null
-          is_linked: boolean | null
-          led_to_deal: boolean | null
-          lifecycle_stage: string | null
-          meeting_link: string | null
-          mrr: number | null
-          outcome: string | null
-          outcome_notes: string | null
-          outcome_recorded_at: string | null
-          outcome_recorded_by: string | null
-          owner_id: string | null
-          phone: string | null
-          resolved_outcome: string | null
-          source: string | null
-          start_time: string | null
-          title: string | null
-          total_amount: number | null
-        }
-        Relationships: []
-      }
       v_ghl_show_rate: {
         Row: {
           avg_days_booked_ahead: number | null
@@ -2579,14 +2696,36 @@ export type Database = {
           meeting_link: string | null
           meeting_type: string | null
           mrr: number | null
+          original_start_time: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
           owner_id: string | null
           phone: string | null
+          rep_name: string | null
+          rep_user_id: string | null
+          reschedule_count: number | null
           resolved_outcome: string | null
           source: string | null
           start_time: string | null
           stream: string | null
           title: string | null
           total_amount: number | null
+        }
+        Relationships: []
+      }
+      v_team_members: {
+        Row: {
+          dialer_user_id: string | null
+          email: string | null
+          ghl_role: string | null
+          ghl_user_id: string | null
+          has_dialer_login: boolean | null
+          has_dialpad_seat: boolean | null
+          in_ghl: boolean | null
+          is_active: boolean | null
+          name: string | null
+          needs_dialpad: boolean | null
+          phone: string | null
         }
         Relationships: []
       }
@@ -2691,6 +2830,22 @@ export type Database = {
           normalized_phone: string
         }[]
       }
+      get_dial_hour_stats: {
+        Args: { _from: string; _to: string; _user_id?: string }
+        Returns: {
+          book_rate_pct: number
+          bookings: number
+          connects: number
+          contact_rate_pct: number
+          conv_2min: number
+          conv_rate_pct: number
+          dials: number
+          hour_of_day: number
+          leads_dialed: number
+          new_leads: number
+          redials: number
+        }[]
+      }
       get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count: {
         Args: {
@@ -2727,6 +2882,27 @@ export type Database = {
         Args: { _date: string; _user_id: string }
         Returns: Json
       }
+      get_rep_meeting_stats: {
+        Args: { _from: string; _include_former?: boolean; _to: string }
+        Returns: {
+          cancelled: number
+          contacts_won: number
+          ghl_user_id: string
+          has_dialer_account: boolean
+          is_active: boolean
+          meetings_booked: number
+          noshow: number
+          pending: number
+          rep_name: string
+          rep_user_id: string
+          reschedule_rate_pct: number
+          rescheduled: number
+          reschedules: number
+          show_rate_pct: number
+          showed: number
+          upcoming: number
+        }[]
+      }
       get_source_funnel: {
         Args: {
           _basis?: string
@@ -2747,6 +2923,9 @@ export type Database = {
           mrr: number
           noshow: number
           pending: number
+          reschedule_rate_pct: number
+          rescheduled: number
+          reschedules: number
           show_rate_pct: number
           showed: number
           source: string
@@ -2835,7 +3014,12 @@ export type Database = {
       }
       relink_ghl_appointments: { Args: never; Returns: Json }
       set_appointment_outcome: {
-        Args: { _appointment_id: string; _notes?: string; _outcome: string }
+        Args: {
+          _appointment_id: string
+          _notes?: string
+          _outcome: string
+          _reason?: string
+        }
         Returns: undefined
       }
       set_ghl_contact_id: {
