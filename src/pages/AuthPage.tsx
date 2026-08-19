@@ -11,6 +11,14 @@ import {
 } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 
+/** Same-origin relative path to return to after auth (used by the OAuth consent flow). */
+function safeNextPath(): string {
+  const raw = new URLSearchParams(window.location.search).get("next");
+  if (!raw) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
@@ -18,6 +26,7 @@ export default function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
+  const nextPath = safeNextPath();
 
   // Clear stale auth tokens on mount
   useEffect(() => {
@@ -57,7 +66,7 @@ export default function AuthPage() {
             password,
             options: {
               data: { display_name: displayName },
-              emailRedirectTo: window.location.origin,
+              emailRedirectTo: `${window.location.origin}${nextPath}`,
             },
           }),
           AUTH_REQUEST_TIMEOUT_MS,
@@ -86,7 +95,7 @@ export default function AuthPage() {
         return;
       }
 
-      window.location.assign("/");
+      window.location.assign(nextPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to sign in right now.";
       if (message.includes("timed out") || message.includes("Failed to fetch")) {

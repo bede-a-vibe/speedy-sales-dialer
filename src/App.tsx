@@ -10,6 +10,7 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { createAppQueryClient } from "@/lib/queryClient";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import OAuthConsent from "./pages/OAuthConsent";
 
 const ProtectedApp = lazy(() => import("./components/ProtectedApp"));
 
@@ -34,6 +35,7 @@ const App = () => (
         <ErrorBoundary>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/*"
