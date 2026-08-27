@@ -6,7 +6,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  /** scope 'global' revokes every refresh token for the user — signs out all devices. */
+  signOut: (scope?: "local" | "global") => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
