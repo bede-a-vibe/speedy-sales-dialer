@@ -59,9 +59,33 @@ export function AppLayout({ children, title }: AppLayoutProps) {
               </button>
               <ThemeToggle />
               <span className="hidden sm:inline text-[11px] font-mono text-muted-foreground">{user?.email}</span>
-              <Button variant="ghost" size="icon" aria-label="Sign out" onClick={signOut} className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                <LogOut className="h-3.5 w-3.5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Sign out" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                    <LogOut className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={() => signOut("local")} className="text-xs gap-2 cursor-pointer">
+                    <LogOut className="h-3.5 w-3.5" />
+                    Sign out (this device)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs gap-2 cursor-pointer text-destructive focus:text-destructive"
+                    onClick={async () => {
+                      try {
+                        await signOut("global");
+                        toast.success("Signed out of all devices.");
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Failed to sign out everywhere.");
+                      }
+                    }}
+                  >
+                    <MonitorSmartphone className="h-3.5 w-3.5" />
+                    Sign out of all devices
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1 overflow-auto p-6">
