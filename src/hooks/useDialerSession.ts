@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClearOwnDialerLeadLocks, useRollingDialerQueue, type DialerFilterOptions } from "@/hooks/useContacts";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME } from "@/lib/appointments";
 import { CallOutcome } from "@/data/mockData";
 import { toast } from "sonner";
+import { resolveServedLead } from "@/lib/dialerQueueIdentity";
 
 function formatDuration(durationMs: number) {
   const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
@@ -56,6 +57,29 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
   const nextContact = currentIndex !== null && currentIndex + 1 < queue.contacts.length
     ? queue.contacts[currentIndex + 1]
     : null;
+
+  // The served lead is pinned to a contact ID, not an array position — see
+  // resolveServedLead for why a bare index silently swaps who a rep is calling.
+  const servedContactIdRef = useRef<string | null>(null);
+  const previousQueueRef = useRef(queue.contacts);
+
+  useLayoutEffect(() => {
+    const previousQueue = previousQueueRef.current;
+    const nextQueue = queue.contacts;
+    previousQueueRef.current = nextQueue;
+
+    const resolved = resolveServedLead({
+      previousQueue,
+      nextQueue,
+      currentIndex,
+      servedContactId: servedContactIdRef.current,
+    });
+
+    servedContactIdRef.current = resolved.servedContactId;
+    if (resolved.index !== currentIndex) {
+      setCurrentIndex(resolved.index);
+    }
+  }, [queue.contacts, currentIndex]);
 
   const liveDialingMs = isDialing && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
   const livePausedMs = isSessionPaused && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
