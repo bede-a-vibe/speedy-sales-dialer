@@ -379,12 +379,14 @@ const GHL_FIELD_KEY_TO_ID: Record<string, string> = {
   "contact.gbp_rating": "tURFlUlaFptokRxVtTnY",
   "contact.review_number": "zFL0ugGivKLRaT66Rb2z",
   "contact.number_quality": "RwPm1QYWjsKFPGV9yfPn",
+  "contact.phone_type": "UnqdUC0hddQ5KeYv8iNN",
   "contact.prospect_tier": "tj6IENIKIjrRNOwAlQrH",
   "contact.next_followup_date": "eCycdDk2CeGl8XBx8F9w",
   "contact.trade_type": "2PCgu75uet5x1Un3LfUW",
   "contact.total_call_attempts": "YjMRd5Rjibg5QrvtsxUa",
   "contact.best_time_to_call": "wnwsciJlfvJRXZzPTv6J",
   "contact.gatekeeper_name": "lCSsKeALjcWqPnta12QT",
+  "contact.mobile_reaches_gatekeeper": "QCQs662OMOx8FCGlA4Nh",
   "contact.gatekeeper_notes": "R8wxTGh9n3EY3LDD6ape",
   "contact.decision_maker_name": "wJZYqVWVftkCpRKpsh1E",
   "contact.decision_maker_direct_line": "6OndJoC6WKbN9Ffq4WRp",
@@ -664,7 +666,12 @@ const LIFECYCLE_STAGE_BY_LIFECYCLE: Record<string, string> = {
 const LEAD_SOURCE_CHANNEL_MAP: Record<string, string> = {
   "cold call": "Cold Call",
   "cold email": "Cold Email",
-  "website": "Website Form",
+  // Organic search is one channel regardless of whether they phoned or filled a form.
+  // Splitting call vs form would fragment SEO's contribution across two buckets and
+  // make SEO look weaker than Google Ads / Meta Ads in the channel P&L.
+  "website": "SEO / Organic",
+  "seo": "SEO / Organic",
+  "organic": "SEO / Organic",
   "student": "Student",
   "referral": "Referral",
   "partnership": "Partnership",
@@ -692,6 +699,9 @@ const CUTOVER_COLUMN_TO_FIELD_KEY: Array<[string, string]> = [
   ["dm_email", "contact.decision_maker_email"],
   ["dm_linkedin", "contact.decision_maker_linkedin"],
   ["gatekeeper_name", "contact.gatekeeper_name"],
+  // Boolean on the dialer contact; carried so the CRM can reproduce the
+  // "Gatekeeper crack list" view. gatekeeper_name alone is far too sparse (3 records).
+  ["mobile_reaches_gatekeeper", "contact.mobile_reaches_gatekeeper"],
   ["gatekeeper_notes", "contact.gatekeeper_notes"],
   ["best_route_to_decision_maker", "contact.best_route_to_dm"],
   ["best_time_to_call", "contact.best_time_to_call"],
@@ -702,6 +712,10 @@ const CUTOVER_COLUMN_TO_FIELD_KEY: Array<[string, string]> = [
   ["agreed_next_steps", "contact.agreed_next_steps"],
   ["next_followup_date", "contact.next_followup_date"],
   ["phone_number_quality", "contact.number_quality"],
+  // phone_type drives the mobile/landline/business-line smart views. It is computed
+  // locally by classify_au_phone_type but was never in this map, so GHL had it empty
+  // for all 35k contacts and four dialer views could not be reproduced in the CRM.
+  ["phone_type", "contact.phone_type"],
 ];
 
 const CUTOVER_SELECT_COLUMNS = [
@@ -720,9 +734,22 @@ function hasValue(v: unknown): boolean {
   return true;
 }
 
-function mapLeadSourceChannel(leadChannel: unknown): string {
+/**
+ * Lead Source Channel = where the lead actually CAME FROM, set once at the first
+ * real conversion (they book off a cold call, or opt in via an ad).
+ *
+ * Sitting on the cold list is NOT a source — a scraped or purchased record is
+ * inventory, not attribution. Defaulting a blank channel to "Cold Call" stamped
+ * 30,193 contacts, of which ZERO had ever been booked, making Cold Call look like
+ * 85% of all lead flow when it had produced no bookings at all.
+ *
+ * Returns null when there is no real channel yet; the caller omits the field so
+ * it stays empty until something genuine sets it. Never overwrite a value that
+ * is already there — first real touch wins.
+ */
+function mapLeadSourceChannel(leadChannel: unknown): string | null {
   const raw = typeof leadChannel === "string" ? leadChannel.trim() : "";
-  if (!raw) return "Cold Call";
+  if (!raw) return null;
   return LEAD_SOURCE_CHANNEL_MAP[raw.toLowerCase()] ?? "Other";
 }
 
@@ -738,11 +765,17 @@ function buildCutoverCustomFields(contact: Record<string, unknown>) {
     { id: CUTOVER_FIELD_IDS.importBatch, field_value: IMPORT_BATCH_VALUE },
     { id: CUTOVER_FIELD_IDS.leadStatus, field_value: leadStatus },
     { id: CUTOVER_FIELD_IDS.lifecycleStage, field_value: lifecycleStage },
-    { id: CUTOVER_FIELD_IDS.leadSourceChannel, field_value: mapLeadSourceChannel(contact.lead_channel) },
     { id: CUTOVER_FIELD_IDS.segment, field_value: "SMB" },
     { id: CUTOVER_FIELD_IDS.brand, field_value: "Odin Digital" },
     { id: CUTOVER_FIELD_IDS.appointmentStatus, field_value: "Not Booked" },
   ];
+
+  // Only carry a source once there is a real one. A blank here leaves the CRM
+  // field empty rather than falsely attributing the lead to cold calling.
+  const leadSourceChannel = mapLeadSourceChannel(contact.lead_channel);
+  if (leadSourceChannel) {
+    fields.push({ id: CUTOVER_FIELD_IDS.leadSourceChannel, field_value: leadSourceChannel });
+  }
 
   if (hasValue(contact.prospect_tier)) {
     fields.push({ id: CUTOVER_FIELD_IDS.prospectTier, field_value: contact.prospect_tier });
