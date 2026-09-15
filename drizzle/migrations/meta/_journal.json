@@ -15,6 +15,13 @@
       "when": 1789446863784,
       "tag": "0001_dm_phone_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789446975927,
+      "tag": "0002_phone_suffix_indexes",
+      "breakpoints": true
     }
   ]
 }
