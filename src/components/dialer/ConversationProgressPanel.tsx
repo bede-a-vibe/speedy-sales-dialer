@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useCallOpeners } from "@/hooks/useCallOpeners";
 import { STAGE_EXIT_REASONS, EXIT_STAGE_LABELS, type ExitStageKey } from "@/lib/funnelMetrics";
-import { PhoneOff, TrendingUp } from "lucide-react";
+import { PhoneMissed, PhoneOff, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NONE = "__none__";
@@ -46,6 +46,8 @@ interface Props {
   outcomeIsBooked?: boolean;
   /** When true, render without the outer card chrome / heading (for embedding inside another card). */
   embedded?: boolean;
+  /** One-tap "the line dropped" — fills progress + schedules an immediate ring-back. */
+  onCallDropped?: () => void;
 }
 
 /**
@@ -87,7 +89,7 @@ function clearStaleExitReasons(state: ConversationProgressState, activeStage: Ex
   return cleared;
 }
 
-export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, embedded }: Props) {
+export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, embedded, onCallDropped }: Props) {
   const { data: openers = [] } = useCallOpeners();
 
   const exitStage = useMemo(() => getExitStage(value, outcomeIsBooked), [value, outcomeIsBooked]);
@@ -188,6 +190,19 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
         >
           <PhoneOff className="h-3.5 w-3.5" />
           {isImmediateHangUp ? "Tagged: hang up during/after opener" : "Hang up during/after opener"}
+        </Button>
+      )}
+
+      {onCallDropped && !outcomeIsBooked && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onCallDropped}
+          className="h-8 w-full justify-start gap-2 border-amber-500/40 text-xs text-amber-700 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300"
+        >
+          <PhoneMissed className="h-3.5 w-3.5" />
+          Call dropped — ring them straight back
         </Button>
       )}
 

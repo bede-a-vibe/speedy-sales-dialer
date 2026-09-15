@@ -1472,6 +1472,29 @@ export default function DialerPage() {
     setDialpadCTIAuthed(authed);
   }, []);
 
+  // A connected call IS a connection — don't make the rep tick a box to tell
+  // us what Dialpad already told us. This is what silently blocked follow-up
+  // logging after real conversations.
+  useEffect(() => {
+    if (nativeCallState !== "connected") return;
+    setConversationProgress((p) => (p.reachedConnection ? p : { ...p, reachedConnection: true }));
+  }, [nativeCallState]);
+
+  /**
+   * The line dropped mid-conversation: fill everything needed to log a
+   * follow-up and schedule the ring-back for 10 minutes' time, so the rep is
+   * one tap from saving instead of fighting the validation.
+   */
+  const handleCallDropped = useCallback(() => {
+    const ringBack = new Date(Date.now() + 10 * 60 * 1000);
+    setConversationProgress((p) => ({ ...p, reachedConnection: true }));
+    session.setSelectedOutcome("follow_up");
+    session.setFollowUpDate(ringBack);
+    session.setFollowUpTime(formatTimeInputValue(ringBack));
+    if (!session.assignedRepId && session.user?.id) session.setAssignedRepId(session.user.id);
+    toast.info("Call dropped — ring-back set for 10 minutes. Add a note if you need, then Log & Next.");
+  }, [session]);
+
   const handleNativeHangUp = useCallback(() => {
     dialpadCTIRef.current?.hangUpAll();
     setNativeCallState("ended");
@@ -2987,6 +3010,9 @@ export default function DialerPage() {
               />
               <div data-coach-step="contact-card">
               <ContactCard
+                // Remount per lead: never let one lead's card state survive
+                // into the next one's render.
+                key={session.currentContact.id}
                 contact={{
                   ...(displayContact ?? session.currentContact),
                   ghl_contact_id:
@@ -3144,6 +3170,7 @@ export default function DialerPage() {
               {/* Log This Call — outcomes + conversation tagging in one card */}
               <div data-coach-step="log-call-panel">
               <LogCallPanel
+                onCallDropped={handleCallDropped}
                 callControls={
                   dialpadCTIClientId && !isCoach ? (
                     <>
