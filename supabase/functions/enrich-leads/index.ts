@@ -1165,6 +1165,17 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Numbers a rep has already proven wrong for THIS lead ("wrong person" tap).
+  // Enrichment must never write one of them back onto the same contact.
+  const APPEND_NOTE_BLOCKED =
+    "Crawled mobile was previously marked wrong for this lead — not written";
+  function isBlockedForContact(candidate: string, blocklist: unknown): boolean {
+    const k = last9(candidate);
+    if (!k) return false;
+    const list = Array.isArray(blocklist) ? blocklist : [];
+    return list.some((v) => String(v ?? "").replace(/[^0-9]/g, "").slice(-9) === k);
+  }
+
   function appendRouteNote(update: Record<string, any>, existing: string | null | undefined, note: string) {
     // Only-if-empty semantics: don't spam a route note that's already been set.
     if (existing && String(existing).trim() !== "") return;
