@@ -75,7 +75,16 @@ export default function SecurityPage() {
     void load();
   }, [load]);
 
-  const currentSessionId = (session?.user?.id && (session as unknown as { session_id?: string }).session_id) || null;
+  let currentSessionId: string | null = null;
+  try {
+    const token = session?.access_token;
+    if (token) {
+      const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      currentSessionId = typeof payload?.session_id === "string" ? payload.session_id : null;
+    }
+  } catch {
+    currentSessionId = null;
+  }
 
   return (
     <AppLayout title="Security">
