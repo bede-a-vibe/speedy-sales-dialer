@@ -1165,6 +1165,17 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Numbers a rep has already proven wrong for THIS lead ("wrong person" tap).
+  // Enrichment must never write one of them back onto the same contact.
+  const APPEND_NOTE_BLOCKED =
+    "Crawled mobile was previously marked wrong for this lead — not written";
+  function isBlockedForContact(candidate: string, blocklist: unknown): boolean {
+    const k = last9(candidate);
+    if (!k) return false;
+    const list = Array.isArray(blocklist) ? blocklist : [];
+    return list.some((v) => String(v ?? "").replace(/[^0-9]/g, "").slice(-9) === k);
+  }
+
   function appendRouteNote(update: Record<string, any>, existing: string | null | undefined, note: string) {
     // Only-if-empty semantics: don't spam a route note that's already been set.
     if (existing && String(existing).trim() !== "") return;
@@ -1228,7 +1239,7 @@ Deno.serve(async (req) => {
   if (mode === "deep_crawl") {
     let deepQuery = admin
       .from("contacts")
-      .select("id, website, phone, dm_name, dm_phone, dm_email, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
+      .select("id, website, phone, dm_name, dm_phone, dm_email, dm_phone_blocklist, best_route_to_decision_maker, has_facebook_ads, has_google_ads, buying_signal_strength, abn, years_in_business, phone_type, prospect_tier");
     if (forcedIds) {
       deepQuery = deepQuery.in("id", forcedIds);
     } else {
@@ -1307,6 +1318,8 @@ Deno.serve(async (req) => {
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
           if (sameAsOwnPhone(r.mobile, c.phone)) {
             appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_SELF_PHONE);
+          } else if (isBlockedForContact(r.mobile, (c as any).dm_phone_blocklist)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_BLOCKED);
           } else if (await isDuplicatePhone(r.mobile, c.id)) {
             appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
           } else {
@@ -1391,7 +1404,7 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_email, dm_name, best_route_to_decision_maker, city, state, has_google_ads, has_facebook_ads");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_phone_blocklist, dm_email, dm_name, best_route_to_decision_maker, city, state, has_google_ads, has_facebook_ads");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
@@ -1496,6 +1509,8 @@ Deno.serve(async (req) => {
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
         if (sameAsOwnPhone(r.mobile, c.phone)) {
           appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_SELF_PHONE);
+        } else if (isBlockedForContact(r.mobile, (c as any).dm_phone_blocklist)) {
+          appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_BLOCKED);
         } else if (await isDuplicatePhone(r.mobile, c.id)) {
           appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
         } else {

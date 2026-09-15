@@ -516,7 +516,10 @@ export type Database = {
           dm_linkedin: string | null
           dm_name: string | null
           dm_phone: string | null
+          dm_phone_blocklist: string[]
           dm_phone_type: string | null
+          dm_phone_verified: boolean
+          dm_phone_verified_at: string | null
           dm_role: string | null
           dnc_notes: string | null
           dnc_reason: string | null
@@ -621,7 +624,10 @@ export type Database = {
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
+          dm_phone_blocklist?: string[]
           dm_phone_type?: string | null
+          dm_phone_verified?: boolean
+          dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
           dnc_reason?: string | null
@@ -726,7 +732,10 @@ export type Database = {
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
+          dm_phone_blocklist?: string[]
           dm_phone_type?: string | null
+          dm_phone_verified?: boolean
+          dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
           dnc_reason?: string | null
@@ -1050,6 +1059,42 @@ export type Database = {
           last_run_at?: string | null
           last_synced_at?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      dm_bleed_backup_20260915: {
+        Row: {
+          backed_up_at: string
+          best_route_to_decision_maker: string | null
+          business_name: string | null
+          dm_name: string | null
+          dm_phone: string | null
+          dm_phone_type: string | null
+          id: string | null
+          phone: string | null
+          reason: string | null
+        }
+        Insert: {
+          backed_up_at?: string
+          best_route_to_decision_maker?: string | null
+          business_name?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          id?: string | null
+          phone?: string | null
+          reason?: string | null
+        }
+        Update: {
+          backed_up_at?: string
+          best_route_to_decision_maker?: string | null
+          business_name?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          id?: string | null
+          phone?: string | null
+          reason?: string | null
         }
         Relationships: []
       }
