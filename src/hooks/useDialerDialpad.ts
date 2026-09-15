@@ -93,9 +93,13 @@ export function useDialerDialpad({
   // A "DM number" identical to the office line is enrichment noise, not a
   // direct route — 9,920 scraped contacts carried the office number as
   // dm_phone, making the DM DIRECT badge lie. Last-9 compare like everywhere.
+  // Scraped DM numbers bled across leads (one business's mobile saved on
+  // another's record), so an UNVERIFIED dm_phone is never auto-dialled — the
+  // main business line is dialled until a rep confirms the number on a call.
   const last9 = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-9);
   const dmCandidate = (currentContact as { dm_phone?: string | null } | null)?.dm_phone?.trim();
-  const dmDirect = dmCandidate && dmCandidate !== "" && last9(dmCandidate) !== last9(currentContact?.phone)
+  const dmVerified = Boolean((currentContact as { dm_phone_verified?: boolean | null } | null)?.dm_phone_verified);
+  const dmDirect = dmVerified && dmCandidate && dmCandidate !== "" && last9(dmCandidate) !== last9(currentContact?.phone)
     ? dmCandidate
     : undefined;
   const dialNumber = dmDirect ?? (currentContact?.phone ?? null);
