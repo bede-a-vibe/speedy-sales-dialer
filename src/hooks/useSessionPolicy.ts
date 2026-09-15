@@ -14,8 +14,6 @@ const ACTIVITY_EVENTS = ["mousedown", "keydown", "wheel", "touchstart", "visibil
 /** Enforces the "stay signed in" preference on this device. */
 export function useSessionPolicy() {
   useEffect(() => {
-    if (getStaySignedIn()) return;
-
     let ended = false;
 
     const endSession = async (reason: string) => {
