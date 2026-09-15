@@ -100,6 +100,42 @@ export default function SecurityPage() {
     <AppLayout title="Security">
       <div className="max-w-3xl space-y-6">
         <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Stay signed in</CardTitle>
+            <CardDescription>
+              Choose how long this device keeps you logged in. Turn it off on shared or public computers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-start justify-between gap-6">
+            <div className="space-y-1">
+              <Label htmlFor="stay-toggle" className="text-sm font-medium text-foreground">
+                Keep me signed in on this device
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {stay
+                  ? "You stay signed in until you sign out."
+                  : "You'll be signed out when the browser closes, after 30 minutes idle, or 8 hours after signing in."}
+              </p>
+              {!stay && minutesLeft !== null && (
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  About {minutesLeft} min left in this session.
+                </p>
+              )}
+            </div>
+            <Switch
+              id="stay-toggle"
+              checked={stay}
+              onCheckedChange={(value) => {
+                setStay(value);
+                setStaySignedIn(value);
+                setMinutesLeft(shortSessionMinutesLeft());
+                toast.success(value ? "You'll stay signed in on this device." : "Short sessions turned on for this device.");
+              }}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
               <CardTitle className="text-base">Where you're signed in</CardTitle>
