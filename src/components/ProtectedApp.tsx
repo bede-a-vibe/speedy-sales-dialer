@@ -80,6 +80,12 @@ function GhlLocationSync() {
   return null;
 }
 
+/** Enforces the "stay signed in" choice (browser-close, idle and absolute limits). */
+function SessionPolicyGuard() {
+  useSessionPolicy();
+  return null;
+}
+
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
@@ -91,6 +97,7 @@ function ProtectedRoutes() {
 
   return (
     <Suspense fallback={<FullPageLoading />}>
+      <SessionPolicyGuard />
       <DemoModeSync />
       <GhlLocationSync />
       <PageTransition>
