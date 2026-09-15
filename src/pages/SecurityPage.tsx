@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Laptop, MonitorSmartphone, RefreshCw, Smartphone, ShieldCheck } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { getStaySignedIn, setStaySignedIn, shortSessionMinutesLeft } from "@/lib/sessionPersistence";
 
 interface SessionRow {
   session_id: string;
