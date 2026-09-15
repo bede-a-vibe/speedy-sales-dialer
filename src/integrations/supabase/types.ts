@@ -2973,6 +2973,18 @@ export type Database = {
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
+      list_my_sessions: {
+        Args: never
+        Returns: {
+          created_at: string
+          ip: string
+          not_after: string
+          refreshed_at: string
+          session_id: string
+          updated_at: string
+          user_agent: string
+        }[]
+      }
       merge_contacts: {
         Args: { _losers: string[]; _master: string }
         Returns: Json
