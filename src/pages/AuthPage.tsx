@@ -10,6 +10,8 @@ import {
   withTimeout,
 } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { getStaySignedIn, setStaySignedIn } from "@/lib/sessionPersistence";
 
 /** Same-origin relative path to return to after auth (used by the OAuth consent flow). */
 function safeNextPath(): string {
@@ -26,6 +28,7 @@ export default function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
+  const [staySignedIn, setStaySignedInChoice] = useState(() => getStaySignedIn());
   const nextPath = safeNextPath();
 
   // Clear stale auth tokens on mount
