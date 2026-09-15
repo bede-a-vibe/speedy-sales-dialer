@@ -21,6 +21,7 @@ const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
 const RolesPage = lazy(() => import("@/pages/RolesPage"));
+const SecurityPage = lazy(() => import("@/pages/SecurityPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -102,6 +103,7 @@ function ProtectedRoutes() {
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/eod" element={<EodReportPage />} />
         <Route path="/playbook" element={<PlaybookPage />} />
+        <Route path="/security" element={<SecurityPage />} />
         <Route
           path="/insights"
           element={(
