@@ -102,17 +102,26 @@ export function useDialerDialpad({
   // Frozen at placement: what the ACTIVE/ENDED call actually dialled. The live
   // dialNumber recomputes as contact data changes, which retroactively
   // mislabels an in-flight or ended call in the UI.
-  const [placedDialNumber, setPlacedDialNumber] = useState<string | null>(null);
+  const [placedDialNumber, setPlacedDialNumberState] = useState<string | null>(null);
   const [placedWasDmDirect, setPlacedWasDmDirect] = useState(false);
+  // Which lead the frozen number belongs to. Held in STATE (not a ref) so the
+  // render itself can prove ownership — a ref updates without re-rendering,
+  // which let one lead's dial target linger on the next lead's card.
+  const [placedForContactId, setPlacedForContactId] = useState<string | null>(null);
   const placedForContactRef = useRef<string | null>(null);
   useEffect(() => {
     // New lead → the last placement no longer describes this card.
     if (currentContact?.id !== placedForContactRef.current) {
       placedForContactRef.current = currentContact?.id ?? null;
-      setPlacedDialNumber(null);
+      setPlacedDialNumberState(null);
       setPlacedWasDmDirect(false);
+      setPlacedForContactId(null);
     }
   }, [currentContact?.id]);
+  // Never surface a frozen number that belongs to a different lead.
+  const placedDialNumberForCurrent = placedForContactId && placedForContactId === currentContact?.id
+    ? placedDialNumber
+    : null;
   const [activeDialpadCallId, setActiveDialpadCallId] = useState<string | null>(null);
   const [syncTrackedDialpadCallId, setSyncTrackedDialpadCallId] = useState<string | null>(null);
   const [activeDialpadCallState, setActiveDialpadCallState] = useState<string | null>(null);
@@ -253,7 +262,8 @@ export function useDialerDialpad({
     setHasTrackingRecoveryFailed(false);
     setCallStartedAt(Date.now());
     placedForContactRef.current = currentContact.id;
-    setPlacedDialNumber(dialNumber);
+    setPlacedForContactId(currentContact.id);
+    setPlacedDialNumberState(dialNumber);
     setPlacedWasDmDirect(Boolean(dmDirect));
 
     const mutation = dialpadCallRef.current;
@@ -673,9 +683,10 @@ export function useDialerDialpad({
     // Which number the dialer targets for this lead (DM direct when captured)
     dialNumber,
     isDmDirect: Boolean(dmDirect),
-    // What the current/last call ACTUALLY dialled (frozen at placement)
-    placedDialNumber,
-    placedWasDmDirect,
+    // What the current/last call ACTUALLY dialled (frozen at placement, and
+    // only ever for the lead on screen).
+    placedDialNumber: placedDialNumberForCurrent,
+    placedWasDmDirect: placedDialNumberForCurrent ? placedWasDmDirect : false,
     // Call state
     activeDialpadCallId,
     syncTrackedDialpadCallId,

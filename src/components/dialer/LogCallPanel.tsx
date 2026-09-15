@@ -16,6 +16,8 @@ interface LogCallPanelProps {
   canSubmit: boolean;
   conversationProgress: ConversationProgressState;
   onConversationProgressChange: (next: ConversationProgressState) => void;
+  /** One-tap dropped-call recovery: fills progress + schedules an immediate ring-back. */
+  onCallDropped?: () => void;
   dqReason?: DqReason | null;
   onDqReasonChange?: (reason: DqReason | null) => void;
   dqNotes?: string;
@@ -51,6 +53,7 @@ export function LogCallPanel({
   canSubmit,
   conversationProgress,
   onConversationProgressChange,
+  onCallDropped,
   dqReason = null,
   onDqReasonChange,
   dqNotes = "",
@@ -113,6 +116,7 @@ export function LogCallPanel({
         value={conversationProgress}
         onChange={onConversationProgressChange}
         outcomeIsBooked={selectedOutcome === "booked"}
+        onCallDropped={onCallDropped}
       />
 
       {onMobileGatekeeperChange && (
