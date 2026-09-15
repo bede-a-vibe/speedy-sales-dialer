@@ -68,8 +68,15 @@ export function dealRevenueToDate(deal: ClientDealLike, now: Date = new Date()):
   const amount = Number(deal.amount) || 0;
   const start = new Date(deal.start_date);
   if (isNaN(start.getTime()) || start > now) return 0;
-  const end = deal.end_date ? new Date(deal.end_date) : now;
-  const effectiveEnd = end > now ? now : end;
+  // Billing stops the day a deal is paused or ends — revenue must stop accruing there too.
+  const stops: Date[] = [now];
+  if (deal.end_date) stops.push(new Date(deal.end_date));
+  if ((deal.status === "paused" || deal.status === "churned") && deal.paused_at) {
+    stops.push(new Date(deal.paused_at));
+  }
+  const effectiveEnd = stops
+    .filter((d) => !isNaN(d.getTime()))
+    .reduce((min, d) => (d < min ? d : min), now);
   if (deal.billing_period === "one_off") {
     return amount;
   }
