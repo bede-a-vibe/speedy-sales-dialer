@@ -98,6 +98,7 @@ export default function AuthPage() {
         return;
       }
 
+      setStaySignedIn(staySignedIn);
       window.location.assign(nextPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to sign in right now.";
@@ -192,6 +193,27 @@ export default function AuthPage() {
                 minLength={6}
                 className="bg-card border-border"
               />
+            </div>
+          )}
+
+          {mode === "login" && (
+            <div className="flex items-start gap-2.5 rounded-md border border-border bg-card p-3">
+              <Checkbox
+                id="stay-signed-in"
+                checked={staySignedIn}
+                onCheckedChange={(value) => setStaySignedInChoice(value === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="stay-signed-in" className="text-xs font-medium text-foreground cursor-pointer">
+                  Stay signed in on this device
+                </Label>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {staySignedIn
+                    ? "You'll stay signed in until you sign out."
+                    : "You'll be signed out when you close the browser, after 30 minutes idle, or after 8 hours."}
+                </p>
+              </div>
             </div>
           )}
 
