@@ -6,6 +6,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import { installDemoFetchInterceptor, setDemoModeActive } from "@/lib/demoMode";
 import { fetchGhlLocationId } from "@/lib/ghlUrls";
 import { PageTransition } from "@/components/PageTransition";
+import { useSessionPolicy } from "@/hooks/useSessionPolicy";
 
 const DialerPage = lazy(() => import("@/pages/DialerPage"));
 const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
@@ -79,6 +80,12 @@ function GhlLocationSync() {
   return null;
 }
 
+/** Enforces the "stay signed in" choice (browser-close, idle and absolute limits). */
+function SessionPolicyGuard() {
+  useSessionPolicy();
+  return null;
+}
+
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
@@ -90,6 +97,7 @@ function ProtectedRoutes() {
 
   return (
     <Suspense fallback={<FullPageLoading />}>
+      <SessionPolicyGuard />
       <DemoModeSync />
       <GhlLocationSync />
       <PageTransition>
