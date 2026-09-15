@@ -3019,6 +3019,31 @@ export default function DialerPage() {
                     ((displayContact ?? session.currentContact) as any).ghl_contact_id
                     || ghlLink.getCachedGHLId(session.currentContact.id),
                 }}
+                onConfirmDM={() => {
+                  const c = session.currentContact!;
+                  updateContact.mutateAsync({
+                    id: c.id,
+                    dm_phone_verified: true,
+                    dm_phone_verified_at: new Date().toISOString(),
+                  } as any)
+                    .then(() => toast.success("Decision maker number confirmed — the dialer will call it direct from now on."))
+                    .catch(() => toast.error("Couldn't save that — try again."));
+                }}
+                onRejectDM={() => {
+                  const c = session.currentContact! as any;
+                  const wrong = String(c.dm_phone ?? "").replace(/\D/g, "").slice(-9);
+                  const blocklist = Array.from(new Set([...(Array.isArray(c.dm_phone_blocklist) ? c.dm_phone_blocklist : []), wrong].filter(Boolean)));
+                  updateContact.mutateAsync({
+                    id: c.id,
+                    dm_phone: null,
+                    dm_phone_type: null,
+                    dm_phone_verified: false,
+                    dm_phone_verified_at: null,
+                    dm_phone_blocklist: blocklist,
+                  } as any)
+                    .then(() => toast.success("Number removed — it won't be added back to this lead."))
+                    .catch(() => toast.error("Couldn't save that — try again."));
+                }}
                 onMarkPhoneQuality={(quality) => {
                   updateContact.mutateAsync({
                     id: session.currentContact!.id,
