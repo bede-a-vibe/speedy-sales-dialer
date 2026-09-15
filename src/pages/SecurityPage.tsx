@@ -59,6 +59,13 @@ export default function SecurityPage() {
   const [rows, setRows] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [stay, setStay] = useState(() => getStaySignedIn());
+  const [minutesLeft, setMinutesLeft] = useState<number | null>(() => shortSessionMinutesLeft());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setMinutesLeft(shortSessionMinutesLeft()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [stay]);
 
   const load = useCallback(async () => {
     setLoading(true);
