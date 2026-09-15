@@ -9,7 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Search, MonitorSmartphone } from "lucide-react";
+import { LogOut, Search, MonitorSmartphone, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -66,6 +67,12 @@ export function AppLayout({ children, title }: AppLayoutProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem asChild className="text-xs gap-2 cursor-pointer">
+                    <Link to="/security">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Security &amp; devices
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => signOut("local")} className="text-xs gap-2 cursor-pointer">
                     <LogOut className="h-3.5 w-3.5" />
                     Sign out (this device)
