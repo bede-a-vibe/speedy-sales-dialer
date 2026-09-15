@@ -48,6 +48,7 @@ interface ContactCardProps {
     dm_title?: string | null;
     dm_phone?: string | null;
     dm_phone_type?: string | null;
+    dm_phone_verified?: boolean | null;
     dm_email?: string | null;
     gatekeeper_name?: string | null;
     gatekeeper_notes?: string | null;
@@ -76,11 +77,15 @@ interface ContactCardProps {
   onMarkPhoneQuality?: (quality: string) => void;
   onAddDM?: () => void;
   onCallDM?: (phone: string) => void;
+  /** Rep confirmed on a live call that this number reaches the named person. */
+  onConfirmDM?: () => void;
+  /** Rep reached someone else — clear the number and never re-add it. */
+  onRejectDM?: () => void;
   /** Optional slot rendered in the header row (e.g. recovery actions). */
   headerActions?: React.ReactNode;
 }
 
-export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, headerActions }: ContactCardProps) {
+export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectDM, onMarkPhoneQuality, headerActions }: ContactCardProps) {
   // A "DM number" identical to the office line is enrichment noise, not a
   // decision-maker route — never render it as one (last-9 digits compare).
   const cardLast9 = (v?: string | null) => (v ?? "").replace(/\D/g, "").slice(-9);
@@ -90,6 +95,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
   const phoneType = PHONE_TYPE_CONFIG[contact.phone_type || "unknown"] || PHONE_TYPE_CONFIG.unknown;
   const PhoneIcon = phoneType.icon;
   const hasDM = contact.dm_name || contact.dm_phone;
+  const isDmVerified = Boolean(contact.dm_phone_verified);
   const dmPhoneType = contact.dm_phone_type ? PHONE_TYPE_CONFIG[contact.dm_phone_type] : null;
   const bestRouteToDecisionMaker = contact.best_route_to_decision_maker || contact.best_route_to_dm;
   const decisionMakerRole = contact.dm_role || contact.dm_title;
@@ -360,18 +366,56 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
               </p>
             )}
             {contact.dm_phone && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onCallDM?.(contact.dm_phone!)}
-                  className="flex items-center gap-2 bg-green-500/15 dark:bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-800 dark:text-green-300 hover:bg-green-500/25 dark:hover:bg-green-500/30 transition-colors text-sm font-mono"
-                >
-                  <Smartphone className="h-3.5 w-3.5" />
-                  {contact.dm_phone}
-                </button>
-                {dmPhoneType && (
-                  <span className={`text-[9px] uppercase tracking-widest font-mono px-1.5 py-1 rounded border ${dmPhoneType.color}`}>
-                    {dmPhoneType.label}
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => onCallDM?.(contact.dm_phone!)}
+                    className="flex items-center gap-2 bg-green-500/15 dark:bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-800 dark:text-green-300 hover:bg-green-500/25 dark:hover:bg-green-500/30 transition-colors text-sm font-mono"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    {contact.dm_phone}
+                  </button>
+                  {dmPhoneType && (
+                    <span className={`text-[9px] uppercase tracking-widest font-mono px-1.5 py-1 rounded border ${dmPhoneType.color}`}>
+                      {dmPhoneType.label}
+                    </span>
+                  )}
+                  <span
+                    className={`text-[9px] uppercase tracking-widest font-mono px-1.5 py-1 rounded border ${
+                      isDmVerified
+                        ? "text-green-800 dark:text-green-300 bg-green-500/10 border-green-500/30"
+                        : "text-amber-800 dark:text-amber-300 bg-amber-500/10 border-amber-500/30"
+                    }`}
+                  >
+                    {isDmVerified ? "Verified" : "Unverified"}
                   </span>
+                </div>
+                {!isDmVerified && (
+                  <p className="text-[11px] text-amber-800/90 dark:text-amber-200/90">
+                    Not confirmed yet — the dialer calls the main line until you confirm this reaches {contact.dm_name || "the decision maker"}.
+                  </p>
+                )}
+                {(onConfirmDM || onRejectDM) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    {onConfirmDM && !isDmVerified && (
+                      <button
+                        onClick={onConfirmDM}
+                        className="flex items-center gap-1.5 rounded-md border border-green-500/40 bg-green-500/10 px-2 py-1 text-[11px] font-medium text-green-800 transition-colors hover:bg-green-500/20 dark:text-green-300"
+                      >
+                        <UserCheck className="h-3 w-3" />
+                        Right person — confirm
+                      </button>
+                    )}
+                    {onRejectDM && (
+                      <button
+                        onClick={onRejectDM}
+                        className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/20"
+                      >
+                        <UserX className="h-3 w-3" />
+                        Wrong person — remove number
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
