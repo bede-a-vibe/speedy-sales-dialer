@@ -1318,6 +1318,8 @@ Deno.serve(async (req) => {
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
           if (sameAsOwnPhone(r.mobile, c.phone)) {
             appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_SELF_PHONE);
+          } else if (isBlockedForContact(r.mobile, (c as any).dm_phone_blocklist)) {
+            appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_BLOCKED);
           } else if (await isDuplicatePhone(r.mobile, c.id)) {
             appendRouteNote(update, c.best_route_to_decision_maker, APPEND_NOTE_PHONE);
           } else {
