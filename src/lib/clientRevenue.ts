@@ -28,6 +28,7 @@ export interface ClientDealLike {
   status: ClientDealStatus | string;
   start_date: string;
   end_date: string | null;
+  paused_at?: string | null;
 }
 
 export function toMonthly(amount: number, billing_period: BillingPeriod | string): number {
