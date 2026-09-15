@@ -30,6 +30,7 @@ export function useSessionPolicy() {
     };
 
     const check = () => {
+      if (getStaySignedIn()) return;
       const verdict = evaluateSessionPolicy();
       if (verdict === "ok") return;
       void endSession(
