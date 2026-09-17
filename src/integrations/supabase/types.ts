@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      archived_no_web_backup: {
+        Row: {
+          archived_at: string | null
+          business_name: string | null
+          id: string | null
+          lead_source: string | null
+          lead_type: string | null
+          phone: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+          phone?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
       au_locality_state: {
         Row: {
           locality: string
@@ -553,6 +580,8 @@ export type Database = {
           ghl_contact_id: string | null
           ghl_contact_id_legacy: string | null
           gmb_link: string | null
+          gmb_lookup_at: string | null
+          gmb_lookup_attempted: boolean
           google_rating: number | null
           google_review_count: number | null
           has_existing_agency: boolean | null
@@ -664,6 +693,8 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
@@ -775,6 +806,8 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null

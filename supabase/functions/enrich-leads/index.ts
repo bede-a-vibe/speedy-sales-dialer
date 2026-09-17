@@ -1022,6 +1022,216 @@ async function runInChunks<T, R>(items: T[], size: number, fn: (item: T) => Prom
   return out;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GOOGLE BUSINESS PROFILE / PLACES STATE BACKFILL
+// Authoritative location lookup for contacts with no state (CSV + inbound GHL
+// leads that carry no gmb_link). Phone-number match first (near-unambiguous),
+// then a name match that must clear a strict similarity check.
+// contacts.state drives the legal calling-hours guard: when in doubt, no write.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GMB_CONCURRENCY = 5;
+const GMB_FIELD_MASK =
+  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location";
+
+interface PlacesAuth {
+  mode: "direct" | "gateway";
+  key: string;
+  lovableKey?: string;
+}
+
+// A raw Google key starts with "AIza". Anything else in GOOGLE_MAPS_API_KEY is
+// a Lovable connector key, which must be called through the connector gateway.
+function resolvePlacesAuth(): PlacesAuth | null {
+  const raw =
+    Deno.env.get("GOOGLE_PLACES_API_KEY") ??
+    Deno.env.get("GOOGLE_MAPS_API_KEY") ??
+    "";
+  if (!raw) return null;
+  if (raw.startsWith("AIza")) return { mode: "direct", key: raw };
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+  if (!lovableKey) return null;
+  return { mode: "gateway", key: raw, lovableKey };
+}
+
+async function placesSearchText(auth: PlacesAuth, textQuery: string): Promise<any[]> {
+  const url =
+    auth.mode === "direct"
+      ? "https://places.googleapis.com/v1/places:searchText"
+      : "https://connector-gateway.lovable.dev/google_maps/places/v1/places:searchText";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Goog-FieldMask": GMB_FIELD_MASK,
+  };
+  if (auth.mode === "direct") {
+    headers["X-Goog-Api-Key"] = auth.key;
+  } else {
+    headers["Authorization"] = `Bearer ${auth.lovableKey}`;
+    headers["X-Connection-Api-Key"] = auth.key;
+  }
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      signal: ctl.signal,
+      body: JSON.stringify({ textQuery, regionCode: "AU", maxResultCount: 3 }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error(`[enrich-leads/gmb] Places ${res.status}: ${errBody.slice(0, 300)}`);
+      throw new Error(`places_${res.status}`);
+    }
+    const data = await res.json();
+    return Array.isArray(data?.places) ? data.places : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const AU_STATE_FROM_LONG: Record<string, string> = {
+  "victoria": "VIC",
+  "new south wales": "NSW",
+  "queensland": "QLD",
+  "western australia": "WA",
+  "south australia": "SA",
+  "tasmania": "TAS",
+  "northern territory": "NT",
+  "australian capital territory": "ACT",
+  "jervis bay territory": "ACT",
+};
+
+function stateFromPlace(place: any): { state: string | null; city: string | null; inAu: boolean } {
+  const comps: any[] = Array.isArray(place?.addressComponents) ? place.addressComponents : [];
+  let state: string | null = null;
+  let city: string | null = null;
+  let inAu = false;
+  for (const c of comps) {
+    const types: string[] = Array.isArray(c?.types) ? c.types : [];
+    const long = String(c?.longText ?? "").trim();
+    const short = String(c?.shortText ?? "").trim();
+    if (types.includes("country")) {
+      if (short.toUpperCase() === "AU" || long.toLowerCase() === "australia") inAu = true;
+    }
+    if (types.includes("administrative_area_level_1")) {
+      const byLong = AU_STATE_FROM_LONG[long.toLowerCase()];
+      const byShort = Object.values(AU_STATE_FROM_LONG).includes(short.toUpperCase())
+        ? short.toUpperCase()
+        : null;
+      state = byLong ?? byShort ?? null;
+    }
+    if (types.includes("locality") && long) city = long;
+  }
+  if (!city) {
+    for (const c of comps) {
+      const types: string[] = Array.isArray(c?.types) ? c.types : [];
+      if (types.includes("postal_town") || types.includes("administrative_area_level_2")) {
+        city = String(c?.longText ?? "").trim() || null;
+        break;
+      }
+    }
+  }
+  return { state, city, inAu };
+}
+
+// Strip legal suffixes, punctuation and filler so "ABC Electrical Pty Ltd" and
+// "ABC Electrical" compare equal.
+function normaliseBusinessName(name: string): string {
+  return String(name ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\b(pty\.?|ltd\.?|limited|inc\.?|llc|co\.?|the|group|australia|aust)\b/g, " ")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function nameTokens(name: string): Set<string> {
+  return new Set(normaliseBusinessName(name).split(" ").filter((t) => t.length > 2));
+}
+
+// Close match = identical normalised strings, one contains the other, or the
+// token overlap covers at least 70% of the smaller token set (min 2 tokens).
+function isCloseNameMatch(ours: string, theirs: string): boolean {
+  const a = normaliseBusinessName(ours);
+  const b = normaliseBusinessName(theirs);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= 6 && (a.includes(b) || b.includes(a))) return true;
+  const ta = nameTokens(ours);
+  const tb = nameTokens(theirs);
+  if (ta.size === 0 || tb.size === 0) return false;
+  let shared = 0;
+  for (const t of ta) if (tb.has(t)) shared++;
+  const smaller = Math.min(ta.size, tb.size);
+  if (smaller < 2) return shared === smaller && smaller === 1 && ta.size === tb.size;
+  return shared / smaller >= 0.7;
+}
+
+function toE164Au(phone: string | null | undefined): string | null {
+  const raw = String(phone ?? "").replace(/[^\d+]/g, "");
+  if (!raw) return null;
+  if (raw.startsWith("+61")) return raw.length >= 11 ? raw : null;
+  if (raw.startsWith("61") && raw.length >= 10) return `+${raw}`;
+  if (raw.startsWith("0") && raw.length === 10) return `+61${raw.slice(1)}`;
+  return null;
+}
+
+interface GmbLookupResult {
+  matched: boolean;
+  via: "phone" | "name" | null;
+  place: any | null;
+  state: string | null;
+  city: string | null;
+  ambiguous: boolean;
+  reason: string;
+}
+
+async function lookupGmbForContact(
+  auth: PlacesAuth,
+  c: { business_name?: string | null; phone_e164?: string | null; phone?: string | null; city?: string | null },
+): Promise<GmbLookupResult> {
+  const none = (reason: string, ambiguous = false): GmbLookupResult => ({
+    matched: false, via: null, place: null, state: null, city: null, ambiguous, reason,
+  });
+
+  // (a) Phone match — near-unambiguous, so no name check required.
+  const e164 = toE164Au(c.phone_e164 ?? c.phone ?? null);
+  if (e164) {
+    const byPhone = await placesSearchText(auth, e164);
+    if (byPhone.length === 1) {
+      const p = byPhone[0];
+      const loc = stateFromPlace(p);
+      if (!loc.inAu) return none("outside_australia");
+      return { matched: true, via: "phone", place: p, state: loc.state, city: loc.city, ambiguous: false, reason: "phone_match" };
+    }
+    if (byPhone.length > 1) return none("phone_multiple", true);
+  }
+
+  // (b) Name match — only accepted when the returned name is a close match.
+  const name = String(c.business_name ?? "").trim();
+  if (!name) return none("no_phone_no_name");
+  const cityPart = c.city ? ` ${String(c.city).trim()}` : "";
+  const byName = await placesSearchText(auth, `${name}${cityPart} Australia`);
+  if (byName.length === 0) return none("no_result");
+
+  const close = byName.filter((p) => isCloseNameMatch(name, p?.displayName?.text ?? ""));
+  if (close.length === 0) return none("name_mismatch");
+
+  const states = new Set(
+    close.map((p) => stateFromPlace(p).state).filter((s): s is string => Boolean(s)),
+  );
+  if (states.size > 1) return none("multiple_states", true);
+
+  const p = close[0];
+  const loc = stateFromPlace(p);
+  if (!loc.inAu) return none("outside_australia");
+  return { matched: true, via: "name", place: p, state: loc.state, city: loc.city, ambiguous: false, reason: "name_match" };
+}
+
+
+
 // Discover secondary pages likely to name the owner. Uses homepage nav links
 // (href/text matches /about|team|our-story|meet|contact|staff|people/i) PLUS
 // the common-path list. Same-host only. Deduped. Capped by caller.
@@ -1243,9 +1453,10 @@ Deno.serve(async (req) => {
   }
   const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 60);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
-  const mode: "default" | "deep_crawl" | "state_backfill" =
+  const mode: "default" | "deep_crawl" | "state_backfill" | "backfill_state_from_gmb" =
     body?.mode === "deep_crawl" ? "deep_crawl"
       : body?.mode === "state_backfill" ? "state_backfill"
+      : body?.mode === "backfill_state_from_gmb" ? "backfill_state_from_gmb"
       : "default";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -1379,6 +1590,105 @@ Deno.serve(async (req) => {
       console.warn("[enrich-leads] budget persist failed:", (e as any)?.message ?? e);
     }
   };
+
+  // ── Google Business Profile / Places state backfill ──
+  // Authoritative location lookup for the ~3.8k contacts with no state and no
+  // gmb_link. Writes only empty fields, only on a confident match, AU only.
+  if (mode === "backfill_state_from_gmb") {
+    const placesAuth = resolvePlacesAuth();
+    if (!placesAuth) {
+      console.log("[enrich-leads/gmb] no Google Places API key configured — skipping.");
+      return json({ ok: true, skipped: "no API key" });
+    }
+
+    let pending: any[] | null = null;
+    if (forcedIds) {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, business_name, phone, phone_e164, city, state, gmb_link")
+        .in("id", forcedIds);
+      if (error) return json({ error: `GMB select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    } else {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, business_name, phone, phone_e164, city, state, gmb_link")
+        .eq("gmb_lookup_attempted", false)
+        .or("state.is.null,state.eq.")
+        .or("is_archived.is.null,is_archived.eq.false")
+        .order("created_at", { ascending: true })
+        .limit(batchSize);
+      if (error) return json({ error: `GMB select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    }
+
+    if (!pending || pending.length === 0) {
+      return json({
+        ok: true, mode: "backfill_state_from_gmb", attempted: 0, matched: 0,
+        state_written: 0, no_match: 0, ambiguous: 0, by_state: {}, logs: [],
+      });
+    }
+
+    let g_matched = 0, g_written = 0, g_noMatch = 0, g_ambiguous = 0, g_errors = 0;
+    const gByState: Record<string, number> = {};
+    const gLogs: any[] = [];
+
+    const perGmb = async (c: any) => {
+      const started = Date.now();
+      const update: Record<string, any> = {
+        gmb_lookup_attempted: true,
+        gmb_lookup_at: new Date().toISOString(),
+      };
+      try {
+        const r = await lookupGmbForContact(placesAuth, c);
+        if (r.ambiguous) g_ambiguous++;
+        if (r.matched && r.place) {
+          g_matched++;
+          // Only ever fill blanks — never overwrite existing data.
+          if (r.state && (!c.state || String(c.state).trim() === "")) {
+            update.state = r.state;
+            gByState[r.state] = (gByState[r.state] ?? 0) + 1;
+            g_written++;
+          }
+          if (r.city && (!c.city || String(c.city).trim() === "")) update.city = r.city;
+          if (r.place.id && (!c.gmb_link || String(c.gmb_link).trim() === "")) {
+            update.gmb_link = `https://www.google.com/maps/place/?q=place_id:${r.place.id}`;
+          }
+        } else if (!r.ambiguous) {
+          g_noMatch++;
+        }
+        gLogs.push({
+          contactId: c.id, name: c.business_name, via: r.via, reason: r.reason,
+          state: update.state ?? null, ms: Date.now() - started,
+        });
+      } catch (err: any) {
+        g_errors++;
+        gLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+      const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+      if (upErr) console.error(`[enrich-leads/gmb] update ${c.id} failed:`, upErr.message);
+    };
+
+    await runInChunks(pending, GMB_CONCURRENCY, perGmb);
+
+    console.log(
+      `[enrich-leads/gmb] attempted=${pending.length} matched=${g_matched} state_written=${g_written} no_match=${g_noMatch} ambiguous=${g_ambiguous} errors=${g_errors} by_state=${JSON.stringify(gByState)}`,
+    );
+
+    return json({
+      ok: true,
+      mode: "backfill_state_from_gmb",
+      attempted: pending.length,
+      matched: g_matched,
+      state_written: g_written,
+      no_match: g_noMatch,
+      ambiguous: g_ambiguous,
+      errors: g_errors,
+      by_state: gByState,
+      logs: gLogs,
+    });
+  }
+
 
   // ── State-backfill mode ──
   // Resolves contacts.state from the lead's own website. Never guesses: a page
