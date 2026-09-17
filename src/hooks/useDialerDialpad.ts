@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveDialTarget, type DialTargetContact } from "@/lib/dialTarget";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -96,13 +97,12 @@ export function useDialerDialpad({
   // Scraped DM numbers bled across leads (one business's mobile saved on
   // another's record), so an UNVERIFIED dm_phone is never auto-dialled — the
   // main business line is dialled until a rep confirms the number on a call.
-  const last9 = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-9);
-  const dmCandidate = (currentContact as { dm_phone?: string | null } | null)?.dm_phone?.trim();
-  const dmVerified = Boolean((currentContact as { dm_phone_verified?: boolean | null } | null)?.dm_phone_verified);
-  const dmDirect = dmVerified && dmCandidate && dmCandidate !== "" && last9(dmCandidate) !== last9(currentContact?.phone)
-    ? dmCandidate
-    : undefined;
-  const dialNumber = dmDirect ?? (currentContact?.phone ?? null);
+  // Resolved in ONE shared place (lib/dialTarget) that the contact card reads
+  // too, so the number on screen can never drift from the number that rings.
+  // Unverified scraped numbers are only dialled on switchboard main lines.
+  const dialTarget = resolveDialTarget(currentContact as DialTargetContact | null);
+  const dialNumber = dialTarget.number;
+  const dmDirect = dialTarget.isDmDirect ? dialTarget.number ?? undefined : undefined;
   // Frozen at placement: what the ACTIVE/ENDED call actually dialled. The live
   // dialNumber recomputes as contact data changes, which retroactively
   // mislabels an in-flight or ended call in the UI.
