@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      au_locality_state: {
+        Row: {
+          locality: string
+          state: string
+        }
+        Insert: {
+          locality: string
+          state: string
+        }
+        Update: {
+          locality?: string
+          state?: string
+        }
+        Relationships: []
+      }
       benchmark_segments: {
         Row: {
           color: string | null
@@ -2647,6 +2662,24 @@ export type Database = {
         }
         Relationships: []
       }
+      state_backfill_backup: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          old_state: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          old_state?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          old_state?: string | null
+        }
+        Relationships: []
+      }
       state_label_fix_backup: {
         Row: {
           backed_up_at: string | null
@@ -2660,6 +2693,21 @@ export type Database = {
         }
         Update: {
           backed_up_at?: string | null
+          id?: string | null
+          state?: string | null
+        }
+        Relationships: []
+      }
+      state_match_work: {
+        Row: {
+          id: string | null
+          state: string | null
+        }
+        Insert: {
+          id?: string | null
+          state?: string | null
+        }
+        Update: {
           id?: string | null
           state?: string | null
         }
