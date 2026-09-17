@@ -593,6 +593,9 @@ export type Database = {
           qualified_at: string | null
           review_count: number | null
           state: string | null
+          state_backfill_at: string | null
+          state_backfill_attempted: boolean
+          state_backfill_result: string | null
           status: string
           tags: string[]
           trade_type: string | null
@@ -701,6 +704,9 @@ export type Database = {
           qualified_at?: string | null
           review_count?: number | null
           state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
@@ -809,6 +815,9 @@ export type Database = {
           qualified_at?: string | null
           review_count?: number | null
           state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
@@ -2915,6 +2924,7 @@ export type Database = {
         Args: { _digits: string; _exclude_id: string }
         Returns: number
       }
+      count_state_backfill_pending: { Args: never; Returns: number }
       export_contacts_for_ghl_link: {
         Args: never
         Returns: {
@@ -3083,6 +3093,14 @@ export type Database = {
         Returns: Json
       }
       normalise_lead_channel: { Args: { _v: string }; Returns: string }
+      pick_state_backfill_contacts: {
+        Args: { _limit: number }
+        Returns: {
+          id: string
+          state: string
+          website: string
+        }[]
+      }
       preview_dialer_leads:
         | {
             Args: {
