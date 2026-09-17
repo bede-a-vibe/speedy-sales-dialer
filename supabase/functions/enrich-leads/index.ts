@@ -1453,9 +1453,10 @@ Deno.serve(async (req) => {
   }
   const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 60);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
-  const mode: "default" | "deep_crawl" | "state_backfill" =
+  const mode: "default" | "deep_crawl" | "state_backfill" | "backfill_state_from_gmb" =
     body?.mode === "deep_crawl" ? "deep_crawl"
       : body?.mode === "state_backfill" ? "state_backfill"
+      : body?.mode === "backfill_state_from_gmb" ? "backfill_state_from_gmb"
       : "default";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
