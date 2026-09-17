@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveDialTarget, type DialTargetContact } from "@/lib/dialTarget";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -87,18 +88,12 @@ export function useDialerDialpad({
   currentContact,
   selectedCallerId,
 }: UseDialerDialpadOptions) {
-  // Dial the DECISION MAKER's direct number when we have one — the office/main
-  // line is the fallback, not the default (reps kept reaching tradesmen on the
-  // website number when the MD's mobile was sitting captured on the lead).
-  // A "DM number" identical to the office line is enrichment noise, not a
-  // direct route — 9,920 scraped contacts carried the office number as
-  // dm_phone, making the DM DIRECT badge lie. Last-9 compare like everywhere.
-  const last9 = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-9);
-  const dmCandidate = (currentContact as { dm_phone?: string | null } | null)?.dm_phone?.trim();
-  const dmDirect = dmCandidate && dmCandidate !== "" && last9(dmCandidate) !== last9(currentContact?.phone)
-    ? dmCandidate
-    : undefined;
-  const dialNumber = dmDirect ?? (currentContact?.phone ?? null);
+  // Single source of truth, shared with the contact card — see lib/dialTarget.
+  // Scraped decision-maker numbers are only dialled when a human confirmed
+  // them, or when the main line is a switchboard we need to bypass.
+  const dialTarget = resolveDialTarget(currentContact as DialTargetContact | null);
+  const dialNumber = dialTarget.number;
+  const dmDirect = dialTarget.isDmDirect ? dialTarget.number ?? undefined : undefined;
   // Frozen at placement: what the ACTIVE/ENDED call actually dialled. The live
   // dialNumber recomputes as contact data changes, which retroactively
   // mislabels an in-flight or ended call in the UI.

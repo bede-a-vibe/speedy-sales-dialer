@@ -1,5 +1,6 @@
 import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
+import { resolveDialTarget } from "@/lib/dialTarget";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
@@ -94,13 +95,16 @@ export function ContactCard({ contact, onAddDM, onCallDM, onMarkPhoneQuality, he
   const bestRouteToDecisionMaker = contact.best_route_to_decision_maker || contact.best_route_to_dm;
   const decisionMakerRole = contact.dm_role || contact.dm_title;
   const isBusinessRoutedNumber = contact.phone_type === "landline" || contact.phone_type === "business_line";
-  const dialStrategyLabel = contact.dm_phone
+  // The card must describe the number that will ACTUALLY ring — same resolver
+  // the dial engine uses, so the two can never drift apart.
+  const resolvedTarget = resolveDialTarget(contact);
+  const dialStrategyLabel = resolvedTarget.isDmDirect
     ? "Best route"
     : isBusinessRoutedNumber
       ? "Switchboard route"
       : "Primary route";
-  const dialStrategySummary = contact.dm_phone
-    ? `Call the decision maker direct on ${contact.dm_phone}.`
+  const dialStrategySummary = resolvedTarget.number
+    ? `${resolvedTarget.isDmDirect ? "Calling the decision maker direct on" : "Dialling"} ${resolvedTarget.number}. ${resolvedTarget.reason}`
     : isBusinessRoutedNumber
       ? contact.gatekeeper_name
         ? `Main line likely routes through ${contact.gatekeeper_name}.`
