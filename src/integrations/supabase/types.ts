@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      archived_no_web_backup: {
+        Row: {
+          archived_at: string | null
+          business_name: string | null
+          id: string | null
+          lead_source: string | null
+          lead_type: string | null
+          phone: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+          phone?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
       au_locality_state: {
         Row: {
           locality: string
