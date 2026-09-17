@@ -1520,11 +1520,17 @@ export default function DialerPage() {
     if (outcomeConnected || stageReached) setCaptureOpen(true);
   }, [session.selectedOutcome, conversationProgress]);
 
-  // Auto-link current contact to GHL when presented in the dialer
-  // This ensures ghl_contact_id is available before any GHL sync happens
+  // Keep an EXISTING GHL link fresh when a lead is presented. We deliberately
+  // do NOT create a GHL contact just because we dialled someone — cold
+  // prospecting lives in this app, and auto-upserting every dial floods GHL
+  // with contacts (and their opportunities) that were never real deals. A GHL
+  // contact is created on demand at the moment a call is actually booked.
   useEffect(() => {
     if (!session.currentContact || !session.isSessionActive) return;
     const c = session.currentContact;
+    const alreadyLinked = Boolean((c as Record<string, unknown>).ghl_contact_id)
+      || Boolean(ghlLink.getCachedGHLId(c.id));
+    if (!alreadyLinked) return;
     const raw = c as Record<string, unknown>;
     ghlLink.ensureGHLLink({
       id: c.id,
@@ -1759,24 +1765,48 @@ export default function DialerPage() {
       }
 
       // ── GHL Sync (fire-and-forget) ──
-      if (contactGhlId) {
+      // A booked appointment is a real opportunity, so it earns a GHL contact
+      // even if this lead was never linked before. Everything else stays here.
+      let syncGhlId = contactGhlId;
+      if (!syncGhlId && outcomeToLog === "booked") {
+        const snap = currentContactSnapshot as Record<string, unknown>;
+        syncGhlId = await ghlLink.ensureGHLLink({
+          id: contactId,
+          phone: currentContactSnapshot.phone,
+          business_name: currentContactSnapshot.business_name,
+          contact_person: (snap.contact_person as string) ?? null,
+          email: (snap.email as string) ?? null,
+          website: (snap.website as string) ?? null,
+          city: (snap.city as string) ?? null,
+          state: (snap.state as string) ?? null,
+          industry: (snap.industry as string) ?? null,
+          ghl_contact_id: null,
+        }).catch(() => null);
+      }
+
+      if (syncGhlId) {
         pushCallNote({
-          ghlContactId: contactGhlId,
+          ghlContactId: syncGhlId,
           outcome: outcomeToLog,
           notes: pipelineNotes || undefined,
           repName,
         }).catch(() => {});
 
-        // Update opportunity stage in Outbound Prospecting pipeline for every outcome
-        updateOpportunityStage({
-          ghlContactId: contactGhlId,
-          outcome: outcomeToLog,
-          contactName,
-        }).catch(() => {});
+        // ONLY a booked appointment belongs in the GHL sales pipeline. Every
+        // other outcome (no answer, voicemail, not interested, DNC, gatekeeper,
+        // follow-up) is cold-calling activity and stays in this app — pushing
+        // it created "Business – No Answer" cards that buried the real deals.
+        if (outcomeToLog === "booked") {
+          updateOpportunityStage({
+            ghlContactId: syncGhlId,
+            outcome: outcomeToLog,
+            contactName,
+          }).catch(() => {});
+        }
 
         if (outcomeToLog === "booked" && scheduledFor && calendarId) {
           pushBooking({
-            ghlContactId: contactGhlId,
+            ghlContactId: syncGhlId,
             contactId,
             calendarId,
             scheduledFor,
@@ -1793,7 +1823,7 @@ export default function DialerPage() {
 
         if (outcomeToLog === "follow_up" && scheduledFor) {
           pushFollowUp({
-            ghlContactId: contactGhlId,
+            ghlContactId: syncGhlId,
             contactId,
             scheduledFor,
             method,
@@ -1822,7 +1852,7 @@ export default function DialerPage() {
             })();
 
             pushFollowUpEmailDraft({
-              ghlContactId: contactGhlId,
+              ghlContactId: syncGhlId,
               contactName: contactName ?? "there",
               businessName: contactName ?? "",
               industry: contactIndustry,
@@ -1835,7 +1865,7 @@ export default function DialerPage() {
         }
 
         if (outcomeToLog === "dnc") {
-          pushDNC({ ghlContactId: contactGhlId, contactId }).catch(() => {});
+          pushDNC({ ghlContactId: syncGhlId, contactId }).catch(() => {});
         }
       }
     })();
