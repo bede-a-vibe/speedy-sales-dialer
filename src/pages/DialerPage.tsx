@@ -1971,18 +1971,40 @@ export default function DialerPage() {
   // Fire the compliance skip whenever the current lead is out of window AND
   // we're mid-session (isDialing). Guarded so it only fires once per contact.
   const lastComplianceSkipContactIdRef = useRef<string | null>(null);
+  // Skipping discards the lead and pulls the next one in — so when a whole
+  // queue is out of window (e.g. an all-NSW queue at 08:57) this would chew
+  // through the entire lead pool in seconds, claiming and releasing locks and
+  // inflating the call counters. Cap the run and hold the session instead.
+  const consecutiveComplianceSkipsRef = useRef(0);
+  const MAX_CONSECUTIVE_COMPLIANCE_SKIPS = 10;
   useEffect(() => {
     if (!session.isDialing || session.isSessionPaused) return;
     if (!session.currentContact) return;
-    if (!complianceWindow || complianceWindow.allowed) return;
     if (!isOnline) return;
+    // A dialable lead means we're out of the dead zone — reset the run.
+    if (!complianceWindow || complianceWindow.allowed) {
+      consecutiveComplianceSkipsRef.current = 0;
+      return;
+    }
     if (lastComplianceSkipContactIdRef.current === session.currentContact.id) return;
     lastComplianceSkipContactIdRef.current = session.currentContact.id;
+
+    if (consecutiveComplianceSkipsRef.current >= MAX_CONSECUTIVE_COMPLIANCE_SKIPS) {
+      consecutiveComplianceSkipsRef.current = 0;
+      session.pauseSession();
+      toast.warning(
+        `Nothing in this queue can be called yet — ${describeWindowReason(complianceWindow, session.currentContact.state ?? null)} Session held so it stops burning through leads. Hit Resume when the window opens.`,
+        { duration: 12000 },
+      );
+      return;
+    }
+
+    consecutiveComplianceSkipsRef.current += 1;
     toast.info(
       `Auto-skipped ${session.currentContact.business_name ?? "lead"} — outside calling hours for ${session.currentContact.state ?? "unknown state"}.`,
     );
     complianceSkip();
-  }, [session.isDialing, session.isSessionPaused, session.currentContact, complianceWindow, isOnline, complianceSkip]);
+  }, [session.isDialing, session.isSessionPaused, session.currentContact, complianceWindow, isOnline, complianceSkip, session]);
 
   const stopSessionSafely = useCallback(() => {
     if (!isOnline) {
