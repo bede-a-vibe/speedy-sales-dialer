@@ -40,6 +40,8 @@ const CONCURRENCY = 5;
 // lead, so we can safely raise concurrency without hammering any single site.
 // Sized so a 40-lead batch finishes well inside the edge-function time budget.
 const DEEP_CONCURRENCY = 11;
+// State backfill hits up to 5 pages on one domain per lead, so keep it modest.
+const STATE_CONCURRENCY = 8;
 
 // Best-effort free website discovery via DuckDuckGo HTML.
 // Skip hosts that are directories, socials, aggregators, gov/edu, or search engines.
