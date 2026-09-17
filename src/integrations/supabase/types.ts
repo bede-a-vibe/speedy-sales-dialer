@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      au_locality_state: {
+        Row: {
+          locality: string
+          state: string
+        }
+        Insert: {
+          locality: string
+          state: string
+        }
+        Update: {
+          locality?: string
+          state?: string
+        }
+        Relationships: []
+      }
       benchmark_segments: {
         Row: {
           color: string | null
@@ -578,6 +593,9 @@ export type Database = {
           qualified_at: string | null
           review_count: number | null
           state: string | null
+          state_backfill_at: string | null
+          state_backfill_attempted: boolean
+          state_backfill_result: string | null
           status: string
           tags: string[]
           trade_type: string | null
@@ -686,6 +704,9 @@ export type Database = {
           qualified_at?: string | null
           review_count?: number | null
           state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
@@ -794,6 +815,9 @@ export type Database = {
           qualified_at?: string | null
           review_count?: number | null
           state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
@@ -2647,6 +2671,24 @@ export type Database = {
         }
         Relationships: []
       }
+      state_backfill_backup: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          old_state: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          old_state?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          old_state?: string | null
+        }
+        Relationships: []
+      }
       state_label_fix_backup: {
         Row: {
           backed_up_at: string | null
@@ -2660,6 +2702,21 @@ export type Database = {
         }
         Update: {
           backed_up_at?: string | null
+          id?: string | null
+          state?: string | null
+        }
+        Relationships: []
+      }
+      state_match_work: {
+        Row: {
+          id: string | null
+          state: string | null
+        }
+        Insert: {
+          id?: string | null
+          state?: string | null
+        }
+        Update: {
           id?: string | null
           state?: string | null
         }
@@ -2867,6 +2924,7 @@ export type Database = {
         Args: { _digits: string; _exclude_id: string }
         Returns: number
       }
+      count_state_backfill_pending: { Args: never; Returns: number }
       export_contacts_for_ghl_link: {
         Args: never
         Returns: {
@@ -3035,6 +3093,14 @@ export type Database = {
         Returns: Json
       }
       normalise_lead_channel: { Args: { _v: string }; Returns: string }
+      pick_state_backfill_contacts: {
+        Args: { _limit: number }
+        Returns: {
+          id: string
+          state: string
+          website: string
+        }[]
+      }
       preview_dialer_leads:
         | {
             Args: {

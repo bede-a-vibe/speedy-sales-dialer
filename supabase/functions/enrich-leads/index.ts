@@ -40,6 +40,8 @@ const CONCURRENCY = 5;
 // lead, so we can safely raise concurrency without hammering any single site.
 // Sized so a 40-lead batch finishes well inside the edge-function time budget.
 const DEEP_CONCURRENCY = 11;
+// State backfill hits up to 5 pages on one domain per lead, so keep it modest.
+const STATE_CONCURRENCY = 8;
 
 // Best-effort free website discovery via DuckDuckGo HTML.
 // Skip hosts that are directories, socials, aggregators, gov/edu, or search engines.
@@ -382,6 +384,149 @@ function extractAuAddress(text: string): { state: string | null; city: string | 
     /* never break enrichment */
   }
   return { state: null, city: null };
+}
+
+// ==== STATE BACKFILL (additive, isolated) ====
+// contacts.state drives the LEGAL calling-hours guard, so this pass only writes
+// a state when the evidence is unambiguous. Two conflicting states on a page =>
+// write nothing, record 'ambiguous'. Mobile prefixes (04) are never used.
+const STATE_BACKFILL_PATHS = ["/", "/contact", "/contact-us", "/about", "/areas-we-serve"];
+
+function postcodeToStateStrict(raw: string): string | null {
+  if (!/^\d{4}$/.test(raw)) return null;
+  const n = Number(raw);
+  if (n >= 800 && n <= 899) return "NT";
+  if (n >= 1000 && n <= 2599) return "NSW";
+  if (n >= 2600 && n <= 2618) return "ACT";
+  if (n >= 2619 && n <= 2899) return "NSW";
+  if (n >= 2900 && n <= 2920) return "ACT";
+  if (n >= 2921 && n <= 2999) return "NSW";
+  if (n >= 3000 && n <= 3999) return "VIC";
+  if (n >= 4000 && n <= 4999) return "QLD";
+  if (n >= 5000 && n <= 5999) return "SA";
+  if (n >= 6000 && n <= 6999) return "WA";
+  if (n >= 7000 && n <= 7999) return "TAS";
+  return null;
+}
+
+const STREET_SUFFIX_RE =
+  "(?:street|st|road|rd|avenue|ave|drive|dr|court|ct|place|pl|parade|pde|highway|hwy|lane|ln|crescent|cres|boulevard|blvd|circuit|cct|terrace|tce|way|po\\s*box)";
+
+// Landline area code → state. Mobiles (04) are deliberately ignored.
+function landlineToState(localDigits: string): string | null {
+  // localDigits: 10-digit national form starting with 0.
+  if (!/^0[2378]\d{8}$/.test(localDigits)) return null;
+  const area = localDigits.slice(0, 2);
+  const d3 = localDigits[2];
+  const d34 = localDigits.slice(2, 4);
+  if (area === "02") return d34 === "62" ? "ACT" : "NSW";
+  if (area === "03") return d3 === "6" ? "TAS" : "VIC";
+  if (area === "07") return "QLD";
+  if (area === "08") {
+    if (d34 === "89") return "NT";
+    if (d3 === "9") return "WA";
+    if (d3 === "8" || d3 === "7") return "SA";
+  }
+  return null;
+}
+
+type StateEvidence = { postcode: Set<string>; token: Set<string>; phone: Set<string> };
+
+function newStateEvidence(): StateEvidence {
+  return { postcode: new Set(), token: new Set(), phone: new Set() };
+}
+
+function collectStateEvidence(text: string, ev: StateEvidence): void {
+  if (!text) return;
+  // ── Tier 1: postcodes ──
+  // (a) STATE followed by a 4-digit postcode — the classic "SUBURB VIC 3000".
+  const stateThenPc = /\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\b[.,]?\s{0,3}(\d{4})\b/gi;
+  for (const m of text.matchAll(stateThenPc)) {
+    const s = postcodeToStateStrict(m[2]);
+    if (s) ev.postcode.add(s);
+  }
+  // (b) 4-digit postcode at the end of an address-like fragment.
+  const addrThenPc = new RegExp(`\\b${STREET_SUFFIX_RE}\\b[^0-9]{0,60}?(\\d{4})\\b`, "gi");
+  for (const m of text.matchAll(addrThenPc)) {
+    const s = postcodeToStateStrict(m[1]);
+    if (s) ev.postcode.add(s);
+  }
+
+  // ── Tier 2: explicit state token in an address-like context ──
+  const tokenCtx = new RegExp(
+    `(?:\\b${STREET_SUFFIX_RE}\\b[^\\n]{0,40}?\\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\\b` +
+      `|\\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\\b[^\\n]{0,10}?\\b\\d{4}\\b)`,
+    "gi",
+  );
+  for (const m of text.matchAll(tokenCtx)) {
+    const tok = (m[1] ?? m[2] ?? "").toUpperCase();
+    if (AU_STATES.has(tok)) ev.token.add(tok);
+  }
+
+  // ── Tier 3: landline area codes ──
+  const phoneRe = /(?:\+?61[\s().-]?|\b0)([2378])(?:[\s().-]?\d){8}/g;
+  for (const m of text.matchAll(phoneRe)) {
+    const digits = m[0].replace(/[^0-9]/g, "");
+    let local: string | null = null;
+    if (/^61\d{9}$/.test(digits)) local = "0" + digits.slice(2);
+    else if (/^0\d{9}$/.test(digits)) local = digits;
+    if (!local) continue;
+    const s = landlineToState(local);
+    if (s) ev.phone.add(s);
+  }
+}
+
+type StateResolution = { state: string | null; source: "postcode" | "state_token" | "landline" | null; ambiguous: boolean };
+
+function resolveStateEvidence(ev: StateEvidence): StateResolution {
+  const tiers: Array<[Set<string>, StateResolution["source"]]> = [
+    [ev.postcode, "postcode"],
+    [ev.token, "state_token"],
+    [ev.phone, "landline"],
+  ];
+  for (const [set, source] of tiers) {
+    if (set.size === 1) return { state: [...set][0], source, ambiguous: false };
+    if (set.size > 1) return { state: null, source: null, ambiguous: true };
+  }
+  return { state: null, source: null, ambiguous: false };
+}
+
+async function resolveStateForContact(website: string): Promise<{
+  state: string | null;
+  source: string | null;
+  ambiguous: boolean;
+  reachable: boolean;
+  pagesFetched: number;
+  ms: number;
+}> {
+  const started = Date.now();
+  const base = normalizeWebsite(website);
+  if (!base) return { state: null, source: null, ambiguous: false, reachable: false, pagesFetched: 0, ms: 0 };
+
+  const ev = newStateEvidence();
+  let pages = 0;
+  let reachable = false;
+  let result: StateResolution = { state: null, source: null, ambiguous: false };
+
+  for (const path of STATE_BACKFILL_PATHS) {
+    const html = await fetchPage(base + (path === "/" ? "" : path));
+    if (!html) continue;
+    reachable = true;
+    pages++;
+    collectStateEvidence(stripHtml(html), ev);
+    result = resolveStateEvidence(ev);
+    // First confident hit wins; a conflict stops the crawl immediately.
+    if (result.state || result.ambiguous) break;
+  }
+
+  return {
+    state: result.state,
+    source: result.source,
+    ambiguous: result.ambiguous,
+    reachable,
+    pagesFetched: pages,
+    ms: Date.now() - started,
+  };
 }
 
 function normalizeWebsite(input: string): string | null {
@@ -1098,7 +1243,10 @@ Deno.serve(async (req) => {
   }
   const batchSize = Math.min(Math.max(Number(body?.batchSize) || 25, 1), 60);
   const forcedIds: string[] | null = Array.isArray(body?.contactIds) && body.contactIds.length > 0 ? body.contactIds : null;
-  const mode: "default" | "deep_crawl" = body?.mode === "deep_crawl" ? "deep_crawl" : "default";
+  const mode: "default" | "deep_crawl" | "state_backfill" =
+    body?.mode === "deep_crawl" ? "deep_crawl"
+      : body?.mode === "state_backfill" ? "state_backfill"
+      : "default";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1231,6 +1379,99 @@ Deno.serve(async (req) => {
       console.warn("[enrich-leads] budget persist failed:", (e as any)?.message ?? e);
     }
   };
+
+  // ── State-backfill mode ──
+  // Resolves contacts.state from the lead's own website. Never guesses: a page
+  // yielding two different states is recorded 'ambiguous' and left null, because
+  // state drives the legal calling-hours guard. No AI, no other columns touched.
+  if (mode === "state_backfill") {
+    let pending: any[] | null = null;
+    if (forcedIds) {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, website, state")
+        .in("id", forcedIds);
+      if (error) return json({ error: `State select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    } else {
+      const { data, error } = await admin.rpc("pick_state_backfill_contacts", { _limit: batchSize });
+      if (error) return json({ error: `State select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    }
+
+    if (!pending || pending.length === 0) {
+      console.log("[enrich-leads/state] empty batch — nothing pending.");
+      return json({
+        mode: "state_backfill", attempted: 0, resolved: 0, ambiguous: 0,
+        unreachable: 0, no_evidence: 0, by_state: {}, remaining: 0, logs: [],
+      });
+    }
+
+    let remaining = 0;
+    if (!forcedIds) {
+      const { data: cnt } = await admin.rpc("count_state_backfill_pending");
+      remaining = Math.max(Number(cnt ?? 0) - pending.length, 0);
+    }
+
+    let s_resolved = 0, s_ambiguous = 0, s_unreachable = 0, s_none = 0;
+    const byState: Record<string, number> = {};
+    const stateLogs: any[] = [];
+
+    const perState = async (c: any) => {
+      try {
+        const r = await resolveStateForContact(c.website);
+        const update: Record<string, any> = {
+          state_backfill_attempted: true,
+          state_backfill_at: new Date().toISOString(),
+        };
+        if (!r.reachable) {
+          update.state_backfill_result = "unreachable";
+          s_unreachable++;
+        } else if (r.ambiguous) {
+          update.state_backfill_result = "ambiguous";
+          s_ambiguous++;
+        } else if (r.state) {
+          update.state = r.state;
+          update.state_backfill_result = `resolved:${r.source}`;
+          byState[r.state] = (byState[r.state] ?? 0) + 1;
+          s_resolved++;
+        } else {
+          update.state_backfill_result = "no_evidence";
+          s_none++;
+        }
+        const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+        if (upErr) console.error(`[enrich-leads/state] update ${c.id} failed:`, upErr.message);
+        stateLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, state: r.state, source: r.source, ambiguous: r.ambiguous, reachable: r.reachable });
+      } catch (err: any) {
+        console.error(`[enrich-leads/state] contact ${c.id} threw:`, err?.message ?? err);
+        s_unreachable++;
+        await admin.from("contacts").update({
+          state_backfill_attempted: true,
+          state_backfill_at: new Date().toISOString(),
+          state_backfill_result: "error",
+        }).eq("id", c.id);
+        stateLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+    };
+
+    await runInChunks(pending, STATE_CONCURRENCY, perState);
+
+    console.log(
+      `[enrich-leads/state] attempted=${pending.length} resolved=${s_resolved} ambiguous=${s_ambiguous} unreachable=${s_unreachable} no_evidence=${s_none} by_state=${JSON.stringify(byState)} remaining=${remaining}`,
+    );
+
+    return json({
+      mode: "state_backfill",
+      attempted: pending.length,
+      resolved: s_resolved,
+      ambiguous: s_ambiguous,
+      unreachable: s_unreachable,
+      no_evidence: s_none,
+      by_state: byState,
+      remaining,
+      logs: stateLogs,
+    });
+  }
 
   // ── Deep-crawl mode ──
   // Additive, isolated re-run: hits leads that already have a website but no
