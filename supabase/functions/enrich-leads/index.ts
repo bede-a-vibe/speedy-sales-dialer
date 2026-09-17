@@ -1591,6 +1591,105 @@ Deno.serve(async (req) => {
     }
   };
 
+  // ── Google Business Profile / Places state backfill ──
+  // Authoritative location lookup for the ~3.8k contacts with no state and no
+  // gmb_link. Writes only empty fields, only on a confident match, AU only.
+  if (mode === "backfill_state_from_gmb") {
+    const placesAuth = resolvePlacesAuth();
+    if (!placesAuth) {
+      console.log("[enrich-leads/gmb] no Google Places API key configured — skipping.");
+      return json({ ok: true, skipped: "no API key" });
+    }
+
+    let pending: any[] | null = null;
+    if (forcedIds) {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, business_name, phone, phone_e164, city, state, gmb_link")
+        .in("id", forcedIds);
+      if (error) return json({ error: `GMB select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    } else {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, business_name, phone, phone_e164, city, state, gmb_link")
+        .eq("gmb_lookup_attempted", false)
+        .or("state.is.null,state.eq.")
+        .or("is_archived.is.null,is_archived.eq.false")
+        .order("created_at", { ascending: true })
+        .limit(batchSize);
+      if (error) return json({ error: `GMB select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    }
+
+    if (!pending || pending.length === 0) {
+      return json({
+        ok: true, mode: "backfill_state_from_gmb", attempted: 0, matched: 0,
+        state_written: 0, no_match: 0, ambiguous: 0, by_state: {}, logs: [],
+      });
+    }
+
+    let g_matched = 0, g_written = 0, g_noMatch = 0, g_ambiguous = 0, g_errors = 0;
+    const gByState: Record<string, number> = {};
+    const gLogs: any[] = [];
+
+    const perGmb = async (c: any) => {
+      const started = Date.now();
+      const update: Record<string, any> = {
+        gmb_lookup_attempted: true,
+        gmb_lookup_at: new Date().toISOString(),
+      };
+      try {
+        const r = await lookupGmbForContact(placesAuth, c);
+        if (r.ambiguous) g_ambiguous++;
+        if (r.matched && r.place) {
+          g_matched++;
+          // Only ever fill blanks — never overwrite existing data.
+          if (r.state && (!c.state || String(c.state).trim() === "")) {
+            update.state = r.state;
+            gByState[r.state] = (gByState[r.state] ?? 0) + 1;
+            g_written++;
+          }
+          if (r.city && (!c.city || String(c.city).trim() === "")) update.city = r.city;
+          if (r.place.id && (!c.gmb_link || String(c.gmb_link).trim() === "")) {
+            update.gmb_link = `https://www.google.com/maps/place/?q=place_id:${r.place.id}`;
+          }
+        } else if (!r.ambiguous) {
+          g_noMatch++;
+        }
+        gLogs.push({
+          contactId: c.id, name: c.business_name, via: r.via, reason: r.reason,
+          state: update.state ?? null, ms: Date.now() - started,
+        });
+      } catch (err: any) {
+        g_errors++;
+        gLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+      const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+      if (upErr) console.error(`[enrich-leads/gmb] update ${c.id} failed:`, upErr.message);
+    };
+
+    await runInChunks(pending, GMB_CONCURRENCY, perGmb);
+
+    console.log(
+      `[enrich-leads/gmb] attempted=${pending.length} matched=${g_matched} state_written=${g_written} no_match=${g_noMatch} ambiguous=${g_ambiguous} errors=${g_errors} by_state=${JSON.stringify(gByState)}`,
+    );
+
+    return json({
+      ok: true,
+      mode: "backfill_state_from_gmb",
+      attempted: pending.length,
+      matched: g_matched,
+      state_written: g_written,
+      no_match: g_noMatch,
+      ambiguous: g_ambiguous,
+      errors: g_errors,
+      by_state: gByState,
+      logs: gLogs,
+    });
+  }
+
+
   // ── State-backfill mode ──
   // Resolves contacts.state from the lead's own website. Never guesses: a page
   // yielding two different states is recorded 'ambiguous' and left null, because
