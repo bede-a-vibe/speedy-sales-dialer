@@ -2657,9 +2657,12 @@ export default function DialerPage() {
               <div
                 className={cn(
                   "border-t px-4 py-2 text-[11px] font-mono flex flex-wrap items-center gap-x-3 gap-y-1",
-                  complianceWindow.allowed
-                    ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200"
-                    : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+                  !complianceWindow.allowed
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+                    : complianceWindow.inGracePeriod
+                      // Allowed, but outside the standard window — never show this as a clean green tick.
+                      ? "border-orange-500/40 bg-orange-500/10 text-orange-900 dark:text-orange-100"
+                      : "border-emerald-500/20 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200",
                 )}
                 aria-live="polite"
               >
@@ -2674,7 +2677,12 @@ export default function DialerPage() {
                   </span>
                 </span>
                 <span className="opacity-40">·</span>
-                {complianceWindow.allowed ? (
+                {complianceWindow.allowed && complianceWindow.inGracePeriod ? (
+                  <span className="inline-flex items-center gap-1 font-semibold" title="Outside the AU Telemarketing Industry Standard window — permitted here by the 30 minute grace setting.">
+                    <AlertTriangle className="h-3 w-3" />
+                    Grace period · outside standard hours
+                  </span>
+                ) : complianceWindow.allowed ? (
                   <span className="inline-flex items-center gap-1 font-semibold">
                     <CheckCircle2 className="h-3 w-3" />
                     In window

@@ -163,12 +163,33 @@ function windowForDow(dow: number): { open: number; close: number } | null {
   return { open: 9, close: 20 };                // Mon–Fri
 }
 
+/**
+ * Operator-set tolerance on each edge of the permitted window, in minutes.
+ *
+ * IMPORTANT: the Industry Standard hours above are hard limits, not targets
+ * with built-in tolerance — time inside this grace is OUTSIDE the permitted
+ * window and is a deliberate, accepted business risk, not a compliant call.
+ * Calls in the grace are flagged in the UI so it's always a conscious choice.
+ * Set to 0 to enforce the standard strictly.
+ *
+ * Sundays and public holidays get NO grace — those are total prohibitions.
+ */
+export const CALLING_GRACE_MINUTES = 30;
+
 export interface CallingWindowStatus {
   allowed: boolean;
   reason: "in_window" | "sunday" | "holiday" | "before_open" | "after_close";
   local: LocalTimeParts;
   nextOpenLabel: string;   // e.g. "Mon 09:00 local"
   stateUnknown: boolean;
+  /** Allowed only because of the grace period — outside the permitted window. */
+  inGracePeriod: boolean;
+}
+
+/** Effective earliest dial time for a day's window, including any grace. */
+function effectiveOpenLabel(win: { open: number; close: number }): string {
+  const mins = win.open * 60 - CALLING_GRACE_MINUTES;
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
 function nextOpenFrom(local: LocalTimeParts): string {
@@ -176,9 +197,11 @@ function nextOpenFrom(local: LocalTimeParts): string {
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   // Start from tomorrow if today already past its close, otherwise same-day open.
   const win = windowForDow(local.dow);
-  const todayIsCallable = win && !isHoliday(local.state, local.isoDate) && local.hour < win.close;
-  if (todayIsCallable && win && local.hour < win.open) {
-    return `${dayNames[local.dow]} 09:00 ${local.tz.split("/")[1] ?? "local"}`;
+  const nowMin = local.hour * 60 + local.minute;
+  const todayIsCallable = win && !isHoliday(local.state, local.isoDate)
+    && nowMin < win.close * 60 + CALLING_GRACE_MINUTES;
+  if (todayIsCallable && win && nowMin < win.open * 60 - CALLING_GRACE_MINUTES) {
+    return `${dayNames[local.dow]} ${effectiveOpenLabel(win)} ${local.tz.split("/")[1] ?? "local"}`;
   }
   // Walk day-by-day.
   const baseIsoParts = local.isoDate.split("-").map(Number);
@@ -189,10 +212,10 @@ function nextOpenFrom(local: LocalTimeParts): string {
     const dow = d.getUTCDay();
     const w = windowForDow(dow);
     if (w && !isHoliday(local.state, iso)) {
-      return `${dayNames[dow]} 09:00 ${local.tz.split("/")[1] ?? "local"}`;
+      return `${dayNames[dow]} ${effectiveOpenLabel(w)} ${local.tz.split("/")[1] ?? "local"}`;
     }
   }
-  return "next business day 09:00";
+  return "next business day";
 }
 
 export function evaluateCallingWindow(
@@ -202,20 +225,29 @@ export function evaluateCallingWindow(
   const local = getLeadLocalTime(state, at);
   const stateUnknown = !local.stateKnown;
 
+  // Sundays and public holidays are total prohibitions — no grace applies.
   if (isHoliday(local.state, local.isoDate)) {
-    return { allowed: false, reason: "holiday", local, nextOpenLabel: nextOpenFrom(local), stateUnknown };
+    return { allowed: false, reason: "holiday", local, nextOpenLabel: nextOpenFrom(local), stateUnknown, inGracePeriod: false };
   }
   const win = windowForDow(local.dow);
   if (!win) {
-    return { allowed: false, reason: "sunday", local, nextOpenLabel: nextOpenFrom(local), stateUnknown };
+    return { allowed: false, reason: "sunday", local, nextOpenLabel: nextOpenFrom(local), stateUnknown, inGracePeriod: false };
   }
-  if (local.hour < win.open) {
-    return { allowed: false, reason: "before_open", local, nextOpenLabel: nextOpenFrom(local), stateUnknown };
+
+  // Minute precision so the grace can straddle the hour (e.g. 08:30).
+  const nowMin = local.hour * 60 + local.minute;
+  const openMin = win.open * 60;
+  const closeMin = win.close * 60;
+
+  if (nowMin < openMin - CALLING_GRACE_MINUTES) {
+    return { allowed: false, reason: "before_open", local, nextOpenLabel: nextOpenFrom(local), stateUnknown, inGracePeriod: false };
   }
-  if (local.hour >= win.close) {
-    return { allowed: false, reason: "after_close", local, nextOpenLabel: nextOpenFrom(local), stateUnknown };
+  if (nowMin >= closeMin + CALLING_GRACE_MINUTES) {
+    return { allowed: false, reason: "after_close", local, nextOpenLabel: nextOpenFrom(local), stateUnknown, inGracePeriod: false };
   }
-  return { allowed: true, reason: "in_window", local, nextOpenLabel: "", stateUnknown };
+
+  const inGracePeriod = nowMin < openMin || nowMin >= closeMin;
+  return { allowed: true, reason: "in_window", local, nextOpenLabel: "", stateUnknown, inGracePeriod };
 }
 
 export function describeWindowReason(status: CallingWindowStatus, state: string | null | undefined): string {
@@ -225,6 +257,9 @@ export function describeWindowReason(status: CallingWindowStatus, state: string 
     case "holiday":     return `Outside calling hours for ${st} — public holiday. Opens ${status.nextOpenLabel}.`;
     case "before_open": return `Outside calling hours for ${st} — opens ${status.nextOpenLabel}.`;
     case "after_close": return `Outside calling hours for ${st} — closed for the day. Opens ${status.nextOpenLabel}.`;
-    default:            return `In calling window for ${st}.`;
+    default:
+      return status.inGracePeriod
+        ? `Grace period for ${st} — this is OUTSIDE the standard 9am–${status.local.dow === 6 ? "5pm" : "8pm"} window.`
+        : `In calling window for ${st}.`;
   }
 }
