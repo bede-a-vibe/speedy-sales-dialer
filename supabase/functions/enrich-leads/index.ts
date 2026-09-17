@@ -1378,6 +1378,99 @@ Deno.serve(async (req) => {
     }
   };
 
+  // ── State-backfill mode ──
+  // Resolves contacts.state from the lead's own website. Never guesses: a page
+  // yielding two different states is recorded 'ambiguous' and left null, because
+  // state drives the legal calling-hours guard. No AI, no other columns touched.
+  if (mode === "state_backfill") {
+    let pending: any[] | null = null;
+    if (forcedIds) {
+      const { data, error } = await admin
+        .from("contacts")
+        .select("id, website, state")
+        .in("id", forcedIds);
+      if (error) return json({ error: `State select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    } else {
+      const { data, error } = await admin.rpc("pick_state_backfill_contacts", { _limit: batchSize });
+      if (error) return json({ error: `State select failed: ${error.message}` }, 500);
+      pending = data ?? [];
+    }
+
+    if (!pending || pending.length === 0) {
+      console.log("[enrich-leads/state] empty batch — nothing pending.");
+      return json({
+        mode: "state_backfill", attempted: 0, resolved: 0, ambiguous: 0,
+        unreachable: 0, no_evidence: 0, by_state: {}, remaining: 0, logs: [],
+      });
+    }
+
+    let remaining = 0;
+    if (!forcedIds) {
+      const { data: cnt } = await admin.rpc("count_state_backfill_pending");
+      remaining = Math.max(Number(cnt ?? 0) - pending.length, 0);
+    }
+
+    let s_resolved = 0, s_ambiguous = 0, s_unreachable = 0, s_none = 0;
+    const byState: Record<string, number> = {};
+    const stateLogs: any[] = [];
+
+    const perState = async (c: any) => {
+      try {
+        const r = await resolveStateForContact(c.website);
+        const update: Record<string, any> = {
+          state_backfill_attempted: true,
+          state_backfill_at: new Date().toISOString(),
+        };
+        if (!r.reachable) {
+          update.state_backfill_result = "unreachable";
+          s_unreachable++;
+        } else if (r.ambiguous) {
+          update.state_backfill_result = "ambiguous";
+          s_ambiguous++;
+        } else if (r.state) {
+          update.state = r.state;
+          update.state_backfill_result = `resolved:${r.source}`;
+          byState[r.state] = (byState[r.state] ?? 0) + 1;
+          s_resolved++;
+        } else {
+          update.state_backfill_result = "no_evidence";
+          s_none++;
+        }
+        const { error: upErr } = await admin.from("contacts").update(update).eq("id", c.id);
+        if (upErr) console.error(`[enrich-leads/state] update ${c.id} failed:`, upErr.message);
+        stateLogs.push({ contactId: c.id, pages: r.pagesFetched, ms: r.ms, state: r.state, source: r.source, ambiguous: r.ambiguous, reachable: r.reachable });
+      } catch (err: any) {
+        console.error(`[enrich-leads/state] contact ${c.id} threw:`, err?.message ?? err);
+        s_unreachable++;
+        await admin.from("contacts").update({
+          state_backfill_attempted: true,
+          state_backfill_at: new Date().toISOString(),
+          state_backfill_result: "error",
+        }).eq("id", c.id);
+        stateLogs.push({ contactId: c.id, error: String(err?.message ?? err) });
+      }
+    };
+
+    await runInChunks(pending, STATE_CONCURRENCY, perState);
+
+    console.log(
+      `[enrich-leads/state] attempted=${pending.length} resolved=${s_resolved} ambiguous=${s_ambiguous} unreachable=${s_unreachable} no_evidence=${s_none} by_state=${JSON.stringify(byState)} remaining=${remaining}`,
+    );
+
+    return json({
+      mode: "state_backfill",
+      attempted: pending.length,
+      resolved: s_resolved,
+      ambiguous: s_ambiguous,
+      unreachable: s_unreachable,
+      no_evidence: s_none,
+      by_state: byState,
+      remaining,
+      logs: stateLogs,
+    });
+  }
+
   // ── Deep-crawl mode ──
   // Additive, isolated re-run: hits leads that already have a website but no
   // dm_name, fetches the homepage plus up to 4 owner-likely secondary pages,
