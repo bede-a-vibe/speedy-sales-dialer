@@ -384,6 +384,149 @@ function extractAuAddress(text: string): { state: string | null; city: string | 
   return { state: null, city: null };
 }
 
+// ==== STATE BACKFILL (additive, isolated) ====
+// contacts.state drives the LEGAL calling-hours guard, so this pass only writes
+// a state when the evidence is unambiguous. Two conflicting states on a page =>
+// write nothing, record 'ambiguous'. Mobile prefixes (04) are never used.
+const STATE_BACKFILL_PATHS = ["/", "/contact", "/contact-us", "/about", "/areas-we-serve"];
+
+function postcodeToStateStrict(raw: string): string | null {
+  if (!/^\d{4}$/.test(raw)) return null;
+  const n = Number(raw);
+  if (n >= 800 && n <= 899) return "NT";
+  if (n >= 1000 && n <= 2599) return "NSW";
+  if (n >= 2600 && n <= 2618) return "ACT";
+  if (n >= 2619 && n <= 2899) return "NSW";
+  if (n >= 2900 && n <= 2920) return "ACT";
+  if (n >= 2921 && n <= 2999) return "NSW";
+  if (n >= 3000 && n <= 3999) return "VIC";
+  if (n >= 4000 && n <= 4999) return "QLD";
+  if (n >= 5000 && n <= 5999) return "SA";
+  if (n >= 6000 && n <= 6999) return "WA";
+  if (n >= 7000 && n <= 7999) return "TAS";
+  return null;
+}
+
+const STREET_SUFFIX_RE =
+  "(?:street|st|road|rd|avenue|ave|drive|dr|court|ct|place|pl|parade|pde|highway|hwy|lane|ln|crescent|cres|boulevard|blvd|circuit|cct|terrace|tce|way|po\\s*box)";
+
+// Landline area code → state. Mobiles (04) are deliberately ignored.
+function landlineToState(localDigits: string): string | null {
+  // localDigits: 10-digit national form starting with 0.
+  if (!/^0[2378]\d{8}$/.test(localDigits)) return null;
+  const area = localDigits.slice(0, 2);
+  const d3 = localDigits[2];
+  const d34 = localDigits.slice(2, 4);
+  if (area === "02") return d34 === "62" ? "ACT" : "NSW";
+  if (area === "03") return d3 === "6" ? "TAS" : "VIC";
+  if (area === "07") return "QLD";
+  if (area === "08") {
+    if (d34 === "89") return "NT";
+    if (d3 === "9") return "WA";
+    if (d3 === "8" || d3 === "7") return "SA";
+  }
+  return null;
+}
+
+type StateEvidence = { postcode: Set<string>; token: Set<string>; phone: Set<string> };
+
+function newStateEvidence(): StateEvidence {
+  return { postcode: new Set(), token: new Set(), phone: new Set() };
+}
+
+function collectStateEvidence(text: string, ev: StateEvidence): void {
+  if (!text) return;
+  // ── Tier 1: postcodes ──
+  // (a) STATE followed by a 4-digit postcode — the classic "SUBURB VIC 3000".
+  const stateThenPc = /\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\b[.,]?\s{0,3}(\d{4})\b/gi;
+  for (const m of text.matchAll(stateThenPc)) {
+    const s = postcodeToStateStrict(m[2]);
+    if (s) ev.postcode.add(s);
+  }
+  // (b) 4-digit postcode at the end of an address-like fragment.
+  const addrThenPc = new RegExp(`\\b${STREET_SUFFIX_RE}\\b[^0-9]{0,60}?(\\d{4})\\b`, "gi");
+  for (const m of text.matchAll(addrThenPc)) {
+    const s = postcodeToStateStrict(m[1]);
+    if (s) ev.postcode.add(s);
+  }
+
+  // ── Tier 2: explicit state token in an address-like context ──
+  const tokenCtx = new RegExp(
+    `(?:\\b${STREET_SUFFIX_RE}\\b[^\\n]{0,40}?\\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\\b` +
+      `|\\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\\b[^\\n]{0,10}?\\b\\d{4}\\b)`,
+    "gi",
+  );
+  for (const m of text.matchAll(tokenCtx)) {
+    const tok = (m[1] ?? m[2] ?? "").toUpperCase();
+    if (AU_STATES.has(tok)) ev.token.add(tok);
+  }
+
+  // ── Tier 3: landline area codes ──
+  const phoneRe = /(?:\+?61[\s().-]?|\b0)([2378])(?:[\s().-]?\d){8}/g;
+  for (const m of text.matchAll(phoneRe)) {
+    const digits = m[0].replace(/[^0-9]/g, "");
+    let local: string | null = null;
+    if (/^61\d{9}$/.test(digits)) local = "0" + digits.slice(2);
+    else if (/^0\d{9}$/.test(digits)) local = digits;
+    if (!local) continue;
+    const s = landlineToState(local);
+    if (s) ev.phone.add(s);
+  }
+}
+
+type StateResolution = { state: string | null; source: "postcode" | "state_token" | "landline" | null; ambiguous: boolean };
+
+function resolveStateEvidence(ev: StateEvidence): StateResolution {
+  const tiers: Array<[Set<string>, StateResolution["source"]]> = [
+    [ev.postcode, "postcode"],
+    [ev.token, "state_token"],
+    [ev.phone, "landline"],
+  ];
+  for (const [set, source] of tiers) {
+    if (set.size === 1) return { state: [...set][0], source, ambiguous: false };
+    if (set.size > 1) return { state: null, source: null, ambiguous: true };
+  }
+  return { state: null, source: null, ambiguous: false };
+}
+
+async function resolveStateForContact(website: string): Promise<{
+  state: string | null;
+  source: string | null;
+  ambiguous: boolean;
+  reachable: boolean;
+  pagesFetched: number;
+  ms: number;
+}> {
+  const started = Date.now();
+  const base = normalizeWebsite(website);
+  if (!base) return { state: null, source: null, ambiguous: false, reachable: false, pagesFetched: 0, ms: 0 };
+
+  const ev = newStateEvidence();
+  let pages = 0;
+  let reachable = false;
+  let result: StateResolution = { state: null, source: null, ambiguous: false };
+
+  for (const path of STATE_BACKFILL_PATHS) {
+    const html = await fetchPage(base + (path === "/" ? "" : path));
+    if (!html) continue;
+    reachable = true;
+    pages++;
+    collectStateEvidence(stripHtml(html), ev);
+    result = resolveStateEvidence(ev);
+    // First confident hit wins; a conflict stops the crawl immediately.
+    if (result.state || result.ambiguous) break;
+  }
+
+  return {
+    state: result.state,
+    source: result.source,
+    ambiguous: result.ambiguous,
+    reachable,
+    pagesFetched: pages,
+    ms: Date.now() - started,
+  };
+}
+
 function normalizeWebsite(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
