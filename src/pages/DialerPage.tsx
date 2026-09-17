@@ -23,6 +23,7 @@ import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/c
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { LiveCoachPanel } from "@/components/dialer/LiveCoachPanel";
 import { SmartViewsBar } from "@/components/dialer/SmartViewsBar";
+import { IncomingCallerCard } from "@/components/dialer/IncomingCallerCard";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -483,6 +484,9 @@ export default function DialerPage() {
   const gatekeeperMarkedRef = useRef<string | null>(null);
   const [nativeCallState, setNativeCallState] = useState<NativeCallState>("idle");
   const [nativeConnectedAt, setNativeConnectedAt] = useState<number | null>(null);
+  // Number of an inbound caller, held so the rep can see who it is while the
+  // phone is still ringing and after they pick up.
+  const [incomingCallNumber, setIncomingCallNumber] = useState<string | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
   // Progressive disclosure: capture card starts collapsed (fast for the ~70% no-answer case)
   // and auto-expands when the call connects (connected outcome or conversation reached).
@@ -1421,6 +1425,11 @@ export default function DialerPage() {
       // only pause when the dialer is genuinely between calls; otherwise let
       // the callback ring through to voicemail/missed and tell the rep.
       const placementBusy = Boolean(dialpad.activeDialpadCallId) || dialpad.isCallResolving || dialpad.isEndingCall;
+      // Surface WHO is ringing. A returned call is the warmest lead of the day,
+      // so the rep should never have to answer a bare number.
+      if (incoming && incoming !== target && payload.external_number) {
+        setIncomingCallNumber(payload.external_number);
+      }
       if (incoming && incoming !== target && session.isDialing && !session.isSessionPaused) {
         if (placementBusy) {
           toast.info(
@@ -3048,6 +3057,12 @@ export default function DialerPage() {
                 </div>
               </div>
             )}
+            {incomingCallNumber && (
+              <div className="mb-4">
+                <IncomingCallerCard phone={incomingCallNumber} onDismiss={() => setIncomingCallNumber(null)} />
+              </div>
+            )}
+
             {/* Smart views: one-tap queue configurations + team-saved filter sets */}
             <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2.5">
               <SmartViewsBar
