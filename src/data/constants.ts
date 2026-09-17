@@ -386,6 +386,9 @@ export const LIFECYCLE_LOST_REASONS = [
   { value: "disqualified",     label: "Disqualified (DQ)" },
   { value: "no_budget",        label: "No budget" },
   { value: "already_has_agency", label: "Already has an agency" },
+  // Retired automatically after 10 unanswered attempts — past that point the
+  // odds of ever connecting are under 2%, so they stop consuming dial slots.
+  { value: "unreachable",      label: "Unreachable (10+ no answer)" },
   { value: "other",            label: "Other" },
 ] as const;
 
