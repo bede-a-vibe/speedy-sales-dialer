@@ -580,6 +580,8 @@ export type Database = {
           ghl_contact_id: string | null
           ghl_contact_id_legacy: string | null
           gmb_link: string | null
+          gmb_lookup_at: string | null
+          gmb_lookup_attempted: boolean
           google_rating: number | null
           google_review_count: number | null
           has_existing_agency: boolean | null
@@ -691,6 +693,8 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
@@ -802,6 +806,8 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
