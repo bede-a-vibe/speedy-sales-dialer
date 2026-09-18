@@ -3125,6 +3125,20 @@ export default function DialerPage() {
                     phone_number_quality: quality as "confirmed" | "dead" | "suspect" | "unconfirmed",
                   }).catch(() => {});
                 }}
+                onRenameBusiness={async (name) => {
+                  const id = session.currentContact!.id;
+                  const previous = session.currentContact!.business_name;
+                  try {
+                    // useUpdateContact invalidates the contact caches itself,
+                    // so the card and queue pick this up without extra work.
+                    await updateContact.mutateAsync({ id, business_name: name });
+                    toast.success(`Renamed to ${name}.`, {
+                      description: previous ? `Was "${previous}".` : undefined,
+                    });
+                  } catch (e) {
+                    toast.error("Couldn't rename this business — try again.");
+                  }
+                }}
                 headerActions={
                   <div className="flex items-center gap-2">
                     <QuickBookRecoveryButton
