@@ -1,4 +1,5 @@
-import { Phone, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
+import { useState } from "react";
+import { Phone, Pencil, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
 import { resolveDialTarget } from "@/lib/dialTarget";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
@@ -82,11 +83,29 @@ interface ContactCardProps {
   onConfirmDM?: () => void;
   /** Rep reached someone else — clear the number and never re-add it. */
   onRejectDM?: () => void;
+  /** Rename the business — scraped names go stale or are just wrong. */
+  onRenameBusiness?: (name: string) => Promise<void> | void;
   /** Optional slot rendered in the header row (e.g. recovery actions). */
   headerActions?: React.ReactNode;
 }
 
-export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectDM, onMarkPhoneQuality, headerActions }: ContactCardProps) {
+export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectDM, onMarkPhoneQuality, onRenameBusiness, headerActions }: ContactCardProps) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(contact.business_name);
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  const commitRename = async () => {
+    const next = renameValue.trim();
+    if (!next || next === contact.business_name) { setIsRenaming(false); return; }
+    setIsSavingName(true);
+    try {
+      await onRenameBusiness?.(next);
+      setIsRenaming(false);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   // A "DM number" identical to the office line is enrichment noise, not a
   // decision-maker route — never render it as one (last-9 digits compare).
   const cardLast9 = (v?: string | null) => (v ?? "").replace(/\D/g, "").slice(-9);
@@ -192,7 +211,42 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
       {/* Business Name & Industry */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-foreground">{contact.business_name}</h3>
+          {onRenameBusiness && isRenaming ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); void commitRename(); }
+                  if (e.key === "Escape") { setIsRenaming(false); setRenameValue(contact.business_name); }
+                }}
+                className="w-64 rounded-md border border-primary/40 bg-background px-2 py-1 text-lg font-bold text-foreground outline-none"
+              />
+              <button type="button" onClick={() => void commitRename()} disabled={isSavingName}
+                className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                {isSavingName ? "Saving…" : "Save"}
+              </button>
+              <button type="button" onClick={() => { setIsRenaming(false); setRenameValue(contact.business_name); }}
+                className="px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <h3 className="group flex items-center gap-1.5 text-lg font-bold text-foreground">
+              {contact.business_name}
+              {onRenameBusiness && (
+                <button
+                  type="button"
+                  title="Rename this business"
+                  onClick={() => { setRenameValue(contact.business_name); setIsRenaming(true); }}
+                  className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+            </h3>
+          )}
           {contact.contact_person && (
             <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
               <User className="h-3.5 w-3.5" />
