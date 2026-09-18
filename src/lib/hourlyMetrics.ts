@@ -10,9 +10,25 @@ export interface HourlyRow {
   talkTimeSeconds: number;
 }
 
+/**
+ * True when an ISO timestamp falls on the given YYYY-MM-DD in LOCAL time.
+ *
+ * created_at is stored in UTC, so a string prefix compare silently drops every
+ * call before 10am Melbourne (UTC+10) — their UTC stamp carries the previous
+ * day's date. That hid a full hour of dialling from the report.
+ */
+function isSameLocalDate(iso: string | null | undefined, date: string): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return local === date;
+}
+
 export function getHourlyMetrics(
   callLogs: ReportCallLog[],
-  bookedItems: ReportBookingItem[],
+  /** Kept for call-site compatibility; bookings are now read off the call log. */
+  _bookedItems: ReportBookingItem[],
   date: string,
   repUserId?: string,
 ): HourlyRow[] {
@@ -27,7 +43,7 @@ export function getHourlyMetrics(
 
   for (const log of callLogs) {
     if (repUserId && log.user_id !== repUserId) continue;
-    if (!log.created_at.startsWith(date)) continue;
+    if (!isSameLocalDate(log.created_at, date)) continue;
     const hour = new Date(log.created_at).getHours();
     rows[hour].dials += 1;
     rows[hour].talkTimeSeconds += getTalkTimeSeconds(log);
@@ -35,13 +51,12 @@ export function getHourlyMetrics(
       rows[hour].pickUps += 1;
       rows[hour].connections += 1;
     }
-  }
-
-  for (const item of bookedItems) {
-    if (repUserId && item.created_by !== repUserId) continue;
-    if (!item.created_at.startsWith(date)) continue;
-    const hour = new Date(item.created_at).getHours();
-    rows[hour].bookings += 1;
+    // Credit the booking to the hour the CALL happened, not the hour the
+    // pipeline record was saved — a 15:58 call written up at 16:07 belongs
+    // to 3pm, and every other figure in this row comes from the call log.
+    if (log.outcome === "booked") {
+      rows[hour].bookings += 1;
+    }
   }
 
   return rows;
