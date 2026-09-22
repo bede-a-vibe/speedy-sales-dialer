@@ -5,6 +5,8 @@ import myCallActivity from "./tools/my-call-activity";
 import listFollowUps from "./tools/list-follow-ups";
 import addContactNote from "./tools/add-contact-note";
 import tonightsEmailRound from "./tools/tonights-email-round";
+import describeData from "./tools/describe-data";
+import reportSnapshot from "./tools/report-snapshot";
 
 const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "project-ref-unset";
 
