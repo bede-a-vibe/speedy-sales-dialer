@@ -67,6 +67,8 @@ export function LogCallPanel({
   mobileGatekeeper = false,
   onMobileGatekeeperChange,
   contactId,
+  emailFlag = false,
+  onEmailFlagChange,
 }: LogCallPanelProps) {
   // Local optimistic state so the toggle flips instantly on click. The persisted
   // value lives on session.currentContact, which doesn't refresh mid-call, so we
