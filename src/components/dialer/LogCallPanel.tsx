@@ -151,6 +151,33 @@ export function LogCallPanel({
         </button>
       )}
 
+      {onEmailFlagChange && (
+        <button
+          type="button"
+          onClick={() => onEmailFlagChange(!emailFlag)}
+          className={
+            "flex w-full items-center gap-2 rounded border px-3 py-2 text-left text-xs transition-colors " +
+            (emailFlag
+              ? "border-primary/50 bg-primary/10 text-foreground"
+              : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50")
+          }
+        >
+          <span
+            className={
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded border " +
+              (emailFlag ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")
+            }
+          >
+            {emailFlag ? "✓" : ""}
+          </span>
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          Worth an email tonight
+          {emailFlag && (
+            <span className="ml-auto text-[10px] text-muted-foreground">draft on the EOD page</span>
+          )}
+        </button>
+      )}
+
       <SectionDivider label="Other Outcomes" />
 
       <div className="space-y-2">{OTHER_OUTCOMES.map(renderOutcome)}</div>
