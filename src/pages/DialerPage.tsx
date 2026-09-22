@@ -1790,6 +1790,57 @@ export default function DialerPage() {
         toast.error("Failed to save call log — please check your records.");
       }
 
+      // ── EOD email draft (fire-and-forget) ──
+      // Written while the conversation is fresh so the rep's email round on
+      // the EOD page already has a draft waiting. Never blocks the next lead.
+      if (eodEmailFlagSnapshot) {
+        void (async () => {
+          try {
+            const snap = currentContactSnapshot as Record<string, unknown>;
+            const senderName =
+              (session.user?.user_metadata?.full_name as string | undefined)
+              || session.user?.email
+              || "The Odin Team";
+            const draftContext = {
+              contactId,
+              contactName:
+                (snap.contact_person as string | null) ?? (snap.dm_name as string | null) ?? contactName,
+              businessName: contactName,
+              industry: contactIndustry ?? null,
+              repName: senderName,
+              contactEmail: ((snap.email as string | null) ?? (snap.dm_email as string | null)) || null,
+              scheduledFor: null,
+              draftGoal: "follow_up" as const,
+              callNotes: pipelineNotes || null,
+              callTranscriptSummary: null,
+              recentCallContexts: [],
+              latestCallAt: new Date().toISOString(),
+              latestNoteAt: null,
+            };
+            const generated = await generateFollowUpEmailDraft({
+              contactName: draftContext.contactName,
+              businessName: draftContext.businessName,
+              industry: draftContext.industry || undefined,
+              repName: draftContext.repName,
+              draftGoal: draftContext.draftGoal,
+              callNotes: draftContext.callNotes || undefined,
+              scheduledFor: undefined,
+            });
+            if (generated) {
+              saveStoredEmailDraftSuggestion(
+                createEmailDraftSuggestion({
+                  subject: generated.subject,
+                  body: generated.body,
+                  context: draftContext,
+                }),
+              );
+            }
+          } catch (draftErr) {
+            console.warn("[EOD Email] Draft generation failed:", draftErr);
+          }
+        })();
+      }
+
       // ── GHL Sync (fire-and-forget) ──
       // A booked appointment is a real opportunity, so it earns a GHL contact
       // even if this lead was never linked before. Everything else stays here.
