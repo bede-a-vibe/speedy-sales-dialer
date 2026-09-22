@@ -3,7 +3,7 @@ import { OutcomeButton } from "@/components/OutcomeButton";
 import { CallOutcome } from "@/data/mockData";
 import { DQ_REASONS, DNC_REASONS, OUTCOME_CONFIG, type DqReason, type DncReason } from "@/data/constants";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Mail } from "lucide-react";
 import {
   ConversationProgressPanel,
   type ConversationProgressState,
@@ -31,6 +31,9 @@ interface LogCallPanelProps {
   onMobileGatekeeperChange?: (v: boolean) => void;
   /** Current contact id — resets the gatekeeper toggle's local state when the lead changes. */
   contactId?: string;
+  /** Flag this lead for the end-of-day email round; persisted when the call is logged. */
+  emailFlag?: boolean;
+  onEmailFlagChange?: (v: boolean) => void;
 }
 
 const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper"];
