@@ -45,7 +45,7 @@ const DATA_DICTIONARY = {
         reached_problem_awareness: "Funnel stage 2: prospect acknowledged a problem.",
         reached_solution_awareness: "Funnel stage 3: prospect engaged with the solution.",
         reached_commitment: "Funnel stage 4: prospect gave a commitment.",
-        exit_reason_*: "Why the call stalled at that stage (free-text reason codes).",
+        "exit_reason_*": "Why the call stalled at that stage (free-text reason codes).",
         follow_up_date: "If set, a follow-up was scheduled on this call.",
         notes: "Rep's call notes.",
       },
