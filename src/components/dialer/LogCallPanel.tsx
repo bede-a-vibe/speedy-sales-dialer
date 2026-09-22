@@ -3,7 +3,7 @@ import { OutcomeButton } from "@/components/OutcomeButton";
 import { CallOutcome } from "@/data/mockData";
 import { DQ_REASONS, DNC_REASONS, OUTCOME_CONFIG, type DqReason, type DncReason } from "@/data/constants";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Mail } from "lucide-react";
 import {
   ConversationProgressPanel,
   type ConversationProgressState,
@@ -31,6 +31,9 @@ interface LogCallPanelProps {
   onMobileGatekeeperChange?: (v: boolean) => void;
   /** Current contact id — resets the gatekeeper toggle's local state when the lead changes. */
   contactId?: string;
+  /** Flag this lead for the end-of-day email round; persisted when the call is logged. */
+  emailFlag?: boolean;
+  onEmailFlagChange?: (v: boolean) => void;
 }
 
 const QUICK_OUTCOMES: CallOutcome[] = ["no_answer", "voicemail", "gatekeeper"];
@@ -64,6 +67,8 @@ export function LogCallPanel({
   mobileGatekeeper = false,
   onMobileGatekeeperChange,
   contactId,
+  emailFlag = false,
+  onEmailFlagChange,
 }: LogCallPanelProps) {
   // Local optimistic state so the toggle flips instantly on click. The persisted
   // value lives on session.currentContact, which doesn't refresh mid-call, so we
@@ -143,6 +148,33 @@ export function LogCallPanel({
             {gatekeeperChecked ? "✓" : ""}
           </span>
           Mobile reaches a gatekeeper (not the owner)
+        </button>
+      )}
+
+      {onEmailFlagChange && (
+        <button
+          type="button"
+          onClick={() => onEmailFlagChange(!emailFlag)}
+          className={
+            "flex w-full items-center gap-2 rounded border px-3 py-2 text-left text-xs transition-colors " +
+            (emailFlag
+              ? "border-primary/50 bg-primary/10 text-foreground"
+              : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50")
+          }
+        >
+          <span
+            className={
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded border " +
+              (emailFlag ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")
+            }
+          >
+            {emailFlag ? "✓" : ""}
+          </span>
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          Worth an email tonight
+          {emailFlag && (
+            <span className="ml-auto text-[10px] text-muted-foreground">draft on the EOD page</span>
+          )}
         </button>
       )}
 

@@ -29,6 +29,7 @@ import {
   StateOfBeingSummary,
 } from "@/components/eod/StateOfBeingBlock";
 import type { EodStateOfBeingAnswers } from "@/lib/eodStateOfBeing";
+import { EmailRoundSection } from "@/components/eod/EmailRoundSection";
 import {
   useEodMetrics,
   useEodReport,
@@ -136,6 +137,8 @@ function formFromReport(report: EodReport): EodFormState {
 function RepView({ userId }: { userId: string }) {
   const today = melbourneTodayIso();
   const yesterday = addDaysIso(today, -1);
+  const { user } = useAuth();
+  const repName = (user?.user_metadata?.full_name as string | undefined) || user?.email || "The Odin Team";
 
   const metricsQuery = useEodMetrics(userId, today);
   const reportQuery = useEodReport(userId, today);
@@ -223,6 +226,8 @@ function RepView({ userId }: { userId: string }) {
       </div>
 
       <MetricsRow metrics={report && !editing ? report.auto_metrics ?? metrics : metrics} />
+
+      <EmailRoundSection userId={userId} repName={repName} />
 
       {yesterdayReport && (yesterdayReport.commitments?.length ?? 0) > 0 ? (
         <div className="rounded-lg border border-border bg-card p-4">

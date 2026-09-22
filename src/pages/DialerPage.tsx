@@ -155,6 +155,10 @@ const DM_PHONE_FILTER_LABELS: Record<string, string> = {
   no: "Need DM capture",
 };
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
+import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
+import { createEmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
+import { saveStoredEmailDraftSuggestion } from "@/lib/emailDraftStore";
+
 
 const loadDialpadSyncPanel = () =>
   import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
@@ -466,6 +470,9 @@ export default function DialerPage() {
   const [dqReason, setDqReason] = useState<DqReason | null>(null);
   const [dqNotes, setDqNotes] = useState<string>("");
   const [dncReason, setDncReason] = useState<DncReason | null>(null);
+  // "Worth an email tonight" — persisted on the contact when the call is
+  // logged, then cleared for the next lead.
+  const [eodEmailFlag, setEodEmailFlag] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
   // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
@@ -1648,6 +1655,8 @@ export default function DialerPage() {
     setDqReason(null);
     setDqNotes("");
     setDncReason(null);
+    const eodEmailFlagSnapshot = eodEmailFlag;
+    setEodEmailFlag(false);
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     if (!stopRequested) void session.queue.ensureBuffer();
@@ -1718,6 +1727,14 @@ export default function DialerPage() {
             ...(outcomeToLog === "dnc"
               ? { dnc_reason: dncReasonSnapshot }
               : {}),
+            // End-of-day email round: re-flagging after a sent email re-opens it.
+            ...(eodEmailFlagSnapshot
+              ? {
+                  eod_email_flagged_at: new Date().toISOString(),
+                  eod_email_flagged_by: userId,
+                  eod_email_sent_at: null,
+                }
+              : {}),
           }),
         ]);
 
@@ -1771,6 +1788,57 @@ export default function DialerPage() {
         }
       } catch {
         toast.error("Failed to save call log — please check your records.");
+      }
+
+      // ── EOD email draft (fire-and-forget) ──
+      // Written while the conversation is fresh so the rep's email round on
+      // the EOD page already has a draft waiting. Never blocks the next lead.
+      if (eodEmailFlagSnapshot) {
+        void (async () => {
+          try {
+            const snap = currentContactSnapshot as Record<string, unknown>;
+            const senderName =
+              (session.user?.user_metadata?.full_name as string | undefined)
+              || session.user?.email
+              || "The Odin Team";
+            const draftContext = {
+              contactId,
+              contactName:
+                (snap.contact_person as string | null) ?? (snap.dm_name as string | null) ?? contactName,
+              businessName: contactName,
+              industry: contactIndustry ?? null,
+              repName: senderName,
+              contactEmail: ((snap.email as string | null) ?? (snap.dm_email as string | null)) || null,
+              scheduledFor: null,
+              draftGoal: "follow_up" as const,
+              callNotes: pipelineNotes || null,
+              callTranscriptSummary: null,
+              recentCallContexts: [],
+              latestCallAt: new Date().toISOString(),
+              latestNoteAt: null,
+            };
+            const generated = await generateFollowUpEmailDraft({
+              contactName: draftContext.contactName,
+              businessName: draftContext.businessName,
+              industry: draftContext.industry || undefined,
+              repName: draftContext.repName,
+              draftGoal: draftContext.draftGoal,
+              callNotes: draftContext.callNotes || undefined,
+              scheduledFor: undefined,
+            });
+            if (generated) {
+              saveStoredEmailDraftSuggestion(
+                createEmailDraftSuggestion({
+                  subject: generated.subject,
+                  body: generated.body,
+                  context: draftContext,
+                }),
+              );
+            }
+          } catch (draftErr) {
+            console.warn("[EOD Email] Draft generation failed:", draftErr);
+          }
+        })();
       }
 
       // ── GHL Sync (fire-and-forget) ──
@@ -1901,6 +1969,7 @@ export default function DialerPage() {
     dqReason,
     dqNotes,
     dncReason,
+    eodEmailFlag,
     handleNativeHangUp,
   ]);
 
@@ -1922,6 +1991,7 @@ export default function DialerPage() {
     // counts as a pickup and triggers the recency cooldown.
     const gatekeeperHit = gatekeeperMarkedRef.current === session.currentContact.id;
     gatekeeperMarkedRef.current = null;
+    setEodEmailFlag(false);
     if (gatekeeperHit && session.user) {
       void supabase.from("call_logs").insert({
         contact_id: session.currentContact.id,
@@ -1970,6 +2040,7 @@ export default function DialerPage() {
     const nextLength = session.queue.contacts.length - 1;
     void session.queue.discardContact(session.currentContact.id, { releaseLock: true });
     session.resetLeadState(session.user?.id || "");
+    setEodEmailFlag(false);
     dialpad.resetDialpadState();
     void session.queue.ensureBuffer();
     if (session.currentIndex >= nextLength && nextLength > 0) {
@@ -3354,6 +3425,8 @@ export default function DialerPage() {
                 dncReason={dncReason}
                 onDncReasonChange={setDncReason}
                 contactId={session.currentContact.id}
+                emailFlag={eodEmailFlag}
+                onEmailFlagChange={setEodEmailFlag}
                 mobileGatekeeper={Boolean(((displayContact ?? session.currentContact) as Record<string, unknown>).mobile_reaches_gatekeeper)}
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"
