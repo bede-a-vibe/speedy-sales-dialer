@@ -191,6 +191,72 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "describe_data",
+        "title": "Describe the data",
+        "description": "Data dictionary for Speedy Dialer: what each table and column means, the call outcome vocabulary, exact KPI formulas (connect rate, booking rate, funnel stages), the Melbourne-timezone rule for daily metrics, and common traps. Call this BEFORE writing a report from other tools' output so numbers are interpreted correctly.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string",
+              "enum": [
+                "all",
+                "contacts",
+                "call_logs",
+                "kpis",
+                "outcomes"
+              ],
+              "description": "Narrow the dictionary to one area (default 'all')."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "report_snapshot",
+        "title": "Report snapshot",
+        "description": "Pre-aggregated dialling metrics for a report: dials, conversations, connect rate, bookings, booking rate, talk minutes, funnel-stage counts and outcome breakdown. All day boundaries are Australia/Melbourne local time. Defaults to the signed-in rep ('me'); admins and coaches can pass scope 'team' for a per-rep breakdown. Pair with describe_data for formula definitions.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Melbourne local date YYYY-MM-DD (default: today)."
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 31,
+              "description": "Number of consecutive Melbourne days ending on `date` (default 1)."
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "me",
+                "team"
+              ],
+              "description": "'me' (default) or 'team' — team requires admin/coach role."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
