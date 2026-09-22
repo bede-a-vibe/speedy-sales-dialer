@@ -473,9 +473,6 @@ export default function DialerPage() {
   // "Worth an email tonight" — persisted on the contact when the call is
   // logged, then cleared for the next lead.
   const [eodEmailFlag, setEodEmailFlag] = useState(false);
-  useEffect(() => {
-    setEodEmailFlag(false);
-  }, [session.currentContact?.id]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
   // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
