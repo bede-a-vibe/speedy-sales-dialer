@@ -2040,6 +2040,7 @@ export default function DialerPage() {
     const nextLength = session.queue.contacts.length - 1;
     void session.queue.discardContact(session.currentContact.id, { releaseLock: true });
     session.resetLeadState(session.user?.id || "");
+    setEodEmailFlag(false);
     dialpad.resetDialpadState();
     void session.queue.ensureBuffer();
     if (session.currentIndex >= nextLength && nextLength > 0) {
@@ -3424,6 +3425,8 @@ export default function DialerPage() {
                 dncReason={dncReason}
                 onDncReasonChange={setDncReason}
                 contactId={session.currentContact.id}
+                emailFlag={eodEmailFlag}
+                onEmailFlagChange={setEodEmailFlag}
                 mobileGatekeeper={Boolean(((displayContact ?? session.currentContact) as Record<string, unknown>).mobile_reaches_gatekeeper)}
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"
