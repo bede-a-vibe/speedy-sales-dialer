@@ -216,6 +216,55 @@ var add_contact_note_default = defineTool5({
   }
 });
 
+// src/lib/mcp/tools/tonights-email-round.ts
+import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z6 } from "npm:zod@^3.25.76";
+var tonights_email_round_default = defineTool6({
+  name: "tonights_email_round",
+  title: "Tonight's email round",
+  description: "List the leads the signed-in rep flagged in the dialer as 'Worth an email tonight' that are still unsent. Returns each lead's name, business, recipient email, phone, when it was flagged and the latest call notes. Unsent flags carry over from previous days, so this is the full outstanding email round.",
+  inputSchema: {
+    include_sent_today: z6.boolean().optional().describe("Also include leads already marked sent today (default false).")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ include_sent_today }, ctx) => {
+    const userId = requireUser(ctx);
+    if (!userId) return unauthenticated();
+    const supabase = supabaseForUser(ctx);
+    const { data, error } = await supabase.from("contacts").select(
+      "id, business_name, contact_person, email, dm_email, phone, mobile, industry, state, notes, eod_email_flagged_at, eod_email_sent_at"
+    ).eq("eod_email_flagged_by", userId).not("eod_email_flagged_at", "is", null).order("eod_email_flagged_at", { ascending: false }).limit(100);
+    if (error) return failure(error.message);
+    const rows = data ?? [];
+    const unsent = rows.filter((r) => !r.eod_email_sent_at);
+    let sentToday = [];
+    if (include_sent_today) {
+      const startOfToday = /* @__PURE__ */ new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      sentToday = rows.filter(
+        (r) => r.eod_email_sent_at && new Date(r.eod_email_sent_at) >= startOfToday
+      );
+    }
+    const mapRow = (r) => ({
+      contact_id: r.id,
+      business_name: r.business_name,
+      contact_person: r.contact_person,
+      recipient_email: r.email ?? r.dm_email ?? null,
+      phone: r.phone ?? null,
+      mobile: r.mobile ?? null,
+      industry: r.industry ?? null,
+      state: r.state ?? null,
+      flagged_at: r.eod_email_flagged_at,
+      latest_notes: r.notes ?? null
+    });
+    return json({
+      unsent_count: unsent.length,
+      unsent: unsent.map(mapRow),
+      ...include_sent_today ? { sent_today: sentToday.map(mapRow) } : {}
+    });
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "xhcvwhcpaeetmmzkuwyw";
 var mcp_default = defineMcp({
@@ -227,7 +276,7 @@ var mcp_default = defineMcp({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default]
+  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default]
 });
 
 // lovable-mcp-supabase-entry.ts

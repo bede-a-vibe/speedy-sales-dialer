@@ -4,6 +4,7 @@ import getContact from "./tools/get-contact";
 import myCallActivity from "./tools/my-call-activity";
 import listFollowUps from "./tools/list-follow-ups";
 import addContactNote from "./tools/add-contact-note";
+import tonightsEmailRound from "./tools/tonights-email-round";
 
 const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "project-ref-unset";
 
@@ -17,5 +18,5 @@ export default defineMcp({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [searchContacts, getContact, myCallActivity, listFollowUps, addContactNote],
+  tools: [searchContacts, getContact, myCallActivity, listFollowUps, addContactNote, tonightsEmailRound],
 });
