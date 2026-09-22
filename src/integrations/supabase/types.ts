@@ -567,6 +567,9 @@ export type Database = {
           dnc_reason: string | null
           dnc_recorded_at: string | null
           email: string | null
+          eod_email_flagged_at: string | null
+          eod_email_flagged_by: string | null
+          eod_email_sent_at: string | null
           existing_agency_name: string | null
           existing_agency_notes: string | null
           existing_agency_services: string[]
@@ -680,6 +683,9 @@ export type Database = {
           dnc_reason?: string | null
           dnc_recorded_at?: string | null
           email?: string | null
+          eod_email_flagged_at?: string | null
+          eod_email_flagged_by?: string | null
+          eod_email_sent_at?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
@@ -793,6 +799,9 @@ export type Database = {
           dnc_reason?: string | null
           dnc_recorded_at?: string | null
           email?: string | null
+          eod_email_flagged_at?: string | null
+          eod_email_flagged_by?: string | null
+          eod_email_sent_at?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
