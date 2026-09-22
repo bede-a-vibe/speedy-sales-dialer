@@ -216,18 +216,69 @@ var add_contact_note_default = defineTool5({
   }
 });
 
+// src/lib/mcp/tools/tonights-email-round.ts
+import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z6 } from "npm:zod@^3.25.76";
+var tonights_email_round_default = defineTool6({
+  name: "tonights_email_round",
+  title: "Tonight's email round",
+  description: "List the leads the signed-in rep flagged in the dialer as 'Worth an email tonight' that are still unsent. Returns each lead's name, business, recipient email, phone, when it was flagged and the latest call notes. Unsent flags carry over from previous days, so this is the full outstanding email round.",
+  inputSchema: {
+    include_sent_today: z6.boolean().optional().describe("Also include leads already marked sent today (default false).")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ include_sent_today }, ctx) => {
+    const userId = requireUser(ctx);
+    if (!userId) return unauthenticated();
+    const supabase = supabaseForUser(ctx);
+    const { data, error } = await supabase.from("contacts").select(
+      "id, business_name, contact_person, email, dm_email, phone, industry, state, key_quote, follow_up_note, agreed_next_steps, last_outcome, eod_email_flagged_at, eod_email_sent_at"
+    ).eq("eod_email_flagged_by", userId).not("eod_email_flagged_at", "is", null).order("eod_email_flagged_at", { ascending: false }).limit(100);
+    if (error) return failure(error.message);
+    const rows = data ?? [];
+    const unsent = rows.filter((r) => !r.eod_email_sent_at);
+    let sentToday = [];
+    if (include_sent_today) {
+      const startOfToday = /* @__PURE__ */ new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      sentToday = rows.filter(
+        (r) => r.eod_email_sent_at && new Date(r.eod_email_sent_at) >= startOfToday
+      );
+    }
+    const mapRow = (r) => ({
+      contact_id: r.id,
+      business_name: r.business_name,
+      contact_person: r.contact_person,
+      recipient_email: r.email ?? r.dm_email ?? null,
+      phone: r.phone ?? null,
+      industry: r.industry ?? null,
+      state: r.state ?? null,
+      flagged_at: r.eod_email_flagged_at,
+      last_outcome: r.last_outcome ?? null,
+      key_quote: r.key_quote ?? null,
+      follow_up_note: r.follow_up_note ?? null,
+      agreed_next_steps: r.agreed_next_steps ?? null
+    });
+    return json({
+      unsent_count: unsent.length,
+      unsent: unsent.map(mapRow),
+      ...include_sent_today ? { sent_today: sentToday.map(mapRow) } : {}
+    });
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "xhcvwhcpaeetmmzkuwyw";
 var mcp_default = defineMcp({
   name: "speedy-dialer",
   title: "Speedy Dialer",
   version: "0.1.0",
-  instructions: "Tools for Speedy Dialer, Odin Digital's power dialer and CRM. Look contacts up with `search_contacts`, then use the returned ID with `get_contact` for the full record, recent calls and notes. `my_call_activity` summarises the signed-in rep's own dialling. `list_follow_ups` shows their scheduled follow-ups and booked appointments. `add_contact_note` writes a note to a contact's timeline. All access runs as the signed-in user.",
+  instructions: "Tools for Speedy Dialer, Odin Digital's power dialer and CRM. Look contacts up with `search_contacts`, then use the returned ID with `get_contact` for the full record, recent calls and notes. `my_call_activity` summarises the signed-in rep's own dialling. `list_follow_ups` shows their scheduled follow-ups and booked appointments. `add_contact_note` writes a note to a contact's timeline. `tonights_email_round` lists the leads they flagged in the dialer as worth an email tonight that are still unsent. All access runs as the signed-in user.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default]
+  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default]
 });
 
 // lovable-mcp-supabase-entry.ts

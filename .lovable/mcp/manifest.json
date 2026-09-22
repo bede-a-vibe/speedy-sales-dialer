@@ -169,6 +169,28 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "tonights_email_round",
+        "title": "Tonight's email round",
+        "description": "List the leads the signed-in rep flagged in the dialer as 'Worth an email tonight' that are still unsent. Returns each lead's name, business, recipient email, phone, when it was flagged and the latest call notes. Unsent flags carry over from previous days, so this is the full outstanding email round.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "include_sent_today": {
+              "type": "boolean",
+              "description": "Also include leads already marked sent today (default false)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
