@@ -1655,6 +1655,8 @@ export default function DialerPage() {
     setDqReason(null);
     setDqNotes("");
     setDncReason(null);
+    const eodEmailFlagSnapshot = eodEmailFlag;
+    setEodEmailFlag(false);
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     if (!stopRequested) void session.queue.ensureBuffer();
@@ -1724,6 +1726,14 @@ export default function DialerPage() {
               : {}),
             ...(outcomeToLog === "dnc"
               ? { dnc_reason: dncReasonSnapshot }
+              : {}),
+            // End-of-day email round: re-flagging after a sent email re-opens it.
+            ...(eodEmailFlagSnapshot
+              ? {
+                  eod_email_flagged_at: new Date().toISOString(),
+                  eod_email_flagged_by: userId,
+                  eod_email_sent_at: null,
+                }
               : {}),
           }),
         ]);
