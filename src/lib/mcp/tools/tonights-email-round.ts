@@ -23,7 +23,7 @@ export default defineTool({
     const { data, error } = await supabase
       .from("contacts")
       .select(
-        "id, business_name, contact_person, email, dm_email, phone, mobile, industry, state, notes, eod_email_flagged_at, eod_email_sent_at",
+        "id, business_name, contact_person, email, dm_email, phone, mobile, industry, state, key_quote, follow_up_note, agreed_next_steps, last_outcome, eod_email_flagged_at, eod_email_sent_at",
       )
       .eq("eod_email_flagged_by", userId)
       .not("eod_email_flagged_at", "is", null)
@@ -53,7 +53,10 @@ export default defineTool({
       industry: r.industry ?? null,
       state: r.state ?? null,
       flagged_at: r.eod_email_flagged_at,
-      latest_notes: r.notes ?? null,
+      last_outcome: r.last_outcome ?? null,
+      key_quote: r.key_quote ?? null,
+      follow_up_note: r.follow_up_note ?? null,
+      agreed_next_steps: r.agreed_next_steps ?? null,
     });
 
     return json({
