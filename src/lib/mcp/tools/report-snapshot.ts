@@ -88,7 +88,7 @@ function summarise(logs: RawLog[]) {
       problem_awareness: problem,
       solution_awareness: solution,
       commitment,
-      booked,
+      booked: bookings,
     },
     by_outcome: byOutcome,
   };
