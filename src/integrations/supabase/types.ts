@@ -1155,6 +1155,27 @@ export type Database = {
         }
         Relationships: []
       }
+      dm_name_cleanup_backup: {
+        Row: {
+          backed_up_at: string | null
+          business_name: string | null
+          id: string | null
+          old_dm_name: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          old_dm_name?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          business_name?: string | null
+          id?: string | null
+          old_dm_name?: string | null
+        }
+        Relationships: []
+      }
       dm_phone_dedupe_backup: {
         Row: {
           backed_up_at: string | null
@@ -2013,6 +2034,30 @@ export type Database = {
           synced_at?: string
           takes_meetings?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      junk_archive_preview: {
+        Row: {
+          business_name: string | null
+          id: string | null
+          lead_type: string | null
+          phone: string | null
+          reason: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          id?: string | null
+          lead_type?: string | null
+          phone?: string | null
+          reason?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          id?: string | null
+          lead_type?: string | null
+          phone?: string | null
+          reason?: string | null
         }
         Relationships: []
       }
@@ -3102,6 +3147,25 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      identify_inbound_caller: {
+        Args: { _digits: string }
+        Returns: {
+          business_name: string
+          call_attempt_count: number
+          dm_name: string
+          follow_up_note: string
+          gatekeeper_name: string
+          id: string
+          industry: string
+          is_archived: boolean
+          last_called_at: string
+          last_outcome: string
+          lifecycle_stage: string
+          matched_on: string
+          next_followup_date: string
+          state: string
+        }[]
       }
       increment_rotation_dial_count: {
         Args: { _user_id: string }
