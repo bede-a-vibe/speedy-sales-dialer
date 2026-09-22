@@ -155,6 +155,10 @@ const DM_PHONE_FILTER_LABELS: Record<string, string> = {
   no: "Need DM capture",
 };
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
+import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
+import { createEmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
+import { saveStoredEmailDraftSuggestion } from "@/lib/emailDraftStore";
+
 
 const loadDialpadSyncPanel = () =>
   import("@/components/dialer/DialpadSyncPanel").then((module) => ({ default: module.default ?? module.DialpadSyncPanel }));
@@ -466,6 +470,12 @@ export default function DialerPage() {
   const [dqReason, setDqReason] = useState<DqReason | null>(null);
   const [dqNotes, setDqNotes] = useState<string>("");
   const [dncReason, setDncReason] = useState<DncReason | null>(null);
+  // "Worth an email tonight" — persisted on the contact when the call is
+  // logged, then cleared for the next lead.
+  const [eodEmailFlag, setEodEmailFlag] = useState(false);
+  useEffect(() => {
+    setEodEmailFlag(false);
+  }, [session.currentContact?.id]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
   // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
