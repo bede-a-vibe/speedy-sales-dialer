@@ -267,6 +267,250 @@ var tonights_email_round_default = defineTool6({
   }
 });
 
+// src/lib/mcp/tools/describe-data.ts
+import { defineTool as defineTool7 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z7 } from "npm:zod@^3.25.76";
+var DATA_DICTIONARY = {
+  product: "Speedy Dialer \u2014 Odin Digital's power dialer and CRM for an Australian outbound sales team.",
+  timezone_rule: "ALL daily and weekly metrics use Australia/Melbourne local-day boundaries, never UTC. A 'day' runs midnight-to-midnight in Melbourne (AEST UTC+10, AEDT UTC+11 in summer). Weeks run Monday\u2013Sunday, Melbourne time. Timestamps themselves are stored in UTC (ISO 8601); convert before grouping by day.",
+  entities: {
+    contacts: {
+      description: "One row per lead/business. Deduplicated on (business_name, phone). GHL (GoHighLevel) is the master CRM; contacts here are the operational dialling copy.",
+      key_columns: {
+        id: "UUID primary key \u2014 use this to reference a contact.",
+        business_name: "Business name. Placeholder names like 'Unknown' mean unenriched.",
+        contact_person: "Decision-maker name, when known.",
+        phone: "Main business line, E.164 format (e.g. +613\u2026). This is the number the dialer rings.",
+        dm_phone: "Decision-maker direct line, E.164. Only trusted when phone_number_quality = 'confirmed'; 'suspect'/'dead' numbers must not be dialled.",
+        email: "General business email.",
+        dm_email: "Decision-maker email, when captured.",
+        phone_number_quality: "unconfirmed | confirmed | suspect | dead \u2014 trust level of dm_phone.",
+        state: "Australian state (VIC, NSW, QLD, SA, WA, TAS, NT, ACT).",
+        industry: "Free-text industry.",
+        is_dnc: "true = Do Not Call. Hard block \u2014 never dial, never suggest dialling.",
+        last_outcome: "Outcome of the most recent logged call (see call_outcome enum).",
+        key_quote: "Most useful verbatim quote captured on a call.",
+        follow_up_note: "What the next call/email should say.",
+        agreed_next_steps: "Next steps agreed with the prospect.",
+        eod_email_flagged_at: "When a rep flagged this lead as 'worth an email tonight' in the dialer.",
+        eod_email_sent_at: "When the rep marked that email as sent. Null + flagged = still owed."
+      }
+    },
+    call_logs: {
+      description: "One row per dial. The source of truth for all activity metrics.",
+      key_columns: {
+        user_id: "The rep who made the call (auth user id).",
+        contact_id: "The lead dialled.",
+        outcome: "call_outcome enum (below).",
+        created_at: "UTC timestamp of the call.",
+        dialpad_talk_time_seconds: "Talk time from Dialpad \u2014 the ONLY trusted source for call duration.",
+        reached_connection: "Funnel stage 1: connected with a human (>15s).",
+        reached_problem_awareness: "Funnel stage 2: prospect acknowledged a problem.",
+        reached_solution_awareness: "Funnel stage 3: prospect engaged with the solution.",
+        reached_commitment: "Funnel stage 4: prospect gave a commitment.",
+        "exit_reason_*": "Why the call stalled at that stage (free-text reason codes).",
+        follow_up_date: "If set, a follow-up was scheduled on this call.",
+        notes: "Rep's call notes."
+      }
+    },
+    contact_notes: {
+      description: "Timeline notes on a contact. source column: manual | dialpad_summary | dialpad_transcript | ai_summary | call_transcript."
+    },
+    pipelines: {
+      description: "Follow-up and booking pipeline rows. pipeline_type: follow_up | booked. pipeline_status: open | completed | canceled."
+    }
+  },
+  call_outcome_enum: {
+    no_answer: "Rang out / no pickup. Not a conversation.",
+    voicemail: "Reached voicemail. Not a conversation.",
+    gatekeeper: "Blocked by a gatekeeper; decision-maker not reached. Not a conversation.",
+    not_interested: "Spoke to the prospect; declined.",
+    follow_up: "Spoke to the prospect; a follow-up was scheduled.",
+    booked: "Appointment booked. The primary conversion event.",
+    wrong_number: "Number invalid or belongs to someone else. Excluded from connect-rate denominators where possible.",
+    dnc: "Prospect asked not to be called. Number is now blocked.",
+    disqualified: "Prospect is not a fit (wrong size, industry, etc.)."
+  },
+  kpi_definitions: {
+    dials: "Count of call_logs in the window. Every logged call counts, including no_answer and wrong_number.",
+    conversations: "Call logs where reached_connection = true (a real human conversation, >15s). This is the app's definition of a 'connect'.",
+    connect_rate_pct: "conversations / dials \xD7 100.",
+    bookings: "Call logs with outcome = 'booked'.",
+    booking_rate_pct: "bookings / conversations \xD7 100 (bookings per conversation, NOT per dial).",
+    talk_minutes: "Sum of dialpad_talk_time_seconds / 60, rounded.",
+    funnel: "Stage counts use the reached_* boolean flags: connection \u2192 problem_awareness \u2192 solution_awareness \u2192 commitment \u2192 booked. Booked is only counted in the funnel when reached_connection is also true.",
+    attribution: "Setters are credited for bookings they made; closers for appointments they sat. Appointment/revenue reporting splits these \u2014 check which one a report wants before quoting a number."
+  },
+  gotchas: [
+    "Never use dialpad_total_duration_seconds for talk time \u2014 it includes ring time. Use dialpad_talk_time_seconds.",
+    "Never count dials to is_dnc = true contacts as opportunities; they're compliance blocks.",
+    "dm_phone is only trustworthy when phone_number_quality = 'confirmed'.",
+    "A contact with eod_email_flagged_at set and eod_email_sent_at null is still owed an email.",
+    "Contacts are deduplicated on (business_name, phone) \u2014 the same business never appears twice with the same main line."
+  ]
+};
+var describe_data_default = defineTool7({
+  name: "describe_data",
+  title: "Describe the data",
+  description: "Data dictionary for Speedy Dialer: what each table and column means, the call outcome vocabulary, exact KPI formulas (connect rate, booking rate, funnel stages), the Melbourne-timezone rule for daily metrics, and common traps. Call this BEFORE writing a report from other tools' output so numbers are interpreted correctly.",
+  inputSchema: {
+    topic: z7.enum(["all", "contacts", "call_logs", "kpis", "outcomes"]).optional().describe("Narrow the dictionary to one area (default 'all').")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ topic }) => {
+    const t = topic ?? "all";
+    const pick = () => {
+      switch (t) {
+        case "contacts":
+          return { contacts: DATA_DICTIONARY.entities.contacts, gotchas: DATA_DICTIONARY.gotchas };
+        case "call_logs":
+          return {
+            call_logs: DATA_DICTIONARY.entities.call_logs,
+            call_outcome_enum: DATA_DICTIONARY.call_outcome_enum,
+            timezone_rule: DATA_DICTIONARY.timezone_rule
+          };
+        case "kpis":
+          return { kpi_definitions: DATA_DICTIONARY.kpi_definitions, timezone_rule: DATA_DICTIONARY.timezone_rule };
+        case "outcomes":
+          return { call_outcome_enum: DATA_DICTIONARY.call_outcome_enum };
+        default:
+          return DATA_DICTIONARY;
+      }
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(pick(), null, 2) }]
+    };
+  }
+});
+
+// src/lib/mcp/tools/report-snapshot.ts
+import { defineTool as defineTool8 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z8 } from "npm:zod@^3.25.76";
+function melbourneOffsetHours(at) {
+  for (const offset of [10, 11]) {
+    const shifted = new Date(at.getTime() + offset * 36e5);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Melbourne",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(at);
+    const [y, m, d] = parts.split("-").map(Number);
+    if (shifted.getUTCFullYear() === y && shifted.getUTCMonth() + 1 === m && shifted.getUTCDate() === d) {
+      return offset;
+    }
+  }
+  return 10;
+}
+function melbourneToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(/* @__PURE__ */ new Date());
+}
+function melbourneDayBounds(date) {
+  const noon = /* @__PURE__ */ new Date(`${date}T12:00:00Z`);
+  const offset = melbourneOffsetHours(noon);
+  const start = /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+  start.setTime(start.getTime() - offset * 36e5);
+  const end = new Date(start.getTime() + 24 * 36e5);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+function pct(numerator, denominator) {
+  return denominator ? Math.round(numerator / denominator * 1e3) / 10 : 0;
+}
+function summarise(logs) {
+  const byOutcome = {};
+  let talkSeconds = 0;
+  let conversations = 0;
+  let problem = 0;
+  let solution = 0;
+  let commitment = 0;
+  let followUpsSet = 0;
+  let bookings = 0;
+  for (const l of logs) {
+    byOutcome[l.outcome] = (byOutcome[l.outcome] ?? 0) + 1;
+    talkSeconds += l.dialpad_talk_time_seconds ?? 0;
+    if (l.reached_connection) conversations += 1;
+    if (l.reached_problem_awareness) problem += 1;
+    if (l.reached_solution_awareness) solution += 1;
+    if (l.reached_commitment) commitment += 1;
+    if (l.follow_up_date) followUpsSet += 1;
+    if (l.outcome === "booked") bookings += 1;
+  }
+  return {
+    dials: logs.length,
+    conversations,
+    connect_rate_pct: pct(conversations, logs.length),
+    bookings,
+    booking_rate_pct: pct(bookings, conversations),
+    talk_minutes: Math.round(talkSeconds / 60),
+    follow_ups_set: followUpsSet,
+    funnel: {
+      connection: conversations,
+      problem_awareness: problem,
+      solution_awareness: solution,
+      commitment,
+      booked: bookings
+    },
+    by_outcome: byOutcome
+  };
+}
+var SELECT = "user_id, outcome, dialpad_talk_time_seconds, reached_connection, reached_problem_awareness, reached_solution_awareness, reached_commitment, follow_up_date";
+var report_snapshot_default = defineTool8({
+  name: "report_snapshot",
+  title: "Report snapshot",
+  description: "Pre-aggregated dialling metrics for a report: dials, conversations, connect rate, bookings, booking rate, talk minutes, funnel-stage counts and outcome breakdown. All day boundaries are Australia/Melbourne local time. Defaults to the signed-in rep ('me'); admins and coaches can pass scope 'team' for a per-rep breakdown. Pair with describe_data for formula definitions.",
+  inputSchema: {
+    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Melbourne local date YYYY-MM-DD (default: today)."),
+    days: z8.number().int().min(1).max(31).optional().describe("Number of consecutive Melbourne days ending on `date` (default 1)."),
+    scope: z8.enum(["me", "team"]).optional().describe("'me' (default) or 'team' \u2014 team requires admin/coach role.")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ date, days, scope }, ctx) => {
+    const userId = requireUser(ctx);
+    if (!userId) return unauthenticated();
+    const endDate = date ?? melbourneToday();
+    const windowDays = days ?? 1;
+    const end = melbourneDayBounds(endDate).end;
+    const startDate = new Date((/* @__PURE__ */ new Date(`${endDate}T12:00:00Z`)).getTime() - (windowDays - 1) * 24 * 36e5).toISOString().slice(0, 10);
+    const start = melbourneDayBounds(startDate).start;
+    const supabase = supabaseForUser(ctx);
+    const wantsTeam = scope === "team";
+    let teamAllowed = false;
+    if (wantsTeam) {
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+      teamAllowed = (roles ?? []).some((r) => r.role === "admin" || r.role === "coach");
+      if (!teamAllowed) return failure("Team scope requires an admin or coach role.");
+    }
+    let query = supabase.from("call_logs").select(SELECT).gte("created_at", start).lt("created_at", end).limit(2e4);
+    if (!teamAllowed) query = query.eq("user_id", userId);
+    const { data, error } = await query;
+    if (error) return failure(error.message);
+    const logs = data ?? [];
+    const result = {
+      window: { start_date: startDate, end_date: endDate, days: windowDays, timezone: "Australia/Melbourne" },
+      scope: teamAllowed ? "team" : "me",
+      totals: summarise(logs)
+    };
+    if (teamAllowed) {
+      const perRep = /* @__PURE__ */ new Map();
+      for (const l of logs) {
+        const list = perRep.get(l.user_id) ?? [];
+        list.push(l);
+        perRep.set(l.user_id, list);
+      }
+      const repIds = [...perRep.keys()];
+      const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", repIds);
+      const names = new Map((profiles ?? []).map((p) => [p.user_id, p.display_name ?? p.email ?? "Unknown rep"]));
+      result.per_rep = repIds.map((id) => ({ rep: names.get(id) ?? "Unknown rep", ...summarise(perRep.get(id)) })).sort((a, b) => b.dials - a.dials);
+    }
+    return json(result);
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "xhcvwhcpaeetmmzkuwyw";
 var mcp_default = defineMcp({
@@ -278,7 +522,7 @@ var mcp_default = defineMcp({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default]
+  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default, describe_data_default, report_snapshot_default]
 });
 
 // lovable-mcp-supabase-entry.ts
