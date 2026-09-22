@@ -159,8 +159,8 @@ export default defineTool({
         perRep.set(l.user_id, list);
       }
       const repIds = [...perRep.keys()];
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", repIds);
-      const names = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? "Unknown rep"]));
+      const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", repIds);
+      const names = new Map((profiles ?? []).map((p) => [p.user_id, p.display_name ?? p.email ?? "Unknown rep"]));
       result.per_rep = repIds
         .map((id) => ({ rep: names.get(id) ?? "Unknown rep", ...summarise(perRep.get(id)!) }))
         .sort((a, b) => b.dials - a.dials);
