@@ -20,5 +20,5 @@ export default defineMcp({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [searchContacts, getContact, myCallActivity, listFollowUps, addContactNote, tonightsEmailRound],
+  tools: [searchContacts, getContact, myCallActivity, listFollowUps, addContactNote, tonightsEmailRound, describeData, reportSnapshot],
 });
