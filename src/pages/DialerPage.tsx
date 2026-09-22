@@ -1969,6 +1969,7 @@ export default function DialerPage() {
     dqReason,
     dqNotes,
     dncReason,
+    eodEmailFlag,
     handleNativeHangUp,
   ]);
 
@@ -1990,6 +1991,7 @@ export default function DialerPage() {
     // counts as a pickup and triggers the recency cooldown.
     const gatekeeperHit = gatekeeperMarkedRef.current === session.currentContact.id;
     gatekeeperMarkedRef.current = null;
+    setEodEmailFlag(false);
     if (gatekeeperHit && session.user) {
       void supabase.from("call_logs").insert({
         contact_id: session.currentContact.id,
