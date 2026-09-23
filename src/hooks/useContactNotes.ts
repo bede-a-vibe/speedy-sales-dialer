@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ghlSyncContactNote } from "@/lib/ghl";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type ContactNote = Tables<"contact_notes">;
@@ -127,6 +128,12 @@ type AddContactNoteInput = {
  * Prepends a temp-id row to every notes cache that the ActivityTimeline /
  * ContactDetailPage read from, then reconciles onSettled. On error the
  * previous snapshots are restored so the UI never gets stuck with a ghost.
+ *
+ * GHL sync is fire-and-forget: Supabase is the source of truth and is written
+ * first, then the note is pushed to GHL without the rep ever waiting on the
+ * round-trip. If that push fails (or the tab closes before it lands) the note
+ * still owes a sync in the database, and the server-side drain retries it with
+ * backoff — so a GHL outage delays the sync but never loses the note.
  */
 export function useAddContactNote() {
   const queryClient = useQueryClient();
@@ -138,7 +145,18 @@ export function useAddContactNote() {
         .select("*")
         .single();
       if (error) throw error;
-      return data as ContactNote;
+
+      const note = data as ContactNote;
+
+      // Deliberately not awaited — the rep's save must not block on GHL.
+      if (source === "manual") {
+        void ghlSyncContactNote(note.id).catch((err) => {
+          // Non-fatal: the drain owns the retry from here.
+          console.warn("[GHL notes] Immediate push failed, leaving it to the drain", note.id, err);
+        });
+      }
+
+      return note;
     },
     onMutate: async ({ contactId, content, createdBy, source = "manual" }) => {
       const flatKey = getContactNotesQueryKey(contactId);

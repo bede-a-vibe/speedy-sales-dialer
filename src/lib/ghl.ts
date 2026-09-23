@@ -48,6 +48,87 @@ export async function ghlAddNote(contactId: string, noteBody: string) {
   return invokeGHL({ action: "add_note", contactId, payload: { body: noteBody } });
 }
 
+// ── Manual contact-note sync ──────────────────────────────────────────
+//
+// Rep notes are written to Supabase first and pushed to GHL afterwards, so a
+// GHL outage never blocks the rep or loses the note. Anything that fails here
+// is retried by the drain.
+
+export interface GHLNoteSyncResult {
+  status: "synced" | "skipped" | "failed";
+  reason?: string;
+}
+
+/**
+ * Push one manual note to GHL. Safe for any rep to call — the edge function
+ * scopes non-admins to notes they wrote themselves.
+ */
+export async function ghlSyncContactNote(noteId: string) {
+  return invokeGHL<GHLNoteSyncResult>({ action: "sync_contact_note", noteId });
+}
+
+export interface GHLNoteDrainResult {
+  processed: number;
+  synced: number;
+  failed: number;
+  skipped: number;
+  deletions: { processed: number; deleted: number; failed: number };
+  errors: Array<{ noteId: string; error: string }>;
+}
+
+/** Retry sweep for notes whose first push failed, plus queued deletions. */
+export async function ghlDrainContactNoteSyncs(opts: { batchSize?: number; delayMs?: number } = {}) {
+  return invokeGHL<GHLNoteDrainResult>({
+    action: "drain_contact_note_syncs",
+    ...(opts.batchSize ? { batchSize: opts.batchSize } : {}),
+    ...(opts.delayMs != null ? { delayMs: opts.delayMs } : {}),
+  });
+}
+
+export interface GHLNoteBackfillResult {
+  processed: number;
+  synced: number;
+  failed: number;
+  skipped: number;
+  hasMore: boolean;
+  remaining: number;
+  errors: Array<{ noteId: string; error: string }>;
+}
+
+/**
+ * Enrol + push one batch of historical notes. Deliberate admin action only —
+ * historical notes are un-enrolled by the migration and never sync on their
+ * own. Call repeatedly while `hasMore` is true.
+ */
+export async function ghlBackfillContactNoteSyncs(opts: { batchSize?: number; delayMs?: number } = {}) {
+  return invokeGHL<GHLNoteBackfillResult>({
+    action: "backfill_contact_note_syncs",
+    ...(opts.batchSize ? { batchSize: opts.batchSize } : {}),
+    ...(opts.delayMs != null ? { delayMs: opts.delayMs } : {}),
+  });
+}
+
+export interface GHLNoteSyncStats {
+  synced: number;
+  pending: number;
+  failed: number;
+  notEnrolled: number;
+  deletionsPending: number;
+  deletionsFailed: number;
+  recentFailures: Array<{
+    id: string;
+    contact_id: string;
+    last_error: string | null;
+    attempt_count: number;
+    updated_at: string;
+    business_name: string | null;
+  }>;
+}
+
+export async function ghlContactNoteSyncStats() {
+  return invokeGHL<GHLNoteSyncStats>({ action: "contact_note_sync_stats" });
+}
+
 export async function ghlAddTag(contactId: string, tags: string[]) {
   return invokeGHL({ action: "add_tag", contactId, tags });
 }
