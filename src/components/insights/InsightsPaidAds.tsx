@@ -140,7 +140,7 @@ export function InsightsPaidAds({ dateFrom, dateTo }: Props) {
   const totals = useMemo(() => computeAdTotals(rows, brandDeals), [rows, brandDeals]);
   const campaigns = useMemo(() => rollupByCampaign(rows, brandDeals), [rows, brandDeals]);
   const months = useMemo(() => rollupByMonth(rows), [rows]);
-  const coverage = useMemo(() => campaignCoverage(brandDeals), [brandDeals]);
+  const coverage = useMemo(() => campaignCoverage(rows, brandDeals), [rows, brandDeals]);
 
   const spanLabel = useRange ? `${dateFrom} → ${dateTo}` : "all time";
 
@@ -221,22 +221,29 @@ export function InsightsPaidAds({ dateFrom, dateTo }: Props) {
 
       {/* The gap is shown in the product, not buried in a doc — a silent "—"
           column invites the reader to assume the campaigns earned nothing. */}
-      {brand === "odin" && coverage.withCampaign < coverage.total ? (
+      {brand === "odin" && coverage.matched < coverage.total ? (
         <div className="flex gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
           <div className="space-y-1 text-xs">
             <p className="font-medium text-foreground">
-              Per-campaign revenue is unavailable for {coverage.total - coverage.withCampaign} of {coverage.total} clients.
+              {coverage.total - coverage.matched} of {coverage.total} clients can't be traced to a campaign.
             </p>
             <p className="text-muted-foreground">
-              Meta destination URLs carry no UTM parameters, so won deals can't be traced back to the campaign
-              that produced them. Totals above are correct; the Clients column below is not a performance
-              ranking. Fix is in Ads Manager — append{" "}
+              Meta destination URLs carry no UTM parameters, so won deals mostly can't be tied back to the
+              campaign that produced them. The totals above are correct; the Clients column below is not a
+              performance ranking. Fix is in Ads Manager — append{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
                 ?utm_source=facebook&amp;utm_medium=paid&amp;utm_campaign=&#123;&#123;campaign.name&#125;&#125;
               </code>{" "}
               to destination URLs.
             </p>
+            {coverage.unmatchedNames.length > 0 ? (
+              <p className="text-muted-foreground">
+                Recorded against campaigns with no matching spend:{" "}
+                <span className="text-foreground">{coverage.unmatchedNames.join(", ")}</span>. Either the name
+                is stale or the spend is missing — worth reconciling against Ads Manager.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

@@ -92,6 +92,9 @@ const CHANNEL: Record<string, string> = {
   referral: "Referral",
   partnership: "Partnership",
   linkedin: "LinkedIn",
+  // Paid social. Without this, ads-sourced clients export to GHL as "Other",
+  // which is exactly the bucket the source cleanup was meant to empty.
+  "meta ads": "FB/IG Ads",
 };
 
 const VERTICALS: [string, string[]][] = [

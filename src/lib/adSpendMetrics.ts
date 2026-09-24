@@ -195,10 +195,25 @@ export function rollupByMonth(rows: AdSpendRow[]): MonthRollup[] {
     });
 }
 
-/** How many attributed deals carry a campaign — drives the UTM-gap warning. */
-export function campaignCoverage(deals: AttributedDeal[]): { withCampaign: number; total: number } {
-  return {
-    withCampaign: deals.filter((d) => !!d.campaign).length,
-    total: deals.length,
-  };
+/**
+ * How many deals can actually be traced to a campaign that spent money.
+ *
+ * Carrying a campaign name is not enough — the name has to match a campaign in
+ * `ad_spend`, or the revenue lands nowhere in the campaign table. The ads sheet
+ * records several clients against names like "... (1 June 2026) - Copy" that
+ * the Meta export has no campaign for, so counting "has a campaign string"
+ * would overstate coverage and quietly lose that revenue from the breakdown.
+ */
+export function campaignCoverage(
+  rows: AdSpendRow[],
+  deals: AttributedDeal[],
+): { matched: number; total: number; unmatchedNames: string[] } {
+  const known = new Set(rows.map((r) => campaignKey(r.campaign_name)));
+  const unmatched = new Set<string>();
+  let matched = 0;
+  for (const d of deals) {
+    if (d.campaign && known.has(campaignKey(d.campaign))) matched += 1;
+    else if (d.campaign) unmatched.add(d.campaign);
+  }
+  return { matched, total: deals.length, unmatchedNames: [...unmatched] };
 }
