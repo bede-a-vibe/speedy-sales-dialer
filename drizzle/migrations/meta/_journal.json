@@ -36,6 +36,13 @@
       "when": 1789633758472,
       "tag": "0004_gmb_lookup_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790211887952,
+      "tag": "0005_create_ad_spend",
+      "breakpoints": true
     }
   ]
 }
