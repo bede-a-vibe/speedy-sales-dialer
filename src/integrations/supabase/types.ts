@@ -14,6 +14,49 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_spend: {
+        Row: {
+          brand: string
+          campaign_id: string | null
+          campaign_name: string
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          link_clicks: number
+          platform: string
+          spend: number
+          updated_at: string
+        }
+        Insert: {
+          brand?: string
+          campaign_id?: string | null
+          campaign_name: string
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          link_clicks?: number
+          platform?: string
+          spend?: number
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          campaign_id?: string | null
+          campaign_name?: string
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          link_clicks?: number
+          platform?: string
+          spend?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+
       archived_no_web_backup: {
         Row: {
           archived_at: string | null
