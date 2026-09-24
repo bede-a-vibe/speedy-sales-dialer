@@ -765,6 +765,7 @@ export default function DialerPage() {
   }, [session.currentContact?.id, session.currentContact?.state, complianceTick]);
   const canDialCurrent = !complianceWindow || complianceWindow.allowed;
 
+
   const dialpad = useDialerDialpad({
     // Compliance guard: never let the auto-dial effect place a call while
     // the current lead is outside its permitted window. The auto-skip
@@ -775,6 +776,25 @@ export default function DialerPage() {
     currentContact: session.currentContact,
     selectedCallerId: effectiveCallerId,
   });
+
+  // Why is the auto-dialer not placing a call? These mirror the guards in the
+  // place-call effect exactly, surfaced so "it isn't dialling" answers itself
+  // rather than needing someone to read the code.
+  const dialBlockedReason = useMemo((): string | null => {
+    if (!session.isSessionActive) return null;              // not in a session at all
+    if (!isOnline) return "You're offline — reconnect and the dialer will resume.";
+    if (!dialpad.hasDialpadAssignment) return "No Dialpad user is linked to your account, so calls can't be placed.";
+    if (session.isSessionPaused) return "Session is paused — hit Resume to start dialling again.";
+    if (!session.currentContact) return "No lead is loaded yet.";
+    if (!canDialCurrent && complianceWindow) {
+      return describeWindowReason(complianceWindow, session.currentContact.state ?? null);
+    }
+    if (!dialpad.dialNumber) return "This lead has no dialable number.";
+    return null;
+  }, [
+    session.isSessionActive, session.isSessionPaused, session.currentContact,
+    isOnline, dialpad.hasDialpadAssignment, dialpad.dialNumber, canDialCurrent, complianceWindow,
+  ]);
 
   // Bump the per-rep rotation counter whenever a new call is actually placed.
   const lastIncrementedCallIdRef = useRef<string | null>(null);
@@ -3350,6 +3370,14 @@ export default function DialerPage() {
             </div>
 
             <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+              {dialBlockedReason && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-100">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <span className="font-semibold">Not dialling:</span> {dialBlockedReason}
+                  </span>
+                </div>
+              )}
               {/* Live coach: instant brush-off lines + ask box, right where the rep is looking mid-call */}
               <LiveCoachPanel />
               {/* Log This Call — outcomes + conversation tagging in one card */}

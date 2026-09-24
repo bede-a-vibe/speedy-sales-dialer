@@ -88,6 +88,59 @@ export function useEodMetrics(userId: string | undefined, date: string) {
   });
 }
 
+/**
+ * Call activity placed through GoHighLevel's built-in phone, which the dialer
+ * (Dialpad) never sees. Reported alongside the dialer's own numbers rather than
+ * merged into them — see the note on useEodGhlCallMetrics below.
+ */
+export type EodGhlCallMetrics = {
+  date: string;
+  /** False when profiles.ghl_user_id isn't set — a setup gap, not a quiet day. */
+  mapped: boolean;
+  ghl_user_id: string | null;
+  dials: number;
+  connects: number;
+  talk_time_seconds: number;
+  inbound_calls: number;
+  inbound_talk_time_seconds: number;
+};
+
+const EOD_GHL_METRICS_KEY = "eod-ghl-call-metrics";
+
+/**
+ * GHL-placed calls for one rep + one day, aggregated at query time from the raw
+ * `ghl_calls` rows.
+ *
+ * Kept separate from useEodMetrics on purpose: `get_rep_eod_metrics` lives in
+ * production but not in supabase/migrations, so its body can't be extended
+ * safely from here. Showing the two sources side by side is honest; merging
+ * them into one number is a follow-up that needs the prod RPC definition.
+ *
+ * Returns null (rather than throwing) when the function isn't deployed yet, so
+ * the EOD page keeps working before the migration is applied.
+ */
+export function useEodGhlCallMetrics(userId: string | undefined, date: string) {
+  return useQuery({
+    queryKey: [EOD_GHL_METRICS_KEY, userId, date],
+    enabled: !!userId,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<EodGhlCallMetrics | null> => {
+      const { data, error } = await supabase.rpc("get_rep_ghl_call_metrics" as never, {
+        _user_id: userId,
+        _date: date,
+      } as never);
+      if (error) {
+        // PGRST202 = function not found in the schema cache; 42883 = undefined
+        // function. Both mean "migration not applied here yet".
+        if (error.code === "PGRST202" || error.code === "42883") return null;
+        throw error;
+      }
+      return (data ?? null) as unknown as EodGhlCallMetrics | null;
+    },
+  });
+}
+
 /** A single rep's EOD report for a given date (null when not submitted). */
 export function useEodReport(userId: string | undefined, date: string) {
   return useQuery({

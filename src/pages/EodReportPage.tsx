@@ -31,11 +31,13 @@ import {
 import type { EodStateOfBeingAnswers } from "@/lib/eodStateOfBeing";
 import { EmailRoundSection } from "@/components/eod/EmailRoundSection";
 import {
+  useEodGhlCallMetrics,
   useEodMetrics,
   useEodReport,
   useSaveManagerComment,
   useTeamEodReports,
   useUpsertEodReport,
+  type EodGhlCallMetrics,
   type EodMetrics,
   type EodReport,
 } from "@/hooks/useEodReports";
@@ -79,6 +81,62 @@ function MetricsRow({ metrics, compact }: { metrics: EodMetrics | null | undefin
       />
       <MetricTile label="Talk time" value={formatTalkTime(metrics?.talk_time_seconds)} subtext="h:mm" compact={compact} />
       <MetricTile label="Bookings" value={String(metrics?.bookings ?? 0)} compact={compact} />
+    </div>
+  );
+}
+
+function SourceLabel({ children }: { children: string }) {
+  return <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{children}</p>;
+}
+
+/**
+ * Calls placed from GoHighLevel's built-in phone. Separate system from the
+ * dialer's Dialpad line, so it is shown as its own labelled row rather than
+ * folded into the numbers above — the two are never added together here, which
+ * is also why there is no risk of double-counting a call.
+ *
+ * Renders nothing when the RPC isn't deployed yet (metrics === null) or when
+ * the rep placed no GHL calls and is correctly mapped.
+ */
+function GhlCallMetricsRow({
+  metrics,
+  compact,
+}: {
+  metrics: EodGhlCallMetrics | null | undefined;
+  compact?: boolean;
+}) {
+  if (!metrics) return null;
+
+  const hasActivity = metrics.dials > 0 || metrics.inbound_calls > 0;
+  if (metrics.mapped && !hasActivity) return null;
+
+  return (
+    <div className="space-y-2">
+      <SourceLabel>Also placed in GoHighLevel</SourceLabel>
+      {metrics.mapped ? (
+        <div className={`grid gap-2 ${compact ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`}>
+          <MetricTile label="GHL dials" value={String(metrics.dials)} compact={compact} />
+          <MetricTile label="GHL connects" value={String(metrics.connects)} compact={compact} />
+          <MetricTile
+            label="GHL talk time"
+            value={formatTalkTime(metrics.talk_time_seconds)}
+            subtext="h:mm"
+            compact={compact}
+          />
+          <MetricTile label="GHL inbound" value={String(metrics.inbound_calls)} compact={compact} />
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <p className="text-xs font-semibold">GoHighLevel calls aren't linked to this account yet</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Any calls placed from GHL are being stored, but they can't be credited until an admin sets the GHL user on
+            this profile.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -141,6 +199,7 @@ function RepView({ userId }: { userId: string }) {
   const repName = (user?.user_metadata?.full_name as string | undefined) || user?.email || "The Odin Team";
 
   const metricsQuery = useEodMetrics(userId, today);
+  const ghlMetricsQuery = useEodGhlCallMetrics(userId, today);
   const reportQuery = useEodReport(userId, today);
   const yesterdayQuery = useEodReport(userId, yesterday);
   const upsert = useUpsertEodReport();
@@ -225,7 +284,12 @@ function RepView({ userId }: { userId: string }) {
         </p>
       </div>
 
-      <MetricsRow metrics={report && !editing ? report.auto_metrics ?? metrics : metrics} />
+      <div className="space-y-2">
+        <SourceLabel>Dialer</SourceLabel>
+        <MetricsRow metrics={report && !editing ? report.auto_metrics ?? metrics : metrics} />
+      </div>
+
+      <GhlCallMetricsRow metrics={ghlMetricsQuery.data} />
 
       <EmailRoundSection userId={userId} repName={repName} />
 
@@ -451,6 +515,7 @@ function TeamReportCard({
   managerId: string;
 }) {
   const saveComment = useSaveManagerComment();
+  const ghlMetricsQuery = useEodGhlCallMetrics(report.user_id, report.report_date);
   const [comment, setComment] = useState(report.manager_comment ?? "");
 
   useEffect(() => {
@@ -491,6 +556,10 @@ function TeamReportCard({
       </div>
 
       <MetricsRow metrics={report.auto_metrics} compact />
+
+      {/* GHL-placed calls the dialer never saw. Shown separately so a rep is
+          never marked down for work that landed in the other phone system. */}
+      <GhlCallMetricsRow metrics={ghlMetricsQuery.data} compact />
 
       {/* Did they do the work, not just hit the numbers. */}
       <StateOfBeingSummary report={report} variant="manager" />
