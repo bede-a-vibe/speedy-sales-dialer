@@ -13,6 +13,7 @@ import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
+import { KpiScorecard } from "@/components/targets/KpiScorecard";
 import { RealLinesPanel } from "@/components/training/RealLinesPanel";
 import { RealDrillsPanel } from "@/components/training/RealDrillsPanel";
 import { LeakPatternsPanel } from "@/components/training/LeakPatternsPanel";
@@ -223,6 +224,7 @@ export default function TrainingPage() {
               {isAdmin && (
                 <TabsContent value="manager">
                   <div className="space-y-3">
+                    <KpiScorecard />
                     <ManagerMetrics />
                     <ManagerPlaybook />
                   </div>
