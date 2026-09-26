@@ -8,6 +8,7 @@ import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { SetterScriptPanel } from "@/components/training/SetterScriptPanel";
+import { CommissionPanel } from "@/components/training/CommissionPanel";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
@@ -29,6 +30,7 @@ export default function TrainingPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <OnboardingPath />
         <SetterScriptPanel />
+        <CommissionPanel />
 
         <section className="rounded-2xl border border-border bg-card p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
