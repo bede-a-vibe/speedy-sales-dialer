@@ -17,6 +17,7 @@ const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
+const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
 const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
 const PlaybookPage = lazy(() => import("@/pages/PlaybookPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
@@ -112,6 +113,7 @@ function ProtectedRoutes() {
         <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/meetings" element={<MeetingsPage />} />
         <Route path="/training" element={<TrainingPage />} />
+        <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />
         <Route path="/eod" element={<EodReportPage />} />
         <Route path="/playbook" element={<PlaybookPage />} />
         <Route path="/security" element={<SecurityPage />} />

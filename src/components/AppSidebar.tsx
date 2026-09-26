@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
@@ -37,6 +37,7 @@ const mainItems = [
 ];
 
 const adminItems = [
+  { title: "Manager", url: "/admin/manager", icon: ClipboardCheck },
   { title: "Insights", url: "/insights", icon: BarChart3 },
   { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Team", url: "/admin/team", icon: UsersRound },
