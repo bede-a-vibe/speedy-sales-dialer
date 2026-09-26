@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
  * Built from Odin's own call research, not invention:
  *  - Tradie Voice of Customer Bank — 72 calls (Mar-Sep 2026), ~2,300 verbatim quotes
  *  - Plumber Segments — 28 plumbing calls across 13 businesses
- *  - Plumber Offer Working Findings — 27 calls, claim-by-claim verification
  *
  * Every quote here is real and attributed. If something isn't in the corpus it
  * isn't on this page.
@@ -58,17 +57,6 @@ const SEGMENTS: { name: string; bottleneck: string; asks: string; needs: string;
   { name: "Two-man", bottleneck: "The third hire", asks: "Jobs per week (never \"leads\")", needs: "Predictable weekly volume", closes: "Mutual accountability + exit terms" },
   { name: "Crew", bottleneck: "People and price", asks: "Leads — but names hiring as the block", needs: "Profit visibility, average-job-value defence", closes: "Judgement, and a report that exists" },
   { name: "Commercial", bottleneck: "Contract concentration", asks: "Hiring / a website", needs: "Demand they own", closes: "No money upfront + a date" },
-];
-
-const BANNED_CLAIMS: { claim: string; truth: string }[] = [
-  { claim: "\"30x return\"", truth: "Nothing in the data exceeds 14x, and that one is an arithmetic error." },
-  { claim: "\"In his second year he did $3 million\"", truth: "Hobsons Bay did $1.454M. The $3M is a target, not a result." },
-  { claim: "\"From $400,000 a year to $3 million\"", truth: "No $400k baseline exists anywhere in the data." },
-  { claim: "\"37% to 65% conversion\"", truth: "Nobody is recorded saying it. The measured series fell 67% to 41%." },
-  { claim: "\"12x on SEO\"", truth: "That was a June peak. It was 8x by August." },
-  { claim: "\"We tripled them\"", truth: "2.24x." },
-  { claim: "\"50% net profit\"", truth: "Xero showed 24%." },
-  { claim: "\"Most of our plumbers get 11 to 1\"", truth: "Sample of one." },
 ];
 
 /** Per-trade job vocabulary. Slang transfers between trades; job nouns do NOT. */
@@ -469,29 +457,6 @@ export function TradiePlaybook() {
             Scepticism does not have to be cleared to book a meeting. It has to be out-weighed. Don't spend the call
             arguing with a belief when terms, speed and ownership are what convert. Agree with the burn, then hand them
             something structural they can check.
-          </p>
-        </div>
-      </Section>
-
-      <Section
-        icon={AlertOctagon}
-        title="Claims you must never make"
-        description="Every one of these was said to a prospect and is contradicted by our own client data. Repeating them is how we lose a deal at the contract stage, or worse."
-      >
-        <div className="space-y-1.5">
-          {BANNED_CLAIMS.map((c) => (
-            <div key={c.claim} className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
-              <p className="text-sm font-medium text-destructive">{c.claim}</p>
-              <p className="text-xs text-muted-foreground">{c.truth}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2">
-          <p className="text-sm font-medium">The test before you say any number</p>
-          <p className="text-xs text-muted-foreground">
-            Does a screenshot exist? If you can't picture the dashboard it came from, don't say it. We have exactly one
-            strong causal number we own outright: 45% versus 32% close rate between two reps in the same business, same
-            leads, same period.
           </p>
         </div>
       </Section>
