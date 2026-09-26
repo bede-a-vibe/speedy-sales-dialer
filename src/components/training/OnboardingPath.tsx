@@ -20,56 +20,56 @@ import { useSalesReps } from "@/hooks/usePipelineItems";
 const STEPS: { key: string; title: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
   {
     key: "d1_study_drill",
-    title: "Day 1 — Study & drill, no live calls",
-    description: "AM: listen to 5 of our BEST booked calls (Real Calls tab) — write down the opener, the discovery transition, and the booking ask, word for word. PM: drill the opener out loud, 2 sessions of 10-15 min (~40 reps each). Record yourself on your phone and listen back — if it sounds stiff, you're not done. Drilled, not memorised.",
+    title: "Day 1 — Learn the script, no live calls",
+    description: "Read the Setter Script below start to finish, twice. Listen to 5 booked calls in the Real Calls tab and write down the opener, the discovery transition and the booking ask word for word. Then drill the opener out loud — 2 sessions of 10-15 min (~40 reps each), record yourself on your phone and listen back. Target from tomorrow: 4 hours of productive dialling a day.",
     icon: Headphones,
   },
   {
     key: "d2_roleplay_objections",
-    title: "Day 2 — Roleplay bot & objection bank",
-    description: "AM: run the opener 20 times against the AI roleplay — it throws the five classic brush-offs; practise agree-reduce-redirect. PM: study the objection bank, say each reframe out loud IN YOUR OWN WORDS, then 10 deeper roleplay rounds through discovery to the ask.",
+    title: "Day 2 — Roleplay & objection bank",
+    description: "Run the opener 20 times against the AI roleplay on the Playbook page — it throws the classic brush-offs (busy, word of mouth, not interested). Then study the Objections tab and say each handle out loud in your own words. Finish with 10 full roleplay rounds from opener through to the booking ask.",
     icon: Swords,
   },
   {
     key: "d3_first_live",
     title: "Day 3 — First live dials, supervised",
-    description: "50 dials, a coach beside you or on the line. Goal is NOT volume: deliver the opener live without freezing and survive the first brush-off. Coach doesn't jump in unless you're completely stuck. PM: read your AI coaching, pick ONE thing to fix, drill it 15 min.",
+    description: "First real session in the dialer — 4 hours of productive dialling with a coach beside you or listening in. Goal is NOT volume: deliver the opener live without freezing and survive the first brush-off. Log every call's outcome as you go. End of day: read your AI coaching on the Coach tab, pick ONE thing to fix.",
     icon: PhoneCall,
   },
   {
     key: "d4_light_supervision",
     title: "Day 4 — Live dials, light supervision",
-    description: "80-100 dials, check-ins at start and end only — the AI coach grades everything. PM: review coaching, one fix, 15-min drill, then 30 min of roleplay on whatever brush-off hit you most today.",
+    description: "4+ hours of dialling, check-ins at start and end only — the AI coach grades everything. Learn the rhythm: hang up, log the outcome, next lead. PM: review your coaching, drill your one fix for 15 min, then 30 min of roleplay on whatever brush-off hit you most today.",
     icon: PhoneCall,
   },
   {
     key: "d5_full_session",
-    title: "Day 5 — Full session, coach is the supervisor",
-    description: "120-150 dials over 4-5 hours, unsupervised. End of day: review your own coaching feed, pick the one fix, drill it, 15 min roleplay on the day's toughest objection.",
+    title: "Day 5 — Full session on your own",
+    description: "Full day of dialling unsupervised. You should be booking your first meetings now — use the pre-qualifying questions and the assumptive calendar close from the script. Every booked meeting gets confirmed at the time of booking. End of day: coaching feed, one fix, 15-min drill.",
     icon: Rocket,
   },
   {
     key: "d6_discovery_focus",
     title: "Day 6 — Discovery focus",
-    description: "Week 2 shifts from opener to conversation. Full session; the coach grades discovery specifically — good open questions, listening, no rushing to pitch. \"Alright\" is a deflection, not an answer: probe under it.",
+    description: "Week 2 shifts from opener to conversation. Full session; the coach grades discovery specifically — good open questions, listening, no rushing to pitch. \"Alright\" is a deflection, not an answer: probe under it. Use the mini-discovery in the script: how's business, how's the marketing treating ya — then shut up.",
     icon: Target,
   },
   {
     key: "d7_booking_focus",
     title: "Day 7 — Booking-ask focus",
-    description: "Full session; the coach grades the ask — assumptive calendar close, never permission-seeking (\"would you be open to...\" is non-buyer language). Drill the ask + full-call roleplays opener→booking.",
+    description: "Full session; the coach grades the ask — assumptive calendar close, never permission-seeking (\"would you be open to...\" is non-buyer language). Run the commitment lock-in on every booking: confirm they'll be there, ask what could get in the way, get the text-me-if-anything agreement. Drill the ask + full-call roleplays opener→booking.",
     icon: Target,
   },
   {
     key: "d8_all_stages",
     title: "Day 8 — Full report card",
-    description: "Full session, all stages graded. Find your weakest funnel stage in the Coach tab and drill that specifically.",
+    description: "Full session, all stages graded. Open your Coach tab and find your weakest funnel stage — drill that specifically. Check the Patterns tab: where do your calls fall over first compared to the team?",
     icon: ClipboardCheck,
   },
   {
     key: "d9_cert_prep",
     title: "Day 9 — Certification prep",
-    description: "Full session dialled as a test day — you're being evaluated against the certification bar. Pressure reveals where you actually are, not where you think you are.",
+    description: "Full session dialled as a test day — you're being evaluated against the certification bar below. Pressure reveals where you actually are, not where you think you are. Flag any lead worth a follow-up email with the email toggle so nothing slips.",
     icon: Radio,
   },
   {
@@ -81,7 +81,7 @@ const STEPS: { key: string; title: string; description: string; icon: React.Comp
   {
     key: "d11_14_live",
     title: "Days 11-14 — Live, unsupervised, the loop forever",
-    description: "120-150 dials/day. The daily loop: dial → read your coaching → pick ONE fix → drill 15 min → roleplay the day's toughest moment. Weekly team review: one good call, one that needs work. The loop is the program.",
+    description: "Building toward 7.5 hours of productive dialling a day. Your ramp targets: 0.33 bookings per productive hour and a 20% show rate in your first 30 days. The daily loop: dial → read your coaching → pick ONE fix → drill 15 min → roleplay the day's toughest moment. Confirm every booked meeting the day before and the morning of. The loop is the program.",
     icon: Rocket,
   },
 ];
