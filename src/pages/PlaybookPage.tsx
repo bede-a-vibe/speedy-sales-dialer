@@ -1,59 +1,21 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Search, Sparkles, Radio, Wand2, MessageSquareText, Loader2, RotateCcw, Trophy, Send } from "lucide-react";
+import { BookOpen, Sparkles, Wand2, MessageSquareText, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
-
-type ObjectionRow = {
-  id: string;
-  objection_text: string;
-  category: string;
-  example_responses: Array<{ response: string; source?: string }> | null;
-  source: "framework" | "call";
-  times_seen: number;
-  booked_count: number;
-  led_to_booking: boolean | null;
-};
-
-const CATEGORIES: Array<{ key: string; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "logistical", label: "Logistical" },
-  { key: "fear", label: "Fear" },
-  { key: "smokescreen", label: "Smokescreen" },
-  { key: "price", label: "Price" },
-  { key: "timing", label: "Timing" },
-  { key: "authority", label: "Authority" },
-  { key: "competitor", label: "Competitor" },
-  { key: "other", label: "Other" },
-];
-
-const CATEGORY_STYLES: Record<string, string> = {
-  logistical: "bg-slate-500/10 text-slate-700 border-slate-500/20",
-  fear: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-  smokescreen: "bg-violet-500/10 text-violet-700 border-violet-500/20",
-  price: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-  timing: "bg-sky-500/10 text-sky-700 border-sky-500/20",
-  authority: "bg-indigo-500/10 text-indigo-700 border-indigo-500/20",
-  competitor: "bg-rose-500/10 text-rose-700 border-rose-500/20",
-  other: "bg-muted text-muted-foreground border-border",
-};
+import { ObjectionBankPanel, OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from "@/components/training/ObjectionBankPanel";
+import { useObjectionBank } from "@/hooks/useCallLearnings";
 
 export default function PlaybookPage() {
-  const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("all");
   const { toast } = useToast();
 
   // Ask state
@@ -65,6 +27,9 @@ export default function PlaybookPage() {
   // Roleplay state — round mechanics live inside RoleplayTrainer.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
   const [roleplayObjection, setRoleplayObjection] = useState("");
+
+  const { data: bankRows } = useObjectionBank();
+  const totalObjections = bankRows?.length ?? 0;
 
   // Deep link from the Coach tab: /playbook?drill=<scenario> opens the
   // roleplay dialog pre-loaded with that drill.
@@ -78,40 +43,6 @@ export default function PlaybookPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["objection-bank"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("objection_bank")
-        .select("id, objection_text, category, example_responses, source, times_seen, booked_count, led_to_booking")
-        .order("source", { ascending: true })
-        .order("times_seen", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as ObjectionRow[];
-    },
-  });
-
-  const filtered = useMemo(() => {
-    const rows = data ?? [];
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (activeCategory !== "all" && r.category !== activeCategory) return false;
-      if (!q) return true;
-      if (r.objection_text.toLowerCase().includes(q)) return true;
-      return (r.example_responses ?? []).some((e) =>
-        String(e?.response ?? "").toLowerCase().includes(q),
-      );
-    });
-  }, [data, activeCategory, query]);
-
-  const totals = useMemo(() => {
-    const rows = data ?? [];
-    const byCat: Record<string, number> = {};
-    for (const r of rows) byCat[r.category] = (byCat[r.category] ?? 0) + 1;
-    return { total: rows.length, byCat };
-  }, [data]);
 
   async function runAsk() {
     const q = askQuestion.trim();
