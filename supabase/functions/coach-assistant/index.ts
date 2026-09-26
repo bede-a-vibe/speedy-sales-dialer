@@ -448,7 +448,6 @@ async function handleMineObjections(admin: ReturnType<typeof createClient>, limi
       } else {
         const { error: insErr } = await admin.from("objection_bank").insert({
           objection_text: obj.objection_text,
-          normalized_text: normalized,
           category: obj.category,
           source: "call",
           call_log_id: log.id,
