@@ -12,6 +12,9 @@ import { useIsAdmin } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import {
   cancelBackgroundGhlSync,
+  ghlBackfillContactNoteSyncs,
+  ghlContactNoteSyncStats,
+  ghlDrainContactNoteSyncs,
   resumeBackgroundGhlSync,
   startBackgroundGhlSync,
 } from "@/lib/ghl";
@@ -178,6 +181,66 @@ export default function GhlSyncPage() {
       setRetrying(false);
     }
   }, [pushHealthQuery, toast]);
+
+  // ── Manual rep-note → GHL sync health ──────────────────────────────
+  const noteStatsQuery = useQuery({
+    queryKey: ["ghl-note-sync-stats"],
+    queryFn: ghlContactNoteSyncStats,
+    refetchInterval: 15_000,
+  });
+
+  const [notesDraining, setNotesDraining] = useState(false);
+  const retryFailedNotes = useCallback(async () => {
+    setNotesDraining(true);
+    try {
+      const res = await ghlDrainContactNoteSyncs({ batchSize: 50 });
+      toast({
+        title: "Note sync drained",
+        description: `${res.synced} synced, ${res.failed} still failing, ${res.deletions.deleted} deletions applied.`,
+      });
+      await noteStatsQuery.refetch();
+    } catch (err) {
+      toast({
+        title: "Note drain failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setNotesDraining(false);
+    }
+  }, [noteStatsQuery, toast]);
+
+  // Backfill is OFF by default — historical notes stay un-enrolled until an
+  // admin runs this, one rate-limited batch per click.
+  const [backfilling, setBackfilling] = useState(false);
+  const backfillNotes = useCallback(async () => {
+    const remaining = noteStatsQuery.data?.notEnrolled ?? 0;
+    if (
+      !window.confirm(
+        `Backfill the oldest 50 of ${remaining} historical notes to GoHighLevel?\n\n` +
+          `This writes to GHL. Run it again for the next batch — it is resumable and will not duplicate notes.`,
+      )
+    ) {
+      return;
+    }
+    setBackfilling(true);
+    try {
+      const res = await ghlBackfillContactNoteSyncs({ batchSize: 50, delayMs: 300 });
+      toast({
+        title: "Backfill batch done",
+        description: `${res.synced} synced, ${res.failed} failed. ${res.remaining} notes still un-enrolled.`,
+      });
+      await noteStatsQuery.refetch();
+    } catch (err) {
+      toast({
+        title: "Backfill failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBackfilling(false);
+    }
+  }, [noteStatsQuery, toast]);
 
   const [batchSize, setBatchSize] = useState<number>(50);
   const [delayMs, setDelayMs] = useState<number>(6000);
@@ -372,6 +435,106 @@ export default function GhlSyncPage() {
                     <div className="space-y-2">
                       {pushHealthQuery.data!.recentFailures.map((f) => (
                         <div key={f.id} className="p-3 rounded-md border border-destructive/20 bg-destructive/5 text-xs space-y-1">
+                          <div className="flex justify-between gap-3">
+                            <span className="font-medium">{f.business_name ?? f.contact_id.slice(0, 8)}</span>
+                            <span className="font-mono text-muted-foreground">
+                              {formatRelative(f.updated_at)} · attempt {f.attempt_count}
+                            </span>
+                          </div>
+                          <div className="text-destructive/90 break-words">
+                            {f.last_error ?? "No error message"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Note sync health — manual rep notes → GHL */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-base">Note sync health</CardTitle>
+              <CardDescription>Rep-written notes pushed through to the GHL contact</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retryFailedNotes}
+                disabled={notesDraining}
+              >
+                <RotateCcw className={`h-4 w-4 ${notesDraining ? "animate-spin" : ""}`} />
+                Drain now
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => noteStatsQuery.refetch()}
+                disabled={noteStatsQuery.isFetching}
+              >
+                <RefreshCw className={`h-4 w-4 ${noteStatsQuery.isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {noteStatsQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading…</div>
+            ) : noteStatsQuery.isError ? (
+              <div className="text-sm text-destructive">Failed to load note sync health.</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <Stat label="Synced" value={noteStatsQuery.data?.synced ?? 0} accent="text-emerald-600" />
+                  <Stat label="Pending" value={noteStatsQuery.data?.pending ?? 0} accent="text-amber-600" />
+                  <Stat label="Failed" value={noteStatsQuery.data?.failed ?? 0} accent="text-destructive" />
+                </div>
+
+                {((noteStatsQuery.data?.deletionsPending ?? 0) > 0 ||
+                  (noteStatsQuery.data?.deletionsFailed ?? 0) > 0) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <MiniStat label="Deletions pending" value={noteStatsQuery.data?.deletionsPending ?? 0} />
+                    <MiniStat label="Deletions failed" value={noteStatsQuery.data?.deletionsFailed ?? 0} />
+                  </div>
+                )}
+
+                {/* Historical backfill — deliberately opt-in, one batch per click. */}
+                {isAdmin && (noteStatsQuery.data?.notEnrolled ?? 0) > 0 && (
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-md border bg-muted/40">
+                    <div className="text-xs">
+                      <div className="font-medium">
+                        {noteStatsQuery.data?.notEnrolled ?? 0} historical notes not yet in GHL
+                      </div>
+                      <div className="text-muted-foreground">
+                        Notes written before note sync existed. Backfill is off by default — run it in batches.
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={backfillNotes} disabled={backfilling}>
+                      {backfilling ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Backfill 50
+                    </Button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Recent failures</div>
+                  {(noteStatsQuery.data?.recentFailures.length ?? 0) === 0 ? (
+                    <div className="text-sm text-muted-foreground">No failures 🎉</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {noteStatsQuery.data!.recentFailures.map((f) => (
+                        <div
+                          key={f.id}
+                          className="p-3 rounded-md border border-destructive/20 bg-destructive/5 text-xs space-y-1"
+                        >
                           <div className="flex justify-between gap-3">
                             <span className="font-medium">{f.business_name ?? f.contact_id.slice(0, 8)}</span>
                             <span className="font-mono text-muted-foreground">

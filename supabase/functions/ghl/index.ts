@@ -128,6 +128,37 @@ async function addNote(
   });
 }
 
+async function updateNote(
+  apiKey: string,
+  contactId: string,
+  noteId: string,
+  body: { body: string; userId?: string },
+) {
+  return ghlFetch(`/contacts/${contactId}/notes/${noteId}`, apiKey, {
+    method: "PUT",
+    body,
+  });
+}
+
+/**
+ * Deliberately not routed through ghlFetch: that helper always parses the
+ * response as JSON, and a DELETE can legitimately answer 204/empty. Parsing
+ * that would throw and turn a *successful* delete into a permanent retry loop.
+ * Error text is kept in the same `GHL <status>: …` shape the rest of the file
+ * throws, so the 404 ("already gone") check downstream still matches.
+ */
+async function deleteNote(apiKey: string, contactId: string, noteId: string) {
+  const res = await fetch(`${GHL_BASE}/contacts/${contactId}/notes/${noteId}`, {
+    method: "DELETE",
+    headers: ghlHeaders(apiKey),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`GHL ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return { ok: true };
+}
+
 async function addTag(
   apiKey: string,
   contactId: string,
@@ -676,6 +707,10 @@ const LEAD_SOURCE_CHANNEL_MAP: Record<string, string> = {
   "referral": "Referral",
   "partnership": "Partnership",
   "linkedin": "LinkedIn",
+  // Paid social. The Meta ads clients imported on 24 Sep 2026 carry this
+  // channel; without the mapping they would sync to GHL as "Other", which is
+  // the bucket the source cleanup exists to keep empty.
+  "meta ads": "FB/IG Ads",
 };
 
 /** Dialer column → GHL custom-field key (resolved through GHL_FIELD_KEY_TO_ID). */
@@ -1789,6 +1824,448 @@ async function exportLegacyGhl(
 
 // ── Main handler ───────────────────────────────────────────────────────
 
+// ── Manual contact-note → GHL sync ─────────────────────────────────────
+//
+// Rep-written notes live in public.contact_notes and carry their own sync
+// state (ghl_note_id / ghl_synced_at / ghl_sync_error / ghl_sync_attempts).
+// pending_ghl_pushes is NOT used: its dialpad_call_id and user_id columns are
+// NOT NULL, so it cannot carry a note that isn't tied to a Dialpad call.
+//
+// Idempotency rule: a note with ghl_note_id set already exists in GHL. It is
+// never POSTed again — an edit becomes a PUT. Duplicated notes in GHL are
+// worse than no sync at all, because reps stop reading them.
+
+const NOTE_SYNC_MAX_ATTEMPTS = 8;
+const NOTE_SYNC_DEFAULT_BATCH = 25;
+const NOTE_SYNC_DEFAULT_DELAY_MS = 250;
+
+/** Same backoff curve the Dialpad pending_ghl_pushes drain uses. */
+function noteRetryBackoffIso(attempts: number): string {
+  const backoffMinutes = Math.min(60, Math.pow(2, Math.min(6, attempts)));
+  return new Date(Date.now() + backoffMinutes * 60_000).toISOString();
+}
+
+interface ContactNoteRow {
+  id: string;
+  contact_id: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  ghl_note_id: string | null;
+  ghl_sync_attempts: number;
+}
+
+/**
+ * GHL user ids don't map reliably onto dialer users, so attribution is carried
+ * in the note body itself: who wrote it, that it came from the dialer, and
+ * when it was actually written (which differs from the GHL note's own
+ * timestamp for anything backfilled).
+ */
+function formatGhlNoteBody(repName: string, writtenAtIso: string, content: string): string {
+  let when = writtenAtIso;
+  try {
+    when = new Date(writtenAtIso).toLocaleString("en-AU", {
+      timeZone: "Australia/Melbourne",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch (_err) {
+    // fall back to the raw ISO string
+  }
+  return `${repName} · Odin Dialer · ${when}\n\n${content}`;
+}
+
+async function resolveRepNames(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  userIds: string[],
+): Promise<Record<string, string>> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return {};
+  const { data } = await admin
+    .from("profiles")
+    .select("user_id, display_name, email")
+    .in("user_id", unique);
+  const out: Record<string, string> = {};
+  for (const row of data ?? []) {
+    out[row.user_id] = row.display_name || row.email || "Unknown rep";
+  }
+  return out;
+}
+
+/**
+ * Get the contact's GHL id, lazily creating the link if it's missing.
+ * Mirrors the client-side ensureGHLLink concept server-side: a note for an
+ * unlinked contact is never dropped — if linking fails it stays queued.
+ */
+async function ensureGhlContactIdForNote(
+  apiKey: string,
+  locationId: string,
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  contactId: string,
+): Promise<{ ghlContactId: string } | { error: string }> {
+  const { data: contact } = await admin
+    .from("contacts")
+    .select("ghl_contact_id, phone, business_name, contact_person, email, website, city, state")
+    .eq("id", contactId)
+    .maybeSingle();
+
+  if (!contact) return { error: "Contact row not found" };
+  if (contact.ghl_contact_id) return { ghlContactId: contact.ghl_contact_id };
+
+  if (!contact.phone) {
+    return { error: "Contact has no ghl_contact_id and no phone to link with — note stays queued" };
+  }
+
+  try {
+    // NOTE: never send tags — tagging in the main location triggers automations.
+    const result = await upsertContact(apiKey, locationId, {
+      phone: contact.phone,
+      companyName: contact.business_name || undefined,
+      name: contact.contact_person || contact.business_name || undefined,
+      email: contact.email || undefined,
+      website: contact.website || undefined,
+      city: contact.city || undefined,
+      state: contact.state || undefined,
+    });
+    const ghlContactId = (result as Record<string, unknown>).ghlContactId as string | undefined;
+    if (!ghlContactId) return { error: "GHL upsert returned no contact id — note stays queued" };
+
+    await admin.from("contacts").update({ ghl_contact_id: ghlContactId }).eq("id", contactId);
+    return { ghlContactId };
+  } catch (err) {
+    return { error: `Lazy GHL link failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/**
+ * Push one note. Creates it when ghl_note_id is null, updates in place when
+ * it isn't. Returns the GHL note id so the caller can persist it.
+ */
+async function pushNoteToGhl(
+  apiKey: string,
+  locationId: string,
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  note: ContactNoteRow,
+  repName: string,
+): Promise<{ ghlNoteId: string } | { error: string }> {
+  const linked = await ensureGhlContactIdForNote(apiKey, locationId, admin, note.contact_id);
+  if ("error" in linked) return { error: linked.error };
+
+  const body = { body: formatGhlNoteBody(repName, note.created_at, note.content) };
+
+  try {
+    if (note.ghl_note_id) {
+      await updateNote(apiKey, linked.ghlContactId, note.ghl_note_id, body);
+      return { ghlNoteId: note.ghl_note_id };
+    }
+    const created = await addNote(apiKey, linked.ghlContactId, body);
+    const ghlNoteId = (created?.note?.id ?? created?.id) as string | undefined;
+    if (!ghlNoteId) return { error: `GHL note create returned no id: ${JSON.stringify(created).slice(0, 200)}` };
+    return { ghlNoteId };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Persist the outcome of a push attempt onto the note row. */
+async function recordNoteSyncResult(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  noteId: string,
+  result: { ghlNoteId: string } | { error: string },
+) {
+  if ("ghlNoteId" in result) {
+    // Never touches `content`, so the dirty trigger stays quiet.
+    await admin
+      .from("contact_notes")
+      .update({
+        ghl_note_id: result.ghlNoteId,
+        ghl_synced_at: new Date().toISOString(),
+        ghl_sync_error: null,
+      })
+      .eq("id", noteId);
+    return true;
+  }
+  await admin.from("contact_notes").update({ ghl_sync_error: result.error }).eq("id", noteId);
+  return false;
+}
+
+/**
+ * Claim + push a single note. The claim is a conditional update on the
+ * attempt counter, so two concurrent workers can never both push the same
+ * note (and therefore can never create a duplicate in GHL).
+ */
+async function syncOneContactNote(
+  apiKey: string,
+  locationId: string,
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  noteId: string,
+  opts: { requireCreatedBy?: string } = {},
+): Promise<{ status: "synced" | "skipped" | "failed"; reason?: string }> {
+  const { data: note } = await admin
+    .from("contact_notes")
+    .select("id, contact_id, content, created_by, created_at, source, ghl_note_id, ghl_synced_at, ghl_sync_attempts, ghl_sync_enrolled")
+    .eq("id", noteId)
+    .maybeSingle();
+
+  if (!note) return { status: "skipped", reason: "Note not found" };
+  if (opts.requireCreatedBy && note.created_by !== opts.requireCreatedBy) {
+    return { status: "skipped", reason: "Not your note" };
+  }
+  if (note.source !== "manual") return { status: "skipped", reason: "Not a manual note" };
+  if (!note.ghl_sync_enrolled) return { status: "skipped", reason: "Not enrolled in GHL note sync" };
+  if (note.ghl_synced_at) return { status: "skipped", reason: "Already synced" };
+
+  const attempts = (note.ghl_sync_attempts ?? 0) + 1;
+  const { data: claimed } = await admin
+    .from("contact_notes")
+    .update({ ghl_sync_attempts: attempts, ghl_next_retry_at: noteRetryBackoffIso(attempts) })
+    .eq("id", note.id)
+    .eq("ghl_sync_attempts", note.ghl_sync_attempts ?? 0)
+    .is("ghl_synced_at", null)
+    .select("id")
+    .limit(1);
+
+  if (!claimed || claimed.length === 0) {
+    return { status: "skipped", reason: "Claimed by another worker" };
+  }
+
+  const names = await resolveRepNames(admin, [note.created_by]);
+  const repName = names[note.created_by] ?? "Odin rep";
+  const result = await pushNoteToGhl(apiKey, locationId, admin, note as ContactNoteRow, repName);
+  const ok = await recordNoteSyncResult(admin, note.id, result);
+  return ok
+    ? { status: "synced" }
+    : { status: "failed", reason: "error" in result ? result.error : undefined };
+}
+
+/** Process queued GHL note deletions (tombstones written by the delete trigger). */
+async function drainGhlNoteDeletions(
+  apiKey: string,
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  limit: number,
+): Promise<{ processed: number; deleted: number; failed: number }> {
+  const nowIso = new Date().toISOString();
+  const { data: rows } = await admin
+    .from("ghl_note_deletions")
+    .select("id, ghl_contact_id, ghl_note_id, attempt_count")
+    .eq("status", "pending")
+    .lte("next_retry_at", nowIso)
+    .order("next_retry_at", { ascending: true })
+    .limit(limit);
+
+  let deleted = 0;
+  let failed = 0;
+  for (const row of rows ?? []) {
+    const attempts = (row.attempt_count ?? 0) + 1;
+    const { data: claimed } = await admin
+      .from("ghl_note_deletions")
+      .update({ status: "processing", attempt_count: attempts })
+      .eq("id", row.id)
+      .eq("status", "pending")
+      .select("id")
+      .limit(1);
+    if (!claimed || claimed.length === 0) continue;
+
+    try {
+      await deleteNote(apiKey, row.ghl_contact_id, row.ghl_note_id);
+      await admin
+        .from("ghl_note_deletions")
+        .update({ status: "deleted", last_error: null })
+        .eq("id", row.id);
+      deleted++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // A 404 means it's already gone from GHL — that's the desired end state.
+      const alreadyGone = msg.includes("GHL 404");
+      await admin
+        .from("ghl_note_deletions")
+        .update(
+          alreadyGone
+            ? { status: "deleted", last_error: null }
+            : attempts >= NOTE_SYNC_MAX_ATTEMPTS
+            ? { status: "failed", last_error: msg }
+            : { status: "pending", next_retry_at: noteRetryBackoffIso(attempts), last_error: msg },
+        )
+        .eq("id", row.id);
+      if (alreadyGone) deleted++;
+      else failed++;
+    }
+  }
+
+  return { processed: (rows ?? []).length, deleted, failed };
+}
+
+/**
+ * Retry drain: pushes enrolled notes that still owe a sync and are due for a
+ * retry, then processes queued deletions. Rate-limited and bounded — safe to
+ * run on the cron lane.
+ */
+async function drainContactNoteSyncs(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  opts: { batchSize?: number; delayMs?: number } = {},
+) {
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+  const batchSize = Math.min(100, Math.max(1, opts.batchSize ?? NOTE_SYNC_DEFAULT_BATCH));
+  const delayMs = Math.max(0, opts.delayMs ?? NOTE_SYNC_DEFAULT_DELAY_MS);
+  const nowIso = new Date().toISOString();
+
+  const { data: due } = await admin
+    .from("contact_notes")
+    .select("id")
+    .eq("source", "manual")
+    .eq("ghl_sync_enrolled", true)
+    .is("ghl_synced_at", null)
+    .lt("ghl_sync_attempts", NOTE_SYNC_MAX_ATTEMPTS)
+    .lte("ghl_next_retry_at", nowIso)
+    .order("ghl_next_retry_at", { ascending: true })
+    .limit(batchSize);
+
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: Array<{ noteId: string; error: string }> = [];
+
+  for (const row of due ?? []) {
+    const res = await syncOneContactNote(apiKey, locationId, admin, row.id);
+    if (res.status === "synced") synced++;
+    else if (res.status === "failed") {
+      failed++;
+      if (res.reason && errors.length < 10) errors.push({ noteId: row.id, error: res.reason });
+    } else skipped++;
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+  }
+
+  const deletions = await drainGhlNoteDeletions(apiKey, admin, batchSize);
+
+  return { processed: (due ?? []).length, synced, failed, skipped, deletions, errors };
+}
+
+/**
+ * Explicit, resumable, rate-limited backfill of notes that predate note sync.
+ *
+ * OFF by default: the migration un-enrols every pre-existing note, so nothing
+ * here runs unless an admin deliberately triggers it. Each call enrols and
+ * pushes the oldest `batchSize` un-enrolled notes, so it resumes correctly by
+ * construction — no cursor to lose. Call again while hasMore is true.
+ */
+async function backfillContactNoteSyncs(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  opts: { batchSize?: number; delayMs?: number } = {},
+) {
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+  const batchSize = Math.min(100, Math.max(1, opts.batchSize ?? NOTE_SYNC_DEFAULT_BATCH));
+  const delayMs = Math.max(0, opts.delayMs ?? NOTE_SYNC_DEFAULT_DELAY_MS);
+
+  const { data: batch } = await admin
+    .from("contact_notes")
+    .select("id")
+    .eq("source", "manual")
+    .eq("ghl_sync_enrolled", false)
+    .order("created_at", { ascending: true })
+    .limit(batchSize);
+
+  const ids = (batch ?? []).map((r: { id: string }) => r.id);
+  if (ids.length === 0) {
+    return { processed: 0, synced: 0, failed: 0, skipped: 0, hasMore: false, remaining: 0, errors: [] };
+  }
+
+  // Enrol first: if this invocation dies mid-way the drain still finishes them.
+  await admin
+    .from("contact_notes")
+    .update({ ghl_sync_enrolled: true, ghl_next_retry_at: new Date().toISOString() })
+    .in("id", ids);
+
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: Array<{ noteId: string; error: string }> = [];
+
+  for (const id of ids) {
+    const res = await syncOneContactNote(apiKey, locationId, admin, id);
+    if (res.status === "synced") synced++;
+    else if (res.status === "failed") {
+      failed++;
+      if (res.reason && errors.length < 10) errors.push({ noteId: id, error: res.reason });
+    } else skipped++;
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+  }
+
+  const { count: remaining } = await admin
+    .from("contact_notes")
+    .select("id", { count: "exact", head: true })
+    .eq("source", "manual")
+    .eq("ghl_sync_enrolled", false);
+
+  return {
+    processed: ids.length,
+    synced,
+    failed,
+    skipped,
+    hasMore: (remaining ?? 0) > 0,
+    remaining: remaining ?? 0,
+    errors,
+  };
+}
+
+/** Counts for the GHL sync health panel. */
+async function contactNoteSyncStats(supabaseUrl: string, serviceRoleKey: string) {
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+  // deno-lint-ignore no-explicit-any
+  const base = () => admin.from("contact_notes").select("id", { count: "exact", head: true }).eq("source", "manual") as any;
+
+  const [syncedRes, pendingRes, failedRes, notEnrolledRes, deletionsPendingRes, deletionsFailedRes, recentRes] =
+    await Promise.all([
+      base().not("ghl_synced_at", "is", null),
+      base().eq("ghl_sync_enrolled", true).is("ghl_synced_at", null).lt("ghl_sync_attempts", NOTE_SYNC_MAX_ATTEMPTS),
+      base().eq("ghl_sync_enrolled", true).is("ghl_synced_at", null).gte("ghl_sync_attempts", NOTE_SYNC_MAX_ATTEMPTS),
+      base().eq("ghl_sync_enrolled", false),
+      admin.from("ghl_note_deletions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      admin.from("ghl_note_deletions").select("id", { count: "exact", head: true }).eq("status", "failed"),
+      admin
+        .from("contact_notes")
+        .select("id, contact_id, ghl_sync_error, ghl_sync_attempts, updated_at, contacts:contact_id(business_name)")
+        .eq("source", "manual")
+        .eq("ghl_sync_enrolled", true)
+        .is("ghl_synced_at", null)
+        .not("ghl_sync_error", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(10),
+    ]);
+
+  return {
+    synced: syncedRes.count ?? 0,
+    pending: pendingRes.count ?? 0,
+    failed: failedRes.count ?? 0,
+    notEnrolled: notEnrolledRes.count ?? 0,
+    deletionsPending: deletionsPendingRes.count ?? 0,
+    deletionsFailed: deletionsFailedRes.count ?? 0,
+    // deno-lint-ignore no-explicit-any
+    recentFailures: (recentRes.data ?? []).map((r: any) => ({
+      id: r.id,
+      contact_id: r.contact_id,
+      last_error: r.ghl_sync_error,
+      attempt_count: r.ghl_sync_attempts ?? 0,
+      updated_at: r.updated_at,
+      business_name: r.contacts?.business_name ?? null,
+    })),
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1814,6 +2291,7 @@ Deno.serve(async (req) => {
         "bulk_link_contacts",
         "push_fields_to_ghl",
         "sync_ghl_appointments",
+        "drain_contact_note_syncs",
       ]);
       if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
@@ -1836,6 +2314,13 @@ Deno.serve(async (req) => {
       if (cronBody.action === "push_fields_to_ghl") {
         const pushResult = await pushFieldsToGhl(GHL_API_KEY, supabaseUrl, svcKey, 50, 0, true);
         return json(pushResult);
+      }
+      if (cronBody.action === "drain_contact_note_syncs") {
+        const drainResult = await drainContactNoteSyncs(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+          batchSize: Number(cronBody.batchSize) || undefined,
+          delayMs: cronBody.delayMs != null ? Number(cronBody.delayMs) : undefined,
+        });
+        return json(drainResult);
       }
       if (cronBody.action === "sync_ghl_appointments") {
         const apptResult = await syncGhlAppointments(
@@ -1927,6 +2412,12 @@ Deno.serve(async (req) => {
       "push_fields_to_ghl",
       "export_legacy_ghl",
       "sync_ghl_appointments",
+      // Bulk note operations stay admin-only. Note that "sync_contact_note" is
+      // deliberately NOT here: reps are not admins, and they must be able to
+      // sync the note they just wrote. That action is scoped below so a
+      // non-admin can only ever push their own note.
+      "drain_contact_note_syncs",
+      "backfill_contact_note_syncs",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -2010,6 +2501,46 @@ Deno.serve(async (req) => {
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);
         result = await addTag(GHL_API_KEY, body.contactId, body.tags ?? []);
         break;
+
+      // ── Manual contact-note sync ──────────────────────────────────────
+      case "sync_contact_note": {
+        if (!body.noteId) return json({ error: "Missing noteId" }, 400);
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const admin = createClient(supabaseUrl, svcKey);
+        // Non-admins may only push notes they wrote themselves.
+        result = await syncOneContactNote(GHL_API_KEY, GHL_LOCATION_ID, admin, body.noteId, {
+          requireCreatedBy: isAdmin ? undefined : user!.id,
+        });
+        break;
+      }
+
+      case "drain_contact_note_syncs": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await drainContactNoteSyncs(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+          batchSize: Number(body.batchSize) || undefined,
+          delayMs: body.delayMs != null ? Number(body.delayMs) : undefined,
+        });
+        break;
+      }
+
+      case "backfill_contact_note_syncs": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await backfillContactNoteSyncs(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
+          batchSize: Number(body.batchSize) || undefined,
+          delayMs: body.delayMs != null ? Number(body.delayMs) : undefined,
+        });
+        break;
+      }
+
+      case "contact_note_sync_stats": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await contactNoteSyncStats(supabaseUrl, svcKey);
+        break;
+      }
 
       case "create_task":
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);
