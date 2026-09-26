@@ -71,6 +71,13 @@
       "when": 1790407076505,
       "tag": "0009_manager_call_reviews_one_on_ones",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790408022845,
+      "tag": "0010_call_stages_and_review_seen",
+      "breakpoints": true
     }
   ]
 }
