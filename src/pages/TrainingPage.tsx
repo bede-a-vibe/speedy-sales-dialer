@@ -6,14 +6,12 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { MyCallReviews } from "@/components/training/MyCallReviews";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { SetterScriptPanel } from "@/components/training/SetterScriptPanel";
 import { CommissionPanel } from "@/components/training/CommissionPanel";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
-import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
-import { ManagerMetrics } from "@/components/training/ManagerMetrics";
-import { KpiScorecard } from "@/components/targets/KpiScorecard";
 import { RealLinesPanel } from "@/components/training/RealLinesPanel";
 import { RealDrillsPanel } from "@/components/training/RealDrillsPanel";
 import { LeakPatternsPanel } from "@/components/training/LeakPatternsPanel";
@@ -97,7 +95,6 @@ export default function TrainingPage() {
                 <TabsTrigger value="patterns" className="border border-border bg-muted/40">Where calls break</TabsTrigger>
                 <TabsTrigger value="streams" className="border border-border bg-muted/40">Streams</TabsTrigger>
                 <TabsTrigger value="definitions" className="border border-border bg-muted/40">Definitions</TabsTrigger>
-                {isAdmin && <TabsTrigger value="manager" className="border border-border bg-muted/40">Manager</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="real-calls">
@@ -220,16 +217,6 @@ export default function TrainingPage() {
                   </div>
                 </div>
               </TabsContent>
-
-              {isAdmin && (
-                <TabsContent value="manager">
-                  <div className="space-y-3">
-                    <KpiScorecard />
-                    <ManagerMetrics />
-                    <ManagerPlaybook />
-                  </div>
-                </TabsContent>
-              )}
             </Tabs>
           </CardContent>
         </Card>
