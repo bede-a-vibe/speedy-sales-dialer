@@ -312,12 +312,18 @@ export type Database = {
           id: string
           improve: string | null
           rep_user_id: string
-          reviewer_id: string
-          score: number
+          reviewed_at: string | null
+          reviewer_id: string | null
+          score: number | null
           seen_at: string | null
+          self_improve: string | null
+          self_score: number | null
+          self_went_well: string | null
           stage_problem_solution: boolean | null
           stage_showed_qualified: boolean | null
           stage_solution_commit: boolean | null
+          status: string
+          submitted_at: string | null
           updated_at: string
           went_well: string | null
         }
@@ -327,12 +333,18 @@ export type Database = {
           id?: string
           improve?: string | null
           rep_user_id: string
-          reviewer_id?: string
-          score: number
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          score?: number | null
           seen_at?: string | null
+          self_improve?: string | null
+          self_score?: number | null
+          self_went_well?: string | null
           stage_problem_solution?: boolean | null
           stage_showed_qualified?: boolean | null
           stage_solution_commit?: boolean | null
+          status?: string
+          submitted_at?: string | null
           updated_at?: string
           went_well?: string | null
         }
@@ -342,12 +354,18 @@ export type Database = {
           id?: string
           improve?: string | null
           rep_user_id?: string
-          reviewer_id?: string
-          score?: number
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          score?: number | null
           seen_at?: string | null
+          self_improve?: string | null
+          self_score?: number | null
+          self_went_well?: string | null
           stage_problem_solution?: boolean | null
           stage_showed_qualified?: boolean | null
           stage_solution_commit?: boolean | null
+          status?: string
+          submitted_at?: string | null
           updated_at?: string
           went_well?: string | null
         }
