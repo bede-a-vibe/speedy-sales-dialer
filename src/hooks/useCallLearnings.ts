@@ -173,7 +173,7 @@ export function useObjectionBank() {
       const { data, error } = await supabase
         .from("objection_bank")
         .select("id, objection_text, category, example_responses, source, times_seen, booked_count")
-        .neq("objection_text", "(no objection raised)")
+        .not("objection_text", "like", "(no objection raised%")
         .order("times_seen", { ascending: false })
         .limit(500);
       if (error) throw error;
