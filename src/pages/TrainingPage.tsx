@@ -40,7 +40,7 @@ export default function TrainingPage() {
                 calls fell over, and the objections you keep hearing. Nothing here is made up.
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[560px] lg:shrink-0">
               <Card className="bg-background/70">
                 <CardHeader className="pb-1">
                   <CardDescription className="text-[10px] uppercase tracking-widest">Calls coached</CardDescription>
