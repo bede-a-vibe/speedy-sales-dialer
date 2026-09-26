@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BookA, Search } from "lucide-react";
+import { BookA, Search, Siren } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -368,6 +368,145 @@ const TERMS: Term[] = [
   },
 ];
 
+
+// ---------------------------------------------------------------------------
+// Scenarios: things that actually happen on the phones, and what to do. Drawn
+// from the recorded cold calls. A term tells you what a word means; a scenario
+// tells you what to do when the call goes somewhere the script does not cover.
+// ---------------------------------------------------------------------------
+
+interface Scenario {
+  when: string;
+  means: string;
+  doThis: string;
+  say?: string;
+}
+
+const SCENARIOS: Scenario[] = [
+  {
+    when: "They can't hear you / the line is breaking up",
+    means: "Very common — they are on a site, in a roof, or in a van. Nothing to do with interest.",
+    doThis: "Stop and fix it before saying another word. Carrying on through bad audio is how the opener gets lost, and the opener is the one thing that has to land.",
+    say: '"Sorry mate, you\'re breaking up a bit — can you hear me now?"',
+  },
+  {
+    when: "They're mid-job and can't talk",
+    means: "Usually literal, not a brush-off. Calls in this bucket book at about 1.6x baseline.",
+    doThis: "Do not pitch into it. Get a specific time, not \"later\", and set the follow-up in the dialer before you hang up.",
+    say: '"No stress. Are you better first thing tomorrow or after four?"',
+  },
+  {
+    when: "They're driving",
+    means: "Safe to keep talking, but they will not take notes or open anything.",
+    doThis: "Keep it short and do not ask for an email address — they cannot spell it out safely. Book the time and get the email by text after.",
+  },
+  {
+    when: "They ask how you got their number",
+    means: "Mild suspicion, not hostility. They want to know you are not a scam.",
+    doThis: "Answer plainly and move straight on. Any hedging makes it worse.",
+    say: '"You\'re listed publicly, mate — that\'s all. I work with a lot of trade businesses around there."',
+  },
+  {
+    when: 'They ask "is this a sales call?" or "are you a robot?"',
+    means: "You sounded scripted or too smooth. Being asked if you are AI is a tell that you are reading, not talking.",
+    doThis: "Be honest, laugh at it, slow right down. Denying it or ploughing on confirms it.",
+    say: '"Ha, yeah it is, mate. Fair cop. Can I have twenty seconds and then you can tell me to get lost?"',
+  },
+  {
+    when: "A gatekeeper answers",
+    means: "Office manager, partner, apprentice. They talk to the person you want and they remember how you were.",
+    doThis: "Be straight and friendly, ask for the owner by name if you have it, and never try to pitch the gatekeeper. Get a time he is usually around.",
+    say: '"Hey, is [name] about by any chance? No worries — when\'s he usually easiest to catch?"',
+  },
+  {
+    when: "The gatekeeper says he's not interested, on his behalf",
+    means: "Almost never a real answer from the decision maker.",
+    doThis: "Do not argue and do not imply she is wrong. Take it, then find a time rather than a verdict.",
+    say: '"Fair enough. Is he the one who\'d look after that side of it, or is that you?"',
+  },
+  {
+    when: "You get passed to the owner and the call drops",
+    means: "Happens constantly with transfers and poor reception.",
+    doThis: "Ring straight back — the dialer has a Call dropped button for exactly this. Do not wait and do not treat it as a no. Note both names while you have them.",
+  },
+  {
+    when: "They put you on hold and never come back",
+    means: "Usually genuinely got pulled onto something, occasionally a soft exit.",
+    doThis: "Give it a minute, hang up, log it honestly as no answer rather than a rejection, and set a follow-up for a different time of day.",
+  },
+  {
+    when: "They tell you their whole life story",
+    means: "Good problem. An engaged prospect, and everything they say is material for the meeting.",
+    doThis: "Let it run a bit longer than feels comfortable — they are doing your job for you. Take notes, then bridge to the ask on the first natural pause.",
+    say: '"Mate, that\'s exactly the sort of thing Bede should see. Fifteen minutes Tuesday or Thursday?"',
+  },
+  {
+    when: "They say they've dealt with us before and it went badly",
+    means: "Could be true, could be a different agency they are confusing us with.",
+    doThis: "Never argue and never defend. Ask what happened, write it down verbatim, and flag it to the sales lead after the call. Do not try to fix it on the phone.",
+    say: '"Ah, I didn\'t know that — what happened there?"',
+  },
+  {
+    when: "They go aggressive or start swearing at you",
+    means: "Rarely about you. You are the fourth caller today.",
+    doThis: "Stay even, thank them, end it. Do not match it and do not get the last word. If they ask to be removed, mark Do Not Call immediately.",
+    say: '"All good mate, I\'ll leave you to it. Have a good one."',
+  },
+  {
+    when: "They ask what it costs, in the first ten seconds",
+    means: "Usually a way to end the call quickly rather than genuine buying interest.",
+    doThis: "Do not give a number — you do not have one. Use the price reframe in Module 2, then go straight back to the ask.",
+  },
+  {
+    when: 'They say "just text me" or "send me a message"',
+    means: "Softer than send-me-an-email and often genuine — tradies live on text.",
+    doThis: "Agree, get the number confirmed, then keep the conversation going while you have them. Send the text before you hang up so it lands while you are still in their head.",
+  },
+  {
+    when: "They agree to a meeting but won't give an email",
+    means: "Half a booking. Without an invite it will not happen.",
+    doThis: "Do not let it go. Offer to text the link instead — that almost always clears it.",
+    say: '"No worries, I\'ll text you the link instead — same number?"',
+  },
+  {
+    when: 'They say "call me back in six months"',
+    means: "Sometimes real, usually a polite exit.",
+    doThis: "Test it once with a timing question. If there is a real reason and a real date, set the follow-up and leave it alone. If it is vague, it is a no.",
+    say: '"Yeah, no worries. Is there something happening around then, or is it more just not now?"',
+  },
+  {
+    when: "It turns out they're not the decision maker",
+    means: "Common on bigger outfits, and a good conversation with them is still not a booking.",
+    doThis: "Be warm, do not waste their time, get the name and the best time for the owner. Update the contact record so the next dial goes to the right person.",
+  },
+  {
+    when: "Wrong number, or the business no longer exists",
+    means: "Data issue, not a rejection.",
+    doThis: "Mark it accurately. Retired, sold up and no longer trading are real disqualifiers — see the Definitions tab for which reason to use.",
+  },
+  {
+    when: "They're clearly an apprentice or a worker, not the owner",
+    means: "They answered the mobile listed for the business.",
+    doThis: "Do not pitch. Ask when the boss is usually reachable and on which number, then get off the phone quickly and politely.",
+  },
+  {
+    when: "You realise mid-call you've rung them before",
+    means: "Either the record is wrong or you missed the attempt count.",
+    doThis: "Own it straight away — it costs nothing and covering it up is what sounds shifty. Then carry on with the pivot.",
+    say: '"Ah, that\'d be right — sorry mate. Anyway, how\'s things been since?"',
+  },
+  {
+    when: "They ask where you're based",
+    means: "Checking you are local and not an overseas call centre. Very common after bad experiences with offshore teams.",
+    doThis: "Answer immediately and plainly. Hesitating here is fatal — the offshore complaint is one of the loudest in our whole call corpus.",
+  },
+  {
+    when: "They ask who else you work with in their area",
+    means: "Good sign. They are checking relevance, which means they are considering it.",
+    doThis: "Name a trade and a general area, not a competitor who is their direct rival two suburbs over. Then hand the detail to Bede and ask for the time.",
+  },
+];
+
 export function GlossaryPanel() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Cat | "all">("all");
@@ -386,13 +525,26 @@ export function GlossaryPanel() {
     });
   }, [q, cat]);
 
+  const scenarios = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return SCENARIOS;
+    return SCENARIOS.filter((x) =>
+      [x.when, x.means, x.doThis, x.say ?? ""].some((f) => f.toLowerCase().includes(needle)),
+    );
+  }, [q]);
+
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-        <h3 className="font-medium text-foreground">Every term you will hear, in plain English</h3>
+        <h3 className="font-medium text-foreground">Terms and scenarios, in plain English</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          From both sides of the call — our jargon and theirs. Two rules: say the words out loud rather than the
-          acronym, and if you cannot explain something without using another piece of jargon, do not raise it on a call.
+          Two halves. Terms are every bit of jargon you will hear from either side of the call. Scenarios are the
+          things that actually happen on the phones that the script does not cover. One search box filters both, so
+          you can find either mid-call.
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Two rules for the terms: say the words out loud rather than the acronym, and if you cannot explain something
+          without reaching for more jargon, do not raise it on a call.
         </p>
       </div>
 
@@ -453,6 +605,31 @@ export function GlossaryPanel() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Why it matters: </span>{t.why}
                 </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </PanelSection>
+
+      <PanelSection
+        icon={Siren}
+        title={`${SCENARIOS.length} scenarios`}
+        description="Things that actually happen on the phones and the script does not cover. Filtered by the same search box above."
+      >
+        {scenarios.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No scenario matches "{q}". If it happened to you on a call, tell the sales lead and it goes in.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {scenarios.map((x) => (
+              <div key={x.when} className="rounded-lg border border-border bg-card p-3">
+                <p className="text-sm font-semibold">{x.when}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">What it means: </span>{x.means}
+                </p>
+                <p className="mt-1 text-sm">{x.doThis}</p>
+                {x.say && <p className="mt-1.5 border-l-2 border-primary/50 pl-2 text-sm font-medium">{x.say}</p>}
               </div>
             ))}
           </div>
