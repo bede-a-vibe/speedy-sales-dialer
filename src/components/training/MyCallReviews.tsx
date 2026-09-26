@@ -1,12 +1,16 @@
 import { Star, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
-import { useMyReviews } from "@/hooks/useManager";
+import { useEffect } from "react";
+import { useMarkReviewsSeen, useMyReviews } from "@/hooks/useManager";
 
 /** A rep's own manager call reviews. Renders nothing until they have one. */
 export function MyCallReviews() {
   const { user } = useAuth();
   const { data: reviews = [] } = useMyReviews(user?.id);
+  const markSeen = useMarkReviewsSeen();
+  const hasUnseen = reviews.some((r: any) => !r.seen_at);
+  useEffect(() => { if (hasUnseen) markSeen.mutate(); }, [hasUnseen]); // eslint-disable-line react-hooks/exhaustive-deps
   if (reviews.length === 0) return null;
 
   return (
@@ -21,7 +25,7 @@ export function MyCallReviews() {
         {reviews.slice(0, 6).map((r: any) => (
           <div key={r.id} className="rounded-lg border border-border p-3 text-xs">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="font-medium">{r.call_logs?.contacts?.business_name ?? "Call"}</span>
+              <span className="font-medium">{r.call_logs?.contacts?.business_name ?? "Call"}{!r.seen_at && <span className="ml-2 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">New</span>}</span>
               <span className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <Star key={n} className={n <= r.score ? "h-3.5 w-3.5 fill-primary text-primary" : "h-3.5 w-3.5 text-muted-foreground/30"} />

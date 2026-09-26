@@ -6,6 +6,7 @@ import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { Button } from "@/components/ui/button";
 import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnseenReviewCount } from "@/hooks/useManager";
 import {
   Sidebar,
   SidebarContent,
@@ -51,6 +52,7 @@ const adminOnlyItems = [
 ];
 
 export function AppSidebar() {
+  const { data: unseenReviews = 0 } = useUnseenReviewCount();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const canViewAdmin = useCanViewAdmin();
@@ -117,6 +119,7 @@ export function AppSidebar() {
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && item.url === "/training" && unseenReviews > 0 && <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{unseenReviews} new</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

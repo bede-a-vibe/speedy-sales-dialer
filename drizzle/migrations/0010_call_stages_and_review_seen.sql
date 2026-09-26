@@ -1,0 +1,2 @@
+ALTER TABLE public.call_scores ADD COLUMN IF NOT EXISTS stage_problem_solution boolean, ADD COLUMN IF NOT EXISTS stage_solution_commit boolean, ADD COLUMN IF NOT EXISTS stage_showed_qualified boolean;
+ALTER TABLE public.call_reviews ADD COLUMN IF NOT EXISTS seen_at timestamptz, ADD COLUMN IF NOT EXISTS stage_problem_solution boolean, ADD COLUMN IF NOT EXISTS stage_solution_commit boolean, ADD COLUMN IF NOT EXISTS stage_showed_qualified boolean;

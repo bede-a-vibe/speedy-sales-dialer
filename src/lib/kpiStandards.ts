@@ -53,10 +53,10 @@ export const DIAGNOSTICS: DiagBand[] = [
   { key: "pickup_to_conversation", label: "Pickup → conversation", target: 68, below: 60, unit: "%", note: "Measured" },
   { key: "conv_to_problem", label: "Conversation → problem awareness", target: 36, below: 30, unit: "%", note: "Biggest leak" },
   { key: "problem_to_solution", label: "Problem → solution awareness", target: 50, below: 40, unit: "%", note: "Measured" },
-  { key: "solution_to_commitment", label: "Solution → commitment", target: 80, below: 65, unit: "%", note: "Thin sample" },
+  { key: "solution_to_commitment", label: "Solution → commitment", target: 80, below: 65, unit: "%", note: "Measured per call" },
   { key: "commitment_to_booking", label: "Commitment → booking", target: 71, below: 60, unit: "%", note: "Measured" },
   { key: "bookings_per_pickup", label: "Bookings per pickup", target: 6, below: 4, unit: "%", note: "Measured" },
-  { key: "showed_to_qualified", label: "Showed → qualified", target: 85, below: 80, unit: "%", note: "Assumed, never measured" },
+  { key: "showed_to_qualified", label: "Showed → qualified", target: 85, below: 80, unit: "%", note: "Measured from booked calls" },
 ];
 
 export type BandStatus = "ok" | "low" | "high" | "none";
@@ -99,4 +99,23 @@ export function dailyTargetsFor(band: RampBand): DailyTargets {
 /** Full-period multiplier: day = 1, week = 5, month = 18.6 productive days. */
 export function periodDays(period: "day" | "week" | "month"): number {
   return period === "day" ? 1 : period === "week" ? WORKING_DAYS_PER_WEEK : PRODUCTIVE_DAYS_PER_MONTH;
+}
+
+/**
+ * Productive hours from real Dialpad call spans (start→end). Calls whose gap to
+ * the previous call's end is ≤15 min are joined into one session; hours = sum of
+ * session spans. Same locked cutoff, measured on actual call times.
+ */
+export function productiveHoursFromCalls(spans: { start: number; end: number }[]): number {
+  if (!spans.length) return 0;
+  const s = [...spans].sort((a, b) => a.start - b.start);
+  const cutoff = PRODUCTIVE_IDLE_CUTOFF_MIN * 60_000;
+  let ms = 0, curStart = s[0].start, curEnd = Math.max(s[0].start, s[0].end);
+  for (let i = 1; i < s.length; i++) {
+    const { start, end } = s[i];
+    if (start - curEnd <= cutoff) curEnd = Math.max(curEnd, end);
+    else { ms += curEnd - curStart; curStart = start; curEnd = Math.max(start, end); }
+  }
+  ms += curEnd - curStart;
+  return ms / 3_600_000;
 }

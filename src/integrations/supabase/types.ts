@@ -314,6 +314,10 @@ export type Database = {
           rep_user_id: string
           reviewer_id: string
           score: number
+          seen_at: string | null
+          stage_problem_solution: boolean | null
+          stage_showed_qualified: boolean | null
+          stage_solution_commit: boolean | null
           updated_at: string
           went_well: string | null
         }
@@ -325,6 +329,10 @@ export type Database = {
           rep_user_id: string
           reviewer_id?: string
           score: number
+          seen_at?: string | null
+          stage_problem_solution?: boolean | null
+          stage_showed_qualified?: boolean | null
+          stage_solution_commit?: boolean | null
           updated_at?: string
           went_well?: string | null
         }
@@ -336,6 +344,10 @@ export type Database = {
           rep_user_id?: string
           reviewer_id?: string
           score?: number
+          seen_at?: string | null
+          stage_problem_solution?: boolean | null
+          stage_showed_qualified?: boolean | null
+          stage_solution_commit?: boolean | null
           updated_at?: string
           went_well?: string | null
         }
@@ -360,6 +372,9 @@ export type Database = {
           id: string
           overall_score: number
           scorecard: Json
+          stage_problem_solution: boolean | null
+          stage_showed_qualified: boolean | null
+          stage_solution_commit: boolean | null
           updated_at: string
         }
         Insert: {
@@ -372,6 +387,9 @@ export type Database = {
           id?: string
           overall_score?: number
           scorecard: Json
+          stage_problem_solution?: boolean | null
+          stage_showed_qualified?: boolean | null
+          stage_solution_commit?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -384,6 +402,9 @@ export type Database = {
           id?: string
           overall_score?: number
           scorecard?: Json
+          stage_problem_solution?: boolean | null
+          stage_showed_qualified?: boolean | null
+          stage_solution_commit?: boolean | null
           updated_at?: string
         }
         Relationships: [
@@ -3456,6 +3477,7 @@ export type Database = {
           user_agent: string
         }[]
       }
+      mark_my_reviews_seen: { Args: never; Returns: number }
       merge_contacts: {
         Args: { _losers: string[]; _master: string }
         Returns: Json

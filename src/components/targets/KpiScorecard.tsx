@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchDialpadHours } from "@/lib/dialpadHours";
 import {
   DIAGNOSTICS, PRODUCTIVE_IDLE_CUTOFF_MIN, bandStatus, productiveHours, rampForTenure, type DiagKey,
 } from "@/lib/kpiStandards";
@@ -16,6 +17,22 @@ function localDayKey(ms: number) {
   const d = new Date(ms);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
+
+/** Per-call stage flags: manager review overrides the AI score. */
+async function fetchStages(since: string) {
+  const [sc, rv] = await Promise.all([
+    supabase.from("call_scores").select("call_log_id, stage_problem_solution, stage_solution_commit, stage_showed_qualified, call_logs!inner(user_id)").gte("created_at", since).limit(5000),
+    supabase.from("call_reviews").select("call_log_id, stage_problem_solution, stage_solution_commit, stage_showed_qualified").gte("created_at", since).limit(5000),
+  ]);
+  const byLog = new Map<string, any>();
+  for (const r of (sc.data ?? []) as any[]) byLog.set(r.call_log_id, { ...r, user_id: r.call_logs?.user_id });
+  for (const r of (rv.data ?? []) as any[]) {
+    const b = byLog.get(r.call_log_id); if (!b) continue;
+    for (const k of STAGE_KEYS) if (r[k] != null) b[k] = r[k];
+  }
+  return [...byLog.values()];
+}
+const STAGE_KEYS = ["stage_problem_solution", "stage_solution_commit", "stage_showed_qualified"] as const;
 
 function useScorecardData(days: number) {
   return useQuery({
@@ -35,21 +52,23 @@ function useScorecardData(days: number) {
         logs.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
-      const [profiles, appts] = await Promise.all([
+      const [profiles, appts, dp, stages] = await Promise.all([
         supabase.from("profiles").select("user_id, display_name, email, created_at, is_active"),
         supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
+        fetchDialpadHours(since),
+        fetchStages(since),
       ]);
       if (profiles.error) throw profiles.error;
       if (appts.error) throw appts.error;
-      return { logs, profiles: profiles.data ?? [], appts: appts.data ?? [] };
+      return { logs, profiles: profiles.data ?? [], appts: appts.data ?? [], dp, stages };
     },
   });
 }
 
 interface RepRow {
   userId: string; name: string; tenureDay: number; bandLabel: string;
-  activeDays: number; hoursPerDay: number; hoursTarget: number;
+  activeDays: number; estimated: boolean; stageCalls: number; hoursPerDay: number; hoursTarget: number;
   booksPerHour: number | null; booksTarget: number | null; minToPass: number | null;
   setsPerDay: number; setsTarget: number | null;
   showRate: number | null; showTarget: number | null;
@@ -100,16 +119,22 @@ export function KpiScorecard({ userId }: { userId?: string }) {
         if ((l.dialpad_talk_time_seconds ?? 0) > 15) conv++;
         if (l.outcome === "booked") bookings++;
       }
+      const dp = data.dp.get(uid);
       let hours = 0;
-      for (const ts of perDay.values()) hours += productiveHours(ts);
-      const activeDays = perDay.size || 1;
+      if (dp) hours = dp.hours; else for (const ts of perDay.values()) hours += productiveHours(ts);
+      const activeDays = (dp ? dp.days : perDay.size) || 1;
+      const st = data.stages.filter((x: any) => x.user_id === uid);
+      const rate = (k: typeof STAGE_KEYS[number]) => {
+        const v = st.filter((x: any) => x[k] != null);
+        return v.length ? (100 * v.filter((x: any) => x[k]).length) / v.length : null;
+      };
       const mine = data.appts.filter((a: any) => a.created_by === uid && a.appointment_outcome);
       const showed = mine.filter((a: any) => SHOWED.has(a.appointment_outcome)).length;
       const decided = mine.filter((a: any) => a.appointment_outcome !== "rescheduled").length;
       out.push({
         userId: uid,
         name: p?.display_name || p?.email?.split("@")[0] || "Unknown",
-        tenureDay: day, bandLabel: band.label, activeDays,
+        tenureDay: day, bandLabel: band.label, activeDays, estimated: !dp, stageCalls: st.length,
         hoursPerDay: hours / activeDays, hoursTarget: band.hoursPerDay,
         booksPerHour: hours > 0.25 ? bookings / hours : null, booksTarget: band.booksPerHour, minToPass: band.minToPass,
         setsPerDay: bookings / activeDays, setsTarget: band.setsPerDay,
@@ -119,6 +144,10 @@ export function KpiScorecard({ userId }: { userId?: string }) {
           pickup_rate: logs.length ? (100 * pickups) / logs.length : null,
           pickup_to_conversation: pickups ? Math.min(100, (100 * conv) / pickups) : null,
           bookings_per_pickup: pickups ? (100 * bookings) / pickups : null,
+          problem_to_solution: rate("stage_problem_solution"),
+          solution_to_commitment: rate("stage_solution_commit"),
+          // Qualified = showed and progressed (closed, verbal, 2nd meeting, follow-up) — not a flat "showed, no close".
+          showed_to_qualified: showed ? (100 * mine.filter((a: any) => SHOWED.has(a.appointment_outcome) && a.appointment_outcome !== "showed_no_close").length) / showed : null,
         },
       });
     }
@@ -140,7 +169,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
               <Gauge className="h-5 w-5 text-primary" /> KPI scorecard
             </CardTitle>
             <CardDescription>
-              Actual vs ramp target for each rep's tenure. Productive hours locked to a {PRODUCTIVE_IDLE_CUTOFF_MIN}-minute idle cutoff.
+              Actual vs ramp target for each rep's tenure. Productive hours from Dialpad calls, joined where gaps are ≤{PRODUCTIVE_IDLE_CUTOFF_MIN} minutes.
             </CardDescription>
           </div>
           <div className="flex gap-1">
@@ -177,7 +206,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
                   return (
                     <tr key={r.userId} className="border-b border-border/50 last:border-0">
                       <td className="py-2 pr-3 font-medium">{r.name}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{r.bandLabel} <span className="font-mono">(d{r.tenureDay})</span></td>
+                      <td className="py-2 pr-3 text-muted-foreground">{r.bandLabel} <span className="font-mono">(d{r.tenureDay})</span>{r.estimated && <span className="block text-[10px]">hours estimated</span>}</td>
                       <Cell value={r.hoursPerDay} target={r.hoursTarget} digits={1} />
                       <Cell value={r.booksPerHour} target={r.booksTarget} floor={r.minToPass} />
                       <Cell value={r.setsPerDay} target={r.setsTarget} digits={1} />
@@ -232,7 +261,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
             </table>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Funnel-stage rates (problem → commitment) and showed → qualified aren't tracked per call yet, so they show n/a.
+            Stage rates come from each scored call (AI-graded from the transcript; a manager review overrides it). Hours come from Dialpad call records; "estimated" means no Dialpad calls, so app dial gaps were used.
           </p>
         </div>
 
