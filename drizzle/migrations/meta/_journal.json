@@ -57,6 +57,13 @@
       "when": 1790390513566,
       "tag": "0007_ghl_note_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790402942442,
+      "tag": "0008_leaderboard_role_visibility",
+      "breakpoints": true
     }
   ]
 }
