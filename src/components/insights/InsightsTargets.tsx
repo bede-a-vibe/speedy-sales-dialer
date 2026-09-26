@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { TargetComparisonPanel } from "@/components/reports/TargetComparisonPanel";
 import { ForecastingTab } from "@/components/analytics/ForecastingTab";
+import { KpiScorecard } from "@/components/targets/KpiScorecard";
 import { TargetsBody } from "@/pages/TargetsPage";
 import type { ReportMetrics } from "@/lib/reportMetrics";
 
@@ -37,6 +38,7 @@ export function InsightsTargets({ dateFrom, dateTo, metrics, teamMetrics, active
 
   return (
     <div className="space-y-5">
+      <KpiScorecard userId={activeRepId} />
       <TargetComparisonPanel
         activeRepId={activeRepId}
         selectedRepLabel={selectedRepLabel}
