@@ -28,6 +28,7 @@ export default function TrainingPage() {
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
         <OnboardingPath />
+        <SetterScriptPanel />
 
         <section className="rounded-2xl border border-border bg-card p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
