@@ -100,3 +100,22 @@ export function dailyTargetsFor(band: RampBand): DailyTargets {
 export function periodDays(period: "day" | "week" | "month"): number {
   return period === "day" ? 1 : period === "week" ? WORKING_DAYS_PER_WEEK : PRODUCTIVE_DAYS_PER_MONTH;
 }
+
+/**
+ * Productive hours from real Dialpad call spans (start→end). Calls whose gap to
+ * the previous call's end is ≤15 min are joined into one session; hours = sum of
+ * session spans. Same locked cutoff, measured on actual call times.
+ */
+export function productiveHoursFromCalls(spans: { start: number; end: number }[]): number {
+  if (!spans.length) return 0;
+  const s = [...spans].sort((a, b) => a.start - b.start);
+  const cutoff = PRODUCTIVE_IDLE_CUTOFF_MIN * 60_000;
+  let ms = 0, curStart = s[0].start, curEnd = Math.max(s[0].start, s[0].end);
+  for (let i = 1; i < s.length; i++) {
+    const { start, end } = s[i];
+    if (start - curEnd <= cutoff) curEnd = Math.max(curEnd, end);
+    else { ms += curEnd - curStart; curStart = start; curEnd = Math.max(start, end); }
+  }
+  ms += curEnd - curStart;
+  return ms / 3_600_000;
+}
