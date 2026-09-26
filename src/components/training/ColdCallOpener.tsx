@@ -55,7 +55,7 @@ const THE_OPENER: { beat: string; say: string; note: string }[] = [
   {
     beat: "3. Reason for the call",
     say: '"I gave you a call back in [month] now, just around doing a bit of advertising for the business. Do you remember speaking with me?"',
-    note: "Only on a lead we have actually called before. Check the contact record. If the attempt count is zero, this line is a lie and prospects catch it.",
+    note: "Say it like a fact you are recalling, not a question you are hoping lands. Rushing it or going up at the end is what makes people suspicious, not the content. Expect a no — a no here is normal and the next beat handles it.",
   },
   {
     beat: "4. Absorb the no in half a sentence",
@@ -158,34 +158,45 @@ export function ColdCallOpener() {
 
       <PanelSection
         icon={FlaskConical}
-        title="Read this before you ring a lead we have never called"
-        description="The most important limitation on everything above."
+        title="The opener is a re-dial opener. Know what that means."
+        description="It shapes which leads you should be working, and it tells you exactly what pushback to expect."
       >
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
           <p>
-            Of 436 recorded cold calls, <span className="font-semibold">330 open with a re-dial line</span> ("I gave
-            you a call back in December", "do you remember speaking with me"). Only{" "}
-            <span className="font-semibold">3</span> open as a genuine first contact, and{" "}
-            <span className="font-semibold">none of those 3 booked.</span>
+            Of 436 recorded cold calls, <span className="font-semibold">330 open with the re-dial line</span>. Only{" "}
+            <span className="font-semibold">3</span> opened as a stated first contact, and none of those booked. Every
+            one of our 24 booked cold calls used the re-dial opener.
           </p>
-          <p className="mt-2">
-            Every one of our 24 booked cold calls is a re-dial of someone we had contacted before. We have no
-            validated first-touch opener. Anyone who tells you otherwise is guessing.
+          <p className="mt-2 text-xs text-muted-foreground">
+            So the script is proven, and it is proven in this exact form. What we have no data on is how it performs on
+            a lead nobody has ever rung — almost our entire corpus was genuine callbacks. You will be the first real
+            read on that, which is another reason the stage ticks matter.
           </p>
         </div>
+
         <div className="mt-3 space-y-1.5 text-sm">
-          <p className="font-medium">What that means for your queue</p>
+          <p className="font-medium">Work the re-dial pool first</p>
           <p className="text-muted-foreground">
-            Work the leads with 1 to 9 previous attempts first. That is where the proven opener applies, and there
-            are just under 4,000 of them sitting under-worked. The 27,879 never-called leads are a different job with
-            no script behind it yet.
+            Just under 4,000 leads have 1 to 9 previous attempts and are sitting under-worked. Those are the calls this
+            opener was built on and where it is most likely to land. There are also 27,879 never-called leads — get to
+            them, but start where the evidence is.
           </p>
-          <p className="pt-1 font-medium">If you are on a first-touch call anyway</p>
-          <p className="text-muted-foreground">
-            Say your full name and company, say you have not spoken before, and go straight to a question about their
-            work. Do not imply prior contact to buy warmth. One prospect who got that treatment said:{" "}
-            <span className="italic">"I don't know you, you're calling me like I know you. It's such a strange approach. It's bizarre."</span>{" "}
-            That call was unrecoverable.
+        </div>
+
+        <div className="mt-3 rounded-md border border-primary/25 bg-primary/5 p-3">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-primary">If they push back hard</p>
+          <p className="mt-1 text-sm">
+            Occasionally you will get a proper challenge:{" "}
+            <span className="italic">"I don't know you, you're calling me like I know you."</span> The mistake is
+            arguing the point — on the one recording where that happened, the rep defended it and lost the call.
+          </p>
+          <p className="mt-1.5 text-sm font-medium">
+            "Might've been one of the boys, mate — we've got a few here. Either way, I just had it in the calendar to
+            see how things have been going. How's business?"
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Concede the ground, do not defend it, and get straight back to the pivot. The call is about their business,
+            not about who rang who in December.
           </p>
         </div>
       </PanelSection>

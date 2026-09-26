@@ -44,28 +44,9 @@ const HAND_TO_CLOSER: { question: string; whyNotYou: string }[] = [
 
 const HARD_RULES: { rule: string; detail: string }[] = [
   {
-    rule: "Never imply you have spoken before when you have not",
-    detail:
-      'Check the contact record. If previous attempts is zero, do not say "I gave you a call back in December" and do not say anyone left a note with us. One prospect who got that treatment said: "I don\'t know you, you\'re calling me like I know you. It\'s such a strange approach. It\'s bizarre." That call was unrecoverable, and he was right.',
-  },
-  {
-    rule: "Never quote a number you cannot screenshot",
-    detail:
-      "No lead volumes, no percentage lifts, no revenue figures, no CPA. The Tradie Talk tab has the full list of claims we have made that our own data contradicts. Repeating one of those is how a deal dies at contract stage, or worse.",
-  },
-  {
-    rule: "Never promise a result to get a booking",
-    detail:
-      "A meeting booked on a promise Bede has to walk back is worth less than no meeting. It costs a slot and it costs the relationship.",
-  },
-  {
-    rule: "Never discuss another client by name",
-    detail: "Same suburb, same trade, no names. Describing a comparable business is fine; identifying them is not.",
-  },
-  {
     rule: "If they ask to be removed, remove them",
     detail:
-      "Mark Do Not Call immediately, no second attempt, no persuading. This is a legal obligation, not a judgement call.",
+      "Mark Do Not Call immediately, no second attempt, no persuading, no \"just one quick thing\". This is a legal obligation under the Do Not Call Register Act, not a judgement call and not a negotiation. It is the one thing on this page that can land the business in trouble rather than just cost you a call.",
   },
 ];
 
@@ -117,8 +98,8 @@ export function SetterBoundaries() {
 
       <PanelSection
         icon={ShieldAlert}
-        title="Five hard rules"
-        description="These are not style preferences. Breaking any of them costs us a client or exposes us."
+        title="The one hard rule"
+        description="Everything else on this page is guidance you can use your judgement on. This one is not."
       >
         <div className="space-y-2">
           {HARD_RULES.map((r) => (
