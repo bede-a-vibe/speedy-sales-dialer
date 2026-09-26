@@ -83,3 +83,20 @@ export function productiveHours(timestamps: number[]): number {
   }
   return ms / 3_600_000;
 }
+
+/** Steady-state closes per show (0.68 / 2.70) — used to derive closed targets from ramp shows. */
+export const CLOSE_PER_SHOW = 0.68 / 2.7;
+export const WORKING_DAYS_PER_WEEK = 5;
+
+export interface DailyTargets { hours: number; sets: number | null; showed: number | null; closed: number | null; booksPerHour: number | null }
+
+export function dailyTargetsFor(band: RampBand): DailyTargets {
+  const sets = band.setsPerDay;
+  const showed = sets != null && band.showRate != null ? sets * (band.showRate / 100) : null;
+  return { hours: band.hoursPerDay, sets, showed, closed: showed != null ? showed * CLOSE_PER_SHOW : null, booksPerHour: band.booksPerHour };
+}
+
+/** Full-period multiplier: day = 1, week = 5, month = 18.6 productive days. */
+export function periodDays(period: "day" | "week" | "month"): number {
+  return period === "day" ? 1 : period === "week" ? WORKING_DAYS_PER_WEEK : PRODUCTIVE_DAYS_PER_MONTH;
+}
