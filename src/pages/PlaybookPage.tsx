@@ -88,7 +88,7 @@ export default function PlaybookPage() {
             </p>
           </div>
           <div className="text-xs font-mono text-muted-foreground">
-            {totals.total} objection{totals.total === 1 ? "" : "s"} in the bank
+            {totalObjections} objection{totalObjections === 1 ? "" : "s"} in the bank
           </div>
         </div>
 
