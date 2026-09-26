@@ -94,17 +94,19 @@ export function CallReviewQueue() {
 }
 
 function ReviewDialog({ call, repName, existing, onClose }: {
-  call: ReviewableCall; repName: string; existing?: { score: number; went_well: string | null; improve: string | null }; onClose: () => void;
+  call: ReviewableCall; repName: string; existing?: { score: number; went_well: string | null; improve: string | null; stage_problem_solution?: boolean | null; stage_solution_commit?: boolean | null }; onClose: () => void;
 }) {
   const [score, setScore] = useState(existing?.score ?? 0);
   const [wentWell, setWentWell] = useState(existing?.went_well ?? "");
   const [improve, setImprove] = useState(existing?.improve ?? "");
+  const [ps, setPs] = useState<boolean | null>(existing?.stage_problem_solution ?? null);
+  const [sc, setSc] = useState<boolean | null>(existing?.stage_solution_commit ?? null);
   const save = useSaveReview();
   const { toast } = useToast();
 
   const submit = async () => {
     try {
-      await save.mutateAsync({ call_log_id: call.id, rep_user_id: call.user_id, score, went_well: wentWell, improve });
+      await save.mutateAsync({ call_log_id: call.id, rep_user_id: call.user_id, score, went_well: wentWell, improve, stage_problem_solution: ps, stage_solution_commit: sc });
       toast({ title: "Review saved", description: `${repName} will see it on their Training page.` });
       onClose();
     } catch (e: any) {
@@ -136,6 +138,16 @@ function ReviewDialog({ call, repName, existing, onClose }: {
                 ))}
               </div>
             </div>
+            {([["Problem found → solution presented", ps, setPs], ["Solution → commitment", sc, setSc]] as const).map(([label, v, set]) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                <span>{label}</span>
+                <div className="flex gap-1">
+                  {([["Yes", true], ["No", false], ["AI", null]] as const).map(([l, val]) => (
+                    <Button key={l} type="button" size="sm" variant={v === val ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => set(val as boolean | null)}>{l}</Button>
+                  ))}
+                </div>
+              </div>
+            ))}
             <div>
               <p className="mb-1.5 text-xs font-medium">What went well</p>
               <Textarea value={wentWell} onChange={(e) => setWentWell(e.target.value)} rows={4} />

@@ -25,7 +25,7 @@ export interface ReviewableCall {
 
 export interface CallReview {
   id: string; call_log_id: string; rep_user_id: string; reviewer_id: string;
-  score: number; went_well: string | null; improve: string | null; created_at: string;
+  score: number; went_well: string | null; improve: string | null; created_at: string; seen_at?: string | null; stage_problem_solution?: boolean | null; stage_solution_commit?: boolean | null;
 }
 
 /** Calls worth a manager's ear from the last 14 days: booked or a real conversation (60s+). */
@@ -59,10 +59,10 @@ export function useReviewQueue() {
 export function useSaveReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (r: { call_log_id: string; rep_user_id: string; score: number; went_well: string; improve: string }) => {
+    mutationFn: async (r: { call_log_id: string; rep_user_id: string; score: number; went_well: string; improve: string; stage_problem_solution?: boolean | null; stage_solution_commit?: boolean | null }) => {
       const { data: auth } = await supabase.auth.getUser();
       const { error } = await supabase.from("call_reviews").upsert(
-        { ...r, reviewer_id: auth.user!.id },
+        { ...r, reviewer_id: auth.user!.id, seen_at: null },
         { onConflict: "call_log_id" },
       );
       if (error) throw error;
@@ -70,7 +70,31 @@ export function useSaveReview() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["review-queue"] });
       qc.invalidateQueries({ queryKey: ["my-call-reviews"] });
+      qc.invalidateQueries({ queryKey: ["kpi-scorecard"] });
     },
+  });
+}
+
+/** Number of manager reviews the signed-in rep hasn't opened yet. */
+export function useUnseenReviewCount() {
+  return useQuery({
+    queryKey: ["unseen-reviews"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return 0;
+      const { count } = await supabase.from("call_reviews").select("id", { count: "exact", head: true })
+        .eq("rep_user_id", auth.user.id).is("seen_at", null);
+      return count ?? 0;
+    },
+  });
+}
+
+export function useMarkReviewsSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => { await supabase.rpc("mark_my_reviews_seen"); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["unseen-reviews"] }),
   });
 }
 
