@@ -59,7 +59,7 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
     repMap.set(uid, existing);
   }
 
-  const reps: RepStats[] = Array.from(repMap.entries())
+  const allReps: RepStats[] = Array.from(repMap.entries())
     .map(([userId, stats]) => ({
       userId,
       name: stats.name,
@@ -68,6 +68,11 @@ export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboa
       conversionPct: stats.calls > 0 ? Math.round((stats.booked / stats.calls) * 100) : 0,
     }))
     .sort((a, b) => b.booked - a.booked || b.calls - a.calls);
+
+  const reps: RepStats[] =
+    canViewAdmin || adminIds.size === 0
+      ? allReps
+      : allReps.filter((r) => !adminIds.has(r.userId) || r.userId === user?.id);
 
   if (isLoading) {
     return (
