@@ -535,6 +535,12 @@ export type Database = {
           created_at: string
           created_by: string
           dialpad_call_id: string | null
+          ghl_next_retry_at: string
+          ghl_note_id: string | null
+          ghl_sync_attempts: number
+          ghl_sync_enrolled: boolean
+          ghl_sync_error: string | null
+          ghl_synced_at: string | null
           id: string
           source: Database["public"]["Enums"]["contact_note_source"]
           updated_at: string
@@ -545,6 +551,12 @@ export type Database = {
           created_at?: string
           created_by: string
           dialpad_call_id?: string | null
+          ghl_next_retry_at?: string
+          ghl_note_id?: string | null
+          ghl_sync_attempts?: number
+          ghl_sync_enrolled?: boolean
+          ghl_sync_error?: string | null
+          ghl_synced_at?: string | null
           id?: string
           source: Database["public"]["Enums"]["contact_note_source"]
           updated_at?: string
@@ -555,6 +567,12 @@ export type Database = {
           created_at?: string
           created_by?: string
           dialpad_call_id?: string | null
+          ghl_next_retry_at?: string
+          ghl_note_id?: string | null
+          ghl_sync_attempts?: number
+          ghl_sync_enrolled?: boolean
+          ghl_sync_error?: string | null
+          ghl_synced_at?: string | null
           id?: string
           source?: Database["public"]["Enums"]["contact_note_source"]
           updated_at?: string
@@ -2009,6 +2027,45 @@ export type Database = {
           imported?: number
           skipped_dupe?: number
           skipped_excluded?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ghl_note_deletions: {
+        Row: {
+          attempt_count: number
+          contact_note_id: string
+          created_at: string
+          ghl_contact_id: string
+          ghl_note_id: string
+          id: string
+          last_error: string | null
+          next_retry_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          contact_note_id: string
+          created_at?: string
+          ghl_contact_id: string
+          ghl_note_id: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          contact_note_id?: string
+          created_at?: string
+          ghl_contact_id?: string
+          ghl_note_id?: string
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string
+          status?: string
           updated_at?: string
         }
         Relationships: []

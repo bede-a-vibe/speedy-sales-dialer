@@ -50,6 +50,13 @@
       "when": 1790390481203,
       "tag": "0006_ghl_calls_and_sync_state",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790390513566,
+      "tag": "0007_ghl_note_sync",
+      "breakpoints": true
     }
   ]
 }
