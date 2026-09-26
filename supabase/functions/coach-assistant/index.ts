@@ -265,14 +265,14 @@ function formatGrounding(rows: ObjectionRow[]): string {
     .join("\n");
 }
 
-async function callAI(messages: Array<{ role: string; content: string }>, opts?: { json?: boolean; temperature?: number }) {
+async function callAI(messages: Array<{ role: string; content: string }>, opts?: { json?: boolean; temperature?: number; maxTokens?: number }) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
   const body: Record<string, unknown> = {
     model: MODEL,
     messages,
     temperature: opts?.temperature ?? 0.7,
-    max_tokens: 800,
+    max_tokens: opts?.maxTokens ?? 800,
   };
   if (opts?.json) body.response_format = { type: "json_object" };
 
