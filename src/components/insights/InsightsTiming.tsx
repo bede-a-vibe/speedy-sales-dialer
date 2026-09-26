@@ -8,6 +8,7 @@ import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
 import { DialClockCard } from "@/components/insights/DialClockCard";
+import { ProductiveHoursCard } from "@/components/insights/ProductiveHoursCard";
 import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
 
 interface Props {
@@ -40,8 +41,20 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
     [callLogs, activeRepId],
   );
 
+  // Bookings attributed to the selected rep, for books-per-productive-hour.
+  const bookingCount = useMemo(
+    () => (activeRepId ? bookings.filter((b) => b?.created_by === activeRepId).length : bookings.length),
+    [bookings, activeRepId],
+  );
+
   return (
     <div className="space-y-5">
+      <ProductiveHoursCard
+        callLogs={callLogs}
+        bookings={bookingCount}
+        activeRepId={activeRepId}
+        selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+      />
       <DialClockCard
         dateFrom={dateFrom}
         dateTo={dateTo}
