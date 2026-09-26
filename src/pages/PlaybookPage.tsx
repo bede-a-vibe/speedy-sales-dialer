@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { BookOpen, Sparkles, Wand2, MessageSquareText, Loader2, Phone } from "lucide-react";
+import { BookOpen, Sparkles, Wand2, MessageSquareText, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
-import { ColdCallOpener } from "@/components/training/ColdCallOpener";
-import { ColdBrushOffs } from "@/components/training/ColdBrushOffs";
-import { SetterBoundaries } from "@/components/training/SetterBoundaries";
+import { ColdCallAcademy } from "@/components/training/ColdCallAcademy";
 import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 import { ObjectionBankPanel, OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from "@/components/training/ObjectionBankPanel";
 import { useObjectionBank } from "@/hooks/useCallLearnings";
@@ -96,38 +93,10 @@ export default function PlaybookPage() {
           </div>
         </div>
 
-        {/* Cold calling — built from our own 436 recorded cold dials, not the
-            booked-sales-call research. This is the section a setter opens
+        {/* Cold-call training: five modules built from our own call history,
+            not the booked-sales-call research. This is what a setter opens
             mid-shift, so it sits above everything else. */}
-        <Card className="border-primary/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Phone className="h-4 w-4 text-primary" />
-              Cold calling
-            </CardTitle>
-            <CardDescription>
-              Measured against 436 of our own recorded cold dials, 29 of which booked. Baseline book rate 6.7%.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="opener" className="space-y-4">
-              <TabsList className="grid h-auto grid-cols-1 gap-2 bg-transparent p-0 sm:grid-cols-3">
-                <TabsTrigger value="opener" className="border border-primary/40 bg-primary/5">
-                  First 15 seconds
-                </TabsTrigger>
-                <TabsTrigger value="brushoffs" className="border border-primary/40 bg-primary/5">
-                  Brush-offs
-                </TabsTrigger>
-                <TabsTrigger value="remit" className="border border-border bg-muted/40">
-                  Your remit
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="opener"><ColdCallOpener /></TabsContent>
-              <TabsContent value="brushoffs"><ColdBrushOffs /></TabsContent>
-              <TabsContent value="remit"><SetterBoundaries /></TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        <ColdCallAcademy />
 
         <WinningCallsLibrary />
 
