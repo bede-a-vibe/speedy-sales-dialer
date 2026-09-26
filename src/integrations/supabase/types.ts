@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -53,48 +53,6 @@ export type Database = {
           platform?: string
           spend?: number
           updated_at?: string
-        }
-        Relationships: []
-      }
-      archived_no_web_backup: {
-        Row: {
-          archived_at: string | null
-          business_name: string | null
-          id: string | null
-          lead_source: string | null
-          lead_type: string | null
-          phone: string | null
-        }
-        Insert: {
-          archived_at?: string | null
-          business_name?: string | null
-          id?: string | null
-          lead_source?: string | null
-          lead_type?: string | null
-          phone?: string | null
-        }
-        Update: {
-          archived_at?: string | null
-          business_name?: string | null
-          id?: string | null
-          lead_source?: string | null
-          lead_type?: string | null
-          phone?: string | null
-        }
-        Relationships: []
-      }
-      au_locality_state: {
-        Row: {
-          locality: string
-          state: string
-        }
-        Insert: {
-          locality: string
-          state: string
-        }
-        Update: {
-          locality?: string
-          state?: string
         }
         Relationships: []
       }
@@ -600,33 +558,22 @@ export type Database = {
           dm_linkedin: string | null
           dm_name: string | null
           dm_phone: string | null
-          dm_phone_blocklist: string[]
           dm_phone_type: string | null
-          dm_phone_verified: boolean
-          dm_phone_verified_at: string | null
           dm_role: string | null
           dnc_notes: string | null
           dnc_reason: string | null
           dnc_recorded_at: string | null
           email: string | null
-          eod_email_flagged_at: string | null
-          eod_email_flagged_by: string | null
-          eod_email_sent_at: string | null
           existing_agency_name: string | null
           existing_agency_notes: string | null
           existing_agency_services: string[]
-          fbclid: string | null
           follow_up_note: string | null
           gatekeeper_name: string | null
           gatekeeper_notes: string | null
           gbp_rating: number | null
-          gbraid: string | null
-          gclid: string | null
           ghl_contact_id: string | null
           ghl_contact_id_legacy: string | null
           gmb_link: string | null
-          gmb_lookup_at: string | null
-          gmb_lookup_attempted: boolean
           google_rating: number | null
           google_review_count: number | null
           has_existing_agency: boolean | null
@@ -638,7 +585,6 @@ export type Database = {
           is_archived: boolean
           is_dnc: boolean
           key_quote: string | null
-          landing_page_url: string | null
           last_call_sentiment: string | null
           last_called_at: string | null
           last_outcome: Database["public"]["Enums"]["call_outcome"] | null
@@ -648,7 +594,6 @@ export type Database = {
           latest_appointment_recorded_at: string | null
           latest_appointment_scheduled_for: string | null
           lead_channel: string | null
-          lead_ref: string | null
           lead_source: string | null
           lead_type: string
           lifecycle_reason: string | null
@@ -663,25 +608,14 @@ export type Database = {
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
           prospect_tier: string | null
-          qualified: boolean
-          qualified_at: string | null
           review_count: number | null
           state: string | null
-          state_backfill_at: string | null
-          state_backfill_attempted: boolean
-          state_backfill_result: string | null
           status: string
           tags: string[]
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
           voicemail_count: number
-          wbraid: string | null
           website: string | null
           work_type: string | null
           years_in_business: number | null
@@ -716,33 +650,22 @@ export type Database = {
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
-          dm_phone_blocklist?: string[]
           dm_phone_type?: string | null
-          dm_phone_verified?: boolean
-          dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
           dnc_reason?: string | null
           dnc_recorded_at?: string | null
           email?: string | null
-          eod_email_flagged_at?: string | null
-          eod_email_flagged_by?: string | null
-          eod_email_sent_at?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
-          fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
-          gbraid?: string | null
-          gclid?: string | null
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
-          gmb_lookup_at?: string | null
-          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
@@ -754,7 +677,6 @@ export type Database = {
           is_archived?: boolean
           is_dnc?: boolean
           key_quote?: string | null
-          landing_page_url?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -764,7 +686,6 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           lead_channel?: string | null
-          lead_ref?: string | null
           lead_source?: string | null
           lead_type?: string
           lifecycle_reason?: string | null
@@ -779,25 +700,14 @@ export type Database = {
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
-          qualified?: boolean
-          qualified_at?: string | null
           review_count?: number | null
           state?: string | null
-          state_backfill_at?: string | null
-          state_backfill_attempted?: boolean
-          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
           voicemail_count?: number
-          wbraid?: string | null
           website?: string | null
           work_type?: string | null
           years_in_business?: number | null
@@ -832,33 +742,22 @@ export type Database = {
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
-          dm_phone_blocklist?: string[]
           dm_phone_type?: string | null
-          dm_phone_verified?: boolean
-          dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
           dnc_reason?: string | null
           dnc_recorded_at?: string | null
           email?: string | null
-          eod_email_flagged_at?: string | null
-          eod_email_flagged_by?: string | null
-          eod_email_sent_at?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
           existing_agency_services?: string[]
-          fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
           gbp_rating?: number | null
-          gbraid?: string | null
-          gclid?: string | null
           ghl_contact_id?: string | null
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
-          gmb_lookup_at?: string | null
-          gmb_lookup_attempted?: boolean
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
@@ -870,7 +769,6 @@ export type Database = {
           is_archived?: boolean
           is_dnc?: boolean
           key_quote?: string | null
-          landing_page_url?: string | null
           last_call_sentiment?: string | null
           last_called_at?: string | null
           last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
@@ -880,7 +778,6 @@ export type Database = {
           latest_appointment_recorded_at?: string | null
           latest_appointment_scheduled_for?: string | null
           lead_channel?: string | null
-          lead_ref?: string | null
           lead_source?: string | null
           lead_type?: string
           lifecycle_reason?: string | null
@@ -895,25 +792,14 @@ export type Database = {
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
           prospect_tier?: string | null
-          qualified?: boolean
-          qualified_at?: string | null
           review_count?: number | null
           state?: string | null
-          state_backfill_at?: string | null
-          state_backfill_attempted?: boolean
-          state_backfill_result?: string | null
           status?: string
           tags?: string[]
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
           voicemail_count?: number
-          wbraid?: string | null
           website?: string | null
           work_type?: string | null
           years_in_business?: number | null
@@ -1167,63 +1053,6 @@ export type Database = {
           last_run_at?: string | null
           last_synced_at?: string | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      dm_bleed_backup_20260915: {
-        Row: {
-          backed_up_at: string
-          best_route_to_decision_maker: string | null
-          business_name: string | null
-          dm_name: string | null
-          dm_phone: string | null
-          dm_phone_type: string | null
-          id: string | null
-          phone: string | null
-          reason: string | null
-        }
-        Insert: {
-          backed_up_at?: string
-          best_route_to_decision_maker?: string | null
-          business_name?: string | null
-          dm_name?: string | null
-          dm_phone?: string | null
-          dm_phone_type?: string | null
-          id?: string | null
-          phone?: string | null
-          reason?: string | null
-        }
-        Update: {
-          backed_up_at?: string
-          best_route_to_decision_maker?: string | null
-          business_name?: string | null
-          dm_name?: string | null
-          dm_phone?: string | null
-          dm_phone_type?: string | null
-          id?: string | null
-          phone?: string | null
-          reason?: string | null
-        }
-        Relationships: []
-      }
-      dm_name_cleanup_backup: {
-        Row: {
-          backed_up_at: string | null
-          business_name: string | null
-          id: string | null
-          old_dm_name: string | null
-        }
-        Insert: {
-          backed_up_at?: string | null
-          business_name?: string | null
-          id?: string | null
-          old_dm_name?: string | null
-        }
-        Update: {
-          backed_up_at?: string | null
-          business_name?: string | null
-          id?: string | null
-          old_dm_name?: string | null
         }
         Relationships: []
       }
@@ -1758,19 +1587,13 @@ export type Database = {
           commitments: string[]
           created_at: string
           do_differently: string | null
-          energy_rating: number | null
           flagged_metric: Json | null
           flagged_response: string | null
           id: string
           manager_comment: string | null
           manager_commented_at: string | null
           manager_id: string | null
-          precall_checklist_done: boolean | null
-          recordings_reviewed: number | null
           report_date: string
-          right_headspace: boolean | null
-          script_reviewed_morning: boolean | null
-          script_reviewed_tonight: boolean | null
           submitted_at: string
           takeaways: string[]
           updated_at: string
@@ -1782,19 +1605,13 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
-          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
-          precall_checklist_done?: boolean | null
-          recordings_reviewed?: number | null
           report_date: string
-          right_headspace?: boolean | null
-          script_reviewed_morning?: boolean | null
-          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
@@ -1806,19 +1623,13 @@ export type Database = {
           commitments?: string[]
           created_at?: string
           do_differently?: string | null
-          energy_rating?: number | null
           flagged_metric?: Json | null
           flagged_response?: string | null
           id?: string
           manager_comment?: string | null
           manager_commented_at?: string | null
           manager_id?: string | null
-          precall_checklist_done?: boolean | null
-          recordings_reviewed?: number | null
           report_date?: string
-          right_headspace?: boolean | null
-          script_reviewed_morning?: boolean | null
-          script_reviewed_tonight?: boolean | null
           submitted_at?: string
           takeaways?: string[]
           updated_at?: string
@@ -1840,20 +1651,17 @@ export type Database = {
           created_at: string
           created_by_source: string | null
           end_time: string | null
+          outcome: string | null
+          outcome_notes: string | null
+          outcome_recorded_at: string | null
+          outcome_recorded_by: string | null
           ghl_assigned_user_id: string | null
           ghl_contact_id: string | null
           ghl_event_id: string
           ghl_updated_at: string | null
           id: string
           meeting_link: string | null
-          original_start_time: string | null
-          outcome: string | null
-          outcome_notes: string | null
-          outcome_reason: string | null
-          outcome_recorded_at: string | null
-          outcome_recorded_by: string | null
           raw: Json | null
-          reschedule_count: number
           start_time: string | null
           synced_at: string
           title: string | null
@@ -1871,20 +1679,17 @@ export type Database = {
           created_at?: string
           created_by_source?: string | null
           end_time?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           ghl_assigned_user_id?: string | null
           ghl_contact_id?: string | null
           ghl_event_id: string
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
-          original_start_time?: string | null
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_reason?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
           raw?: Json | null
-          reschedule_count?: number
           start_time?: string | null
           synced_at?: string
           title?: string | null
@@ -1902,24 +1707,114 @@ export type Database = {
           created_at?: string
           created_by_source?: string | null
           end_time?: string | null
+          outcome?: string | null
+          outcome_notes?: string | null
+          outcome_recorded_at?: string | null
+          outcome_recorded_by?: string | null
           ghl_assigned_user_id?: string | null
           ghl_contact_id?: string | null
           ghl_event_id?: string
           ghl_updated_at?: string | null
           id?: string
           meeting_link?: string | null
-          original_start_time?: string | null
-          outcome?: string | null
-          outcome_notes?: string | null
-          outcome_reason?: string | null
-          outcome_recorded_at?: string | null
-          outcome_recorded_by?: string | null
           raw?: Json | null
-          reschedule_count?: number
           start_time?: string | null
           synced_at?: string
           title?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      ghl_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          ghl_role: string | null
+          ghl_type: string | null
+          ghl_user_id: string
+          is_active: boolean
+          is_deleted: boolean
+          last_name: string | null
+          name: string | null
+          needs_dialpad: boolean
+          phone: string | null
+          provisioned_user_id: string | null
+          synced_at: string
+          takes_meetings: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id: string
+          is_active?: boolean
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          ghl_role?: string | null
+          ghl_type?: string | null
+          ghl_user_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          last_name?: string | null
+          name?: string | null
+          needs_dialpad?: boolean
+          phone?: string | null
+          provisioned_user_id?: string | null
+          synced_at?: string
+          takes_meetings?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meeting_outcome_log: {
+        Row: {
+          appointment_id: string
+          id: string
+          notes: string | null
+          outcome: string | null
+          outcome_reason: string | null
+          recorded_at: string
+          recorded_by: string | null
+          scheduled_for: string | null
+          source: string
+        }
+        Insert: {
+          appointment_id: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
+        }
+        Update: {
+          appointment_id?: string
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          scheduled_for?: string | null
+          source?: string
         }
         Relationships: []
       }
@@ -2028,87 +1923,6 @@ export type Database = {
           status?: string
           total?: number
           updated_at?: string
-        }
-        Relationships: []
-      }
-      ghl_users: {
-        Row: {
-          created_at: string
-          email: string | null
-          first_name: string | null
-          ghl_role: string | null
-          ghl_type: string | null
-          ghl_user_id: string
-          is_active: boolean
-          is_deleted: boolean
-          last_name: string | null
-          name: string | null
-          needs_dialpad: boolean
-          phone: string | null
-          provisioned_user_id: string | null
-          synced_at: string
-          takes_meetings: boolean
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          first_name?: string | null
-          ghl_role?: string | null
-          ghl_type?: string | null
-          ghl_user_id: string
-          is_active?: boolean
-          is_deleted?: boolean
-          last_name?: string | null
-          name?: string | null
-          needs_dialpad?: boolean
-          phone?: string | null
-          provisioned_user_id?: string | null
-          synced_at?: string
-          takes_meetings?: boolean
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          first_name?: string | null
-          ghl_role?: string | null
-          ghl_type?: string | null
-          ghl_user_id?: string
-          is_active?: boolean
-          is_deleted?: boolean
-          last_name?: string | null
-          name?: string | null
-          needs_dialpad?: boolean
-          phone?: string | null
-          provisioned_user_id?: string | null
-          synced_at?: string
-          takes_meetings?: boolean
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      junk_archive_preview: {
-        Row: {
-          business_name: string | null
-          id: string | null
-          lead_type: string | null
-          phone: string | null
-          reason: string | null
-        }
-        Insert: {
-          business_name?: string | null
-          id?: string | null
-          lead_type?: string | null
-          phone?: string | null
-          reason?: string | null
-        }
-        Update: {
-          business_name?: string | null
-          id?: string | null
-          lead_type?: string | null
-          phone?: string | null
-          reason?: string | null
         }
         Relationships: []
       }
@@ -2306,50 +2120,6 @@ export type Database = {
           label?: string | null
         }
         Relationships: []
-      }
-      meeting_outcome_log: {
-        Row: {
-          appointment_id: string
-          id: string
-          notes: string | null
-          outcome: string | null
-          outcome_reason: string | null
-          recorded_at: string
-          recorded_by: string | null
-          scheduled_for: string | null
-          source: string
-        }
-        Insert: {
-          appointment_id: string
-          id?: string
-          notes?: string | null
-          outcome?: string | null
-          outcome_reason?: string | null
-          recorded_at?: string
-          recorded_by?: string | null
-          scheduled_for?: string | null
-          source?: string
-        }
-        Update: {
-          appointment_id?: string
-          id?: string
-          notes?: string | null
-          outcome?: string | null
-          outcome_reason?: string | null
-          recorded_at?: string
-          recorded_by?: string | null
-          scheduled_for?: string | null
-          source?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meeting_outcome_log_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "ghl_appointments"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       no_show_revival_backup_20260804: {
         Row: {
@@ -2554,33 +2324,6 @@ export type Database = {
           target_value?: number
           updated_at?: string
           user_id?: string | null
-        }
-        Relationships: []
-      }
-      pipeline_audit: {
-        Row: {
-          changed_at: string
-          changed_by: string | null
-          changes: Json
-          contact_id: string | null
-          id: number
-          pipeline_item_id: string | null
-        }
-        Insert: {
-          changed_at?: string
-          changed_by?: string | null
-          changes: Json
-          contact_id?: string | null
-          id?: number
-          pipeline_item_id?: string | null
-        }
-        Update: {
-          changed_at?: string
-          changed_by?: string | null
-          changes?: Json
-          contact_id?: string | null
-          id?: number
-          pipeline_item_id?: string | null
         }
         Relationships: []
       }
@@ -2800,24 +2543,6 @@ export type Database = {
         }
         Relationships: []
       }
-      state_backfill_backup: {
-        Row: {
-          backed_up_at: string | null
-          id: string | null
-          old_state: string | null
-        }
-        Insert: {
-          backed_up_at?: string | null
-          id?: string | null
-          old_state?: string | null
-        }
-        Update: {
-          backed_up_at?: string | null
-          id?: string | null
-          old_state?: string | null
-        }
-        Relationships: []
-      }
       state_label_fix_backup: {
         Row: {
           backed_up_at: string | null
@@ -2831,21 +2556,6 @@ export type Database = {
         }
         Update: {
           backed_up_at?: string | null
-          id?: string | null
-          state?: string | null
-        }
-        Relationships: []
-      }
-      state_match_work: {
-        Row: {
-          id: string | null
-          state: string | null
-        }
-        Insert: {
-          id?: string | null
-          state?: string | null
-        }
-        Update: {
           id?: string | null
           state?: string | null
         }
@@ -2936,6 +2646,22 @@ export type Database = {
         }
         Relationships: []
       }
+      v_team_members: {
+        Row: {
+          dialer_user_id: string | null
+          email: string | null
+          ghl_role: string | null
+          ghl_user_id: string | null
+          has_dialer_login: boolean | null
+          has_dialpad_seat: boolean | null
+          in_ghl: boolean | null
+          is_active: boolean | null
+          name: string | null
+          needs_dialpad: boolean | null
+          phone: string | null
+        }
+        Relationships: []
+      }
       v_meetings_unified: {
         Row: {
           assigned_user_id: string | null
@@ -2968,22 +2694,6 @@ export type Database = {
           stream: string | null
           title: string | null
           total_amount: number | null
-        }
-        Relationships: []
-      }
-      v_team_members: {
-        Row: {
-          dialer_user_id: string | null
-          email: string | null
-          ghl_role: string | null
-          ghl_user_id: string | null
-          has_dialer_login: boolean | null
-          has_dialpad_seat: boolean | null
-          in_ghl: boolean | null
-          is_active: boolean | null
-          name: string | null
-          needs_dialpad: boolean | null
-          phone: string | null
         }
         Relationships: []
       }
@@ -3041,10 +2751,6 @@ export type Database = {
         Args: { phone_number: string }
         Returns: string
       }
-      contact_channel: {
-        Args: { _lead_channel: string; _lead_type: string }
-        Returns: string
-      }
       count_contacts_with_dm_email: {
         Args: { _email: string; _exclude_id: string }
         Returns: number
@@ -3053,7 +2759,6 @@ export type Database = {
         Args: { _digits: string; _exclude_id: string }
         Returns: number
       }
-      count_state_backfill_pending: { Args: never; Returns: number }
       export_contacts_for_ghl_link: {
         Args: never
         Returns: {
@@ -3087,22 +2792,6 @@ export type Database = {
           contact_count: number
           contact_ids: string[]
           normalized_phone: string
-        }[]
-      }
-      get_dial_hour_stats: {
-        Args: { _from: string; _to: string; _user_id?: string }
-        Returns: {
-          book_rate_pct: number
-          bookings: number
-          connects: number
-          contact_rate_pct: number
-          conv_2min: number
-          conv_rate_pct: number
-          dials: number
-          hour_of_day: number
-          leads_dialed: number
-          new_leads: number
-          redials: number
         }[]
       }
       get_dialer_filter_options: { Args: never; Returns: Json }
@@ -3141,27 +2830,6 @@ export type Database = {
         Args: { _date: string; _user_id: string }
         Returns: Json
       }
-      get_rep_meeting_stats: {
-        Args: { _from: string; _include_former?: boolean; _to: string }
-        Returns: {
-          cancelled: number
-          contacts_won: number
-          ghl_user_id: string
-          has_dialer_account: boolean
-          is_active: boolean
-          meetings_booked: number
-          noshow: number
-          pending: number
-          rep_name: string
-          rep_user_id: string
-          reschedule_rate_pct: number
-          rescheduled: number
-          reschedules: number
-          show_rate_pct: number
-          showed: number
-          upcoming: number
-        }[]
-      }
       get_source_funnel: {
         Args: {
           _basis?: string
@@ -3183,14 +2851,61 @@ export type Database = {
           noshow: number
           pending: number
           reschedule_rate_pct: number
-          rescheduled: number
           reschedules: number
+          rescheduled: number
           show_rate_pct: number
           showed: number
           source: string
           total_amount: number
           upcoming: number
         }[]
+      }
+      get_dial_hour_stats: {
+        Args: { _from: string; _to: string; _user_id?: string }
+        Returns: {
+          book_rate_pct: number
+          bookings: number
+          connects: number
+          contact_rate_pct: number
+          conv_2min: number
+          conv_rate_pct: number
+          dials: number
+          hour_of_day: number
+          leads_dialed: number
+          new_leads: number
+          redials: number
+        }[]
+      }
+      get_rep_meeting_stats: {
+        Args: { _from: string; _include_former?: boolean; _to: string }
+        Returns: {
+          cancelled: number
+          contacts_won: number
+          ghl_user_id: string
+          has_dialer_account: boolean
+          is_active: boolean
+          meetings_booked: number
+          noshow: number
+          pending: number
+          rep_name: string
+          rep_user_id: string
+          reschedule_rate_pct: number
+          reschedules: number
+          rescheduled: number
+          show_rate_pct: number
+          showed: number
+          upcoming: number
+        }[]
+      }
+      relink_ghl_appointments: { Args: never; Returns: Json }
+      set_appointment_outcome: {
+        Args: {
+          _appointment_id: string
+          _notes?: string
+          _outcome: string
+          _reason?: string
+        }
+        Returns: undefined
       }
       has_role: {
         Args: {
@@ -3199,55 +2914,15 @@ export type Database = {
         }
         Returns: boolean
       }
-      identify_inbound_caller: {
-        Args: { _digits: string }
-        Returns: {
-          business_name: string
-          call_attempt_count: number
-          dm_name: string
-          follow_up_note: string
-          gatekeeper_name: string
-          id: string
-          industry: string
-          is_archived: boolean
-          last_called_at: string
-          last_outcome: string
-          lifecycle_stage: string
-          matched_on: string
-          next_followup_date: string
-          state: string
-        }[]
-      }
       increment_rotation_dial_count: {
         Args: { _user_id: string }
         Returns: number
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
-      list_my_sessions: {
-        Args: never
-        Returns: {
-          created_at: string
-          ip: string
-          not_after: string
-          refreshed_at: string
-          session_id: string
-          updated_at: string
-          user_agent: string
-        }[]
-      }
       merge_contacts: {
         Args: { _losers: string[]; _master: string }
         Returns: Json
-      }
-      normalise_lead_channel: { Args: { _v: string }; Returns: string }
-      pick_state_backfill_contacts: {
-        Args: { _limit: number }
-        Returns: {
-          id: string
-          state: string
-          website: string
-        }[]
       }
       preview_dialer_leads:
         | {
@@ -3310,16 +2985,6 @@ export type Database = {
         Args: { _contact_ids?: string[]; _session_id: string }
         Returns: number
       }
-      relink_ghl_appointments: { Args: never; Returns: Json }
-      set_appointment_outcome: {
-        Args: {
-          _appointment_id: string
-          _notes?: string
-          _outcome: string
-          _reason?: string
-        }
-        Returns: undefined
-      }
       set_ghl_contact_id: {
         Args: { p_contact_id: string; p_ghl_contact_id: string }
         Returns: undefined
@@ -3369,12 +3034,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3398,11 +3063,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3423,11 +3088,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3448,11 +3113,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3465,11 +3130,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

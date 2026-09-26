@@ -7,6 +7,7 @@ import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
+import { DialClockCard } from "@/components/insights/DialClockCard";
 import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
 
 interface Props {
@@ -41,6 +42,12 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
 
   return (
     <div className="space-y-5">
+      <DialClockCard
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        activeRepId={activeRepId}
+        selectedRepLabel={selectedRepLabel}
+      />
       <OpenerSurvivalCard dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
       <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} />
 
