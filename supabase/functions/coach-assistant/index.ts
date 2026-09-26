@@ -685,7 +685,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ error: "Unknown mode. Use 'ask', 'roleplay', or 'opener_drill'." }, 400);
+    if (mode === "mine_objections") {
+      const { data: allowed } = await admin.rpc("is_admin_or_coach", { _user_id: user.id });
+      if (!allowed) return jsonResponse({ error: "Admins and coaches only" }, 403);
+      const limit = Number(payload?.limit ?? 8);
+      try {
+        const result = await handleMineObjections(admin, limit);
+        return jsonResponse(result);
+      } catch (err) {
+        const status = (err as { status?: number })?.status;
+        if (status === 429) return jsonResponse({ error: "Rate limited, please try again later" }, 429);
+        if (status === 402) return jsonResponse({ error: "AI credits exhausted" }, 402);
+        console.error("[coach-assistant] mine failed:", err);
+        return jsonResponse({ error: "Objection mining unavailable" }, 500);
+      }
+    }
+
+    return jsonResponse({ error: "Unknown mode. Use 'ask', 'roleplay', 'opener_drill' or 'mine_objections'." }, 400);
   } catch (err) {
     console.error("[coach-assistant] Unexpected error:", err);
     return jsonResponse({ error: "Server error" }, 500);
