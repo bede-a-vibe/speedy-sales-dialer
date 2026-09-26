@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { useWeeklyCallLogs } from "@/hooks/useCallLogs";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanViewAdmin } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Crown, Medal } from "lucide-react";
@@ -22,8 +23,21 @@ const MEDAL_COLORS = [
 
 export const TeamLeaderboard = forwardRef<HTMLDivElement>(function TeamLeaderboard(_, ref) {
   const { user } = useAuth();
+  const canViewAdmin = useCanViewAdmin();
   const { data: callLogs = [], isLoading } = useWeeklyCallLogs();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
+  const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
+
+  // Reps only compete against other reps: hide admin/coach rows from
+  // non-admin viewers. Admins and coaches see the whole team.
+  useEffect(() => {
+    if (canViewAdmin) return;
+    supabase
+      .rpc("list_admin_user_ids")
+      .then(({ data, error }) => {
+        if (!error && data) setAdminIds(new Set(data as string[]));
+      });
+  }, [canViewAdmin]);
 
   useEffect(() => {
     const fetchNames = async () => {
