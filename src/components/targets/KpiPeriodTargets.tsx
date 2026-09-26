@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchDialpadHours } from "@/lib/dialpadHours";
 import {
   PRODUCTIVE_DAYS_PER_MONTH, dailyTargetsFor, periodDays, productiveHours, rampForTenure,
 } from "@/lib/kpiStandards";
@@ -37,14 +38,15 @@ function usePeriodData(period: Period) {
         logs.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
-      const [profiles, appts] = await Promise.all([
+      const [profiles, appts, dp] = await Promise.all([
         supabase.from("profiles").select("user_id, display_name, email, created_at"),
         supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
+        fetchDialpadHours(since),
       ]);
       if (profiles.error) throw profiles.error;
       if (appts.error) throw appts.error;
-      return { logs, profiles: profiles.data ?? [], appts: appts.data ?? [] };
+      return { logs, profiles: profiles.data ?? [], appts: appts.data ?? [], dp };
     },
   });
 }
@@ -101,9 +103,11 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
         (perDay.get(k) ?? perDay.set(k, []).get(k)!).push(ms);
         if (l.outcome === "booked") sets++;
       }
+      const dp = data.dp.get(uid);
       let hours = 0;
-      for (const ts of perDay.values()) hours += productiveHours(ts);
-      const worked = perDay.size;
+      if (dp) hours = dp.hours; else for (const ts of perDay.values()) hours += productiveHours(ts);
+      const worked = dp ? dp.days : perDay.size;
+      const estimated = !dp;
       const mine = data.appts.filter((a: any) => a.created_by === uid);
       const showed = mine.filter((a: any) => SHOWED.has(a.appointment_outcome)).length;
       const closed = mine.filter((a: any) => a.appointment_outcome === "showed_closed").length;
@@ -114,7 +118,7 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
         pace: daily == null || period === "day" ? null : daily * worked,
       });
       return {
-        uid, day, band: band.label, worked,
+        uid, day, band: band.label, worked, estimated,
         name: p?.display_name || p?.email?.split("@")[0] || "Unknown",
         booksPerHour: hours > 0.25 ? sets / hours : null, booksTarget: t.booksPerHour,
         metrics: [
@@ -157,7 +161,7 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
                 <div key={r.uid} className="space-y-3 rounded-lg border border-border p-4">
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm font-medium">{r.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{r.band} · {r.worked} day{r.worked === 1 ? "" : "s"} worked</span>
+                    <span className="text-[10px] text-muted-foreground">{r.band} · {r.worked} day{r.worked === 1 ? "" : "s"} worked{r.estimated ? " · hours estimated (no Dialpad calls)" : ""}</span>
                   </div>
                   {r.metrics.map((m) => <Bar key={m.label} m={m} />)}
                   <div className="flex justify-between border-t border-border pt-2 text-xs">
