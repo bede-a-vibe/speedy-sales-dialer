@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
+import { SetterScriptPanel } from "@/components/training/SetterScriptPanel";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
