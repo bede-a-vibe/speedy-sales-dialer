@@ -305,6 +305,50 @@ export type Database = {
         }
         Relationships: []
       }
+      call_reviews: {
+        Row: {
+          call_log_id: string
+          created_at: string
+          id: string
+          improve: string | null
+          rep_user_id: string
+          reviewer_id: string
+          score: number
+          updated_at: string
+          went_well: string | null
+        }
+        Insert: {
+          call_log_id: string
+          created_at?: string
+          id?: string
+          improve?: string | null
+          rep_user_id: string
+          reviewer_id?: string
+          score: number
+          updated_at?: string
+          went_well?: string | null
+        }
+        Update: {
+          call_log_id?: string
+          created_at?: string
+          id?: string
+          improve?: string | null
+          rep_user_id?: string
+          reviewer_id?: string
+          score?: number
+          updated_at?: string
+          went_well?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_reviews_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: true
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_scores: {
         Row: {
           booking_blocker: string | null
@@ -2421,6 +2465,39 @@ export type Database = {
           name?: string | null
           raw?: Json | null
           stages?: Json | null
+        }
+        Relationships: []
+      }
+      manager_one_on_ones: {
+        Row: {
+          action_items: string | null
+          created_at: string
+          id: string
+          manager_id: string
+          meeting_date: string
+          notes: string | null
+          rep_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          action_items?: string | null
+          created_at?: string
+          id?: string
+          manager_id?: string
+          meeting_date?: string
+          notes?: string | null
+          rep_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          action_items?: string | null
+          created_at?: string
+          id?: string
+          manager_id?: string
+          meeting_date?: string
+          notes?: string | null
+          rep_user_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
