@@ -2,7 +2,7 @@ import { GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SetterScriptStages } from "@/components/training/SetterScriptStages";
+import { SetterScript } from "@/components/training/SetterScript";
 import { ReframeLibrary } from "@/components/training/ReframeLibrary";
 import { ColdCallOpener } from "@/components/training/ColdCallOpener";
 import { ColdBrushOffs } from "@/components/training/ColdBrushOffs";
@@ -28,8 +28,8 @@ const MODULES = [
     value: "script",
     n: 1,
     title: "The script",
-    blurb: "Connection, Problem, Solution, Pitch. The spine of every call, with three levels of how closely to follow it.",
-    drill: "Run Level 1 verbatim, including the pauses, until the sales lead signs you off. Read the three levels section first — it explains why Bede's own recordings ignore this script and why that is not permission.",
+    blurb: "Opener, pitch, appointment setting, ending. Four blocks, word for word. That is the whole call on day one.",
+    drill: "Run the four blocks verbatim until they are automatic, including the pauses. Do not add pre-qualifying or the commitment lock-in yet — they come later, one at a time.",
     primary: true,
   },
   {
@@ -138,7 +138,7 @@ export function ColdCallAcademy() {
                 </div>
               </div>
 
-              {m.value === "script" && <SetterScriptStages />}
+              {m.value === "script" && <SetterScript />}
               {m.value === "reframes" && <ReframeLibrary />}
               {m.value === "opener" && <ColdCallOpener />}
               {m.value === "brushoffs" && <ColdBrushOffs />}
