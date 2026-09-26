@@ -265,14 +265,14 @@ function formatGrounding(rows: ObjectionRow[]): string {
     .join("\n");
 }
 
-async function callAI(messages: Array<{ role: string; content: string }>, opts?: { json?: boolean; temperature?: number }) {
+async function callAI(messages: Array<{ role: string; content: string }>, opts?: { json?: boolean; temperature?: number; maxTokens?: number }) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
   const body: Record<string, unknown> = {
     model: MODEL,
     messages,
     temperature: opts?.temperature ?? 0.7,
-    max_tokens: 800,
+    max_tokens: opts?.maxTokens ?? 800,
   };
   if (opts?.json) body.response_format = { type: "json_object" };
 
@@ -330,6 +330,164 @@ Reply with a single NEPQ-style suggested response the rep can say next. 1-3 sent
       objection_text: g.objection_text,
       category: g.category,
     })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Objection mining: turn real call transcripts into objection-bank entries
+// ---------------------------------------------------------------------------
+
+const VALID_CATEGORIES = new Set([
+  "logistical", "fear", "smokescreen", "price", "timing", "authority", "competitor", "other",
+]);
+
+function normalizeObjectionText(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+const MINE_SYSTEM = `You extract sales objections from real cold-call transcripts for a training playbook.
+Only report objections the PROSPECT actually raised. Never invent. If the call has no real objection, return an empty array.
+Write the objection_text as a short, reusable label in the prospect's own language (max 12 words), not a full quote.`;
+
+async function extractObjectionsFromTranscript(transcript: string): Promise<Array<{
+  objection_text: string;
+  category: string;
+  rep_response: string;
+}>> {
+  const clipped = transcript.slice(0, 12000);
+  const raw = await callAI([
+    { role: "system", content: MINE_SYSTEM },
+    {
+      role: "user",
+      content: `Transcript:\n"""\n${clipped}\n"""\n\nReturn JSON only:\n{"objections":[{"objection_text":"short reusable label","category":"logistical|fear|smokescreen|price|timing|authority|competitor|other","rep_response":"what the rep actually said back, verbatim or close (max 40 words); empty string if the rep did not address it"}]}\nMaximum 4 objections.`,
+    },
+  ], { json: true, temperature: 0.2, maxTokens: 900 });
+
+  const parsed = safeJsonParse<{ objections?: unknown }>(raw) ?? {};
+  const list = Array.isArray(parsed.objections) ? parsed.objections : [];
+  const out: Array<{ objection_text: string; category: string; rep_response: string }> = [];
+  for (const item of list.slice(0, 4)) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const text = (o.objection_text ?? "").toString().trim().slice(0, 200);
+    if (text.length < 4) continue;
+    const category = VALID_CATEGORIES.has(String(o.category)) ? String(o.category) : "other";
+    const repResponse = (o.rep_response ?? "").toString().trim().slice(0, 400);
+    out.push({ objection_text: text, category, rep_response: repResponse });
+  }
+  return out;
+}
+
+async function handleMineObjections(admin: ReturnType<typeof createClient>, limit: number) {
+  const { data: minedRows } = await admin
+    .from("objection_bank")
+    .select("call_log_id")
+    .eq("source", "call")
+    .not("call_log_id", "is", null)
+    .limit(5000);
+  const alreadyMined = new Set((minedRows ?? []).map((r: { call_log_id: string }) => r.call_log_id));
+
+  const { data: logs, error: logErr } = await admin
+    .from("call_logs")
+    .select("id, contact_id, outcome, dialpad_transcript")
+    .not("dialpad_transcript", "is", null)
+    .neq("dialpad_transcript", "")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (logErr) throw logErr;
+
+  const pending = (logs ?? [])
+    .filter((l: { id: string; dialpad_transcript: string }) =>
+      !alreadyMined.has(l.id) && (l.dialpad_transcript ?? "").length > 400)
+    .slice(0, Math.max(1, Math.min(20, limit)));
+
+  let callsProcessed = 0;
+  let created = 0;
+  let reinforced = 0;
+  const found: Array<{ objection_text: string; category: string }> = [];
+
+  for (const log of pending) {
+    let extracted: Array<{ objection_text: string; category: string; rep_response: string }> = [];
+    try {
+      extracted = await extractObjectionsFromTranscript(log.dialpad_transcript as string);
+    } catch (err) {
+      console.error("[coach-assistant] mine extract failed:", err);
+      break; // rate limit / credits — stop the run, keep what we have
+    }
+    callsProcessed += 1;
+    const booked = log.outcome === "booked";
+
+    for (const obj of extracted) {
+      const normalized = normalizeObjectionText(obj.objection_text);
+      if (!normalized) continue;
+      const { data: existing } = await admin
+        .from("objection_bank")
+        .select("id, times_seen, booked_count, example_responses")
+        .eq("normalized_text", normalized)
+        .maybeSingle();
+
+      const newResponse = obj.rep_response
+        ? { response: obj.rep_response, source: booked ? "booked call" : "call" }
+        : null;
+
+      if (existing) {
+        const current = Array.isArray(existing.example_responses) ? existing.example_responses : [];
+        const merged = newResponse && !current.some((r: { response?: string }) => r?.response === newResponse.response)
+          ? [...current, newResponse].slice(-5)
+          : current;
+        await admin
+          .from("objection_bank")
+          .update({
+            times_seen: (existing.times_seen ?? 0) + 1,
+            booked_count: (existing.booked_count ?? 0) + (booked ? 1 : 0),
+            example_responses: merged,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        reinforced += 1;
+      } else {
+        const { error: insErr } = await admin.from("objection_bank").insert({
+          objection_text: obj.objection_text,
+          category: obj.category,
+          source: "call",
+          call_log_id: log.id,
+          contact_id: log.contact_id,
+          led_to_booking: booked,
+          times_seen: 1,
+          booked_count: booked ? 1 : 0,
+          example_responses: newResponse ? [newResponse] : [],
+        });
+        if (insErr) {
+          console.error("[coach-assistant] mine insert failed:", insErr);
+          continue;
+        }
+        created += 1;
+        found.push({ objection_text: obj.objection_text, category: obj.category });
+      }
+    }
+
+    // Mark calls with no objections as processed so they are not re-scanned forever.
+    if (extracted.length === 0) {
+      await admin.from("objection_bank").insert({
+        objection_text: `(no objection raised ${log.id})`,
+        category: "other",
+        source: "call",
+        call_log_id: log.id,
+        contact_id: log.contact_id,
+        led_to_booking: booked,
+        times_seen: 0,
+        booked_count: 0,
+        example_responses: [],
+      });
+    }
+  }
+
+  return {
+    calls_scanned: callsProcessed,
+    remaining: Math.max(0, (logs ?? []).filter((l: { id: string }) => !alreadyMined.has(l.id)).length - callsProcessed),
+    objections_created: created,
+    objections_reinforced: reinforced,
+    new_objections: found,
   };
 }
 
@@ -525,7 +683,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ error: "Unknown mode. Use 'ask', 'roleplay', or 'opener_drill'." }, 400);
+    if (mode === "mine_objections") {
+      const { data: allowed } = await admin.rpc("is_admin_or_coach", { _user_id: user.id });
+      if (!allowed) return jsonResponse({ error: "Admins and coaches only" }, 403);
+      const limit = Number(payload?.limit ?? 8);
+      try {
+        const result = await handleMineObjections(admin, limit);
+        return jsonResponse(result);
+      } catch (err) {
+        const status = (err as { status?: number })?.status;
+        if (status === 429) return jsonResponse({ error: "Rate limited, please try again later" }, 429);
+        if (status === 402) return jsonResponse({ error: "AI credits exhausted" }, 402);
+        console.error("[coach-assistant] mine failed:", err);
+        return jsonResponse({ error: "Objection mining unavailable" }, 500);
+      }
+    }
+
+    return jsonResponse({ error: "Unknown mode. Use 'ask', 'roleplay', 'opener_drill' or 'mine_objections'." }, 400);
   } catch (err) {
     console.error("[coach-assistant] Unexpected error:", err);
     return jsonResponse({ error: "Server error" }, 500);
