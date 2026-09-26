@@ -31,6 +31,8 @@ interface Service {
   pickWhen: string;
   careful: string;
   speed: string;
+  /** The question that surfaces whether this is already running. */
+  ask?: string;
 }
 
 const SERVICES: Service[] = [
@@ -55,11 +57,12 @@ const SERVICES: Service[] = [
   {
     name: "Google Business Profile / Maps",
     icon: MapPin,
-    plain: "The map listing with the stars. For local trades this is often where more calls come from than the website.",
-    solves: "\"I want to be in the top three in the maps within 7km of where I live\" — a real quote, and a common ask.",
-    pickWhen: "They have reviews but poor map visibility, or their listing is half-finished.",
-    careful: "Nobody asks for \"GBP\" — one prospect literally asked \"what's the GBP?\". Say \"your Google listing\" or \"the maps\".",
+    plain: "The free listing on Google Maps and in the panel beside the search results — phone number, hours, service area, photos, reviews. Used to be called Google My Business, which is why half of them still say GMB. For local trades this is often where more calls come from than the website.",
+    solves: "\"I want to be in the top three in the maps within 7km of where I live\" — a real quote, and a common ask. For emergency and near-me work it is frequently the first thing a customer taps, ahead of any website.",
+    pickWhen: "They have reviews but poor map visibility, or their listing is half-finished. A tradie with three reviews and no photos is invisible for exactly the jobs that pay best.",
+    careful: "Nobody asks for \"GBP\" — one prospect literally asked \"what's the GBP?\". Say \"your Google listing\" or \"the maps\". Also: when they say someone is \"doing my Google\", that usually means posting updates and chasing reviews. It is real work, but it is not ads and it is not a website — plenty of them think they are advertising when they are not.",
     speed: "Weeks",
+    ask: "\"Is the Google profile something you set up yourself, or has someone been looking after it?\" Factual, easy to answer, and it tells you immediately whether anyone is actually running anything.",
   },
   {
     name: "Meta Ads (Facebook / Instagram)",
@@ -152,6 +155,9 @@ export function ServicesExplainer() {
               <p><span className="font-medium">In plain English:</span> <span className="text-muted-foreground">{s.plain}</span></p>
               <p><span className="font-medium">The problem it fixes:</span> <span className="text-muted-foreground">{s.solves}</span></p>
               <p><span className="font-medium">Reach for it when:</span> <span className="text-muted-foreground">{s.pickWhen}</span></p>
+              {s.ask && (
+                <p className="border-l-2 border-primary/50 pl-2"><span className="font-medium">Ask on a call:</span> {s.ask}</p>
+              )}
               <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs">
                 <span className="font-medium">Careful:</span> {s.careful}
               </p>

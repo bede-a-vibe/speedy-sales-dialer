@@ -1,4 +1,4 @@
-import { Brain, Flame, HardHat, Ban, Search } from "lucide-react";
+import { Brain, HardHat, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PanelSection } from "@/components/training/PanelSection";
 
@@ -111,28 +111,9 @@ const ARCHETYPES: Archetype[] = [
       "Three to ten years in, a couple of blokes on. Has a website, probably has someone doing SEO or the Google profile, and cannot tell you whether any of it works. Has been burnt at least once.",
     usualMindset: "Usually mindset 2 — tried, got burnt, still wants it to work.",
     language:
-      "Say Google profile, not GBP or GMB. Say the map listing if they look blank. Spell out any acronym — every shortened term got garbled back at us in the recordings.",
+      "Say Google profile, not GBP or GMB. Say the map listing if they look blank. Spell out any acronym — every shortened term got garbled back at us in the recordings. What each service actually is lives in the Services module.",
     watch:
       "This is the biggest and most valuable group on the phones. They have money, they have proven they will spend it, and they have a specific grievance you can get them talking about.",
-  },
-];
-
-const GMB_EXPLAINER: { q: string; a: string }[] = [
-  {
-    q: "What is a Google Business Profile?",
-    a: "The free listing that shows up on Google Maps and in the box on the right when someone searches a business name. It carries the phone number, hours, service area, photos and reviews. Used to be called Google My Business, which is why half of them still say GMB.",
-  },
-  {
-    q: "Why a tradie cares",
-    a: "For emergency and near-me searches it is often the first thing a customer taps, ahead of any website. The calls come straight off it. A tradie with no profile, or one with three reviews and no photos, is invisible for exactly the jobs that pay best.",
-  },
-  {
-    q: "What 'someone is doing my Google' usually means",
-    a: "Someone is posting updates to the profile and maybe chasing reviews. It is real work and it does help, but it is not ads and it is not a website. Plenty of them think they are advertising when they are not.",
-  },
-  {
-    q: "How to use it on a call",
-    a: "\"Is the Google profile something you set up yourself, or has someone been looking after it?\" It is factual, easy to answer, and it tells you immediately whether anyone is actually running anything.",
   },
 ];
 
@@ -241,27 +222,6 @@ export function MindsetsPanel() {
         </div>
       </PanelSection>
 
-      <PanelSection
-        icon={Search}
-        title="Google Business Profile, explained"
-        description="The few-years-in operator will mention this constantly. You need to know what it actually is."
-      >
-        <div className="space-y-2">
-          {GMB_EXPLAINER.map((g) => (
-            <div key={g.q} className="rounded-md border border-border bg-card px-3 py-2">
-              <p className="text-sm font-medium">{g.q}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{g.a}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
-          <Flame className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <p className="text-xs text-muted-foreground">
-            Say "Google profile" out loud, not GMB or GBP. Every acronym in the recordings got mangled back at us —
-            "MetaRads", "ChatGVT". If you shorten it, you lose them, and they will not ask you to explain.
-          </p>
-        </div>
-      </PanelSection>
     </div>
   );
 }
