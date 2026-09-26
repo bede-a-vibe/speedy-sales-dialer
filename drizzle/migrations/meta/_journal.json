@@ -64,13 +64,6 @@
       "when": 1790402942442,
       "tag": "0008_leaderboard_role_visibility",
       "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1790404177617,
-      "tag": "0009_objection_bank_admin_write",
-      "breakpoints": true
     }
   ]
 }
