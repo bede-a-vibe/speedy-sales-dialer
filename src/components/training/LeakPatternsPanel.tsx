@@ -87,8 +87,8 @@ export function LeakPatternsPanel() {
               <p className="text-sm text-muted-foreground">No skill flags recorded yet.</p>
             ) : (
               skillLeaks.slice(0, 8).map((s) => (
-                <div key={s.skill} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 px-3 py-2">
-                  <span className="text-sm text-foreground">{SKILL_TAG_LABELS[s.skill] ?? s.label ?? s.skill}</span>
+                <div key={s.tag} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/60 px-3 py-2">
+                  <span className="text-sm text-foreground">{SKILL_TAG_LABELS[s.tag] ?? s.label}</span>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {s.count} · {Math.round((s.count / maxSkill) * 100)}%
                   </Badge>
