@@ -1,4 +1,4 @@
-import { AlertOctagon, Ear, Languages, Layers, MessageSquareWarning, ShieldCheck, Trophy } from "lucide-react";
+import { AlertOctagon, Ear, Languages, Layers, MessageSquareWarning, Quote, ShieldCheck, ThumbsDown, ThumbsUp, Trophy, Wrench } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -69,6 +69,112 @@ const BANNED_CLAIMS: { claim: string; truth: string }[] = [
   { claim: "\"We tripled them\"", truth: "2.24x." },
   { claim: "\"50% net profit\"", truth: "Xero showed 24%." },
   { claim: "\"Most of our plumbers get 11 to 1\"", truth: "Sample of one." },
+];
+
+/** Per-trade job vocabulary. Slang transfers between trades; job nouns do NOT. */
+const TRADE_JOBS: { trade: string; want: { job: string; quote: string }[]; sick: { job: string; quote: string }[] }[] = [
+  {
+    trade: "Plumbers",
+    want: [
+      { job: "Maintenance — fast in, fast out, quick cash", quote: "\"$300 here, $100 there, $400. By the end of the day you made a thousand bucks.\"" },
+      { job: "Hot water installs", quote: "\"Pretty much the hot water unit installs. That's where good money is, and I'm good at them.\"" },
+      { job: "Blocked drains as the gateway to dig-ups and relining", quote: "\"When you're there for drains we're upselling pipe relining… one in three we'll get a repair out of.\"" },
+      { job: "Commercial and high-ticket niches", quote: "\"Replace a drain field in a septic system, we can get $10,000 profit a day.\"" },
+    ],
+    sick: [
+      { job: "Construction and builders' work", quote: "\"Those are long-term payments. We often find ourselves waiting.\"" },
+      { job: "Tiny jobs that can't carry the cost of winning them", quote: "\"On smaller jobs like tap washes, I can't just bang up $200.\"" },
+      { job: "Price shoppers and dead quotes", quote: "\"Close to $18,000 in quotes I've sent out. You're a bit too expensive.\"" },
+    ],
+  },
+  {
+    trade: "Electricians",
+    want: [
+      { job: "Switchboards, mains upgrades, EV chargers, aircon, batteries", quote: "\"When he's winning the ACs or the EV chargers or the switchboard upgrades, your dollar value increases.\"" },
+      { job: "Emergency work", quote: "\"Two emergency calls off Google Ads and I profit $1,800 on the weekend. Three hours' work.\"" },
+      { job: "Their own private residential work instead of subbing", quote: "\"Get away from the subbie work as much as possible.\"" },
+      { job: "B2B maintenance plans and recurring work", quote: "\"Recurring revenue with B2B so we could have our maintenance plans in there.\"" },
+    ],
+    sick: [
+      { job: "Subbie rates", quote: "\"Subby for around 80, between 75 and 80 an hour\" — against $120 plus GST on their own work." },
+      { job: "Quote-shopping on small jobs", quote: "\"Just going for a light switch… they don't actually need me there. They're just getting quotes.\"" },
+      { job: "Commercial margins", quote: "\"You're going in at five to six percent on some jobs. Lot of work for minimum reward.\"" },
+      { job: "Bitsy variable work", quote: "\"Bit of this, bit of that. It'd be nice to knock all that back and stick to the core jobs.\"" },
+    ],
+  },
+];
+
+/** Real exchanges from the calls. Outcome tags come from the source files. */
+const TRIPLETS: { objection: string; handle: string; reply: string; outcome: "cleared" | "softened" | "unresolved"; why: string }[] = [
+  {
+    objection: "Been burned — won't be trapped again",
+    handle: "\"If we're not good enough to keep your business, there's no way we should be able to trap you. If you leave us after a week, you keep it.\"",
+    reply: "\"If you can make me money, you deserve money as well, no doubt.\"",
+    outcome: "cleared",
+    why: "Risk reversal plus same-side framing. Unarguable — there's nothing for a sceptic to push against.",
+  },
+  {
+    objection: "Hidden exit clause with the last mob",
+    handle: "\"We send you out the invoice, you choose to pay it or not.\"",
+    reply: "\"Because you're forcing my hand, Bede, I'm going to have to do it, aren't I?\"",
+    outcome: "cleared",
+    why: "The most extreme risk reversal in the bank. Lands hardest on someone whose live grievance is being locked in.",
+  },
+  {
+    objection: "Sceptical of agencies generally",
+    handle: "Opened their own ad account live: \"straight away, already seen a massive issue — look how many competitive search terms you're paying for.\"",
+    reply: "\"To be honest, I'd rather sack him now, but I've already paid for it.\"",
+    outcome: "cleared",
+    why: "Proof substitution. Don't defend the channel — audit their account and let the data indict the incumbent. He signed within a minute.",
+  },
+  {
+    objection: "Previous agency promised results in three months",
+    handle: "\"How good was that salesman? You should be seeing leads in that first week. There's no reason you shouldn't.\"",
+    reply: "\"Would you be saying, bro, you're doing good, do you want to invest more? I'll turn up the ads myself.\"",
+    outcome: "cleared",
+    why: "Names the wait-three-months line as a sales technique, then replaces it with a seven-day clock. Timing never came back.",
+  },
+  {
+    objection: "Are you just better at ads than the last guy?",
+    handle: "\"It's not about who runs the best ads. It's who knows how to manage the back end — turn a thousand-dollar lead into fifty grand of work.\"",
+    reply: "\"I reckon you can handle the front and the back end, Bede.\"",
+    outcome: "softened",
+    why: "Moves the promise off the axis where he's already been let down twice.",
+  },
+  {
+    objection: "Card-shy after a partner burned him",
+    handle: "\"Some agencies get you to pay ad spend and don't spend it all on ads. It's your card, your payment — nothing behind the scenes.\"",
+    reply: "Read out his address, then his card number.",
+    outcome: "cleared",
+    why: "Structural accommodation. Billing spend direct to Google on his own card removed the need for trust entirely.",
+  },
+];
+
+const FAILED_HANDLES: { situation: string; whatWasSaid: string; result: string; lesson: string }[] = [
+  {
+    situation: "A full Google Ads horror story",
+    whatWasSaid: "\"I can imagine.\"",
+    result: "Softened only — he rolled straight into his next gripe. The burn was finally defused later by the no-lock-in terms.",
+    lesson: "Sympathy parks a burn, it doesn't clear one. Only structure clears it.",
+  },
+  {
+    situation: "Prospect hesitant but hadn't named why",
+    whatWasSaid: "Asked \"what's making you feel hesitant?\" — then answered it himself with a story about another plumber.",
+    result: "Unresolved. \"He gave him 20 grand?\" The story distracted, the hesitancy was never named, deal stalled to \"call me back tomorrow\".",
+    lesson: "The question was right. Ask it, then WAIT. Your story is not their answer.",
+  },
+  {
+    situation: "Live client complaint: no uplift in calls",
+    whatWasSaid: "\"We'll look over that over the weekend.\"",
+    result: "Unresolved, and the account left exposed. He'd already said what he needed nine minutes earlier.",
+    lesson: "A live results complaint deferred is an account you're about to lose. Handle it on the call.",
+  },
+  {
+    situation: "\"I'll believe it when I see it. I've heard it too many times.\"",
+    whatWasSaid: "Nothing — it was left to stand.",
+    result: "Unresolved, and he bought anyway, on the fee structure and a $5-a-lead proof point.",
+    lesson: "Scepticism doesn't have to be cleared, it has to be outweighed. Don't burn the call arguing with a belief when structure is what's converting.",
+  },
 ];
 
 /** Ranked by how often the family appears across the 72 calls. */
@@ -212,6 +318,53 @@ export function TradiePlaybook() {
       </Section>
 
       <Section
+        icon={Wrench}
+        title="The jobs they want, and the jobs they're sick of"
+        description="Slang carries between trades. Job names do not. Naming the right job is what makes you sound like you've spoken to their competitors."
+      >
+        <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+          Never open with "more leads". Open with the job they want more of. A sparky chasing switchboard upgrades and a
+          sparky chasing emergency call-outs are two different conversations, and neither of them asked for leads.
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {TRADE_JOBS.map((t) => (
+            <div key={t.trade} className="rounded-lg border border-border bg-card p-3">
+              <p className="mb-2 text-sm font-semibold">{t.trade}</p>
+
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+                <ThumbsUp className="h-3 w-3" /> Want more of
+              </div>
+              <div className="space-y-1.5">
+                {t.want.map((j) => (
+                  <div key={j.job} className="border-l-2 border-emerald-500/40 pl-2">
+                    <p className="text-sm">{j.job}</p>
+                    <p className="text-xs italic text-muted-foreground">{j.quote}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-1.5 mt-3 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-destructive">
+                <ThumbsDown className="h-3 w-3" /> Sick of
+              </div>
+              <div className="space-y-1.5">
+                {t.sick.map((j) => (
+                  <div key={j.job} className="border-l-2 border-destructive/40 pl-2">
+                    <p className="text-sm">{j.job}</p>
+                    <p className="text-xs italic text-muted-foreground">{j.quote}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          The pattern underneath both trades is the same: they want fewer, bigger, faster-paying jobs from customers who
+          pay full freight. They do not want volume. Pitching volume to a tradie who is already flat out is how you lose
+          the call in the first thirty seconds.
+        </p>
+      </Section>
+
+      <Section
         icon={ShieldCheck}
         title="The eight moves that actually clear objections"
         description="Taken from every objection exchange in the 72 calls, tagged by whether the objection cleared, softened or killed the deal."
@@ -245,6 +398,79 @@ export function TradiePlaybook() {
           Being burned before sits underneath most of the others — when you hear price or timing, check whether the
           real objection is the last mob.
         </p>
+      </Section>
+
+      <Section
+        icon={Quote}
+        title="Real exchanges: what was said, what came back"
+        description="Straight out of the recordings. The middle column is the prospect's actual next words, which is the only honest way to score a handle."
+      >
+        <div className="space-y-2.5">
+          {TRIPLETS.map((t) => (
+            <div key={t.objection} className="rounded-lg border border-border bg-card p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    t.outcome === "cleared"
+                      ? "border-emerald-500/40 bg-emerald-500/10 font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300"
+                      : t.outcome === "softened"
+                        ? "border-amber-500/40 bg-amber-500/10 font-mono text-[10px] uppercase text-amber-700 dark:text-amber-300"
+                        : "border-destructive/40 bg-destructive/10 font-mono text-[10px] uppercase text-destructive"
+                  }
+                >
+                  {t.outcome}
+                </Badge>
+                <span className="text-sm font-medium">{t.objection}</span>
+              </div>
+              <div className="space-y-1.5 text-sm">
+                <p>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">You said</span>
+                  <br />
+                  {t.handle}
+                </p>
+                <p className="border-l-2 border-primary/50 pl-2">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">They said next</span>
+                  <br />
+                  <span className="font-medium">{t.reply}</span>
+                </p>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Why it worked:</span> {t.why}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        icon={AlertOctagon}
+        title="Handles that did not work, and why"
+        description="More useful than the wins. Every one of these sounded fine on the call and cost us the moment."
+      >
+        <div className="space-y-2">
+          {FAILED_HANDLES.map((f) => (
+            <div key={f.situation} className="rounded-lg border border-destructive/25 bg-destructive/5 p-3">
+              <p className="text-sm font-medium">{f.situation}</p>
+              <p className="mt-1 text-sm">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">What was said </span>
+                {f.whatWasSaid}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Result:</span> {f.result}
+              </p>
+              <p className="mt-1 text-xs font-medium text-destructive">{f.lesson}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+          <p className="text-sm font-medium">The rule these four add up to</p>
+          <p className="text-xs text-muted-foreground">
+            Scepticism does not have to be cleared to book a meeting. It has to be out-weighed. Don't spend the call
+            arguing with a belief when terms, speed and ownership are what convert. Agree with the burn, then hand them
+            something structural they can check.
+          </p>
+        </div>
       </Section>
 
       <Section
