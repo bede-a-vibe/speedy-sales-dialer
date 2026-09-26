@@ -469,8 +469,7 @@ async function handleMineObjections(admin: ReturnType<typeof createClient>, limi
     // Mark calls with no objections as processed so they are not re-scanned forever.
     if (extracted.length === 0) {
       await admin.from("objection_bank").insert({
-        objection_text: "(no objection raised)",
-        normalized_text: `no-objection-${log.id}`,
+        objection_text: `(no objection raised ${log.id})`,
         category: "other",
         source: "call",
         call_log_id: log.id,
