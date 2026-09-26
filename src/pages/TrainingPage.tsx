@@ -12,6 +12,8 @@ import { SetterScriptPanel } from "@/components/training/SetterScriptPanel";
 import { CommissionPanel } from "@/components/training/CommissionPanel";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
+import { TradiePlaybook } from "@/components/training/TradiePlaybook";
+import { ServicesExplainer } from "@/components/training/ServicesExplainer";
 import { RealLinesPanel } from "@/components/training/RealLinesPanel";
 import { RealDrillsPanel } from "@/components/training/RealDrillsPanel";
 import { LeakPatternsPanel } from "@/components/training/LeakPatternsPanel";
@@ -94,6 +96,8 @@ export default function TrainingPage() {
                 <TabsTrigger value="objections" className="border border-border bg-muted/40">Objections</TabsTrigger>
                 <TabsTrigger value="drills" className="border border-border bg-muted/40">Drills</TabsTrigger>
                 <TabsTrigger value="patterns" className="border border-border bg-muted/40">Where calls break</TabsTrigger>
+                <TabsTrigger value="tradie" className="border border-primary/40 bg-primary/5">Tradie Talk</TabsTrigger>
+                <TabsTrigger value="services" className="border border-primary/40 bg-primary/5">Services</TabsTrigger>
                 <TabsTrigger value="streams" className="border border-border bg-muted/40">Streams</TabsTrigger>
                 <TabsTrigger value="definitions" className="border border-border bg-muted/40">Definitions</TabsTrigger>
               </TabsList>
@@ -149,6 +153,14 @@ export default function TrainingPage() {
 
               <TabsContent value="patterns">
                 <LeakPatternsPanel />
+              </TabsContent>
+
+              <TabsContent value="tradie">
+                <TradiePlaybook />
+              </TabsContent>
+
+              <TabsContent value="services">
+                <ServicesExplainer />
               </TabsContent>
 
               <TabsContent value="streams">
