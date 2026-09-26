@@ -53,10 +53,10 @@ export const DIAGNOSTICS: DiagBand[] = [
   { key: "pickup_to_conversation", label: "Pickup → conversation", target: 68, below: 60, unit: "%", note: "Measured" },
   { key: "conv_to_problem", label: "Conversation → problem awareness", target: 36, below: 30, unit: "%", note: "Biggest leak" },
   { key: "problem_to_solution", label: "Problem → solution awareness", target: 50, below: 40, unit: "%", note: "Measured" },
-  { key: "solution_to_commitment", label: "Solution → commitment", target: 80, below: 65, unit: "%", note: "Thin sample" },
+  { key: "solution_to_commitment", label: "Solution → commitment", target: 80, below: 65, unit: "%", note: "Measured per call" },
   { key: "commitment_to_booking", label: "Commitment → booking", target: 71, below: 60, unit: "%", note: "Measured" },
   { key: "bookings_per_pickup", label: "Bookings per pickup", target: 6, below: 4, unit: "%", note: "Measured" },
-  { key: "showed_to_qualified", label: "Showed → qualified", target: 85, below: 80, unit: "%", note: "Assumed, never measured" },
+  { key: "showed_to_qualified", label: "Showed → qualified", target: 85, below: 80, unit: "%", note: "Measured from booked calls" },
 ];
 
 export type BandStatus = "ok" | "low" | "high" | "none";

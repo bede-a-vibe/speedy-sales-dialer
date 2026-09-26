@@ -145,7 +145,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
           pickup_to_conversation: pickups ? Math.min(100, (100 * conv) / pickups) : null,
           bookings_per_pickup: pickups ? (100 * bookings) / pickups : null,
           problem_to_solution: rate("stage_problem_solution"),
-          solution_to_commit: rate("stage_solution_commit"),
+          solution_to_commitment: rate("stage_solution_commit"),
           showed_to_qualified: rate("stage_showed_qualified"),
         },
       });
