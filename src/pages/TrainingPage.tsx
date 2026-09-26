@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { MyCallReviews } from "@/components/training/MyCallReviews";
+import { SelfReviewPanel } from "@/components/training/SelfReviewPanel";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { CommissionPanel } from "@/components/training/CommissionPanel";
 import { CoachPanel } from "@/components/training/CoachPanel";
@@ -29,6 +30,7 @@ export default function TrainingPage() {
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
         <MyCallReviews />
+        <SelfReviewPanel />
         <OnboardingPath />
         <CommissionPanel />
 
