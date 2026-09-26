@@ -27,6 +27,7 @@ export default function TrainingPage() {
   return (
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
+        <MyCallReviews />
         <OnboardingPath />
         <SetterScriptPanel />
         <CommissionPanel />
