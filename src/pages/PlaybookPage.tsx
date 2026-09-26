@@ -20,6 +20,7 @@ import { MindsetsPanel } from "@/components/training/MindsetsPanel";
 import { ProblemsPanel } from "@/components/training/ProblemsPanel";
 import { TradeSegmentsPanel } from "@/components/training/TradeSegmentsPanel";
 import { CaseStudiesPanel } from "@/components/training/CaseStudiesPanel";
+import { ServicesExplainer } from "@/components/training/ServicesExplainer";
 import { GlossaryPanel } from "@/components/training/GlossaryPanel";
 import { ReframeLibrary } from "@/components/training/ReframeLibrary";
 import { ColdCallOpener } from "@/components/training/ColdCallOpener";
@@ -136,9 +137,18 @@ const SECTIONS: Section[] = [
     render: () => <PainHooks />,
   },
   {
-    id: "lines",
+    id: "services",
     group: "arsenal",
     n: 9,
+    title: "What we sell",
+    blurb: "The eight things Odin does, what problem each one fixes, and the translation layer — they name a result, never a channel.",
+    drill: "Learn the translation table. \"Just get the phone ringing\" is the most common phrasing in the whole corpus and it means Google Ads. You are not selling any of this on the phone, but you have to recognise which problem you are hearing.",
+    render: () => <ServicesExplainer />,
+  },
+  {
+    id: "lines",
+    group: "arsenal",
+    n: 10,
     title: "The lines",
     blurb: "Bede's own word tracks, split into the ones that transfer to a cold call and the ones that will backfire in your hands.",
     drill: "Learn the nine on the left properly rather than half-learning thirty. Read the right-hand set once so you recognise them.",
@@ -147,7 +157,7 @@ const SECTIONS: Section[] = [
   {
     id: "proof",
     group: "arsenal",
-    n: 10,
+    n: 11,
     title: "Proof & case studies",
     blurb: "The results you can use, and how to use one without sounding like every other agency that has rung them.",
     drill: "Learn the Near Me Electrical result in one line. Relevance beats scale — never reach for the biggest number you know.",
@@ -156,7 +166,7 @@ const SECTIONS: Section[] = [
   {
     id: "remit",
     group: "arsenal",
-    n: 11,
+    n: 12,
     title: "Your remit",
     blurb: "The questions that go to Bede, the one hard rule, and what to capture before you hang up.",
     drill: "Memorise the handoff line. It is the answer to every pricing question you will get this week.",
