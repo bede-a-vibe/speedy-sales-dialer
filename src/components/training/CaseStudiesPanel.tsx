@@ -20,9 +20,31 @@ interface CaseStudy {
   detail: string[];
   useWhen: string;
   sayIt: string;
+  quote?: { text: string; who: string };
 }
 
 const CASES: CaseStudy[] = [
+  {
+    business: "Hobsons Bay Plumbing",
+    trade: "Plumbing",
+    subTrade: "Maintenance + service, crew of six",
+    headline: "Roughly $650k to $1.45m in twelve months",
+    detail: [
+      "Joel found us the same way you'll find people — a cold call, while he was stuck with an agency that was promising the world and not delivering.",
+      "Before us he was doing about 90 jobs a month, and in his words they weren't the jobs he wanted to be doing.",
+      "First $250,000 month in June 2026.",
+      "Now employs six qualified plumbers.",
+      "Nearly walked at about the four-month mark, until he could finally see which jobs came from where.",
+    ],
+    useWhen:
+      "The best one for any plumber, and the best one full stop for a prospect in mindset 2 — burnt, still with the last mob, cynical. Joel was exactly that when we rang him.",
+    sayIt:
+      '"The bloke we work with over in the west was in the same spot — stuck with an agency promising him the world. He was doing 90 jobs a month and reckoned none of them were the jobs he wanted. Bede can show you what that looks like now."',
+    quote: {
+      text: "For every dollar we spend, we get $6 back on our Google ads, and $12 back for our SEO.",
+      who: "Joel Giordimaina, on camera",
+    },
+  },
   {
     business: "Near Me Electrical",
     trade: "Electrical",
@@ -39,6 +61,10 @@ const CASES: CaseStudy[] = [
       "Best fit for a resi sparky, especially one who already does or wants emergency. Also lands with anyone in mindset 1 who is trying to get off the ground.",
     sayIt:
       '"We work with a sparky doing about eight grand a month when he started — he\'s at fifty now, and his problem these days is finding blokes, not finding work. Bede can show you exactly what that looked like."',
+    quote: {
+      text: "I had two emergency calls on my Google Ads, and I profit $1,800 on the weekend.",
+      who: "Near Me Electrical, recorded call",
+    },
   },
 ];
 
@@ -109,6 +135,12 @@ export function CaseStudiesPanel() {
                 <span className="font-medium text-foreground">Use it when: </span>
                 <span className="text-muted-foreground">{c.useWhen}</span>
               </p>
+              {c.quote && (
+                <div className="mt-2 border-l-2 border-emerald-500/50 pl-2.5">
+                  <p className="text-sm italic">"{c.quote.text}"</p>
+                  <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{c.quote.who}</p>
+                </div>
+              )}
               <div className="mt-2 rounded-md border border-primary/25 bg-primary/5 px-3 py-2">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-primary">On the phone</p>
                 <p className="mt-0.5 text-sm">{c.sayIt}</p>
@@ -117,11 +149,12 @@ export function CaseStudiesPanel() {
           ))}
         </div>
         <div className="mt-3 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2">
-          <p className="text-sm font-medium">More coming</p>
+          <p className="text-sm font-medium">What is not here yet</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            We have results across plumbing, solar and HVAC that are not written up here yet. Rather than paraphrase
-            numbers nobody has confirmed, this page carries only what the sales lead has signed off. If you need one
-            for a trade that is not listed, ask — do not improvise a comparable.
+            Newer plumbing and solar clients are still too early to have a result worth quoting — SMA Plumbing only
+            went live in August. Rather than paraphrase numbers nobody has confirmed, this page carries only what the
+            sales lead has signed off. If you need one for a trade that is not listed, ask. Do not improvise a
+            comparable, and do not stretch one of these two to fit.
           </p>
         </div>
       </PanelSection>
