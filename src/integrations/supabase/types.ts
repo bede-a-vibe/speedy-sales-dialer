@@ -1923,6 +1923,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_calls: {
+        Row: {
+          alt_id: string
+          conversation_id: string | null
+          created_at: string
+          direction: string | null
+          duration_seconds: number
+          ghl_contact_id: string | null
+          ghl_message_id: string | null
+          ghl_user_id: string | null
+          id: string
+          occurred_at: string
+          raw: Json | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          alt_id: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string | null
+          duration_seconds?: number
+          ghl_contact_id?: string | null
+          ghl_message_id?: string | null
+          ghl_user_id?: string | null
+          id?: string
+          occurred_at: string
+          raw?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alt_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string | null
+          duration_seconds?: number
+          ghl_contact_id?: string | null
+          ghl_message_id?: string | null
+          ghl_user_id?: string | null
+          id?: string
+          occurred_at?: string
+          raw?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ghl_import_exclude: {
         Row: {
           ghl_id: string
@@ -2027,6 +2075,39 @@ export type Database = {
           started_at?: string | null
           status?: string
           total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ghl_sync_state: {
+        Row: {
+          key: string
+          last_error: string | null
+          last_pulled: number | null
+          last_run_at: string | null
+          last_stored: number | null
+          last_synced_at: string | null
+          last_unmapped: Json | null
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          last_error?: string | null
+          last_pulled?: number | null
+          last_run_at?: string | null
+          last_stored?: number | null
+          last_synced_at?: string | null
+          last_unmapped?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          last_error?: string | null
+          last_pulled?: number | null
+          last_run_at?: string | null
+          last_stored?: number | null
+          last_synced_at?: string | null
+          last_unmapped?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -3138,6 +3219,10 @@ export type Database = {
         Returns: number
       }
       get_rep_eod_metrics: {
+        Args: { _date: string; _user_id: string }
+        Returns: Json
+      }
+      get_rep_ghl_call_metrics: {
         Args: { _date: string; _user_id: string }
         Returns: Json
       }
