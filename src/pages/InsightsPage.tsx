@@ -17,10 +17,11 @@ import { InsightsTargets } from "@/components/insights/InsightsTargets";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { LeadTrackerTab } from "@/components/analytics/LeadTrackerTab";
 import { InsightsSources } from "@/components/insights/InsightsSources";
+import { InsightsPaidAds } from "@/components/insights/InsightsPaidAds";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "sources", "team", "talktime", "targets", "leads"] as const;
+const TABS = ["overview", "funnel", "sources", "team", "talktime", "targets", "leads", "ads"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
@@ -31,6 +32,7 @@ const TITLES: Record<InsightsTab, string> = {
   talktime: "Insights · Timing",
   targets: "Insights · Targets",
   leads: "Insights · Leads",
+  ads: "Insights · Paid Ads",
 };
 
 interface InsightsPageProps {
@@ -123,6 +125,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="talktime">Timing</TabsTrigger>
             <TabsTrigger value="targets">Targets</TabsTrigger>
             <TabsTrigger value="leads">Leads</TabsTrigger>
+            <TabsTrigger value="ads">Paid Ads</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -190,6 +193,10 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
 
           <TabsContent value="leads">
             <LeadTrackerTab />
+          </TabsContent>
+
+          <TabsContent value="ads">
+            <InsightsPaidAds dateFrom={dateFrom} dateTo={dateTo} />
           </TabsContent>
         </Tabs>
       </div>
