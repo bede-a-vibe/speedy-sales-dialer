@@ -12,6 +12,8 @@ import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { CoachPanel } from "@/components/training/CoachPanel";
 import { StreamsPlaybook } from "@/components/training/StreamsPlaybook";
+import { TradiePlaybook } from "@/components/training/TradiePlaybook";
+import { ServicesExplainer } from "@/components/training/ServicesExplainer";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { useIsAdmin } from "@/hooks/useUserRole";
@@ -312,6 +314,8 @@ export default function TrainingPage() {
                   <TabsTrigger value="coach" className="border border-primary/40 bg-primary/5">
                     <Brain className="mr-1.5 h-3.5 w-3.5" /> Coach
                   </TabsTrigger>
+                  <TabsTrigger value="tradie" className="border border-primary/40 bg-primary/5">Tradie Talk</TabsTrigger>
+                  <TabsTrigger value="services" className="border border-primary/40 bg-primary/5">Services</TabsTrigger>
                   <TabsTrigger value="streams" className="border border-border bg-muted/40">Streams</TabsTrigger>
                   {isAdmin && <TabsTrigger value="manager" className="border border-border bg-muted/40">Manager</TabsTrigger>}
                   <TabsTrigger value="scripts" className="border border-border bg-muted/40">Scripts</TabsTrigger>
@@ -352,6 +356,14 @@ export default function TrainingPage() {
                     </div>
                     <CoachPanel />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="tradie">
+                  <TradiePlaybook />
+                </TabsContent>
+
+                <TabsContent value="services">
+                  <ServicesExplainer />
                 </TabsContent>
 
                 <TabsContent value="streams">
