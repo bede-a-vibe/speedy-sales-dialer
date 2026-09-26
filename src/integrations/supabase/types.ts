@@ -3477,6 +3477,7 @@ export type Database = {
           user_agent: string
         }[]
       }
+      mark_my_reviews_seen: { Args: never; Returns: number }
       merge_contacts: {
         Args: { _losers: string[]; _master: string }
         Returns: Json
