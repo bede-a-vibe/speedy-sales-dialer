@@ -146,7 +146,8 @@ export function KpiScorecard({ userId }: { userId?: string }) {
           bookings_per_pickup: pickups ? (100 * bookings) / pickups : null,
           problem_to_solution: rate("stage_problem_solution"),
           solution_to_commitment: rate("stage_solution_commit"),
-          showed_to_qualified: rate("stage_showed_qualified"),
+          // Qualified = showed and progressed (closed, verbal, 2nd meeting, follow-up) — not a flat "showed, no close".
+          showed_to_qualified: showed ? (100 * mine.filter((a: any) => SHOWED.has(a.appointment_outcome) && a.appointment_outcome !== "showed_no_close").length) / showed : null,
         },
       });
     }
