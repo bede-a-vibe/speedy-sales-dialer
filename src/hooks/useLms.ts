@@ -14,6 +14,8 @@ export interface LmsResource { label: string; url: string }
 export interface LmsLesson {
   id: string; course_id: string; section: string; title: string; sort: number;
   video_url: string | null; body: string | null; resources: LmsResource[]; published: boolean;
+  /** Key of a built-in panel to render as the lesson body (see COMPONENTS in Classroom). */
+  component: string | null;
 }
 
 export function useLmsCourses() {
@@ -115,7 +117,7 @@ export function useUpsertLesson() {
       const { data: auth } = await supabase.auth.getUser();
       const { error } = await supabase.from("lms_lessons").upsert(
         { ...(l.id ? { id: l.id } : {}), course_id: l.course_id, section: l.section ?? "Lessons", title: l.title,
-          sort: l.sort ?? 100, video_url: l.video_url ?? null, body: l.body ?? null,
+          sort: l.sort ?? 100, video_url: l.video_url ?? null, body: l.body ?? null, component: l.component ?? null,
           resources: (l.resources ?? []) as unknown as never, published: l.published ?? true,
           created_by: auth.user?.id ?? null, updated_at: new Date().toISOString() },
         { onConflict: "id" },

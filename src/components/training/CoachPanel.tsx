@@ -18,11 +18,11 @@ import {
   type CoachedCall,
 } from "@/hooks/useCallCoaching";
 
-/** One-click drill → AI roleplay in the Playbook, pre-loaded with the scenario. */
+/** One-click drill → AI roleplay in the Classroom, pre-loaded with the scenario. */
 function PracticeLink({ drill }: { drill: string }) {
   return (
     <Link
-      to={`/playbook?drill=${encodeURIComponent(drill)}`}
+      to={`/classroom?drill=${encodeURIComponent(drill)}`}
       className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
     >
       <Swords className="h-3 w-3" /> Practice this

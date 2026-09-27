@@ -2520,9 +2520,9 @@ export type Database = {
         Relationships: []
       }
       lms_lessons: {
-        Row: { body: string | null; course_id: string; created_at: string; created_by: string | null; id: string; published: boolean; resources: Json; section: string; sort: number; title: string; updated_at: string; video_url: string | null }
-        Insert: { body?: string | null; course_id: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title: string; updated_at?: string; video_url?: string | null }
-        Update: { body?: string | null; course_id?: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title?: string; updated_at?: string; video_url?: string | null }
+        Row: { body: string | null; component: string | null; course_id: string; created_at: string; created_by: string | null; id: string; published: boolean; resources: Json; section: string; sort: number; title: string; updated_at: string; video_url: string | null }
+        Insert: { body?: string | null; component?: string | null; course_id: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title: string; updated_at?: string; video_url?: string | null }
+        Update: { body?: string | null; component?: string | null; course_id?: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title?: string; updated_at?: string; video_url?: string | null }
         Relationships: []
       }
       manager_one_on_ones: {
