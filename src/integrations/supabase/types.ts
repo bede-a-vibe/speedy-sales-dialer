@@ -2508,22 +2508,128 @@ export type Database = {
         Relationships: []
       }
       lms_courses: {
-        Row: { blurb: string | null; cover_url: string | null; created_at: string; created_by: string | null; id: string; industry: string | null; published: boolean; slug: string; sort: number; title: string; updated_at: string }
-        Insert: { blurb?: string | null; cover_url?: string | null; created_at?: string; created_by?: string | null; id?: string; industry?: string | null; published?: boolean; slug: string; sort?: number; title: string; updated_at?: string }
-        Update: { blurb?: string | null; cover_url?: string | null; created_at?: string; created_by?: string | null; id?: string; industry?: string | null; published?: boolean; slug?: string; sort?: number; title?: string; updated_at?: string }
+        Row: {
+          blurb: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          industry: string | null
+          published: boolean
+          slug: string
+          sort: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          blurb?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          published?: boolean
+          slug: string
+          sort?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          blurb?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string | null
+          published?: boolean
+          slug?: string
+          sort?: number
+          title?: string
+          updated_at?: string
+        }
         Relationships: []
       }
       lms_lesson_progress: {
-        Row: { completed_at: string; lesson_id: string; user_id: string }
-        Insert: { completed_at?: string; lesson_id: string; user_id: string }
-        Update: { completed_at?: string; lesson_id?: string; user_id?: string }
-        Relationships: []
+        Row: {
+          completed_at: string
+          lesson_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          lesson_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          lesson_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lms_lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lms_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lms_lessons: {
-        Row: { body: string | null; component: string | null; course_id: string; created_at: string; created_by: string | null; id: string; published: boolean; resources: Json; section: string; sort: number; title: string; updated_at: string; video_url: string | null }
-        Insert: { body?: string | null; component?: string | null; course_id: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title: string; updated_at?: string; video_url?: string | null }
-        Update: { body?: string | null; component?: string | null; course_id?: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title?: string; updated_at?: string; video_url?: string | null }
-        Relationships: []
+        Row: {
+          body: string | null
+          component: string | null
+          course_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          published: boolean
+          resources: Json
+          section: string
+          sort: number
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          body?: string | null
+          component?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published?: boolean
+          resources?: Json
+          section?: string
+          sort?: number
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          body?: string | null
+          component?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          published?: boolean
+          resources?: Json
+          section?: string
+          sort?: number
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lms_lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "lms_courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       manager_one_on_ones: {
         Row: {
@@ -2856,33 +2962,6 @@ export type Database = {
         }
         Relationships: []
       }
-      playbook_locks: {
-        Row: {
-          created_at: string
-          id: string
-          lock_key: string
-          locked: boolean
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          lock_key: string
-          locked?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          lock_key?: string
-          locked?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       pipeline_items: {
         Row: {
           appointment_outcome:
@@ -2972,6 +3051,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      playbook_locks: {
+        Row: {
+          created_at: string
+          id: string
+          lock_key: string
+          locked: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lock_key: string
+          locked?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lock_key?: string
+          locked?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -3366,6 +3472,39 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_dialer_leads_core: {
+        Args: {
+          _business_size?: string
+          _buying_signal_strength?: string
+          _call_recency?: string
+          _claim_size?: number
+          _contact_owner?: string
+          _dnc_reasons?: string[]
+          _dq_reasons?: string[]
+          _existing_agency_services?: string[]
+          _has_dm_phone?: boolean
+          _has_existing_agency?: string
+          _has_facebook_ads?: string
+          _has_google_ads?: string
+          _include_disqualified?: boolean
+          _include_dnc?: boolean
+          _industries?: string[]
+          _lead_channel?: string
+          _lead_source?: string
+          _lead_type?: string
+          _lock_minutes?: number
+          _min_gbp_rating?: number
+          _min_review_count?: number
+          _mobile_gatekeeper?: string
+          _phone_type?: string
+          _prospect_tier?: string
+          _session_id: string
+          _states?: string[]
+          _trade_types?: string[]
+          _work_type?: string
+        }
+        Returns: Json
+      }
       classify_au_phone_type: {
         Args: { phone_number: string }
         Returns: string
@@ -3436,6 +3575,37 @@ export type Database = {
       }
       get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count: {
+        Args: {
+          _business_size: string
+          _buying_signal_strength: string
+          _call_recency: string
+          _contact_owner: string
+          _dnc_reasons: string[]
+          _dq_reasons: string[]
+          _existing_agency_services: string[]
+          _has_dm_phone: boolean
+          _has_existing_agency: string
+          _has_facebook_ads: string
+          _has_google_ads: string
+          _include_disqualified: boolean
+          _include_dnc: boolean
+          _industries: string[]
+          _lead_channel: string
+          _lead_source: string
+          _lead_type: string
+          _min_gbp_rating: number
+          _min_review_count: number
+          _mobile_gatekeeper: string
+          _phone_type: string
+          _prospect_tier: string
+          _session_id: string
+          _states: string[]
+          _trade_types: string[]
+          _work_type: string
+        }
+        Returns: number
+      }
+      get_dialer_queue_count_core: {
         Args: {
           _business_size?: string
           _buying_signal_strength?: string
