@@ -1,4 +1,4 @@
-import { Lock, LockOpen, Loader2 } from "lucide-react";
+import { Lock, LockOpen, Loader2, ListChecks } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,9 @@ import {
   industryLockKey,
   sectionLockKey,
 } from "@/hooks/usePlaybookLocks";
+import { useRepProfiles } from "@/hooks/useManager";
+import { useTeamPlaybookProgress } from "@/hooks/usePlaybookProgress";
+import { DialerScope } from "@/components/manager/DialerScope";
 
 /**
  * Manager control over what a new setter sees in the Playbook.
@@ -46,6 +49,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: "proof", label: "12 · Proof & case studies" },
   { id: "remit", label: "13 · Your remit" },
   { id: "calls", label: "Winning calls (recordings)" },
+  { id: "lost", label: "Calls that didn't book" },
   { id: "objections", label: "Objection bank" },
   { id: "glossary", label: "Glossary" },
 ];
@@ -82,12 +86,68 @@ function LockRow({ label, lockKey }: { label: string; lockKey: string }) {
   );
 }
 
+const NUMBERED = SECTIONS.filter((s) => /^\d+ · /.test(s.label));
+
+function TeamProgress() {
+  const { data: reps = [] } = useRepProfiles();
+  const { data: progress } = useTeamPlaybookProgress();
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ListChecks className="h-4 w-4 text-primary" />
+          Who has worked through what
+        </CardTitle>
+        <CardDescription>
+          Reps mark a module done once they have read it and run the drill. A tick here is their claim, not proof —
+          the call reviews are where you check it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {reps.map((r) => {
+            const set = progress?.get(r.user_id) ?? new Set<string>();
+            const n = NUMBERED.filter((s) => set.has(s.id)).length;
+            const pct = NUMBERED.length ? Math.round((n / NUMBERED.length) * 100) : 0;
+            return (
+              <div key={r.user_id} className="rounded-md border border-border bg-card px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{r.name}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">{n}/{NUMBERED.length} · {pct}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {NUMBERED.map((s) => (
+                    <span
+                      key={s.id}
+                      title={s.label}
+                      className={set.has(s.id)
+                        ? "rounded px-1.5 py-0.5 font-mono text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : "rounded px-1.5 py-0.5 font-mono text-[10px] bg-muted text-muted-foreground"}
+                    >
+                      {s.label.split(" · ")[0]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PlaybookLocks() {
   const { data: locks, isLoading } = usePlaybookLocks();
   const lockedCount = locks?.size ?? 0;
 
   return (
     <div className="space-y-4">
+      <DialerScope />
+      <TeamProgress />
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex flex-wrap items-center gap-2 text-base">

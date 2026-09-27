@@ -3015,6 +3015,36 @@ export type Database = {
         }
         Relationships: []
       }
+      rep_dialer_restrictions: {
+        Row: {
+          active: boolean
+          allowed_industries: string[]
+          created_at: string
+          note: string | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          allowed_industries?: string[]
+          created_at?: string
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          allowed_industries?: string[]
+          created_at?: string
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       roleplay_rounds: {
         Row: {
           created_at: string

@@ -20,7 +20,7 @@ export default function ManagerPage() {
           <TabsTrigger value="flags">Coaching flags</TabsTrigger>
           <TabsTrigger value="oneonones">1:1s</TabsTrigger>
           <TabsTrigger value="roleplay">Roleplay</TabsTrigger>
-          <TabsTrigger value="playbook">Playbook access</TabsTrigger>
+          <TabsTrigger value="playbook">Setter access</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
         <TabsContent value="kpis" className="mt-4 space-y-4"><KpiPeriodTargets /><KpiScorecard /></TabsContent>
