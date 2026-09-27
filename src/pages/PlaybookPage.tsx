@@ -19,7 +19,7 @@ import { ObjectionBankPanel, OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from
 import { SetterScript } from "@/components/training/SetterScript";
 import { MindsetsPanel } from "@/components/training/MindsetsPanel";
 import { ProblemsPanel } from "@/components/training/ProblemsPanel";
-import { IndustriesPanel } from "@/components/training/IndustriesPanel";
+import { Classroom } from "@/components/playbook/Classroom";
 import { TradeSegmentsPanel } from "@/components/training/TradeSegmentsPanel";
 import { CaseStudiesPanel } from "@/components/training/CaseStudiesPanel";
 import { ServicesExplainer } from "@/components/training/ServicesExplainer";
@@ -128,9 +128,9 @@ const SECTIONS: Section[] = [
     group: "diagnose",
     n: 7,
     title: "Industries",
-    blurb: "The trades you will be ringing — what the work is, how the money moves, what is hard about their year, and the one question that makes you sound like you have spoken to people in their trade.",
-    drill: "Read electrical and plumbing properly before your first shift. They are the bulk of the list. Skim the rest and come back when one turns up on the phone.",
-    render: () => <IndustriesPanel />,
+    blurb: "The classroom. One course per trade — videos, notes and resources, lesson by lesson, with a tick when you have done each one.",
+    drill: "Work the Electrical course start to finish before your first shift. Tick a lesson only when you have actually watched or read it.",
+    render: () => <Classroom />,
   },
   {
     id: "trades",

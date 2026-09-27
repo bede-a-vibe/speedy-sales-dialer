@@ -2507,6 +2507,24 @@ export type Database = {
         }
         Relationships: []
       }
+      lms_courses: {
+        Row: { blurb: string | null; cover_url: string | null; created_at: string; created_by: string | null; id: string; industry: string | null; published: boolean; slug: string; sort: number; title: string; updated_at: string }
+        Insert: { blurb?: string | null; cover_url?: string | null; created_at?: string; created_by?: string | null; id?: string; industry?: string | null; published?: boolean; slug: string; sort?: number; title: string; updated_at?: string }
+        Update: { blurb?: string | null; cover_url?: string | null; created_at?: string; created_by?: string | null; id?: string; industry?: string | null; published?: boolean; slug?: string; sort?: number; title?: string; updated_at?: string }
+        Relationships: []
+      }
+      lms_lesson_progress: {
+        Row: { completed_at: string; lesson_id: string; user_id: string }
+        Insert: { completed_at?: string; lesson_id: string; user_id: string }
+        Update: { completed_at?: string; lesson_id?: string; user_id?: string }
+        Relationships: []
+      }
+      lms_lessons: {
+        Row: { body: string | null; course_id: string; created_at: string; created_by: string | null; id: string; published: boolean; resources: Json; section: string; sort: number; title: string; updated_at: string; video_url: string | null }
+        Insert: { body?: string | null; course_id: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title: string; updated_at?: string; video_url?: string | null }
+        Update: { body?: string | null; course_id?: string; created_at?: string; created_by?: string | null; id?: string; published?: boolean; resources?: Json; section?: string; sort?: number; title?: string; updated_at?: string; video_url?: string | null }
+        Relationships: []
+      }
       manager_one_on_ones: {
         Row: {
           action_items: string | null
