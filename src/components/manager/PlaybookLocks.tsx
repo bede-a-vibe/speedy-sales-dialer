@@ -20,7 +20,7 @@ import { DialerScope } from "@/components/manager/DialerScope";
  * everything, with a lock icon, so you can check what a rep is looking at.
  */
 
-/** Keep in step with INDUSTRIES in IndustriesPanel. */
+/** Lock keys for the industry courses. Keep in step with lms_courses.industry (the classroom seed). */
 const INDUSTRY_NAMES = [
   "Electrical",
   "Plumbing",
