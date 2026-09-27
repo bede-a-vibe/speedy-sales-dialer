@@ -2838,6 +2838,33 @@ export type Database = {
         }
         Relationships: []
       }
+      playbook_locks: {
+        Row: {
+          created_at: string
+          id: string
+          lock_key: string
+          locked: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lock_key: string
+          locked?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lock_key?: string
+          locked?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       pipeline_items: {
         Row: {
           appointment_outcome:

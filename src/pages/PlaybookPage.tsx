@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  BookOpen, Sparkles, Wand2, MessageSquareText, Loader2, GraduationCap, Library, Stethoscope, Swords,
+  BookOpen, Sparkles, Wand2, MessageSquareText, Loader2, GraduationCap, Library, Lock, Stethoscope, Swords,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import { ObjectionBankPanel, OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from
 import { SetterScript } from "@/components/training/SetterScript";
 import { MindsetsPanel } from "@/components/training/MindsetsPanel";
 import { ProblemsPanel } from "@/components/training/ProblemsPanel";
+import { IndustriesPanel } from "@/components/training/IndustriesPanel";
 import { TradeSegmentsPanel } from "@/components/training/TradeSegmentsPanel";
 import { CaseStudiesPanel } from "@/components/training/CaseStudiesPanel";
 import { ServicesExplainer } from "@/components/training/ServicesExplainer";
@@ -29,6 +30,8 @@ import { PainHooks } from "@/components/training/PainHooks";
 import { WordTracks } from "@/components/training/WordTracks";
 import { SetterBoundaries } from "@/components/training/SetterBoundaries";
 import { useObjectionBank } from "@/hooks/useCallLearnings";
+import { usePlaybookLocks, sectionLockKey } from "@/hooks/usePlaybookLocks";
+import { useCanViewAdmin } from "@/hooks/useUserRole";
 
 /**
  * Playbook — the reference surface. No progress, no submissions, nothing with
@@ -119,18 +122,27 @@ const SECTIONS: Section[] = [
     render: () => <ProblemsPanel />,
   },
   {
-    id: "trades",
+    id: "industries",
     group: "diagnose",
     n: 7,
-    title: "Trades & sub-trades",
-    blurb: "A resi emergency sparky and an industrial service sparky run different businesses. One question tells you which call you are in.",
+    title: "Industries",
+    blurb: "The trades you will be ringing — what the work is, how the money moves, what is hard about their year, and the one question that makes you sound like you have spoken to people in their trade.",
+    drill: "Read electrical and plumbing properly before your first shift. They are the bulk of the list. Skim the rest and come back when one turns up on the phone.",
+    render: () => <IndustriesPanel />,
+  },
+  {
+    id: "trades",
+    group: "diagnose",
+    n: 8,
+    title: "Sub-trades",
+    blurb: "One level deeper than Industries: the splits inside electrical and plumbing, where cash flow and what they want diverge completely.",
     drill: "Always ask what sort of work they mostly do before anything else. It is the question that makes you sound like you have spoken to people in their trade.",
     render: () => <TradeSegmentsPanel />,
   },
   {
     id: "pain",
     group: "diagnose",
-    n: 8,
+    n: 9,
     title: "Finding the pain",
     blurb: "Ten things that are genuinely hurting these businesses, and which of them you may ask a stranger about.",
     drill: "Pick three hooks and commit them to memory. One per call, then stop talking. Running the list is an interrogation.",
@@ -139,7 +151,7 @@ const SECTIONS: Section[] = [
   {
     id: "services",
     group: "arsenal",
-    n: 9,
+    n: 10,
     title: "What we sell",
     blurb: "The eight things Odin does, what problem each one fixes, and the translation layer — they name a result, never a channel.",
     drill: "Learn the translation table. \"Just get the phone ringing\" is the most common phrasing in the whole corpus and it means Google Ads. You are not selling any of this on the phone, but you have to recognise which problem you are hearing.",
@@ -148,7 +160,7 @@ const SECTIONS: Section[] = [
   {
     id: "lines",
     group: "arsenal",
-    n: 10,
+    n: 11,
     title: "The lines",
     blurb: "Bede's own word tracks, split into the ones that transfer to a cold call and the ones that will backfire in your hands.",
     drill: "Learn the nine on the left properly rather than half-learning thirty. Read the right-hand set once so you recognise them.",
@@ -157,7 +169,7 @@ const SECTIONS: Section[] = [
   {
     id: "proof",
     group: "arsenal",
-    n: 11,
+    n: 12,
     title: "Proof & case studies",
     blurb: "The results you can use, and how to use one without sounding like every other agency that has rung them.",
     drill: "Learn the Near Me Electrical result in one line. Relevance beats scale — never reach for the biggest number you know.",
@@ -166,7 +178,7 @@ const SECTIONS: Section[] = [
   {
     id: "remit",
     group: "arsenal",
-    n: 12,
+    n: 13,
     title: "Your remit",
     blurb: "The questions that go to Bede, the one hard rule, and what to capture before you hang up.",
     drill: "Memorise the handoff line. It is the answer to every pricing question you will get this week.",
@@ -308,7 +320,15 @@ export default function PlaybookPage() {
   const { data: bankRows } = useObjectionBank();
   const totalObjections = bankRows?.length ?? 0;
 
-  const activeId = searchParams.get("s") ?? "script";
+  // Managers see everything (and the lock state); reps cannot open a locked
+  // section at all, so week one stays focused on what they are dialling.
+  const { data: locks } = usePlaybookLocks();
+  const isManager = useCanViewAdmin();
+  const isLocked = (id: string) => locks?.has(sectionLockKey(id)) ?? false;
+  const canOpen = (id: string) => isManager || !isLocked(id);
+
+  const requestedId = searchParams.get("s") ?? "script";
+  const activeId = canOpen(requestedId) ? requestedId : "script";
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0];
   const numberedCount = SECTIONS.filter((s) => s.n != null).length;
 
@@ -338,15 +358,21 @@ export default function PlaybookPage() {
     setRoleplayOpen(true);
   }
 
-  const railButton = (s: Section) => (
+  const railButton = (s: Section) => {
+    const locked = isLocked(s.id);
+    const disabled = locked && !isManager;
+    return (
     <button
       key={s.id}
-      onClick={() => selectSection(s.id)}
+      disabled={disabled}
+      title={locked ? "Locked by your manager" : undefined}
+      onClick={() => !disabled && selectSection(s.id)}
       className={cn(
         "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
         s.id === active.id
           ? "border-primary/50 bg-primary/10 font-medium text-foreground"
           : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground",
+        disabled && "cursor-not-allowed opacity-45 hover:border-transparent hover:bg-transparent",
       )}
     >
       {s.n != null && (
@@ -360,8 +386,10 @@ export default function PlaybookPage() {
         </span>
       )}
       <span className="min-w-0 flex-1 truncate">{s.title}</span>
+      {locked && <Lock className="h-3 w-3 shrink-0 opacity-60" />}
     </button>
-  );
+    );
+  };
 
   return (
     <AppLayout>

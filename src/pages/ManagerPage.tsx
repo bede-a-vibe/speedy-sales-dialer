@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallReviewQueue } from "@/components/manager/CallReviewQueue";
+import { PlaybookLocks } from "@/components/manager/PlaybookLocks";
 import { OneOnOnePanel } from "@/components/manager/OneOnOnePanel";
 import { RoleplayResults } from "@/components/manager/RoleplayResults";
 import { KpiPeriodTargets } from "@/components/targets/KpiPeriodTargets";
@@ -19,12 +20,14 @@ export default function ManagerPage() {
           <TabsTrigger value="flags">Coaching flags</TabsTrigger>
           <TabsTrigger value="oneonones">1:1s</TabsTrigger>
           <TabsTrigger value="roleplay">Roleplay</TabsTrigger>
+          <TabsTrigger value="playbook">Playbook access</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
         <TabsContent value="kpis" className="mt-4 space-y-4"><KpiPeriodTargets /><KpiScorecard /></TabsContent>
         <TabsContent value="flags" className="mt-4 space-y-4"><ManagerMetrics /><ManagerPlaybook /></TabsContent>
         <TabsContent value="oneonones" className="mt-4"><OneOnOnePanel /></TabsContent>
         <TabsContent value="roleplay" className="mt-4"><RoleplayResults /></TabsContent>
+        <TabsContent value="playbook" className="mt-4"><PlaybookLocks /></TabsContent>
       </Tabs>
     </div>
     </AppLayout>
