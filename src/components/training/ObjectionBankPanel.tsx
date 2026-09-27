@@ -41,7 +41,7 @@ interface Props {
 }
 
 /**
- * The objection bank, shared by the Playbook page and the Training page.
+ * The objection bank, shared by the Classroom and the Training page.
  * Framework plays sit alongside objections mined straight out of call
  * transcripts, ranked by how often they actually come up on the phones.
  */

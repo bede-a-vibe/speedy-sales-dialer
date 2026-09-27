@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import DashboardPage from "@/pages/DashboardPage";
@@ -19,7 +19,7 @@ const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
 const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
-const PlaybookPage = lazy(() => import("@/pages/PlaybookPage"));
+const ClassroomPage = lazy(() => import("@/pages/ClassroomPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
@@ -62,6 +62,12 @@ function AdminOnlyRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;
+}
+
+/** Old /playbook links (bookmarks, coach deep-links) land on the Classroom with their query intact. */
+function LegacyRedirect({ to }: { to: string }) {
+  const loc = useLocation();
+  return <Navigate to={{ pathname: to, search: loc.search }} replace />;
 }
 
 /** Keeps the global demo-mode flag in sync with the current user's role. */
@@ -115,7 +121,8 @@ function ProtectedRoutes() {
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />
         <Route path="/eod" element={<EodReportPage />} />
-        <Route path="/playbook" element={<PlaybookPage />} />
+        <Route path="/classroom" element={<ClassroomPage />} />
+        <Route path="/playbook" element={<LegacyRedirect to="/classroom" />} />
         <Route path="/security" element={<SecurityPage />} />
         <Route
           path="/insights"

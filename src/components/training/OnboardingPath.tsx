@@ -27,7 +27,7 @@ const STEPS: { key: string; title: string; description: string; icon: React.Comp
   {
     key: "d2_roleplay_objections",
     title: "Day 2 — Roleplay & objection bank",
-    description: "Run the opener 20 times against the AI roleplay on the Playbook page — it throws the classic brush-offs (busy, word of mouth, not interested). Then study the Objections tab and say each handle out loud in your own words. Finish with 10 full roleplay rounds from opener through to the booking ask.",
+    description: "Run the opener 20 times against the AI roleplay in the Classroom — it throws the classic brush-offs (busy, word of mouth, not interested). Then study the Objections tab and say each handle out loud in your own words. Finish with 10 full roleplay rounds from opener through to the booking ask.",
     icon: Swords,
   },
   {

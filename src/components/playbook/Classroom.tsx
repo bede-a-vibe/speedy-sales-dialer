@@ -13,6 +13,24 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useCanViewAdmin } from "@/hooks/useUserRole";
 import { usePlaybookLocks, industryLockKey } from "@/hooks/usePlaybookLocks";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SetterScript } from "@/components/training/SetterScript";
+import { SetterBoundaries } from "@/components/training/SetterBoundaries";
+import { ColdCallOpener } from "@/components/training/ColdCallOpener";
+import { ColdBrushOffs } from "@/components/training/ColdBrushOffs";
+import { MindsetsPanel } from "@/components/training/MindsetsPanel";
+import { ProblemsPanel } from "@/components/training/ProblemsPanel";
+import { PainHooks } from "@/components/training/PainHooks";
+import { TradeSegmentsPanel } from "@/components/training/TradeSegmentsPanel";
+import { TradiePlaybook } from "@/components/training/TradiePlaybook";
+import { ReframeLibrary } from "@/components/training/ReframeLibrary";
+import { ObjectionBankPanel } from "@/components/training/ObjectionBankPanel";
+import { WordTracks } from "@/components/training/WordTracks";
+import { ServicesExplainer } from "@/components/training/ServicesExplainer";
+import { CaseStudiesPanel } from "@/components/training/CaseStudiesPanel";
+import { GlossaryPanel } from "@/components/training/GlossaryPanel";
+import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { LearningCallsLibrary } from "@/components/playbook/LearningCallsLibrary";
 import {
   useLmsCourses, useLmsLessons, useMyLessonProgress, useSetLessonProgress,
   useUpsertCourse, useUpsertLesson, useDeleteLesson, toEmbedUrl,
@@ -26,6 +44,29 @@ import {
  * and links in-app, so a recorded training lands here once instead of being
  * re-explained on every call.
  */
+
+/** Built-in panels a lesson can carry. Managers pick one in the lesson editor; video + notes render above it. */
+export const COMPONENTS: Record<string, { label: string; render: () => React.ReactNode }> = {
+  script: { label: "The script (four blocks + stage ticks)", render: () => <SetterScript /> },
+  remit: { label: "Your remit (what goes to Bede)", render: () => <SetterBoundaries /> },
+  opener: { label: "First 15 seconds (measured)", render: () => <ColdCallOpener /> },
+  brushoffs: { label: "Brush-offs, ranked", render: () => <ColdBrushOffs /> },
+  mindsets: { label: "Three mindsets + archetypes", render: () => <MindsetsPanel /> },
+  problems: { label: "Five problems, bleeding neck, the gap", render: () => <ProblemsPanel /> },
+  pain: { label: "Pain hooks you may use cold", render: () => <PainHooks /> },
+  subtrades: { label: "Sub-trades (electrical + plumbing)", render: () => <TradeSegmentsPanel /> },
+  tradie: { label: "How tradies talk", render: () => <TradiePlaybook /> },
+  reframes: { label: "Reframes (four beats)", render: () => <ReframeLibrary /> },
+  objections: { label: "Objection bank", render: () => <ObjectionBankPanel /> },
+  lines: { label: "Bede's lines", render: () => <WordTracks /> },
+  services: { label: "What we sell + Odin Analytics", render: () => <ServicesExplainer /> },
+  proof: { label: "Proof & case studies", render: () => <CaseStudiesPanel /> },
+  glossary: { label: "Glossary + scenarios", render: () => <GlossaryPanel /> },
+  calls: { label: "Winning calls (recordings)", render: () => <WinningCallsLibrary /> },
+  lost: { label: "Calls that didn't book", render: () => <LearningCallsLibrary /> },
+};
+
+export const courseLockKey = (slug: string) => `course:${slug}`;
 
 /* ---------- tiny notes renderer: paragraphs, **bold**, "- " bullets ---------- */
 function Notes({ text }: { text: string }) {
@@ -77,11 +118,10 @@ function CourseGrid({ courses, lessons, done, locked, isManager, onOpen, onNew }
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-        <h3 className="flex items-center gap-2 font-medium text-foreground"><GraduationCap className="h-4 w-4 text-primary" /> Classroom</h3>
+        <h3 className="flex items-center gap-2 font-medium text-foreground"><GraduationCap className="h-4 w-4 text-primary" /> One course per skill</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          One course per industry, plus anything Bede records. Open a course, work the lessons in order, tick each one
-          when you have actually watched or read it. Your manager can see the ticks, and the call reviews are where
-          they check you meant it.
+          Work them top-left to bottom-right. Tick a lesson only when you have actually watched or read it — your
+          manager sees the ticks, and the call reviews are where they check you meant it.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -89,7 +129,7 @@ function CourseGrid({ courses, lessons, done, locked, isManager, onOpen, onNew }
           const ls = lessons.filter((l) => l.course_id === c.id && (l.published || isManager));
           const n = ls.filter((l) => done.has(l.id)).length;
           const pct = ls.length ? Math.round((n / ls.length) * 100) : 0;
-          const isLocked = !!c.industry && locked.has(industryLockKey(c.industry));
+          const isLocked = locked.has(courseLockKey(c.slug)) || (!!c.industry && locked.has(industryLockKey(c.industry)));
           const disabled = isLocked && !isManager;
           return (
             <button
@@ -143,6 +183,7 @@ function LessonEditor({ lesson, courseId, onClose }: { lesson: LmsLesson | null;
   const [body, setBody] = useState(lesson?.body ?? "");
   const [resources, setResources] = useState((lesson?.resources ?? []).map((r) => `${r.label} | ${r.url}`).join("\n"));
   const [published, setPublished] = useState(lesson?.published ?? true);
+  const [component, setComponent] = useState<string>(lesson?.component ?? "");
 
   async function persist() {
     const res: LmsResource[] = resources.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
@@ -150,7 +191,7 @@ function LessonEditor({ lesson, courseId, onClose }: { lesson: LmsLesson | null;
       return { label: label.trim(), url: url || label.trim() };
     });
     try {
-      await save.mutateAsync({ id: lesson?.id, course_id: courseId, title: title.trim(), section: section.trim() || "Lessons", sort: Number(sort) || 100, video_url: video.trim() || null, body: body.trim() || null, resources: res, published });
+      await save.mutateAsync({ id: lesson?.id, course_id: courseId, title: title.trim(), section: section.trim() || "Lessons", sort: Number(sort) || 100, video_url: video.trim() || null, body: body.trim() || null, resources: res, published, component: component || null });
       toast({ title: lesson ? "Lesson updated" : "Lesson added" }); onClose();
     } catch (e) { toast({ title: "Couldn't save", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }); }
   }
@@ -170,6 +211,13 @@ function LessonEditor({ lesson, courseId, onClose }: { lesson: LmsLesson | null;
         <Input value={video} onChange={(e) => setVideo(e.target.value)} placeholder="Video link — YouTube, Loom, Vimeo, or a direct .mp4" />
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder={"Notes. Blank line between paragraphs, **bold** for emphasis, lines starting with - for bullets."} />
         <Textarea value={resources} onChange={(e) => setResources(e.target.value)} rows={3} placeholder={"Resources, one per line:  Label | https://link"} />
+        <Select value={component || "__none"} onValueChange={(v) => setComponent(v === "__none" ? "" : v)}>
+          <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Built-in panel (optional)" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">No built-in panel</SelectItem>
+            {Object.entries(COMPONENTS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm"><Switch checked={published} onCheckedChange={setPublished} /> Published</label>
           <Button size="sm" disabled={!title.trim() || save.isPending} onClick={persist}>
@@ -236,7 +284,10 @@ function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick
   const [editing, setEditing] = useState<"course" | "new" | LmsLesson | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const visible = lessons.filter((l) => l.published || isManager);
+  const { data: locks = new Set<string>() } = usePlaybookLocks();
+  // A section named after a locked industry (inside "Know the trade") is hidden for reps.
+  const visible = lessons.filter((l) => (l.published || isManager) && (isManager || !locks.has(industryLockKey(l.section))));
+  const hiddenSections = isManager ? [] : [...new Set(lessons.filter((l) => locks.has(industryLockKey(l.section))).map((l) => l.section))];
   const sections = useMemo(() => {
     const order: string[] = []; const by = new Map<string, LmsLesson[]>();
     for (const l of visible) { if (!by.has(l.section)) { by.set(l.section, []); order.push(l.section); } by.get(l.section)!.push(l); }
@@ -303,6 +354,9 @@ function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick
             );
           })}
           {visible.length === 0 && <p className="text-xs text-muted-foreground">No lessons yet.</p>}
+          {hiddenSections.length > 0 && (
+            <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground"><Lock className="mt-0.5 h-3 w-3 shrink-0" /> {hiddenSections.length} more {hiddenSections.length === 1 ? "trade" : "trades"} parked by your manager until you start calling them.</p>
+          )}
         </aside>
 
         {/* lesson */}
@@ -327,13 +381,14 @@ function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick
                     <Video className="h-4 w-4" /> Open the video <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
-                {!embed && (
+                {!embed && !active.component && (
                   <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
                     <Video className="mr-2 h-4 w-4" /> No video on this one yet — the notes below are the lesson.
                   </div>
                 )}
 
                 {active.body && <Notes text={active.body} />}
+                {active.component && COMPONENTS[active.component]?.render()}
 
                 {active.resources.length > 0 && (
                   <div>
@@ -389,7 +444,7 @@ export function Classroom() {
   if (isLoading) return <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading classroom…</div>;
 
   if (course) {
-    const isLocked = !!course.industry && locks.has(industryLockKey(course.industry));
+    const isLocked = locks.has(courseLockKey(course.slug)) || (!!course.industry && locks.has(industryLockKey(course.industry)));
     if (isLocked && !isManager) {
       return (
         <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">

@@ -111,7 +111,7 @@ export function RealDrillsPanel() {
                   variant="outline"
                   size="sm"
                   className="shrink-0"
-                  onClick={() => navigate(`/playbook?drill=${encodeURIComponent(drill.drill.slice(0, 200))}`)}
+                  onClick={() => navigate(`/classroom?drill=${encodeURIComponent(drill.drill.slice(0, 200))}`)}
                 >
                   <MessageSquareText className="mr-1.5 h-3.5 w-3.5" />
                   Practise it
