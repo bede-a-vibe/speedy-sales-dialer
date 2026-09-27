@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Info, Bookmark, Save, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -25,6 +25,7 @@ import {
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { useDialerFilterOptions } from "@/hooks/useDialerFilterOptions";
+import { useMyDialerRestriction } from "@/hooks/useRepDialerRestriction";
 
 export interface SalesRepOption {
   user_id: string;
@@ -192,10 +193,22 @@ export function AdvancedFilters({
     has_existing_agency: 0, total: 0,
   };
   const { data: filterOptions } = useDialerFilterOptions();
-  const industryOptions = (filterOptions?.industries ?? []).map((o) => ({
-    value: o.value,
-    label: `${o.value} (${o.count.toLocaleString()})`,
-  }));
+  // A manager-set scope narrows what this rep may dial. The database enforces
+  // it on the queue; here we just stop the picker offering things that will
+  // never come back, and pin the selection so the count on screen is honest.
+  const { data: scope } = useMyDialerRestriction();
+  const allowed = scope?.allowed_industries ?? null;
+  const industryOptions = (filterOptions?.industries ?? [])
+    .filter((o) => !allowed || allowed.includes(o.value))
+    .map((o) => ({
+      value: o.value,
+      label: `${o.value} (${o.count.toLocaleString()})`,
+    }));
+  useEffect(() => {
+    if (!allowed || allowed.length === 0) return;
+    const within = industries.filter((i) => allowed.includes(i));
+    if (within.length === 0 || within.length !== industries.length) setIndustries(within.length ? within : allowed);
+  }, [allowed?.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
   const channelOptions = filterOptions?.channels ?? [];
   const sourceOptions = filterOptions?.sources ?? [];
 
@@ -396,12 +409,17 @@ export function AdvancedFilters({
       {/* === ACTIVE FILTERS (always visible — these have data backing them) === */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Business Service</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Business Service
+            {allowed && allowed.length > 0 && (
+              <span className="ml-1.5 font-normal text-primary">· scoped by your manager</span>
+            )}
+          </label>
           <MultiSelect
             options={industryOptions}
             selected={industries}
             onChange={setIndustries}
-            placeholder="All Services"
+            placeholder={allowed && allowed.length > 0 ? allowed.join(", ") : "All Services"}
             disabled={disabled}
           />
         </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  BookOpen, Sparkles, Wand2, MessageSquareText, Loader2, GraduationCap, Library, Lock, Stethoscope, Swords,
+  BookOpen, Sparkles, Wand2, MessageSquareText, Loader2, GraduationCap, Library, Lock, Stethoscope, Swords, CheckCircle2, Circle,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { LearningCallsLibrary } from "@/components/playbook/LearningCallsLibrary";
 import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 import { ObjectionBankPanel, OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from "@/components/training/ObjectionBankPanel";
 import { SetterScript } from "@/components/training/SetterScript";
@@ -31,6 +32,7 @@ import { WordTracks } from "@/components/training/WordTracks";
 import { SetterBoundaries } from "@/components/training/SetterBoundaries";
 import { useObjectionBank } from "@/hooks/useCallLearnings";
 import { usePlaybookLocks, sectionLockKey } from "@/hooks/usePlaybookLocks";
+import { useMyPlaybookProgress, useSetPlaybookProgress } from "@/hooks/usePlaybookProgress";
 import { useCanViewAdmin } from "@/hooks/useUserRole";
 
 /**
@@ -192,6 +194,13 @@ const SECTIONS: Section[] = [
     render: () => <WinningCallsLibrary />,
   },
   {
+    id: "lost",
+    group: "reference",
+    title: "Calls that didn't book",
+    blurb: "Long real calls that went somewhere and fell over, with the coach's read of the exact moment and the better path. Where most of the learning is.",
+    render: () => <LearningCallsLibrary />,
+  },
+  {
     id: "objections",
     group: "reference",
     title: "Objection bank",
@@ -327,6 +336,11 @@ export default function PlaybookPage() {
   const isLocked = (id: string) => locks?.has(sectionLockKey(id)) ?? false;
   const canOpen = (id: string) => isManager || !isLocked(id);
 
+  const { data: done } = useMyPlaybookProgress();
+  const setDone = useSetPlaybookProgress();
+  const numbered = SECTIONS.filter((x) => x.n != null);
+  const doneCount = numbered.filter((x) => done?.has(x.id)).length;
+
   const requestedId = searchParams.get("s") ?? "script";
   const activeId = canOpen(requestedId) ? requestedId : "script";
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0];
@@ -386,6 +400,7 @@ export default function PlaybookPage() {
         </span>
       )}
       <span className="min-w-0 flex-1 truncate">{s.title}</span>
+      {done?.has(s.id) && !locked && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
       {locked && <Lock className="h-3 w-3 shrink-0 opacity-60" />}
     </button>
     );
@@ -425,6 +440,15 @@ export default function PlaybookPage() {
           {/* Rail */}
           <nav className="lg:sticky lg:top-4 lg:self-start">
             <div className="space-y-4 rounded-xl border border-border bg-card p-3">
+              <div>
+                <div className="flex items-baseline justify-between px-1">
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Your progress</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">{doneCount}/{numbered.length}</span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${numbered.length ? Math.round((doneCount / numbered.length) * 100) : 0}%` }} />
+                </div>
+              </div>
               {GROUPS.map((g) => {
                 const Icon = g.icon;
                 return (
@@ -458,6 +482,23 @@ export default function PlaybookPage() {
                 <div className="mt-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2">
                   <p className="font-mono text-[10px] uppercase tracking-widest text-primary">Drill this</p>
                   <p className="mt-0.5 text-sm">{active.drill}</p>
+                </div>
+              )}
+              {active.n != null && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={done?.has(active.id) ? "outline" : "default"}
+                    disabled={setDone.isPending}
+                    onClick={() => setDone.mutate({ sectionId: active.id, done: !done?.has(active.id) })}
+                  >
+                    {done?.has(active.id)
+                      ? <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Done — mark as not done</>
+                      : <><Circle className="mr-1.5 h-3.5 w-3.5" /> Mark this module done</>}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Done means you have read it and run the drill, not that you opened it. Your manager sees this.
+                  </span>
                 </div>
               )}
             </div>
