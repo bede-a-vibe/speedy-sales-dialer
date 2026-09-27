@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, GraduationCap, Headphones, Mic, Swords, PhoneCall, Radio, Target, ShieldCheck, Rocket, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, Circle, GraduationCap, Mic, Swords, PhoneCall, Radio, Target, ShieldCheck, Rocket, ClipboardCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { useSalesReps } from "@/hooks/usePipelineItems";
 
 /**
  * The 14-day new-rep program. Philosophy: ecological learning — you learn by
- * doing, not by memorising word tracks. Live by Day 3; the daily loop of
+ * doing, not by memorising word tracks. Live from day one, supervised; the daily loop of
  * live calls + AI coach feedback + drilling ONE fix is what builds the rep,
  * not study. Progress is keyed by step key; renaming titles is safe, changing
  * keys resets that step.
@@ -20,20 +20,20 @@ import { useSalesReps } from "@/hooks/usePipelineItems";
 const STEPS: { key: string; title: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
   {
     key: "d1_study_drill",
-    title: "Day 1 — Learn the script, no live calls",
-    description: "Read the Setter Script below start to finish, twice. Listen to 5 booked calls in the Real Calls tab and write down the opener, the discovery transition and the booking ask word for word. Then drill the opener out loud — 2 sessions of 10-15 min (~40 reps each), record yourself on your phone and listen back. Target from tomorrow: 4 hours of productive dialling a day.",
-    icon: Headphones,
+    title: "Day 1 — Live from the first hour, supervised",
+    description: "Morning: read the Setter Script twice and listen to 3 booked calls in the Classroom — write down the opener and the booking ask word for word. Then dial: 4 hours of productive dialling with a coach beside you or listening in. The goal is NOT volume — deliver the opener live without freezing and survive the first brush-off. Log every call's outcome as you go. No voicemails: no answer, next number. End of day: read your AI coaching on the Coach tab, pick ONE thing to fix.",
+    icon: PhoneCall,
   },
   {
     key: "d2_roleplay_objections",
-    title: "Day 2 — Roleplay & objection bank",
-    description: "Run the opener 20 times against the AI roleplay in the Classroom — it throws the classic brush-offs (busy, word of mouth, not interested). Then study the Objections tab and say each handle out loud in your own words. Finish with 10 full roleplay rounds from opener through to the booking ask.",
+    title: "Day 2 — Live again, plus the brush-offs",
+    description: "Full supervised session. Between blocks, run the opener 20 times against the AI roleplay in the Classroom — it throws the classic brush-offs (busy, word of mouth, not interested). Study the objection bank and say each handle out loud in your own words. PM: 10 full roleplay rounds from opener through to the booking ask, then read your coaching and pick ONE fix.",
     icon: Swords,
   },
   {
     key: "d3_first_live",
-    title: "Day 3 — First live dials, supervised",
-    description: "First real session in the dialer — 4 hours of productive dialling with a coach beside you or listening in. Goal is NOT volume: deliver the opener live without freezing and survive the first brush-off. Log every call's outcome as you go. End of day: read your AI coaching on the Coach tab, pick ONE thing to fix.",
+    title: "Day 3 — Live, supervised, first bookings",
+    description: "4 hours of productive dialling with a coach listening in. You should be landing your first booking about now — use the pre-qualifying questions and the assumptive calendar close from the script, and confirm every meeting at the time of booking. End of day: coaching feed, one fix, 15-min drill.",
     icon: PhoneCall,
   },
   {
@@ -44,8 +44,8 @@ const STEPS: { key: string; title: string; description: string; icon: React.Comp
   },
   {
     key: "d5_full_session",
-    title: "Day 5 — Full session on your own",
-    description: "Full day of dialling unsupervised. You should be booking your first meetings now — use the pre-qualifying questions and the assumptive calendar close from the script. Every booked meeting gets confirmed at the time of booking. End of day: coaching feed, one fix, 15-min drill.",
+    title: "Day 5 — Full session, and the Week 1 gate",
+    description: "Full day of dialling on your own. The gate to Week 2: 8 of 10 opener reps sound like talking rather than reading, every call this week logged honestly, and the brush-offs no longer freeze you. Not there yet? Stay supervised until you are — the gate is the standard, not the calendar. End of day: coaching feed, one fix, 15-min drill.",
     icon: Rocket,
   },
   {
@@ -172,7 +172,7 @@ export function OnboardingPath() {
           </Badge>
         </CardTitle>
         <CardDescription>
-          Learn by doing, not by memorising — live dials by Day 3. The daily loop (dial → coaching → one fix → drill)
+          Learn by doing, not by memorising — live dials from day one, supervised. The daily loop (dial → coaching → one fix → drill)
           is the program; study is just the warm-up. Tick a day when you've actually done it.
         </CardDescription>
         <Progress value={pct} className="h-1.5" />

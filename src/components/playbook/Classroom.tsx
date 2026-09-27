@@ -29,17 +29,33 @@ import {
  * re-explained on every call.
  */
 
-/* ---------- tiny notes renderer: paragraphs, **bold**, "- " bullets ---------- */
+/* ---------- notes renderer: paragraphs, ## headings, ### labels, **bold**, "- " bullets, "a | b" tables, --- rules, links ---------- */
+const URL_RE = /(https?:\/\/[^\s)]+)/g;
 function Notes({ text }: { text: string }) {
   const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   const inline = (s: string) =>
-    s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-      part.startsWith("**") && part.endsWith("**") ? <strong key={i} className="text-foreground">{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>,
-    );
+    s.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="text-foreground">{part.slice(2, -2)}</strong>;
+      return (
+        <span key={i}>
+          {part.split(URL_RE).map((seg, j) =>
+            /^https?:\/\//.test(seg)
+              ? <a key={j} href={seg} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">{seg}</a>
+              : seg,
+          )}
+        </span>
+      );
+    });
+  const line = (l: string, key: number) => {
+    if (/^###\s+/.test(l)) return <p key={key} className="pt-1 font-mono text-[10px] uppercase tracking-widest text-primary">{l.replace(/^###\s+/, "")}</p>;
+    if (/^##\s+/.test(l)) return <h3 key={key} className="pt-2 text-base font-semibold text-foreground">{inline(l.replace(/^##\s+/, ""))}</h3>;
+    return <span key={key}>{inline(l)}</span>;
+  };
   return (
     <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
       {blocks.map((b, i) => {
-        const lines = b.split("\n");
+        const lines = b.split("\n").map((l) => l.trimEnd()).filter(Boolean);
+        if (lines.length === 1 && /^-{3,}$/.test(lines[0])) return <hr key={i} className="border-border" />;
         if (lines.every((l) => /^-\s+/.test(l))) {
           return (
             <ul key={i} className="ml-4 list-disc space-y-1">
@@ -47,7 +63,26 @@ function Notes({ text }: { text: string }) {
             </ul>
           );
         }
-        return <p key={i}>{inline(b)}</p>;
+        if (lines.length > 1 && lines.every((l) => l.includes(" | "))) {
+          return (
+            <div key={i} className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <tbody>
+                  {lines.map((l, ri) => (
+                    <tr key={ri} className="border-b border-border/50 align-top">
+                      {l.split(" | ").map((c, ci) => <td key={ci} className="py-1.5 pr-3">{inline(c.trim())}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        return (
+          <div key={i}>
+            {lines.map((l, j) => <span key={j}>{j > 0 && !/^#{2,3}\s/.test(l) && <br />}{line(l, j)}</span>)}
+          </div>
+        );
       })}
     </div>
   );
@@ -170,15 +205,16 @@ function LessonEditor({ lesson, courseId, onClose }: { lesson: LmsLesson | null;
           <Input value={sort} onChange={(e) => setSort(e.target.value)} placeholder="Order" type="number" />
         </div>
         <Input value={video} onChange={(e) => setVideo(e.target.value)} placeholder="Video link — YouTube, Loom, Vimeo, or a direct .mp4" />
-        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder={"Notes. Blank line between paragraphs, **bold** for emphasis, lines starting with - for bullets."} />
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={18} className="min-h-[320px] text-sm leading-relaxed" placeholder={"The lesson text. Blank line between paragraphs. ## Heading, ### small label, **bold**, lines starting with - for bullets, cells split by | for a table row, --- for a divider."} />
         <Textarea value={resources} onChange={(e) => setResources(e.target.value)} rows={3} placeholder={"Resources, one per line:  Label | https://link"} />
         <Select value={component || "__none"} onValueChange={(v) => setComponent(v === "__none" ? "" : v)}>
           <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Built-in panel (optional)" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none">No built-in panel</SelectItem>
+            <SelectItem value="__none">No built-in panel — the text above is the lesson</SelectItem>
             {Object.entries(COMPONENTS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">Built-in panels are fixed code and can't be edited here. Leave this on none and the text box above is the whole lesson.</p>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm"><Switch checked={published} onCheckedChange={setPublished} /> Published</label>
           <Button size="sm" disabled={!title.trim() || save.isPending} onClick={persist}>
