@@ -2,10 +2,9 @@ import { Lock, LockOpen, Loader2, ListChecks } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { usePlaybookLocks, useSetPlaybookLock, industryLockKey } from "@/hooks/usePlaybookLocks";
+import { usePlaybookLocks, useSetPlaybookLock, industryLockKey, courseLockKey } from "@/hooks/usePlaybookLocks";
 import { useRepProfiles } from "@/hooks/useManager";
 import { useLmsCourses, useLmsLessons, useTeamLessonProgress } from "@/hooks/useLms";
-import { courseLockKey } from "@/components/playbook/Classroom";
 import { DialerScope } from "@/components/manager/DialerScope";
 
 /**

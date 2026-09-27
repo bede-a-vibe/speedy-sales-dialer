@@ -20,6 +20,7 @@ export type LockKey = string;
 
 export const industryLockKey = (name: string): LockKey => `industry:${name}`;
 export const sectionLockKey = (id: string): LockKey => `section:${id}`;
+export const courseLockKey = (slug: string): LockKey => `course:${slug}`;
 
 export function usePlaybookLocks() {
   return useQuery({
