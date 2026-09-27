@@ -52,7 +52,7 @@ const HARD_RULES: { rule: string; detail: string }[] = [
 
 const CAPTURE: { field: string; why: string }[] = [
   { field: "Who you actually spoke to, and their role", why: "Bede needs to know if he is walking into a call with the decision maker or a foreman." },
-  { field: "The trade and the work they want more of", why: "Switchboards, hot water, emergency, commercial. This is what the whole conversation hangs off." },
+  { field: "The trade and the work they want more of", why: "The high-value jobs in their trade, in their words. This is what the whole conversation hangs off." },
   { field: "Whether anyone is already doing their marketing, and who", why: "The strongest buying signal we have. Capture the agency name and anything they said about how it is going." },
   { field: "What they complained about, in their words", why: "Not your summary. Their phrasing. It is what Bede opens with." },
   { field: "Team size and whether the owner is on the tools", why: "Determines which of the four segments they are and therefore what actually sells them." },

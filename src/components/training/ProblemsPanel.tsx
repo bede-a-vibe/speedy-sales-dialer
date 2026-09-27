@@ -123,7 +123,7 @@ const WOM_IMPLIES: { problem: string; why: string }[] = [
   },
   {
     problem: "Quality",
-    why: "You take whatever the referral is. No choosing the switchboard upgrade over the light switch — you get what you are given.",
+    why: "You take whatever the referral is. No choosing the big job over the small one — you get what you are given.",
   },
   {
     problem: "Volume",

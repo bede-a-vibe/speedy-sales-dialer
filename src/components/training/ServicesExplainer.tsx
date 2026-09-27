@@ -29,7 +29,7 @@ const BUCKETS: { n: number; name: string; plain: string; services: string; icon:
     n: 2,
     name: "Get in front of people who aren't looking yet",
     plain:
-      "Nobody wakes up wanting a new switchboard. But if they have seen the name around, they think of it when the time comes. Slower, softer, and useless for emergencies.",
+      "Nobody wakes up wanting a big job done. But if they have seen the name around, they think of it when the time comes. Slower, softer, and useless for emergencies.",
     services: "Meta ads (Facebook and Instagram)",
     icon: Users,
   },
@@ -104,7 +104,7 @@ const SERVICES: Service[] = [
     icon: Users,
     bucket: 2,
     oneLine:
-      "Ads shown to people in their area who are scrolling, not searching. They are not after a plumber right now — we are putting the name in front of them for later.",
+      "Ads shown to people in their area who are scrolling, not searching. They are not after a tradie right now — we are putting the name in front of them for later.",
     analogy: "A billboard on the highway. Nobody drove out to see it, but they remember the name when they need it.",
     solves: "\"Getting my name out there.\" Also works for bigger jobs people think about for a while, like solar or a full rewire.",
     pickWhen: "Awareness, promotions, and higher-value work people mull over.",

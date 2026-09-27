@@ -53,7 +53,7 @@ const REFRAMES: Reframe[] = [
     objection: '"How much is it going to be?"',
     validate: "Fair question, and I'd be asking it too.",
     reframe:
-      "Honestly though, the number's meaningless until we know what your jobs are worth. Two grand a month is expensive if it does nothing and cheap if it brings you one switchboard job a week.",
+      "Honestly though, the number's meaningless until we know what your jobs are worth. Two grand a month is expensive if it does nothing and cheap if it brings you one decent job a week.",
     redirect: "That's the bit Bede works out with you on the call — what it'd need to return to be worth doing.",
     normalise: "Nobody signs anything without seeing that first.",
     belief:
