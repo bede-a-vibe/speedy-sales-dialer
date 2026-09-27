@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { useMarkReviewsSeen, useMyReviews } from "@/hooks/useManager";
+import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
 
 /** A rep's own manager call reviews. Renders nothing until they have one. */
 export function MyCallReviews() {
@@ -32,6 +33,18 @@ export function MyCallReviews() {
                 ))}
               </span>
             </div>
+            {r.pillar_scores && (
+              <div className="mb-1.5 flex flex-wrap gap-1">
+                {PILLAR_ORDER.filter((k) => typeof r.pillar_scores?.[k] === "number").map((k) => {
+                  const v = r.pillar_scores[k] as number;
+                  return (
+                    <span key={k} className={v >= 4 ? "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-700 dark:text-emerald-300" : v <= 2 ? "rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 font-mono text-[10px] text-destructive" : "rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground"}>
+                      {PILLAR_LABELS[k]} {v}/5
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             {r.went_well && <p><span className="font-medium text-[hsl(var(--outcome-booked))]">Went well: </span>{r.went_well}</p>}
             {r.improve && <p className="mt-1"><span className="font-medium text-primary">Fix next call: </span>{r.improve}</p>}
           </div>

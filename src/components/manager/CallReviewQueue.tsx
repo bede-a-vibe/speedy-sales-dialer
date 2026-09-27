@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useRepProfiles, useReviewQueue, useSaveReview, type ReviewableCall, type CallReview } from "@/hooks/useManager";
+import { ListenButton } from "@/components/calls/ListenButton";
+import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
 
 const fmtTalk = (s: number | null) => (s ? `${Math.floor(s / 60)}m ${s % 60}s` : "—");
 
@@ -122,12 +124,13 @@ function ReviewDialog({ call, repName, existing, onClose }: {
   const [improve, setImprove] = useState(existing?.improve ?? "");
   const [ps, setPs] = useState<boolean | null>(existing?.stage_problem_solution ?? null);
   const [sc, setSc] = useState<boolean | null>(existing?.stage_solution_commit ?? null);
+  const [pillars, setPillars] = useState<Record<string, number>>(existing?.pillar_scores ?? {});
   const save = useSaveReview();
   const { toast } = useToast();
 
   const submit = async () => {
     try {
-      await save.mutateAsync({ call_log_id: call.id, rep_user_id: call.user_id, score, went_well: wentWell, improve, stage_problem_solution: ps, stage_solution_commit: sc });
+      await save.mutateAsync({ call_log_id: call.id, rep_user_id: call.user_id, score, went_well: wentWell, improve, stage_problem_solution: ps, stage_solution_commit: sc, pillar_scores: Object.keys(pillars).length ? pillars : null });
       toast({ title: "Review saved", description: `${repName} will see it on their Training page.` });
       onClose();
     } catch (e) {
@@ -144,6 +147,11 @@ function ReviewDialog({ call, repName, existing, onClose }: {
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="max-h-[55vh] space-y-3 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3 text-xs">
+            {call.dialpadCallId ? (
+              <ListenButton dialpadCallId={call.dialpadCallId} autoPlay={false} className="flex flex-wrap items-center gap-2" />
+            ) : (
+              <p className="text-[11px] text-muted-foreground">No recording linked to this call.</p>
+            )}
             {existing?.self_score != null && (
               <div className="rounded-md border border-sky-500/30 bg-sky-500/5 p-2.5">
                 <p className="mb-1 flex items-center gap-1.5 font-medium">
@@ -182,6 +190,27 @@ function ReviewDialog({ call, repName, existing, onClose }: {
                 </div>
               </div>
             ))}
+            <div>
+              <p className="mb-1.5 text-xs font-medium">Delivery — the five pillars, 1 to 5</p>
+              <p className="mb-2 text-[10px] text-muted-foreground">Tonality first. Fix top-down: a tonality problem makes everything under it look worse than it is.</p>
+              <div className="space-y-1.5">
+                {PILLAR_ORDER.map((k) => (
+                  <div key={k} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="w-24">{PILLAR_LABELS[k]}</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Button key={n} type="button" size="sm"
+                          variant={pillars[k] === n ? "default" : "outline"}
+                          className="h-7 w-7 px-0 text-xs"
+                          onClick={() => setPillars((p) => (p[k] === n ? Object.fromEntries(Object.entries(p).filter(([kk]) => kk !== k)) : { ...p, [k]: n }))}>
+                          {n}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div>
               <p className="mb-1.5 text-xs font-medium">What went well</p>
               <Textarea value={wentWell} onChange={(e) => setWentWell(e.target.value)} rows={4} />

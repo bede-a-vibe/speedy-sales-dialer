@@ -21,6 +21,7 @@ export interface ReviewableCall {
   id: string; user_id: string; outcome: string; created_at: string;
   talk: number | null; transcript: string | null; summary: string | null; notes: string | null;
   business: string | null;
+  dialpadCallId: string | null;
 }
 
 export type ReviewStatus = "draft" | "submitted" | "reviewed";
@@ -31,6 +32,8 @@ export interface CallReview {
   status: ReviewStatus;
   self_score: number | null; self_went_well: string | null; self_improve: string | null;
   submitted_at: string | null; reviewed_at: string | null;
+  /** Manager's 1-5 marks on the five pillars. Keys as in PILLAR_ORDER. */
+  pillar_scores: Record<string, number> | null;
 }
 
 /** Calls worth a manager's ear from the last 14 days: booked or a real conversation (60s+). */
@@ -42,7 +45,7 @@ export function useReviewQueue() {
       const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
       const [calls, reviews] = await Promise.all([
         supabase.from("call_logs")
-          .select("id, user_id, outcome, created_at, dialpad_talk_time_seconds, dialpad_transcript, dialpad_summary, notes, contacts(business_name)")
+          .select("id, user_id, outcome, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, dialpad_summary, notes, contacts(business_name)")
           .gte("created_at", since)
           .or("outcome.eq.booked,dialpad_talk_time_seconds.gte.60")
           .order("created_at", { ascending: false })
@@ -55,6 +58,7 @@ export function useReviewQueue() {
         id: c.id, user_id: c.user_id, outcome: c.outcome, created_at: c.created_at,
         talk: c.dialpad_talk_time_seconds, transcript: c.dialpad_transcript, summary: c.dialpad_summary,
         notes: c.notes, business: c.contacts?.business_name ?? null,
+        dialpadCallId: c.dialpad_call_id ?? null,
       }));
       return { calls: list, reviews: (reviews.data ?? []) as CallReview[] };
     },
@@ -64,7 +68,7 @@ export function useReviewQueue() {
 export function useSaveReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (r: { call_log_id: string; rep_user_id: string; score: number; went_well: string; improve: string; stage_problem_solution?: boolean | null; stage_solution_commit?: boolean | null }) => {
+    mutationFn: async (r: { call_log_id: string; rep_user_id: string; score: number; went_well: string; improve: string; stage_problem_solution?: boolean | null; stage_solution_commit?: boolean | null; pillar_scores?: Record<string, number> | null }) => {
       const { data: auth } = await supabase.auth.getUser();
       // seen_at null so it shows as New for the rep; status 'reviewed' closes
       // the loop on a self-review they submitted.

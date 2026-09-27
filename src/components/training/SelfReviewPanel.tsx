@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySelfReviewableCalls, useSaveSelfReview, type SelfReviewableCall } from "@/hooks/useManager";
 import { cn } from "@/lib/utils";
+import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
 
 /**
  * A rep reviews their own calls and sends them up.
@@ -158,6 +159,19 @@ function CallRow({ call }: { call: SelfReviewableCall }) {
                 <span className="text-xs font-medium">Your manager's review</span>
                 <span className="ml-auto"><Stars value={review.score} readOnly /></span>
               </div>
+              {review.pillar_scores && (
+                <div className="mb-1.5 flex flex-wrap gap-1">
+                  {PILLAR_ORDER.filter((k) => typeof review.pillar_scores?.[k] === "number").map((k) => {
+                    const v = review.pillar_scores![k];
+                    return (
+                      <span key={k} className={cn("rounded-full border px-2 py-0.5 font-mono text-[10px]",
+                        v >= 4 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : v <= 2 ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-border bg-muted text-muted-foreground")}>
+                        {PILLAR_LABELS[k]} {v}/5
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               {review.went_well && (
                 <p className="text-sm"><span className="font-medium text-emerald-700 dark:text-emerald-300">Went well: </span>{review.went_well}</p>
               )}

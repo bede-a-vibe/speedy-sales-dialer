@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { useWinningCalls, type WinningCallResult } from "@/hooks/useWinningCalls";
+import { ListenButton } from "@/components/calls/ListenButton";
 import { formatTalk } from "@/hooks/useDialpadCallStats";
 
 interface ClientMeeting {
@@ -41,50 +42,6 @@ const RESULT_CONFIG: Record<WinningCallResult, { label: string; className: strin
   no_show: { label: "No-show", className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
 };
 
-/** Fetches the Dialpad recording share link on demand and plays it inline. */
-function ListenButton({ dialpadCallId }: { dialpadCallId: string }) {
-  const [loading, setLoading] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke("dialpad", {
-        body: { action: "get_call_recording", dialpad_call_id: dialpadCallId },
-      });
-      if (fnError) throw fnError;
-      if (!data?.access_link) throw new Error(data?.error ?? "No recording available");
-      setAudioUrl(data.access_link as string);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load the recording.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (audioUrl) {
-    return (
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <audio controls autoPlay src={audioUrl} className="h-9 w-full max-w-md" />
-        <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-          Open recording <ExternalLink className="h-3 w-3" />
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-3">
-      <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-        {loading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}
-        Listen to this call
-      </Button>
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
 
 function prettyKey(k: string): string {
   return k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());

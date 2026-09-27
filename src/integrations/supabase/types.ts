@@ -311,6 +311,7 @@ export type Database = {
           created_at: string
           id: string
           improve: string | null
+          pillar_scores: Json | null
           rep_user_id: string
           reviewed_at: string | null
           reviewer_id: string | null
@@ -332,6 +333,7 @@ export type Database = {
           created_at?: string
           id?: string
           improve?: string | null
+          pillar_scores?: Json | null
           rep_user_id: string
           reviewed_at?: string | null
           reviewer_id?: string | null
@@ -353,6 +355,7 @@ export type Database = {
           created_at?: string
           id?: string
           improve?: string | null
+          pillar_scores?: Json | null
           rep_user_id?: string
           reviewed_at?: string | null
           reviewer_id?: string | null
