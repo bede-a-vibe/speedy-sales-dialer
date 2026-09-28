@@ -26,6 +26,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
+import { formatDurationSeconds } from "@/lib/duration";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
