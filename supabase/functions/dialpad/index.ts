@@ -6108,7 +6108,7 @@ Deno.serve(async (req) => {
           const detail = await fetchDialpadCallInfo(String(row.dialpad_call_id), DIALPAD_API_KEY);
           const rec = pickDialpadRecording(detail);
           if (!rec || !rec.id) {
-            return jsonResponse({ error: "No recording available for this call" }, 404);
+            return jsonResponse({ ok: false, access_link: null, no_recording: true, error: "No recording available for this call" }, 200);
           }
           recordingId = rec.id;
           recordingType = rec.type;
