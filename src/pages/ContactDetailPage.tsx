@@ -26,6 +26,7 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
+import { formatDurationSeconds } from "@/lib/duration";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -704,6 +705,9 @@ export default function ContactDetailPage() {
                   <>
                     {allCallLogs.map((log) => {
                       const config = OUTCOME_CONFIG[log.outcome as CallOutcome];
+                      const talkSecs = log.dialpad_talk_time_seconds ?? 0;
+                      const connected = talkSecs > 0;
+                      const productiveSecs = 30 + talkSecs + (log.outcome === "booked" ? 5 * 60 : 0);
                       return (
                         <div key={log.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
                           <div className="flex-1 min-w-0">
@@ -715,6 +719,16 @@ export default function ContactDetailPage() {
                                 {formatTimestamp(log.created_at)}
                               </span>
                             </div>
+                            {log.dialpad_call_id && (
+                              <p className="text-[10px] font-mono mt-1">
+                                {connected ? (
+                                  <span className="text-emerald-600">Connected · {formatDurationSeconds(talkSecs)} talk</span>
+                                ) : (
+                                  <span className="text-muted-foreground">No connection</span>
+                                )}
+                                <span className="text-muted-foreground"> · +{formatDurationSeconds(productiveSecs)} productive</span>
+                              </p>
+                            )}
                             {log.notes && (
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>
                             )}

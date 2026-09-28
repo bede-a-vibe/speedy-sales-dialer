@@ -194,9 +194,20 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
 
     calls.forEach((call) => {
       const cfg = OUTCOME_CONFIG[call.outcome as CallOutcome];
-      const durationSecs = call.dialpad_talk_time_seconds ?? call.dialpad_total_duration_seconds ?? 0;
+      const talkSecs = call.dialpad_talk_time_seconds ?? 0;
+      const totalSecs = call.dialpad_total_duration_seconds ?? 0;
+      const durationSecs = talkSecs || totalSecs;
+      const connected = talkSecs > 0;
+      // Per-call productive time mirrors the KPI formula: 30s dial + talk time (+5m if booked).
+      const productiveSecs = 30 + talkSecs + (call.outcome === "booked" ? 5 * 60 : 0);
       const parts: string[] = [];
-      if (durationSecs > 0) parts.push(formatDurationSeconds(durationSecs));
+      if (call.dialpad_call_id || durationSecs > 0) {
+        parts.push(connected ? `Connected · ${formatDurationSeconds(talkSecs)}` : "No connection");
+        if (!connected && totalSecs > 0) parts.push(`${formatDurationSeconds(totalSecs)} ring`);
+      } else if (durationSecs > 0) {
+        parts.push(formatDurationSeconds(durationSecs));
+      }
+      parts.push(`+${formatDurationSeconds(productiveSecs)} productive`);
       if (call.dialpad_call_id) parts.push("Dialpad");
       items.push({
         id: `call-${call.id}`,
