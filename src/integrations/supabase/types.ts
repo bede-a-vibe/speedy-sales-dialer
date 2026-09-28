@@ -2971,12 +2971,14 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          closed_at: string | null
           completed_at: string | null
           contact_id: string
           created_at: string
           created_by: string
           deal_stage: string | null
           deal_value: number | null
+          expected_close_date: string | null
           follow_up_method: string
           id: string
           monthly_recurring_value: number | null
@@ -2995,12 +2997,14 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          closed_at?: string | null
           completed_at?: string | null
           contact_id: string
           created_at?: string
           created_by: string
           deal_stage?: string | null
           deal_value?: number | null
+          expected_close_date?: string | null
           follow_up_method?: string
           id?: string
           monthly_recurring_value?: number | null
@@ -3019,12 +3023,14 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id?: string
+          closed_at?: string | null
           completed_at?: string | null
           contact_id?: string
           created_at?: string
           created_by?: string
           deal_stage?: string | null
           deal_value?: number | null
+          expected_close_date?: string | null
           follow_up_method?: string
           id?: string
           monthly_recurring_value?: number | null
