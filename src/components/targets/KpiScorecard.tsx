@@ -92,7 +92,8 @@ function Cell({ value, target, digits = 2, suffix = "", floor }: { value: number
 
 /**
  * Per-rep scorecard vs tenure-based ramp targets plus the diagnostic alert
- * bands. Productive dialling hours = dials × 30 seconds + connected talk time.
+ * bands. Productive dialling hours = dials × 30 seconds + connected talk time
+ * + bookings × 5 minutes.
  */
 export function KpiScorecard({ userId }: { userId?: string }) {
   const [days, setDays] = useState(7);
@@ -169,7 +170,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
               <Gauge className="h-5 w-5 text-primary" /> KPI scorecard
             </CardTitle>
             <CardDescription>
-              Actual vs ramp target for each rep's tenure. Productive dialling hours = dials × 30 seconds + connected talk time, from Dialpad call records.
+              Actual vs ramp target for each rep's tenure. Productive dialling hours = dials × 30 seconds + connected talk time + 5 minutes per booking, from Dialpad call records.
             </CardDescription>
           </div>
           <div className="flex gap-1">

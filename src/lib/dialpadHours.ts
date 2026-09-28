@@ -5,7 +5,8 @@ const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear
 
 /**
  * Per-user productive dialling hours + days worked from Dialpad call records since `since`.
- * Definition: (dials × 30 seconds) + connected talk time.
+ * Definition: (dials × 30 seconds) + connected talk time + (bookings × 5 minutes).
+ * Bookings are counted from call_logs with outcome "booked" in the same window.
  */
 export async function fetchDialpadHours(since: string): Promise<Map<string, { hours: number; days: number }>> {
   const rows: any[] = [];
@@ -18,6 +19,15 @@ export async function fetchDialpadHours(since: string): Promise<Map<string, { ho
     rows.push(...(data ?? []));
     if (!data || data.length < 1000) break;
   }
+  const bookings = new Map<string, number>();
+  for (let page = 0; ; page++) {
+    const { data, error } = await supabase.from("call_logs")
+      .select("user_id").eq("outcome", "booked").gte("created_at", since)
+      .range(page * 1000, page * 1000 + 999);
+    if (error) throw error;
+    for (const b of data ?? []) if (b.user_id) bookings.set(b.user_id, (bookings.get(b.user_id) ?? 0) + 1);
+    if (!data || data.length < 1000) break;
+  }
   const byUser = new Map<string, { dials: number; talk: number; days: Set<string> }>();
   for (const r of rows) {
     const u = byUser.get(r.user_id) ?? byUser.set(r.user_id, { dials: 0, talk: 0, days: new Set() }).get(r.user_id)!;
@@ -26,6 +36,6 @@ export async function fetchDialpadHours(since: string): Promise<Map<string, { ho
     u.days.add(dayKey(new Date(r.started_at).getTime()));
   }
   const out = new Map<string, { hours: number; days: number }>();
-  for (const [uid, u] of byUser) out.set(uid, { hours: productiveDiallingHours(u.dials, u.talk), days: u.days.size });
+  for (const [uid, u] of byUser) out.set(uid, { hours: productiveDiallingHours(u.dials, u.talk, bookings.get(uid) ?? 0), days: u.days.size });
   return out;
 }
