@@ -6026,6 +6026,15 @@ Deno.serve(async (req) => {
       const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
       return jsonResponse(result, 200);
     }
+    if (action === "catch_up_call_records") {
+      const result = await catchUpDialpadCallRecords({
+        adminClient,
+        limit: typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 40) : 12,
+        sinceHours: typeof body.since_hours === "number" ? Math.min(Math.max(body.since_hours, 1), 720) : 72,
+      });
+      return jsonResponse({ ok: true, ...result }, 200);
+    }
+
     if (action === "sync_dialpad_call_history") {
       if (!DIALPAD_API_KEY) {
         return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
