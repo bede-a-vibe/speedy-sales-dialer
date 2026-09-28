@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Phone, Loader2, Save, Users, Webhook, Stethoscope
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { CallerIdRotationManager } from "@/components/admin/CallerIdRotationManager";
+import { DialpadSyncHealth } from "@/components/admin/DialpadSyncHealth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Radio } from "lucide-react";
 
@@ -133,6 +134,7 @@ export default function DialpadSettingsPage() {
   return (
     <AppLayout title="Dialpad Settings">
       <div className="max-w-4xl mx-auto space-y-6">
+        {isAdmin && <DialpadSyncHealth />}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">User Dialpad Assignments</h2>
