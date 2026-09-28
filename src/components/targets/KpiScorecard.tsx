@@ -169,7 +169,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
               <Gauge className="h-5 w-5 text-primary" /> KPI scorecard
             </CardTitle>
             <CardDescription>
-              Actual vs ramp target for each rep's tenure. Productive hours from Dialpad calls, joined where gaps are ≤{PRODUCTIVE_IDLE_CUTOFF_MIN} minutes.
+              Actual vs ramp target for each rep's tenure. Productive dialling hours = dials × 30 seconds + connected talk time, from Dialpad call records.
             </CardDescription>
           </div>
           <div className="flex gap-1">
