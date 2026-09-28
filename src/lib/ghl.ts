@@ -9,21 +9,40 @@ async function invokeGHL<T = unknown>(body: Record<string, unknown>): Promise<T>
 
   const url = `https://${PROJECT_ID}.supabase.co/functions/v1/ghl`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    },
-    body: JSON.stringify(body),
-  });
+  // Transient platform blips (502/503/504) are retried with backoff so a
+  // momentary outage never surfaces as a crash.
+  const delays = [500, 1500, 3000];
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      if (attempt < delays.length) {
+        await new Promise((r) => setTimeout(r, delays[attempt]));
+        continue;
+      }
+      throw err;
+    }
 
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(json?.error ?? `GHL request failed (${res.status})`);
+    if ([502, 503, 504].includes(res.status) && attempt < delays.length) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+      continue;
+    }
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.error ?? json?.message ?? `GHL request failed (${res.status})`);
+    }
+    return json as T;
   }
-  return json as T;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
