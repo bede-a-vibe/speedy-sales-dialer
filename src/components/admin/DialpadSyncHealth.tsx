@@ -45,10 +45,10 @@ export function DialpadSyncHealth() {
       const [calls, state, profiles] = await Promise.all([
         fetchCalls(rangeStart(range)),
         supabase.from("dialpad_sync_state").select("last_synced_at, last_run_at, last_pulled, last_error").limit(1).maybeSingle(),
-        supabase.from("profiles").select("user_id, full_name"),
+        supabase.from("profiles").select("user_id, display_name, email"),
       ]);
       const names = new Map<string, string>();
-      (profiles.data ?? []).forEach((p: any) => names.set(p.user_id, p.full_name || "Unnamed"));
+      (profiles.data ?? []).forEach((p: any) => names.set(p.user_id, p.display_name || p.email || "Unnamed"));
       const byRep = new Map<string, { name: string; total: number; linked: number; contact: number; connected: number }>();
       for (const c of calls) {
         const key = c.user_id ?? "none";
