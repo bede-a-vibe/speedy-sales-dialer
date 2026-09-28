@@ -7216,6 +7216,18 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, ...result }, 200);
       }
 
+      case "catch_up_call_records": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+        const result = await catchUpDialpadCallRecords({
+          adminClient,
+          limit: coerceBoundedLimit(params.limit, 12, 1, 40),
+          sinceHours: coerceBoundedLimit(params.since_hours, 72, 1, 24 * 30),
+        });
+        return jsonResponse({ ok: true, ...result }, 200);
+      }
+
       case "score_booked_calls": {
         if (!isAdmin) {
           return jsonResponse({ error: "Admins only" }, 403);
