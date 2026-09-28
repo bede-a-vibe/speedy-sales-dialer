@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchDialpadHours } from "@/lib/dialpadHours";
 import {
-  DIAGNOSTICS, PRODUCTIVE_IDLE_CUTOFF_MIN, bandStatus, productiveHours, rampForTenure, type DiagKey,
+  DIAGNOSTICS, bandStatus, productiveHours, rampForTenure, type DiagKey,
 } from "@/lib/kpiStandards";
 
 const ANSWERED = new Set(["booked", "not_interested", "follow_up", "dnc", "gatekeeper"]);
@@ -92,7 +92,7 @@ function Cell({ value, target, digits = 2, suffix = "", floor }: { value: number
 
 /**
  * Per-rep scorecard vs tenure-based ramp targets plus the diagnostic alert
- * bands. Productive hours use the locked 15-minute idle cutoff.
+ * bands. Productive dialling hours = dials × 30 seconds + connected talk time.
  */
 export function KpiScorecard({ userId }: { userId?: string }) {
   const [days, setDays] = useState(7);
