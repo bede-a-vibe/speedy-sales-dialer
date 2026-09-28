@@ -5358,6 +5358,87 @@ const DIALPAD_DISABLED_USER_IDS = new Set<string>([
   "6732964712554496", // Kobi (deleted)
 ]);
 
+// Links Dialpad calls to call_logs created after the call ended (rep
+// dispositions late), copies transcript/duration across, and runs the
+// transcript → scorecard pipeline for any connected call without a score.
+async function catchUpDialpadCallRecords(params: {
+  adminClient: ReturnType<typeof createClient>;
+  limit?: number;
+  sinceHours?: number;
+}) {
+  const { adminClient } = params;
+  const since = new Date(Date.now() - (params.sinceHours ?? 72) * 3600_000).toISOString();
+  const stats = { linked: 0, scored: 0, score_failed: 0 };
+
+  // 1. Link unlinked calls.
+  const { data: unlinked } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, contact_id, user_id, started_at, talk_time_seconds, total_duration_seconds, transcript, dialpad_summary")
+    .is("call_log_id", null)
+    .not("contact_id", "is", null)
+    .not("user_id", "is", null)
+    .gte("started_at", since)
+    .limit(200);
+  for (const row of unlinked ?? []) {
+    const callLogId = await findCallLogByFallback(adminClient, row.contact_id as string, row.user_id as string, row.started_at as string);
+    if (!callLogId) continue;
+    // Don't steal a log already tied to a different Dialpad call.
+    const { data: taken } = await adminClient.from("dialpad_calls").select("id").eq("call_log_id", callLogId).limit(1);
+    if (taken && taken.length) continue;
+    await adminClient.from("dialpad_calls").update({ call_log_id: callLogId }).eq("id", row.id as string);
+    const patch: Record<string, unknown> = { dialpad_call_id: row.dialpad_call_id };
+    if (row.talk_time_seconds != null) patch.dialpad_talk_time_seconds = row.talk_time_seconds;
+    if (row.total_duration_seconds != null) patch.dialpad_total_duration_seconds = row.total_duration_seconds;
+    if (row.transcript) { patch.dialpad_transcript = row.transcript; patch.transcript_synced_at = new Date().toISOString(); }
+    if (row.dialpad_summary) patch.dialpad_summary = row.dialpad_summary;
+    await adminClient.from("call_logs").update(patch).eq("id", callLogId);
+    stats.linked += 1;
+  }
+
+  // 2. Score transcribed, linked calls that have no scorecard yet.
+  if (!Deno.env.get("LOVABLE_API_KEY")) return { ...stats, reason: "no_lovable_api_key" };
+  const { data: candidates } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, contact_id, user_id, call_log_id, external_number, transcript")
+    .not("call_log_id", "is", null)
+    .not("transcript", "is", null)
+    .not("contact_id", "is", null)
+    .gte("total_duration_seconds", 30)
+    .gte("started_at", since)
+    .order("started_at", { ascending: false })
+    .limit(200);
+  const pool = (candidates ?? []).filter((r: any) => String(r.transcript).trim().length >= 40);
+  if (!pool.length) return stats;
+  const { data: existing } = await adminClient
+    .from("call_scores")
+    .select("call_log_id")
+    .in("call_log_id", pool.map((r: any) => r.call_log_id));
+  const done = new Set((existing ?? []).map((r: any) => r.call_log_id));
+  const todo = pool.filter((r: any) => !done.has(r.call_log_id)).slice(0, params.limit ?? 12);
+
+  let idx = 0;
+  await Promise.all(Array.from({ length: Math.min(4, todo.length) }, async () => {
+    while (idx < todo.length) {
+      const r: any = todo[idx++];
+      const { data: c } = await adminClient.from("contacts").select("business_name, phone").eq("id", r.contact_id).maybeSingle();
+      const res: any = await runTranscriptExtractionPipeline({
+        adminClient,
+        contactId: r.contact_id,
+        userId: r.user_id,
+        dialpadCallId: String(r.dialpad_call_id),
+        transcript: r.transcript,
+        businessName: c?.business_name ?? null,
+        phoneNumber: r.external_number ?? c?.phone ?? null,
+        dialpadCallsRowId: r.id,
+        callLogId: r.call_log_id,
+        source: "Dialpad transcript (catch-up)",
+      });
+      if (res?.ok && res.writes?.scorecard_stored) stats.scored += 1; else stats.score_failed += 1;
+    }
+  }));
+  return stats;
+}
+
 async function syncDialpadCallHistory(params: {
   adminClient: ReturnType<typeof createClient>;
   apiKey: string;
@@ -5645,6 +5726,16 @@ async function syncDialpadCallHistory(params: {
   console.log(
     `[sync_dialpad_call_history] done pulled=${calls.length} linked=${linked} withTalkTime=${withTalkTime} skipped=${skipped} detailFetches=${detailFetches} officePulled=${officePulled}`,
   );
+
+  // Catch-up: link late-dispositioned calls + score every transcribed call.
+  // History sync is the only path for reps without a Dialpad webhook, so
+  // without this their calls never get a scorecard (and so no stages).
+  let catchUpSummary: unknown = null;
+  try {
+    catchUpSummary = await catchUpDialpadCallRecords({ adminClient, limit: 12 });
+  } catch (err) {
+    console.warn(`[sync_dialpad_call_history] catch-up failed: ${err instanceof Error ? err.message : err}`);
+  }
 
   // Opportunistic booked-call scoring. Runs a small batch inline after each
   // sync so newly booked transcripts get NEPQ scored quickly. Hard-capped by
@@ -5935,6 +6026,15 @@ Deno.serve(async (req) => {
       const result = await diagnoseDialpadWebhook({ apiKey: DIALPAD_API_KEY, hookUrl });
       return jsonResponse(result, 200);
     }
+    if (action === "catch_up_call_records") {
+      const result = await catchUpDialpadCallRecords({
+        adminClient,
+        limit: typeof body.limit === "number" ? Math.min(Math.max(body.limit, 1), 40) : 12,
+        sinceHours: typeof body.since_hours === "number" ? Math.min(Math.max(body.since_hours, 1), 720) : 72,
+      });
+      return jsonResponse({ ok: true, ...result }, 200);
+    }
+
     if (action === "sync_dialpad_call_history") {
       if (!DIALPAD_API_KEY) {
         return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);
@@ -7122,6 +7222,18 @@ Deno.serve(async (req) => {
 
         const limit = coerceBoundedLimit(params.limit, 25, 1, 100);
         const result = await processPendingTranscriptSyncs({ adminClient, apiKey: DIALPAD_API_KEY, limit });
+        return jsonResponse({ ok: true, ...result }, 200);
+      }
+
+      case "catch_up_call_records": {
+        if (!isAdmin) {
+          return jsonResponse({ error: "Admins only" }, 403);
+        }
+        const result = await catchUpDialpadCallRecords({
+          adminClient,
+          limit: coerceBoundedLimit(params.limit, 12, 1, 40),
+          sinceHours: coerceBoundedLimit(params.since_hours, 72, 1, 24 * 30),
+        });
         return jsonResponse({ ok: true, ...result }, 200);
       }
 
