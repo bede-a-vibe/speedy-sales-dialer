@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { format, isToday, isTomorrow } from "date-fns";
 import { CalendarCheck, CheckCircle2, ExternalLink, RotateCcw } from "lucide-react";
-import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -185,7 +184,7 @@ function MeetingList({
   );
 }
 
-export default function MeetingsPage() {
+export function MeetingsPanel() {
   const { user } = useAuth();
   const isAdmin = useCanViewAdmin();
   const { data: myGhlUserId } = useMyGhlUserId();
@@ -224,8 +223,8 @@ export default function MeetingsPage() {
   const showRep = !mine;
 
   return (
-    <AppLayout title="Meetings">
-      <div className="mx-auto max-w-5xl space-y-4">
+    <>
+      <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
           <div className="flex items-start gap-3">
             <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
@@ -349,6 +348,11 @@ export default function MeetingsPage() {
           }
         }}
       />
-    </AppLayout>
+    </>
   );
+}
+
+/** Meetings now live inside Pipelines. Old links land on the Meetings tab there. */
+export default function MeetingsPage() {
+  return <Navigate to="/pipelines?tab=meetings" replace />;
 }

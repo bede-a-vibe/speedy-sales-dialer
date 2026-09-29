@@ -31,7 +31,6 @@ const mainItems = [
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
-  { title: "Meetings", url: "/meetings", icon: CalendarCheck },
   { title: "Classroom", url: "/classroom", icon: GraduationCap },
   { title: "Training", url: "/training", icon: GraduationCap },
   { title: "End of Day", url: "/eod", icon: NotebookPen },

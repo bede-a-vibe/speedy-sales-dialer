@@ -2984,8 +2984,11 @@ export type Database = {
           monthly_recurring_value: number | null
           notes: string
           outcome_notes: string
+          outcome_reason: string | null
           outcome_recorded_at: string | null
+          phone_recording_url: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          recording_url: string | null
           reschedule_count: number
           scheduled_for: string | null
           source_call_log_id: string | null
@@ -3010,8 +3013,11 @@ export type Database = {
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
+          outcome_reason?: string | null
           outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          recording_url?: string | null
           reschedule_count?: number
           scheduled_for?: string | null
           source_call_log_id?: string | null
@@ -3036,8 +3042,11 @@ export type Database = {
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
+          outcome_reason?: string | null
           outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
           pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
+          recording_url?: string | null
           reschedule_count?: number
           scheduled_for?: string | null
           source_call_log_id?: string | null
@@ -3849,6 +3858,7 @@ export type Database = {
         | "showed_verbal_commitment"
         | "second_meeting_booked"
         | "no_close_follow_up"
+        | "disqualified"
       call_outcome:
         | "no_answer"
         | "voicemail"
@@ -4004,6 +4014,7 @@ export const Constants = {
         "showed_verbal_commitment",
         "second_meeting_booked",
         "no_close_follow_up",
+        "disqualified",
       ],
       call_outcome: [
         "no_answer",

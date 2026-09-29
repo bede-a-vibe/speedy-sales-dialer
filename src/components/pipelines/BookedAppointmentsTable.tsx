@@ -88,7 +88,9 @@ interface BookedAppointmentsTableProps {
     followUpDate?: string,
     followUpMethod?: any,
     monthlyValue?: number,
+    extras?: import("./BookedOutcomePanel").OutcomeExtras,
   ) => Promise<void>;
+  onSaveLinks?: (item: PipelineItemWithRelations, extras: import("./BookedOutcomePanel").OutcomeExtras) => Promise<void>;
 }
 
 export function BookedAppointmentsTable({
@@ -98,6 +100,7 @@ export function BookedAppointmentsTable({
   isSaving,
   onAssign,
   onRecordOutcome,
+  onSaveLinks,
 }: BookedAppointmentsTableProps) {
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -258,7 +261,7 @@ export function BookedAppointmentsTable({
                   </div>
                   {item.notes && <p className="italic">"{item.notes}"</p>}
                 </div>
-                <BookedOutcomePanel item={item} reps={reps} isSaving={isSaving} onAssign={onAssign} onRecordOutcome={onRecordOutcome} />
+                <BookedOutcomePanel item={item} reps={reps} isSaving={isSaving} onAssign={onAssign} onRecordOutcome={onRecordOutcome} onSaveLinks={onSaveLinks} />
               </div>
             </CollapsibleContent>
           </Collapsible>
@@ -382,6 +385,7 @@ export function BookedAppointmentsTable({
                               isSaving={isSaving}
                               onAssign={onAssign}
                               onRecordOutcome={onRecordOutcome}
+                              onSaveLinks={onSaveLinks}
                             />
                           </div>
                         </td>

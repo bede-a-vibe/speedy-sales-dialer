@@ -39,6 +39,9 @@ export interface PipelineItemUpdate {
   ghl_pipeline_id?: string | null;
   ghl_stage_id?: string | null;
   deal_stage?: DealStage | null;
+  outcome_reason?: string | null;
+  recording_url?: string | null;
+  phone_recording_url?: string | null;
 }
 
 export interface PipelineItemWithRelations {
@@ -63,6 +66,9 @@ export interface PipelineItemWithRelations {
   ghl_pipeline_id: string | null;
   ghl_stage_id: string | null;
   reschedule_count: number;
+  outcome_reason?: string | null;
+  recording_url?: string | null;
+  phone_recording_url?: string | null;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -141,6 +147,9 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           deal_stage,
           follow_up_method,
           reschedule_count,
+          outcome_reason,
+          recording_url,
+          phone_recording_url,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -214,6 +223,9 @@ export function useContactPipelineItems(contactId?: string) {
           deal_stage,
           follow_up_method,
           reschedule_count,
+          outcome_reason,
+          recording_url,
+          phone_recording_url,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
