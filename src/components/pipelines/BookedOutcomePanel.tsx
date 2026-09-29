@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded, Ban, Video } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOOKED_APPOINTMENT_DEFAULT_TIME, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -18,6 +20,12 @@ function combineDateTime(date: Date, time: string) {
   const next = new Date(date);
   next.setHours(hours || 0, minutes || 0, 0, 0);
   return next.toISOString();
+}
+
+export interface OutcomeExtras {
+  reason?: string | null;
+  recordingUrl?: string | null;
+  phoneRecordingUrl?: string | null;
 }
 
 interface BookedOutcomePanelProps {
@@ -34,10 +42,28 @@ interface BookedOutcomePanelProps {
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
     monthlyValue?: number,
+    extras?: OutcomeExtras,
   ) => Promise<void>;
+  onSaveLinks?: (item: PipelineItemWithRelations, extras: OutcomeExtras) => Promise<void>;
 }
 
-export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOutcome }: BookedOutcomePanelProps) {
+export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOutcome, onSaveLinks }: BookedOutcomePanelProps) {
+  const [reason, setReason] = useState<string>(item.outcome_reason ?? "");
+  const [recordingUrl, setRecordingUrl] = useState(item.recording_url ?? "");
+  const [phoneRecordingUrl, setPhoneRecordingUrl] = useState(item.phone_recording_url ?? "");
+  const extras = (): OutcomeExtras => ({
+    reason: reason || null,
+    recordingUrl: recordingUrl.trim() || null,
+    phoneRecordingUrl: phoneRecordingUrl.trim() || null,
+  });
+  /** No Close / DQ can't be saved without a reason that matches the outcome. */
+  const reasonOk = (outcome: AppointmentOutcomeValue) => {
+    const allowed = reasonsForOutcome(outcome);
+    if (!allowed) return true;
+    if (allowed.some((r) => r.value === reason)) return true;
+    toast.error(outcome === "disqualified" ? "Pick a DQ reason first." : "Pick a no-close reason first.");
+    return false;
+  };
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(
     item.scheduled_for ? new Date(item.scheduled_for) : undefined,
   );
@@ -70,6 +96,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const noCloseFollowUpIso = noCloseFollowUpDate ? combineDateTime(noCloseFollowUpDate, noCloseFollowUpTime) : undefined;
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
+    if (!reasonOk(outcome)) return;
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
     const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
     // Normalize to monthly for storage in monthly_recurring_value.
@@ -86,6 +113,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       undefined,
       undefined,
       mrr,
+      { ...extras(), reason: reasonsForOutcome(outcome) ? reason : null },
     );
   };
 
@@ -100,6 +128,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       undefined,
       secondMeetingIso,
       undefined,
+      undefined,
+      { ...extras(), reason: null },
     );
   };
 
@@ -107,6 +137,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     const iso = noCloseFollowUpIso;
     const method = noCloseFollowUpMethod;
     if (!iso) return;
+    if (!reasonOk("no_close_follow_up")) return;
     onRecordOutcome(
       item,
       "no_close_follow_up",
@@ -115,6 +146,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       undefined,
       iso,
       method,
+      undefined,
+      extras(),
     );
   };
 
@@ -152,6 +185,50 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         ghlPipelineId={item.ghl_pipeline_id}
         ghlStageId={item.ghl_stage_id}
       />
+
+      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Recordings</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-1 items-center gap-2">
+            <Video className="h-4 w-4 text-muted-foreground" />
+            <Input value={recordingUrl} onChange={(e) => setRecordingUrl(e.target.value)} placeholder="Fathom link" className="w-full bg-background" />
+          </div>
+          <div className="flex flex-1 items-center gap-2">
+            <PhoneForwarded className="h-4 w-4 text-muted-foreground" />
+            <Input value={phoneRecordingUrl} onChange={(e) => setPhoneRecordingUrl(e.target.value)} placeholder="Phone / GHL call link" className="w-full bg-background" />
+          </div>
+        </div>
+        <MeetingRecordingMatches
+          contactId={item.contact_id}
+          ghlContactId={item.contacts?.ghl_contact_id}
+          scheduledFor={item.scheduled_for}
+          onUseGhlCall={setPhoneRecordingUrl}
+        />
+        {onSaveLinks ? (
+          <Button type="button" variant="secondary" size="sm" className="self-start" disabled={isSaving} onClick={() => onSaveLinks(item, extras())}>
+            Save links only
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reason (required for No Close and DQ)</p>
+        <Select value={reason || undefined} onValueChange={setReason}>
+          <SelectTrigger className="w-full bg-background sm:w-[280px]">
+            <SelectValue placeholder="Why didn't it close?" />
+          </SelectTrigger>
+          <SelectContent>
+            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">No close</div>
+            {NO_CLOSE_REASONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Disqualified</div>
+            {DQ_REASONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
         <div className="flex items-center justify-between gap-2">
@@ -239,6 +316,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_no_close")} disabled={isSaving}>
           No Close
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("disqualified")} disabled={isSaving}>
+          <Ban className="h-4 w-4" />
+          DQ
         </Button>
         <Button
           variant="outline"
@@ -384,7 +465,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       <p className="text-[11px] text-muted-foreground">
         Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
         <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
-        <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.
+        <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.{" "}
+        <strong>DQ</strong> = not a fit, never going to buy.
       </p>
       {/* Rename Showed - Closed label */}
     </div>
