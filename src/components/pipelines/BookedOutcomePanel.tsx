@@ -2,6 +2,8 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded, Ban, Video } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -49,6 +51,15 @@ interface BookedOutcomePanelProps {
 
 export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOutcome, onSaveLinks }: BookedOutcomePanelProps) {
   const [reason, setReason] = useState<string>(item.outcome_reason ?? "");
+  const qc = useQueryClient();
+  const [qualified, setQualified] = useState<boolean | null>((item as any).is_qualified ?? null);
+  const [dqReason, setDqReason] = useState<string>((item as any).dq_reason ?? "");
+  const saveQualified = async (q: boolean | null, why: string | null) => {
+    const { error } = await supabase.from("pipeline_items").update({ is_qualified: q, dq_reason: q === false ? why : null } as any).eq("id", item.id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries();
+    toast.success(q == null ? "Qualification cleared" : q ? "Marked qualified" : "Marked not qualified");
+  };
   const [recordingUrl, setRecordingUrl] = useState(item.recording_url ?? "");
   const [phoneRecordingUrl, setPhoneRecordingUrl] = useState(item.phone_recording_url ?? "");
   const extras = (): OutcomeExtras => ({
@@ -302,6 +313,22 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             Stored as ${(parseFloat(monthlyValue) * (52 / 12)).toFixed(2)}/mo for reporting.
           </p>
         ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Qualified lead? (closer)</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={qualified === true ? "default" : "outline"} disabled={isSaving}
+            onClick={() => { setQualified(true); saveQualified(true, null); }}>Qualified</Button>
+          <Button size="sm" variant={qualified === false ? "destructive" : "outline"} disabled={isSaving}
+            onClick={() => setQualified(false)}>Not qualified</Button>
+          {qualified === false && (
+            <Select value={dqReason} onValueChange={(v) => { setDqReason(v); saveQualified(false, v); }}>
+              <SelectTrigger className="h-8 w-56 bg-background"><SelectValue placeholder="Why? (required)" /></SelectTrigger>
+              <SelectContent>{DQ_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
