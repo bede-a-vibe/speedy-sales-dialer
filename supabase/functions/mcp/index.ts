@@ -511,18 +511,94 @@ var report_snapshot_default = defineTool8({
   }
 });
 
+// src/lib/mcp/tools/list-call-transcripts.ts
+import { defineTool as defineTool9 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z9 } from "npm:zod@^3.25.76";
+var list_call_transcripts_default = defineTool9({
+  name: "list_call_transcripts",
+  title: "List my call transcripts",
+  description: "List the signed-in rep's connected Dialpad calls that have a transcript, newest first, with business, talk time and outcome. Use `get_call_transcript` with the returned dialpad_call_id to read the full transcript. Page with `offset`.",
+  inputSchema: {
+    from: z9.string().optional().describe("Earliest call date, YYYY-MM-DD."),
+    to: z9.string().optional().describe("Latest call date, YYYY-MM-DD."),
+    min_talk_seconds: z9.number().int().min(0).optional().describe("Only calls with at least this much talk time (default 60)."),
+    limit: z9.number().int().min(1).max(200).optional().describe("Default 50."),
+    offset: z9.number().int().min(0).optional()
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ from, to, min_talk_seconds, limit, offset }, ctx) => {
+    const userId = requireUser(ctx);
+    if (!userId) return unauthenticated();
+    const supabase = supabaseForUser(ctx);
+    const lim = limit ?? 50;
+    const off = offset ?? 0;
+    let q = supabase.from("dialpad_calls").select("dialpad_call_id, started_at, talk_time_seconds, external_number, direction, call_log_id, contacts(business_name), call_logs(outcome)", { count: "exact" }).eq("user_id", userId).not("transcript", "is", null).gte("talk_time_seconds", min_talk_seconds ?? 60).order("started_at", { ascending: false }).range(off, off + lim - 1);
+    if (from) q = q.gte("started_at", (/* @__PURE__ */ new Date(`${from}T00:00:00+10:00`)).toISOString());
+    if (to) q = q.lte("started_at", (/* @__PURE__ */ new Date(`${to}T23:59:59+10:00`)).toISOString());
+    const { data, error, count } = await q;
+    if (error) return failure(error.message);
+    return json({
+      total: count ?? 0,
+      offset: off,
+      calls: (data ?? []).map((r) => ({
+        dialpad_call_id: r.dialpad_call_id,
+        started_at: r.started_at,
+        talk_seconds: r.talk_time_seconds,
+        business: r.contacts?.business_name ?? null,
+        phone: r.external_number,
+        direction: r.direction,
+        outcome: r.call_logs?.outcome ?? null
+      }))
+    });
+  }
+});
+
+// src/lib/mcp/tools/get-call-transcript.ts
+import { defineTool as defineTool10 } from "npm:@lovable.dev/mcp-js@0.26.2";
+import { z as z10 } from "npm:zod@^3.25.76";
+var get_call_transcript_default = defineTool10({
+  name: "get_call_transcript",
+  title: "Get a call transcript",
+  description: "Read the full transcript (and Dialpad's summary) of one of the signed-in rep's calls, by dialpad_call_id from `list_call_transcripts`.",
+  inputSchema: {
+    dialpad_call_id: z10.string().min(1).describe("The dialpad_call_id from list_call_transcripts.")
+  },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async ({ dialpad_call_id }, ctx) => {
+    const userId = requireUser(ctx);
+    if (!userId) return unauthenticated();
+    const supabase = supabaseForUser(ctx);
+    const { data, error } = await supabase.from("dialpad_calls").select("dialpad_call_id, started_at, talk_time_seconds, external_number, transcript, dialpad_summary, contacts(business_name, industry), call_logs(outcome, notes)").eq("user_id", userId).eq("dialpad_call_id", dialpad_call_id).maybeSingle();
+    if (error) return failure(error.message);
+    if (!data) return failure("No call with that ID for your account.");
+    const r = data;
+    return json({
+      dialpad_call_id: r.dialpad_call_id,
+      started_at: r.started_at,
+      talk_seconds: r.talk_time_seconds,
+      business: r.contacts?.business_name ?? null,
+      industry: r.contacts?.industry ?? null,
+      phone: r.external_number,
+      outcome: r.call_logs?.outcome ?? null,
+      rep_notes: r.call_logs?.notes ?? null,
+      dialpad_summary: r.dialpad_summary,
+      transcript: r.transcript
+    });
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "xhcvwhcpaeetmmzkuwyw";
 var mcp_default = defineMcp({
   name: "speedy-dialer",
   title: "Speedy Dialer",
   version: "0.1.0",
-  instructions: "Tools for Speedy Dialer, Odin Digital's power dialer and CRM. Look contacts up with `search_contacts`, then use the returned ID with `get_contact` for the full record, recent calls and notes. `my_call_activity` summarises the signed-in rep's own dialling. `list_follow_ups` shows their scheduled follow-ups and booked appointments. `add_contact_note` writes a note to a contact's timeline. `tonights_email_round` lists the leads they flagged in the dialer as worth an email tonight that are still unsent. For REPORTS: call `describe_data` first for column meanings, outcome vocabulary, KPI formulas and the Melbourne-timezone rule, then `report_snapshot` for pre-aggregated dials/conversations/bookings/talk-time (per rep, or team-wide for admins). All access runs as the signed-in user.",
+  instructions: "Tools for Speedy Dialer, Odin Digital's power dialer and CRM. Look contacts up with `search_contacts`, then use the returned ID with `get_contact` for the full record, recent calls and notes. `my_call_activity` summarises the signed-in rep's own dialling. `list_follow_ups` shows their scheduled follow-ups and booked appointments. `add_contact_note` writes a note to a contact's timeline. `tonights_email_round` lists the leads they flagged in the dialer as worth an email tonight that are still unsent. For REPORTS: call `describe_data` first for column meanings, outcome vocabulary, KPI formulas and the Melbourne-timezone rule, then `report_snapshot` for pre-aggregated dials/conversations/bookings/talk-time (per rep, or team-wide for admins). For CALL REVIEWS: `list_call_transcripts` lists the rep's own transcribed Dialpad calls, `get_call_transcript` reads one in full. All access runs as the signed-in user.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default, describe_data_default, report_snapshot_default]
+  tools: [search_contacts_default, get_contact_default, my_call_activity_default, list_follow_ups_default, add_contact_note_default, tonights_email_round_default, describe_data_default, report_snapshot_default, list_call_transcripts_default, get_call_transcript_default]
 });
 
 // lovable-mcp-supabase-entry.ts
