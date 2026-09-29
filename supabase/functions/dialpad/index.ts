@@ -5368,7 +5368,7 @@ async function catchUpDialpadCallRecords(params: {
 }) {
   const { adminClient } = params;
   const since = new Date(Date.now() - (params.sinceHours ?? 72) * 3600_000).toISOString();
-  const stats = { linked: 0, scored: 0, score_failed: 0 };
+  const stats = { linked: 0, scored: 0, score_failed: 0, auto_logged: 0 };
 
   // 1. Link unlinked calls.
   const { data: unlinked } = await adminClient
