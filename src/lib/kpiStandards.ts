@@ -124,13 +124,13 @@ export function productiveHoursFromCalls(spans: { start: number; end: number }[]
 }
 
 /** Locked dial-time allowance per dial (ring + connect handling), per owner definition. */
-export const DIAL_SECONDS_PER_DIAL = 30;
+export const DIAL_SECONDS_PER_DIAL = 25;
 
 /** Locked wrap-up allowance per booking (notes, calendar, GHL push), per owner definition. */
 export const BOOKING_MINUTES = 5;
 
 /**
- * Productive dialling hours, owner definition: (dials × 30 seconds) + connected
+ * Productive dialling hours, owner definition: (dials × 25 seconds) + connected
  * talk time + (bookings × 5 minutes). Replaces the session-span measure for
  * reps with Dialpad calls; the span-based fallback above still covers reps
  * with none.

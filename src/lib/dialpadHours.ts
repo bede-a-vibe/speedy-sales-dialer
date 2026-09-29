@@ -5,7 +5,7 @@ const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear
 
 /**
  * Per-user productive dialling hours + days worked from Dialpad call records since `since`.
- * Definition: (dials × 30 seconds) + connected talk time + (bookings × 5 minutes).
+ * Definition: (dials × 25 seconds) + connected talk time + (bookings × 5 minutes).
  * Bookings are counted from call_logs with outcome "booked" in the same window.
  */
 export async function fetchDialpadHours(since: string): Promise<Map<string, { hours: number; days: number }>> {
