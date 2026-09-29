@@ -6212,6 +6212,23 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, ignored: true, reason: "record_cti_call is a no-op; webhook owns row creation" }, 200);
       }
 
+      case "proxy_recording_audio": {
+        // Streams a Dialpad recording through us so browsers (Safari, users signed
+        // into Dialpad) don't choke on Dialpad's cross-site redirect.
+        const link = typeof params?.access_link === "string" ? params.access_link : "";
+        let u: URL;
+        try { u = new URL(link); } catch { return jsonResponse({ error: "Invalid link" }, 400); }
+        if (u.protocol !== "https:" || !/(^|\.)dialpad\.com$/.test(u.hostname)) {
+          return jsonResponse({ error: "Only Dialpad recording links are allowed" }, 400);
+        }
+        const audio = await fetch(u.toString(), { redirect: "follow" });
+        if (!audio.ok || !audio.body) return jsonResponse({ error: `Recording fetch failed (${audio.status})` }, 502);
+        return new Response(audio.body, {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=3600" },
+        });
+      }
+
       case "get_call_recording": {
         if (!DIALPAD_API_KEY) {
           return jsonResponse({ error: "DIALPAD_API_KEY is not configured" }, 500);

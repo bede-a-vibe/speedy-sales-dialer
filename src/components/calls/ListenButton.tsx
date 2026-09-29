@@ -22,7 +22,19 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
       });
       if (fnError) throw fnError;
       if (!data?.access_link) throw new Error(data?.error ?? "No recording available");
-      setAudioUrl(data.access_link as string);
+      setShareUrl(data.access_link as string);
+      // Pull the audio through our backend and play it as a local file — Dialpad's
+      // redirecting share link stalls in some browsers (stuck at 0:00).
+      try {
+        const { data: bytes, error: proxyErr } = await supabase.functions.invoke("dialpad", {
+          body: { action: "proxy_recording_audio", access_link: data.access_link },
+        });
+        if (proxyErr || !bytes) throw proxyErr ?? new Error("empty");
+        const blob = bytes instanceof Blob ? bytes : new Blob([bytes as ArrayBuffer]);
+        setAudioUrl(URL.createObjectURL(new Blob([blob], { type: "audio/mpeg" })));
+      } catch {
+        setAudioUrl(data.access_link as string);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load the recording.");
     } finally {
