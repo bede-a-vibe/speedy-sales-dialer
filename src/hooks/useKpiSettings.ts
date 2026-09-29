@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { RAMP, type RampBand } from "@/lib/kpiStandards";
 
 const KEY = "ramp_bands";
-type Editable = Pick<RampBand, "hoursPerDay" | "booksPerHour" | "setsPerDay" | "showRate">;
+type Editable = Pick<RampBand, "hoursPerDay" | "booksPerHour" | "setsPerDay" | "showRate" | "dialsPerDay" | "pickupRate" | "closeRate">;
 
 /** Ramp bands with any admin overrides (stored by band label) applied over the defaults. */
 export function useRampBands() {

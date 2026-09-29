@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchDialpadHours } from "@/lib/dialpadHours";
 import { useRampBands } from "@/hooks/useKpiSettings";
-import { RampTargetsEditor } from "@/components/targets/RampTargetsEditor";
+import { ANSWERED_OUTCOMES } from "@/lib/reportMetrics";
 import {
   PRODUCTIVE_DAYS_PER_MONTH, dailyTargetsFor, periodDays, productiveHours, rampForTenure,
 } from "@/lib/kpiStandards";
@@ -82,7 +82,7 @@ function Bar({ m }: { m: Metric }) {
  * daily target × period days (1 / 5 / 18.6). Pace target = daily × days the
  * rep actually dialled so far, so leave and days off don't count against them.
  */
-export function KpiPeriodTargets({ userId }: { userId?: string }) {
+export function KpiPeriodTargets({ userId, periods = ["day", "week", "month"] }: { userId?: string; periods?: Period[] }) {
   const [period, setPeriod] = useState<Period>("week");
   const { data, isLoading } = usePeriodData(period);
   const { data: ramp } = useRampBands();
@@ -99,12 +99,13 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
       const { band, day } = rampForTenure(p?.created_at, new Date(), ramp?.bands);
       const t = dailyTargetsFor(band);
       const perDay = new Map<string, number[]>();
-      let sets = 0;
+      let sets = 0, answered = 0;
       for (const l of logs) {
         const ms = new Date(l.created_at).getTime();
         const k = dayKey(ms);
         (perDay.get(k) ?? perDay.set(k, []).get(k)!).push(ms);
         if (l.outcome === "booked") sets++;
+        if (ANSWERED_OUTCOMES.has(l.outcome)) answered++;
       }
       const dp = data.dp.get(uid);
       let hours = 0;
@@ -126,6 +127,8 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
         booksPerHour: hours > 0.25 ? sets / hours : null, booksTarget: t.booksPerHour,
         metrics: [
           mk("Productive hours", hours, t.hours, 1),
+          mk("Dials", logs.length, t.dials, 0),
+          { label: "Pick-up rate %", actual: logs.length ? (100 * answered) / logs.length : 0, digits: 1, full: t.pickupRate, pace: t.pickupRate },
           mk("Meetings set", sets, t.sets, 1),
           mk("Meetings showed", showed, t.showed, 1),
           mk("Deals closed", closed, t.closed, 2),
@@ -147,8 +150,7 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-1">
-            <RampTargetsEditor />
-            {(["day", "week", "month"] as Period[]).map((p) => (
+            {periods.map((p) => (
               <Button key={p} size="sm" variant={period === p ? "default" : "outline"} onClick={() => setPeriod(p)}>
                 {p === "day" ? "Today" : p === "week" ? "This week" : "This month"}
               </Button>
