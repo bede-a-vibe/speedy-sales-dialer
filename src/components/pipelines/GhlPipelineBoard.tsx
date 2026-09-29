@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ghlListPipelineOpportunities, ghlUpdateOpportunity, type GhlBoardOpportunity } from "@/lib/ghl";
 import { GHL_PIPELINE_CONTRACT } from "@/shared/ghlPipelineContract";
 import { SALES_PIPELINE_STAGES } from "@/lib/ghlMeetingSync";
