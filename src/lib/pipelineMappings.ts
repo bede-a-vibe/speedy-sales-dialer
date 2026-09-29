@@ -114,6 +114,10 @@ const APPOINTMENT_OUTCOME_TO_GHL_SYNC: Record<AppointmentOutcomeValue, {
     callOutcome: "follow_up",
     createsFollowUpTask: true,
   },
+  disqualified: {
+    callOutcome: "disqualified",
+    createsFollowUpTask: false,
+  },
 };
 
 export function getContactStatusForPipelineType(type: PipelineType): ContactLifecycleStatus {
