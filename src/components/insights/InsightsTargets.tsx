@@ -4,7 +4,7 @@ import { TargetComparisonPanel } from "@/components/reports/TargetComparisonPane
 import { ForecastingTab } from "@/components/analytics/ForecastingTab";
 import { KpiPeriodTargets } from "@/components/targets/KpiPeriodTargets";
 import { KpiScorecard } from "@/components/targets/KpiScorecard";
-import { TargetsBody } from "@/pages/TargetsPage";
+import { RampTargetsEditor } from "@/components/targets/RampTargetsEditor";
 import type { ReportMetrics } from "@/lib/reportMetrics";
 
 interface Props {
@@ -39,6 +39,7 @@ export function InsightsTargets({ dateFrom, dateTo, metrics, teamMetrics, active
 
   return (
     <div className="space-y-5">
+      <RampTargetsEditor />
       <KpiPeriodTargets userId={activeRepId} />
       <KpiScorecard userId={activeRepId} />
       <TargetComparisonPanel
@@ -64,7 +65,6 @@ export function InsightsTargets({ dateFrom, dateTo, metrics, teamMetrics, active
         />
       </ReportSection>
 
-      <TargetsBody />
     </div>
   );
 }

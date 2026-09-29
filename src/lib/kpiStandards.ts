@@ -25,14 +25,17 @@ export interface RampBand {
   setsPerDay: number | null;
   showRate: number | null;
   minToPass: number | null;
+  dialsPerDay: number | null;
+  pickupRate: number | null;
+  closeRate: number | null;
 }
 
 export const RAMP: RampBand[] = [
-  { label: "Day 1", fromDay: 1, toDay: 1, hoursPerDay: 4, booksPerHour: null, setsPerDay: null, showRate: null, minToPass: null },
-  { label: "Days 1–30", fromDay: 2, toDay: 30, hoursPerDay: 7.5, booksPerHour: 0.33, setsPerDay: 2.5, showRate: 20, minToPass: 0.25 },
-  { label: "Days 31–60", fromDay: 31, toDay: 60, hoursPerDay: 7.5, booksPerHour: 0.47, setsPerDay: 3.5, showRate: 28, minToPass: 0.35 },
-  { label: "Days 61–90", fromDay: 61, toDay: 90, hoursPerDay: 7.5, booksPerHour: 0.72, setsPerDay: 5.4, showRate: 35, minToPass: 0.55 },
-  { label: "Day 91+", fromDay: 91, toDay: Infinity, hoursPerDay: 7.5, booksPerHour: 0.9, setsPerDay: 6.75, showRate: 40, minToPass: 0.65 },
+  { label: "Day 1", fromDay: 1, toDay: 1, hoursPerDay: 4, booksPerHour: null, setsPerDay: null, showRate: null, minToPass: null, dialsPerDay: 200, pickupRate: 30, closeRate: 25 },
+  { label: "Days 1–30", fromDay: 2, toDay: 30, hoursPerDay: 7.5, booksPerHour: 0.33, setsPerDay: 2.5, showRate: 20, minToPass: 0.25, dialsPerDay: 375, pickupRate: 30, closeRate: 25 },
+  { label: "Days 31–60", fromDay: 31, toDay: 60, hoursPerDay: 7.5, booksPerHour: 0.47, setsPerDay: 3.5, showRate: 28, minToPass: 0.35, dialsPerDay: 375, pickupRate: 30, closeRate: 25 },
+  { label: "Days 61–90", fromDay: 61, toDay: 90, hoursPerDay: 7.5, booksPerHour: 0.72, setsPerDay: 5.4, showRate: 35, minToPass: 0.55, dialsPerDay: 375, pickupRate: 30, closeRate: 25 },
+  { label: "Day 91+", fromDay: 91, toDay: Infinity, hoursPerDay: 7.5, booksPerHour: 0.9, setsPerDay: 6.75, showRate: 40, minToPass: 0.65, dialsPerDay: 375, pickupRate: 30, closeRate: 25 },
 ];
 
 export function rampForTenure(startIso: string | null | undefined, now = new Date(), bands: RampBand[] = RAMP): { band: RampBand; day: number } {
@@ -88,12 +91,12 @@ export function productiveHours(timestamps: number[]): number {
 export const CLOSE_PER_SHOW = 0.68 / 2.7;
 export const WORKING_DAYS_PER_WEEK = 5;
 
-export interface DailyTargets { hours: number; sets: number | null; showed: number | null; closed: number | null; booksPerHour: number | null }
+export interface DailyTargets { hours: number; sets: number | null; showed: number | null; closed: number | null; booksPerHour: number | null; dials: number | null; pickupRate: number | null }
 
 export function dailyTargetsFor(band: RampBand): DailyTargets {
   const sets = band.setsPerDay;
   const showed = sets != null && band.showRate != null ? sets * (band.showRate / 100) : null;
-  return { hours: band.hoursPerDay, sets, showed, closed: showed != null ? showed * CLOSE_PER_SHOW : null, booksPerHour: band.booksPerHour };
+  return { hours: band.hoursPerDay, sets, showed, closed: showed != null ? showed * (band.closeRate != null ? band.closeRate / 100 : CLOSE_PER_SHOW) : null, booksPerHour: band.booksPerHour, dials: band.dialsPerDay ?? null, pickupRate: band.pickupRate ?? null };
 }
 
 /** Full-period multiplier: day = 1, week = 5, month = 18.6 productive days. */
