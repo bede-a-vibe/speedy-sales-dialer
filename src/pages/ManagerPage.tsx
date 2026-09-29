@@ -9,8 +9,11 @@ import { KpiScorecard } from "@/components/targets/KpiScorecard";
 import { MeetingRevenuePipeline } from "@/components/manager/MeetingRevenuePipeline";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
+import { TeamReview } from "@/pages/EodReportPage";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ManagerPage() {
+  const { user } = useAuth();
   return (
     <AppLayout title="Manager">
     <div className="mx-auto max-w-7xl space-y-5">
