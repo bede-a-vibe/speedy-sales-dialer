@@ -5486,8 +5486,12 @@ async function syncDialpadCallHistory(params: {
   untilOverrideMs?: number | null;
   windowMinutes?: number;
   hardCap?: number;
+  /** Historical backfill: connected calls only, never overwrite existing rows, don't move the sync cursor. */
+  backfill?: boolean;
+  onlyDialpadUserId?: string | null;
 }) {
   const { adminClient, apiKey } = params;
+  const backfill = params.backfill === true;
   const officeId = params.officeId || DIALPAD_OFFICE_ID_DEFAULT;
   const hardCap = params.hardCap ?? 2000;
   const nowMs =
@@ -5538,7 +5542,8 @@ async function syncDialpadCallHistory(params: {
   const dedup = new Map<string, JsonRecord>();
   const errors: string[] = [];
 
-  for (const dpid of activeDialpadUserIds) {
+  const sweepUserIds = params.onlyDialpadUserId ? [String(params.onlyDialpadUserId)] : activeDialpadUserIds;
+  for (const dpid of sweepUserIds) {
     try {
       const userCalls = await listDialpadCallsByTarget({
         apiKey,
@@ -5562,7 +5567,7 @@ async function syncDialpadCallHistory(params: {
 
   // ── SECONDARY: office sweep (catches office-level calls). ──
   let officePulled = 0;
-  try {
+  if (!params.onlyDialpadUserId) try {
     const officeCalls = await listDialpadCallsByTarget({
       apiKey,
       targetType: "office",
@@ -5582,8 +5587,19 @@ async function syncDialpadCallHistory(params: {
     errors.push(`office ${officeId}: ${msg}`);
   }
 
-  const calls = Array.from(dedup.values());
-  if (calls.length === 0 && errors.length > 0) {
+  let calls = Array.from(dedup.values());
+  let alreadyStored = 0;
+  if (backfill && calls.length > 0) {
+    const ids = calls.map((c) => String(c.call_id ?? c.id));
+    const existing = new Set<string>();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data } = await adminClient.from("dialpad_calls").select("dialpad_call_id").in("dialpad_call_id", ids.slice(i, i + 200));
+      for (const r of data ?? []) existing.add(String((r as any).dialpad_call_id));
+    }
+    alreadyStored = existing.size;
+    calls = calls.filter((c) => !existing.has(String(c.call_id ?? c.id)));
+  }
+  if (!backfill && calls.length === 0 && errors.length > 0) {
     await adminClient.from("dialpad_sync_state").upsert({
       key: DIALPAD_SYNC_KEY,
       last_run_at: new Date().toISOString(),
@@ -5646,6 +5662,7 @@ async function syncDialpadCallHistory(params: {
       talk > 0 ||
       state === "connected" ||
       (state === "hangup" && !!call.date_connected);
+    if (backfill && !isConnected) { skipped += 1; return; }
     const externalNumber = pickExternalNumber(call);
     const normalizedExternal = externalNumber ? normalizePhoneNumberToE164(externalNumber) : null;
     const direction = typeof call.direction === "string" ? call.direction : null;
@@ -5752,6 +5769,12 @@ async function syncDialpadCallHistory(params: {
     }),
   );
 
+  if (backfill) {
+    return {
+      ok: true as const, backfill: true, since: new Date(sinceMs).toISOString(), until: new Date(nowMs).toISOString(),
+      listed: dedup.size, already_stored: alreadyStored, inserted: calls.length - skipped, skipped, linked, with_talk_time: withTalkTime, errors,
+    };
+  }
   await adminClient.from("dialpad_sync_state").upsert({
     key: DIALPAD_SYNC_KEY,
     last_synced_at: new Date(nowMs).toISOString(),
@@ -6335,13 +6358,17 @@ Deno.serve(async (req) => {
         const windowMinutes = typeof params.window_minutes === "number" ? params.window_minutes : undefined;
         const sinceOverrideMs = typeof params.since_ms === "number" ? params.since_ms : undefined;
         const hardCap = typeof params.hard_cap === "number" ? params.hard_cap : undefined;
+        const untilOverrideMs = typeof params.until_ms === "number" ? params.until_ms : undefined;
         const result = await syncDialpadCallHistory({
           adminClient,
           apiKey: DIALPAD_API_KEY,
           officeId,
           windowMinutes,
           sinceOverrideMs,
+          untilOverrideMs,
           hardCap,
+          backfill: params.backfill === true,
+          onlyDialpadUserId: typeof params.only_dialpad_user_id === "string" ? params.only_dialpad_user_id : null,
         });
         return jsonResponse(result, result.ok ? 200 : 502);
       }
