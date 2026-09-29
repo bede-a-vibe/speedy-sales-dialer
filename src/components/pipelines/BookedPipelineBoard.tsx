@@ -90,6 +90,7 @@ export function BookedPipelineBoard({
   isSaving,
   onAssign,
   onRecordOutcome,
+  onSaveLinks,
 }: {
   items: PipelineItemWithRelations[];
   repMap: Map<string, string>;
@@ -107,7 +108,9 @@ export function BookedPipelineBoard({
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
     monthlyValue?: number,
+    extras?: import("./BookedOutcomePanel").OutcomeExtras,
   ) => Promise<void>;
+  onSaveLinks?: (item: PipelineItemWithRelations, extras: import("./BookedOutcomePanel").OutcomeExtras) => Promise<void>;
 }) {
   const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
   const grouped = useMemo(
@@ -256,6 +259,7 @@ export function BookedPipelineBoard({
               reps={reps}
               isSaving={isSaving}
               onAssign={onAssign}
+              onSaveLinks={onSaveLinks}
               onRecordOutcome={async (...args) => {
                 await onRecordOutcome(...args);
                 setActiveItem(null);

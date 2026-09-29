@@ -6,6 +6,9 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
 import { DealBoard } from "@/components/pipelines/DealBoard";
+import type { OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
+import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
+import { MeetingsPanel } from "@/pages/MeetingsPage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
@@ -342,6 +345,19 @@ export default function PipelinesPage() {
     }
   };
 
+  const handleSaveLinks = async (item: PipelineItemWithRelations, extras: OutcomeExtras) => {
+    try {
+      await updatePipelineItem.mutateAsync({
+        id: item.id,
+        recording_url: extras.recordingUrl ?? null,
+        phone_recording_url: extras.phoneRecordingUrl ?? null,
+      });
+      toast.success("Recording links saved.");
+    } catch {
+      toast.error("Could not save the links.");
+    }
+  };
+
   const handleBookedOutcome = async (
     item: PipelineItemWithRelations,
     outcome: AppointmentOutcomeValue,
@@ -351,7 +367,13 @@ export default function PipelinesPage() {
     followUpDate?: string,
     followUpMethod?: FollowUpMethod,
     monthlyValue?: number,
+    extras?: OutcomeExtras,
   ) => {
+    const extraFields = {
+      ...(extras?.reason !== undefined ? { outcome_reason: extras.reason } : {}),
+      ...(extras?.recordingUrl !== undefined ? { recording_url: extras.recordingUrl } : {}),
+      ...(extras?.phoneRecordingUrl !== undefined ? { phone_recording_url: extras.phoneRecordingUrl } : {}),
+    };
     try {
       if (outcome === "rescheduled") {
         if (!scheduledFor) {
@@ -366,6 +388,7 @@ export default function PipelinesPage() {
           scheduled_for: scheduledFor,
           status: "open",
           completed_at: null,
+          ...extraFields,
         });
 
         toast.success("Appointment rescheduled.");
@@ -375,6 +398,9 @@ export default function PipelinesPage() {
           appointment_outcome: outcome,
           outcome_notes: notes,
           status: "completed",
+          ...extraFields,
+          ...(outcome === "disqualified" || outcome === "showed_no_close" ? { deal_stage: "lost" as const } : {}),
+          ...(outcome === "showed_closed" ? { deal_stage: "won" as const } : {}),
           ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
           ...(outcome === "showed_closed" && monthlyValue != null ? { monthly_recurring_value: monthlyValue } : {}),
         });
@@ -567,7 +593,7 @@ export default function PipelinesPage() {
   };
 
   return (
-    <AppLayout title="Pipelines">
+    <AppLayout title="Pipelines & meetings">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -656,7 +682,15 @@ export default function PipelinesPage() {
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
+            <TabsTrigger value="closing">Close tracking</TabsTrigger>
+            <TabsTrigger value="meetings">All meetings</TabsTrigger>
           </TabsList>
+          <TabsContent value="closing" className="mt-4">
+            <CloseTrackingPanel reps={reps} />
+          </TabsContent>
+          <TabsContent value="meetings" className="mt-4">
+            <MeetingsPanel />
+          </TabsContent>
           <TabsContent value="board" className="mt-4">
             {bookedLoading ? (
               <DealBoardSkeleton columns={4} cards={3} />
@@ -678,6 +712,7 @@ export default function PipelinesPage() {
                   isSaving={updatePipelineItem.isPending}
                   onAssign={handleAssign}
                   onRecordOutcome={handleBookedOutcome}
+                  onSaveLinks={handleSaveLinks}
                 />
                 <BookedAppointmentsTable
                   items={booked}
@@ -686,6 +721,7 @@ export default function PipelinesPage() {
                   isSaving={updatePipelineItem.isPending}
                   onAssign={handleAssign}
                   onRecordOutcome={handleBookedOutcome}
+                  onSaveLinks={handleSaveLinks}
                 />
               </>
             )}
