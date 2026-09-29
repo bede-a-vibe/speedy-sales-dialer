@@ -19,6 +19,7 @@ const aud = (n: number) =>
 export function GhlPipelineBoard() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
