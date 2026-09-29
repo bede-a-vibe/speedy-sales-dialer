@@ -20,6 +20,7 @@ export default function ManagerPage() {
       <Tabs defaultValue="review">
         <TabsList>
           <TabsTrigger value="review">Call review</TabsTrigger>
+          <TabsTrigger value="eod">EOD reports</TabsTrigger>
           <TabsTrigger value="kpis">KPIs</TabsTrigger>
           <TabsTrigger value="revenue">Meetings → revenue</TabsTrigger>
           <TabsTrigger value="flags">Coaching flags</TabsTrigger>
@@ -28,6 +29,7 @@ export default function ManagerPage() {
           <TabsTrigger value="playbook">Setter access</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
+        <TabsContent value="eod" className="mt-4">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
         <TabsContent value="kpis" className="mt-4 space-y-4"><KpiPeriodTargets /><KpiScorecard /></TabsContent>
         <TabsContent value="revenue" className="mt-4"><MeetingRevenuePipeline /></TabsContent>
         <TabsContent value="flags" className="mt-4 space-y-4"><ManagerMetrics /><ManagerPlaybook /></TabsContent>
