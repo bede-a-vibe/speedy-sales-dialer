@@ -109,10 +109,28 @@ export function GhlPipelineBoard() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search opportunities" className="pl-8" />
         </div>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="All sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sources</SelectItem>
+            {sources.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+            {noSourceCount > 0 && (
+              <SelectItem value="none">
+                No source ({noSourceCount})
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={() => board.refetch()} disabled={board.isFetching}>
           <RefreshCw className={`mr-1.5 h-4 w-4 ${board.isFetching ? "animate-spin" : ""}`} /> Refresh from GHL
         </Button>
-        <span className="text-xs text-muted-foreground">{opps.length} opportunities · Sales Pipeline</span>
+        <span className="text-xs text-muted-foreground">
+          {filtered.length === opps.length ? `${opps.length} opportunities` : `${filtered.length} of ${opps.length}`} · Sales Pipeline
+        </span>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-4">
