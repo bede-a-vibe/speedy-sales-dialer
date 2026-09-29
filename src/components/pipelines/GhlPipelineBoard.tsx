@@ -58,13 +58,23 @@ export function GhlPipelineBoard() {
     return [...s].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }, [board.data]);
 
+  const sources = useMemo(() => {
+    const set = new Set<string>();
+    opps.forEach((o) => set.add(o.source?.trim() || ""));
+    return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [opps]);
+  const noSourceCount = useMemo(() => opps.filter((o) => !o.source?.trim()).length, [opps]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return opps;
-    return opps.filter((o) =>
+    let list = opps;
+    if (sourceFilter === "none") list = list.filter((o) => !o.source?.trim());
+    else if (sourceFilter !== "all") list = list.filter((o) => (o.source?.trim() || "") === sourceFilter);
+    if (!q) return list;
+    return list.filter((o) =>
       [o.name, o.contact?.name, o.contact?.companyName, o.contact?.phone, o.source].some((v) => v?.toLowerCase().includes(q)),
     );
-  }, [opps, search]);
+  }, [opps, search, sourceFilter]);
 
   const moveTo = async (opp: GhlBoardOpportunity, stageId: string) => {
     if (opp.pipelineStageId === stageId) return;
