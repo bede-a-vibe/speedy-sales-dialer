@@ -389,3 +389,23 @@ export async function cancelBackgroundGhlSync(jobId?: string) {
 export async function resumeBackgroundGhlSync() {
   return invokeSyncRunner<{ jobId: string; status: string }>({ action: "resume" });
 }
+
+export interface GhlBoardOpportunity {
+  id: string;
+  name?: string;
+  pipelineStageId?: string;
+  status?: string;
+  monetaryValue?: number;
+  source?: string;
+  contactId?: string;
+  assignedTo?: string;
+  updatedAt?: string;
+  contact?: { id?: string; name?: string; companyName?: string; phone?: string; email?: string };
+}
+
+export async function ghlListPipelineOpportunities(pipelineId: string) {
+  return invokeGHL<{ opportunities: GhlBoardOpportunity[]; stages: Array<{ id: string; name: string; position?: number }> }>({
+    action: "list_pipeline_opportunities",
+    pipelineId,
+  });
+}

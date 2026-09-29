@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
-import { DealBoard } from "@/components/pipelines/DealBoard";
+import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
 import type { OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
 import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
 import { MeetingsPanel } from "@/pages/MeetingsPage";
@@ -724,11 +724,7 @@ export default function PipelinesPage() {
             <MeetingsPanel />
           </TabsContent>
           <TabsContent value="board" className="mt-4">
-            {bookedLoading ? (
-              <DealBoardSkeleton columns={4} cards={3} />
-            ) : (
-              <DealBoard items={booked} reps={reps} repMap={repMap} />
-            )}
+            <GhlPipelineBoard />
           </TabsContent>
           <TabsContent value="booked" className="mt-4 space-y-4">
             {bookedLoading ? (

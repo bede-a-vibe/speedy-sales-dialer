@@ -2667,6 +2667,26 @@ Deno.serve(async (req) => {
         result = await updateOpportunity(GHL_API_KEY, body.opportunityId, body.payload ?? {});
         break;
 
+      case "list_pipeline_opportunities": {
+        const pid = String(body.pipelineId ?? "");
+        if (!pid) return json({ error: "Missing pipelineId" }, 400);
+        const all: unknown[] = [];
+        let page = 1;
+        for (; page <= 20; page++) {
+          const r = await ghlFetch("/opportunities/search", GHL_API_KEY, {
+            method: "GET",
+            params: { location_id: GHL_LOCATION_ID, pipeline_id: pid, status: "all", limit: "100", page: String(page) },
+          }) as { opportunities?: unknown[] };
+          const batch = r?.opportunities ?? [];
+          all.push(...batch);
+          if (batch.length < 100) break;
+        }
+        const pipes = await getPipelines(GHL_API_KEY, GHL_LOCATION_ID) as { pipelines?: Array<{ id: string; stages?: unknown[] }> };
+        const pipeline = (pipes?.pipelines ?? []).find((x) => x.id === pid) ?? null;
+        result = { opportunities: all, stages: pipeline?.stages ?? [] };
+        break;
+      }
+
       case "search_opportunities":
         if (!body.contactId) return json({ error: "Missing contactId" }, 400);
         result = await searchOpportunities(GHL_API_KEY, GHL_LOCATION_ID, body.pipelineId, body.contactId);
