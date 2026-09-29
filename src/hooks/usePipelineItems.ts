@@ -23,6 +23,7 @@ export interface PipelineItemInsert {
 }
 
 export interface PipelineItemUpdate {
+  reschedule_count?: number;
   id: string;
   assigned_user_id?: string;
   scheduled_for?: string | null;
@@ -69,6 +70,8 @@ export interface PipelineItemWithRelations {
   outcome_reason?: string | null;
   recording_url?: string | null;
   phone_recording_url?: string | null;
+  ghl_sync_error?: string | null;
+  ghl_stage_synced_at?: string | null;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -150,6 +153,10 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           outcome_reason,
           recording_url,
           phone_recording_url,
+          meeting_ghl_opportunity_id,
+          meeting_ghl_stage_id,
+          ghl_sync_error,
+          ghl_stage_synced_at,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -175,7 +182,14 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as PipelineItemWithRelations[];
+      // The meeting's GHL link lives in meeting_ghl_* columns; expose it under
+      // the shared ghl_* names the board and mirror cards already read.
+      return ((data ?? []) as any[]).map((row) => ({
+        ...row,
+        ghl_opportunity_id: row.meeting_ghl_opportunity_id ?? null,
+        ghl_stage_id: row.meeting_ghl_stage_id ?? null,
+        ghl_pipeline_id: row.meeting_ghl_opportunity_id ? "6CHrrf2yQfsHCOJ8RkwK" : null,
+      })) as PipelineItemWithRelations[];
     },
   });
 }

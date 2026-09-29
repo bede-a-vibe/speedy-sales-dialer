@@ -94,6 +94,10 @@ const APPOINTMENT_OUTCOME_TO_GHL_SYNC: Record<AppointmentOutcomeValue, {
     callOutcome: "follow_up",
     createsFollowUpTask: false,
   },
+  cancelled: {
+    callOutcome: "not_interested",
+    createsFollowUpTask: false,
+  },
   showed_verbal_commitment: {
     callOutcome: "booked",
     createsFollowUpTask: true,
