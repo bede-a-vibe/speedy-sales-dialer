@@ -155,7 +155,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
       });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [data, userId]);
+  }, [data, userId, ramp]);
 
   const alerts = rows.flatMap((r) =>
     (Object.entries(r.diag) as [DiagKey, number | null][])

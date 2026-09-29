@@ -379,6 +379,16 @@ export function TargetsBody() {
             </p>
           </div>
 
+          <div className="flex gap-2">
+          {isAdmin && targets.length > 0 && (
+            <Button variant="outline" onClick={async () => {
+              if (!confirm("Reset all performance targets for every rep? This clears them so you can set fresh ones.")) return;
+              try { for (const t of targets) await deleteTarget.mutateAsync(t.id); toast.success("All targets reset"); }
+              catch (e: any) { toast.error(e.message ?? "Couldn't reset targets"); }
+            }}>
+              <Trash2 className="mr-2 h-4 w-4" /> Reset all
+            </Button>
+          )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openNewForRep}>
@@ -506,6 +516,7 @@ export function TargetsBody() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Individual rep cards */}
