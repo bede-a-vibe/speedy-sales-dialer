@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchDialpadHours } from "@/lib/dialpadHours";
+import { useRampBands } from "@/hooks/useKpiSettings";
+import { RampTargetsEditor } from "@/components/targets/RampTargetsEditor";
 import {
   PRODUCTIVE_DAYS_PER_MONTH, dailyTargetsFor, periodDays, productiveHours, rampForTenure,
 } from "@/lib/kpiStandards";
@@ -83,6 +85,7 @@ function Bar({ m }: { m: Metric }) {
 export function KpiPeriodTargets({ userId }: { userId?: string }) {
   const [period, setPeriod] = useState<Period>("week");
   const { data, isLoading } = usePeriodData(period);
+  const { data: ramp } = useRampBands();
 
   const reps = useMemo(() => {
     if (!data) return [];
@@ -93,7 +96,7 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
     }
     return [...byUser.entries()].map(([uid, logs]) => {
       const p: any = data.profiles.find((x: any) => x.user_id === uid);
-      const { band, day } = rampForTenure(p?.created_at);
+      const { band, day } = rampForTenure(p?.created_at, new Date(), ramp?.bands);
       const t = dailyTargetsFor(band);
       const perDay = new Map<string, number[]>();
       let sets = 0;
@@ -129,7 +132,7 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
         ],
       };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [data, userId, period]);
+  }, [data, userId, period, ramp]);
 
   return (
     <Card>
@@ -143,7 +146,8 @@ export function KpiPeriodTargets({ userId }: { userId?: string }) {
               Targets follow each rep's tenure. Full targets use 1 / 5 / {PRODUCTIVE_DAYS_PER_MONTH} productive days; pace counts only the days they actually dialled.
             </CardDescription>
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
+            <RampTargetsEditor />
             {(["day", "week", "month"] as Period[]).map((p) => (
               <Button key={p} size="sm" variant={period === p ? "default" : "outline"} onClick={() => setPeriod(p)}>
                 {p === "day" ? "Today" : p === "week" ? "This week" : "This month"}
