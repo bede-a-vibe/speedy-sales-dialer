@@ -5395,6 +5395,45 @@ async function catchUpDialpadCallRecords(params: {
     stats.linked += 1;
   }
 
+  // 1.5 Auto-log unconnected calls the rep never dispositioned. Without this
+  // the lead keeps its "never called" flags and bounces back into the queue
+  // within 24h. Only calls that never connected (no talk time) and that
+  // ended at least 10 minutes ago (so we don't pre-empt a rep still logging).
+  const autoLogCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data: stillUnlinked } = await adminClient
+    .from("dialpad_calls")
+    .select("id, dialpad_call_id, contact_id, user_id, started_at, talk_time_seconds, total_duration_seconds")
+    .is("call_log_id", null)
+    .not("contact_id", "is", null)
+    .not("user_id", "is", null)
+    .gte("started_at", since)
+    .lte("started_at", autoLogCutoff)
+    .limit(200);
+  for (const row of stillUnlinked ?? []) {
+    if ((row.talk_time_seconds as number | null) && (row.talk_time_seconds as number) > 0) continue;
+    const { data: inserted, error: insErr } = await adminClient
+      .from("call_logs")
+      .insert({
+        contact_id: row.contact_id,
+        user_id: row.user_id,
+        outcome: "no_answer",
+        notes: "Auto-logged: dialled, no outcome recorded.",
+        created_at: row.started_at,
+      })
+      .select("id")
+      .single();
+    if (insErr || !inserted) {
+      console.warn(`[catchUp] auto-log failed for dialpad call ${row.dialpad_call_id}: ${insErr?.message}`);
+      continue;
+    }
+    await adminClient.from("dialpad_calls").update({ call_log_id: inserted.id }).eq("id", row.id as string);
+    const patch: Record<string, unknown> = { dialpad_call_id: row.dialpad_call_id };
+    if (row.total_duration_seconds != null) patch.dialpad_total_duration_seconds = row.total_duration_seconds;
+    await adminClient.from("call_logs").update(patch).eq("id", inserted.id);
+    stats.auto_logged += 1;
+  }
+
+
   // 2. Score transcribed, linked calls that have no scorecard yet.
   if (!Deno.env.get("LOVABLE_API_KEY")) return { ...stats, reason: "no_lovable_api_key" };
   const { data: candidates } = await adminClient
