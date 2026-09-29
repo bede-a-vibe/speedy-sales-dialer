@@ -202,6 +202,7 @@ function createAppointmentOutcomeCounts(): AppointmentOutcomeCounts {
     showed_verbal_commitment: 0,
     second_meeting_booked: 0,
     no_close_follow_up: 0,
+    disqualified: 0,
   };
 }
 
