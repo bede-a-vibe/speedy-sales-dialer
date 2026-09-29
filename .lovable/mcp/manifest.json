@@ -257,6 +257,73 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "list_call_transcripts",
+        "title": "List my call transcripts",
+        "description": "List the signed-in rep's connected Dialpad calls that have a transcript, newest first, with business, talk time and outcome. Use `get_call_transcript` with the returned dialpad_call_id to read the full transcript. Page with `offset`.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "Earliest call date, YYYY-MM-DD."
+            },
+            "to": {
+              "type": "string",
+              "description": "Latest call date, YYYY-MM-DD."
+            },
+            "min_talk_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Only calls with at least this much talk time (default 60)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "description": "Default 50."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_call_transcript",
+        "title": "Get a call transcript",
+        "description": "Read the full transcript (and Dialpad's summary) of one of the signed-in rep's calls, by dialpad_call_id from `list_call_transcripts`.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "dialpad_call_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The dialpad_call_id from list_call_transcripts."
+            }
+          },
+          "required": [
+            "dialpad_call_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
