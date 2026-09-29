@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 export function ListenButton({ dialpadCallId, autoPlay = true, className }: { dialpadCallId: string; autoPlay?: boolean; className?: string }) {
   const [loading, setLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -46,7 +47,7 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
     return (
       <div className={className ?? "mb-3 flex flex-wrap items-center gap-2"}>
         <audio controls autoPlay={autoPlay} src={audioUrl} className="h-9 w-full max-w-md" />
-        <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+        <a href={shareUrl ?? audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
           Open recording <ExternalLink className="h-3 w-3" />
         </a>
       </div>
