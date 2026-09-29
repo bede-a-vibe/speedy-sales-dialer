@@ -134,6 +134,13 @@
       "when": 1790670865787,
       "tag": "0018_kpi_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790676725730,
+      "tag": "0019_pipeline_qualified_flag",
+      "breakpoints": true
     }
   ]
 }

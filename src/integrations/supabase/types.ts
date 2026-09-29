@@ -2999,11 +2999,13 @@ export type Database = {
           created_by: string
           deal_stage: string | null
           deal_value: number | null
+          dq_reason: string | null
           expected_close_date: string | null
           follow_up_method: string
           ghl_stage_synced_at: string | null
           ghl_sync_error: string | null
           id: string
+          is_qualified: boolean | null
           meeting_ghl_opportunity_id: string | null
           meeting_ghl_stage_id: string | null
           monthly_recurring_value: number | null
@@ -3033,11 +3035,13 @@ export type Database = {
           created_by: string
           deal_stage?: string | null
           deal_value?: number | null
+          dq_reason?: string | null
           expected_close_date?: string | null
           follow_up_method?: string
           ghl_stage_synced_at?: string | null
           ghl_sync_error?: string | null
           id?: string
+          is_qualified?: boolean | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           monthly_recurring_value?: number | null
@@ -3067,11 +3071,13 @@ export type Database = {
           created_by?: string
           deal_stage?: string | null
           deal_value?: number | null
+          dq_reason?: string | null
           expected_close_date?: string | null
           follow_up_method?: string
           ghl_stage_synced_at?: string | null
           ghl_sync_error?: string | null
           id?: string
+          is_qualified?: boolean | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           monthly_recurring_value?: number | null
