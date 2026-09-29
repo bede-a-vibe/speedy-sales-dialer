@@ -140,7 +140,7 @@ function ReviewDialog({ call, repName, existing, onClose }: {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto overscroll-contain">
         <DialogHeader>
           <DialogTitle>{repName} — {call.business ?? "Unknown business"}</DialogTitle>
           <p className="text-xs text-muted-foreground">{call.outcome.replace(/_/g, " ")} · {fmtTalk(call.talk)} · {new Date(call.created_at).toLocaleString("en-AU")}</p>
