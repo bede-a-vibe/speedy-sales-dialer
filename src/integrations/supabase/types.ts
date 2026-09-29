@@ -3589,6 +3589,10 @@ export type Database = {
         Returns: number
       }
       count_state_backfill_pending: { Args: never; Returns: number }
+      dialpad_backfill_window: {
+        Args: { cap?: number; since_ms: number; until_ms: number }
+        Returns: number
+      }
       export_contacts_for_ghl_link: {
         Args: never
         Returns: {
