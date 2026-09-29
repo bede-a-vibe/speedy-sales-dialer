@@ -238,6 +238,8 @@ export default function PipelinesPage() {
   const activeTab =
     tabParam === "history" ? "history" :
     tabParam === "booked" ? "booked" :
+    tabParam === "closing" ? "closing" :
+    tabParam === "meetings" ? "meetings" :
     "board";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
