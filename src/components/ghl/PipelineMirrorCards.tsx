@@ -70,7 +70,7 @@ export function PipelineMirrorCards({
         <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
           <div className="flex items-center gap-2 text-foreground">
             <CalendarClock className="h-4 w-4 text-emerald-600" />
-            <p className="text-sm font-semibold">Sales & Growth Sessions</p>
+            <p className="text-sm font-semibold">Sales Pipeline</p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{renderPath(bookedPipelineName, bookedStageName, "Configured booked pipeline")}</p>
           <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
