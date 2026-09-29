@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
@@ -61,7 +61,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     const allowed = reasonsForOutcome(outcome);
     if (!allowed) return true;
     if (allowed.some((r) => r.value === reason)) return true;
-    toast.error(outcome === "disqualified" ? "Pick a DQ reason first." : "Pick a no-close reason first.");
+    const which: Partial<Record<AppointmentOutcomeValue, string>> = {
+      disqualified: "a DQ", no_show: "a no-show", cancelled: "a cancellation", rescheduled: "a reschedule",
+    };
+    toast.error(`Pick ${which[outcome] ?? "a no-close"} reason first.`);
     return false;
   };
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(
@@ -212,10 +215,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reason (required for No Close and DQ)</p>
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reason (required for No Show, Cancelled, Reschedule, No Close and DQ)</p>
         <Select value={reason || undefined} onValueChange={setReason}>
           <SelectTrigger className="w-full bg-background sm:w-[280px]">
-            <SelectValue placeholder="Why didn't it close?" />
+            <SelectValue placeholder="Why?" />
           </SelectTrigger>
           <SelectContent>
             <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">No close</div>
@@ -224,6 +227,18 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             ))}
             <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Disqualified</div>
             {DQ_REASONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">No show</div>
+            {NO_SHOW_REASONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Cancelled</div>
+            {CANCEL_REASONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Rescheduled</div>
+            {RESCHEDULE_REASONS.map((r) => (
               <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
             ))}
           </SelectContent>
@@ -301,6 +316,9 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("no_show")} disabled={isSaving}>
           No Show
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("cancelled")} disabled={isSaving}>
+          Cancelled
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_verbal_commitment")} disabled={isSaving}>
           Verbal Commitment

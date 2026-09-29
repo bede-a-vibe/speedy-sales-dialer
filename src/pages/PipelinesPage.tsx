@@ -13,6 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
+import { getOutcomeReasonLabel } from "@/lib/appointments";
+import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
+import { supabase } from "@/integrations/supabase/client";
 
 import {
   usePipelineItems,
@@ -295,10 +298,19 @@ export default function PipelinesPage() {
       await Promise.allSettled(
         mirrorCandidates.map(async (item) => {
           if (cancelled || !item.ghl_opportunity_id) return;
-          await refreshOpportunityMirror({
+          const target = await refreshOpportunityMirror({
             pipelineItemId: item.id,
             ghlOpportunityId: item.ghl_opportunity_id,
           });
+          // Inbound: someone moved the deal in GHL since our last push.
+          // Record the new stage and mirror won/lost; the dialer's logged
+          // outcome and reason are never overwritten.
+          if (target?.stageId && target.stageId !== item.ghl_stage_id) {
+            const patch: Record<string, unknown> = { meeting_ghl_stage_id: target.stageId };
+            if (target.stageId === SALES_PIPELINE_STAGES.closed_won) patch.deal_stage = "won";
+            if (target.stageId === SALES_PIPELINE_STAGES.closed_lost && !item.appointment_outcome) patch.deal_stage = "lost";
+            await supabase.from("pipeline_items").update(patch as any).eq("id", item.id);
+          }
         }),
       );
     };
@@ -390,6 +402,7 @@ export default function PipelinesPage() {
           scheduled_for: scheduledFor,
           status: "open",
           completed_at: null,
+          reschedule_count: (item.reschedule_count ?? 0) + 1,
           ...extraFields,
         });
 
@@ -458,7 +471,11 @@ export default function PipelinesPage() {
         const outcomeLabel = getAppointmentOutcomeLabel(outcome);
         const outcomeSync = getAppointmentOutcomeGhlSync(outcome);
         const noteParts = [`\uD83D\uDCCB Appointment Result: ${outcomeLabel}`];
+        const reasonLabel = getOutcomeReasonLabel(extras?.reason);
+        if (reasonLabel) noteParts.push(`Reason: ${reasonLabel}`);
         if (notes) noteParts.push(`Notes: ${notes}`);
+        if (extras?.recordingUrl) noteParts.push(`Fathom: ${extras.recordingUrl}`);
+        if (extras?.phoneRecordingUrl) noteParts.push(`Call recording: ${extras.phoneRecordingUrl}`);
         if (dealValue != null && outcome === "showed_closed") noteParts.push(`Deal Value: $${dealValue.toLocaleString()}`);
         if (outcome === "rescheduled" && scheduledFor) noteParts.push(`Rescheduled to: ${new Date(scheduledFor).toLocaleString("en-AU")}`);
         noteParts.push(`Recorded via Speedy Sales Dialer at ${new Date().toLocaleString("en-AU")}`);
@@ -467,6 +484,19 @@ export default function PipelinesPage() {
           outcome: outcomeSync.callOutcome,
           notes: noteParts.join("\n"),
         }).catch(() => {});
+
+        // Move the meeting's GHL opportunity to the matching stage.
+        syncMeetingOutcomeToGhl({
+          pipelineItemId: item.id,
+          ghlContactId: contactGhlId,
+          ghlOpportunityId: item.ghl_opportunity_id ?? null,
+          businessName: item.contacts?.business_name ?? "Meeting",
+          outcome,
+          reason: extras?.reason ?? null,
+          dealValue: outcome === "showed_closed" ? dealValue ?? null : null,
+        }).then((r) => {
+          if (!r.ok) toast.error(`GHL stage not updated: ${r.error}`);
+        });
 
         // Push follow-up task to GHL if one was created
         if (followUpDate && outcomeSync.createsFollowUpTask) {

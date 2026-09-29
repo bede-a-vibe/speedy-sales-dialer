@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import {
   DQ_REASONS,
   NO_CLOSE_REASONS,
+  NO_SHOW_REASONS,
+  CANCEL_REASONS,
+  RESCHEDULE_REASONS,
   getAppointmentOutcomeLabel,
   getOutcomeReasonLabel,
   type AppointmentOutcomeValue,
@@ -27,7 +30,8 @@ type Row = {
   phone_recording_url: string | null;
   deal_value: number | null;
   monthly_recurring_value: number | null;
-  contacts: { business_name: string | null } | null;
+  reschedule_count: number | null;
+  contacts: { business_name: string | null; lead_channel: string | null; lead_source: string | null } | null;
 };
 
 const SHOWED: AppointmentOutcomeValue[] = [
@@ -81,6 +85,8 @@ function ReasonBars({ title, reasons, rows }: { title: string; reasons: readonly
 export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
   const [days, setDays] = useState("30");
   const [closer, setCloser] = useState("all");
+  const [setter, setSetter] = useState("all");
+  const [source, setSource] = useState("all");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["close-tracking", days],
@@ -90,7 +96,7 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, assigned_user_id, created_by, scheduled_for, appointment_outcome, outcome_reason, recording_url, phone_recording_url, deal_value, monthly_recurring_value, contacts:contacts!pipeline_items_contact_id_fkey(business_name)",
+          "id, contact_id, assigned_user_id, created_by, scheduled_for, appointment_outcome, outcome_reason, recording_url, phone_recording_url, deal_value, monthly_recurring_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(business_name, lead_channel, lead_source)",
         )
         .eq("pipeline_type", "booked")
         .gte("scheduled_for", since)
@@ -103,10 +109,23 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
   });
 
   const repName = useMemo(() => new Map(reps.map((r) => [r.user_id, r.display_name?.trim() || r.email || "Rep"])), [reps]);
-  const scoped = closer === "all" ? rows : rows.filter((r) => r.assigned_user_id === closer);
+  const sourceOf = (r: Row) => r.contacts?.lead_channel || r.contacts?.lead_source || "Unknown";
+  const sources = useMemo(() => [...new Set(rows.map(sourceOf))].sort(), [rows]);
+  const scoped = rows.filter(
+    (r) =>
+      (closer === "all" || r.assigned_user_id === closer) &&
+      (setter === "all" || r.created_by === setter) &&
+      (source === "all" || sourceOf(r) === source),
+  );
 
   const recorded = scoped.filter((r) => r.appointment_outcome && r.appointment_outcome !== "rescheduled");
-  const noShows = recorded.filter((r) => r.appointment_outcome === "no_show").length;
+  const noShowRows = recorded.filter((r) => r.appointment_outcome === "no_show");
+  const noShows = noShowRows.length;
+  const cancelled = recorded.filter((r) => r.appointment_outcome === "cancelled");
+  // A meeting counts as rescheduled if it was ever moved, even if it later happened.
+  const rescheduled = scoped.filter((r) => (r.reschedule_count ?? 0) > 0 || r.appointment_outcome === "rescheduled");
+  // Every meeting that was due (had a result or was moved) is the base for the attendance rates.
+  const due = scoped.filter((r) => r.appointment_outcome || (r.reschedule_count ?? 0) > 0).length;
   const showed = recorded.filter((r) => SHOWED.includes(r.appointment_outcome!));
   const dq = showed.filter((r) => r.appointment_outcome === "disqualified");
   const qualified = showed.length - dq.length;
@@ -116,7 +135,7 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
   const revenue = closed.reduce((s, r) => s + (r.deal_value ?? 0) + (r.monthly_recurring_value ?? 0) * 12, 0);
   const withRecording = showed.filter((r) => r.recording_url || r.phone_recording_url).length;
 
-  const lost = [...noClose, ...dq];
+  const lost = [...noClose, ...dq, ...noShowRows, ...cancelled];
 
   return (
     <div className="space-y-4">
@@ -127,13 +146,31 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
             Meetings that have already happened, by closer. Close rate is closed ÷ qualified shows (DQs are left out, since they were never going to buy).
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={closer} onValueChange={setCloser}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All closers</SelectItem>
               {reps.map((r) => (
                 <SelectItem key={r.user_id} value={r.user_id}>{r.display_name?.trim() || r.email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={setter} onValueChange={setSetter}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All setters</SelectItem>
+              {reps.map((r) => (
+                <SelectItem key={r.user_id} value={r.user_id}>{r.display_name?.trim() || r.email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={source} onValueChange={setSource}>
+            <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              {sources.map((s2) => (
+                <SelectItem key={s2} value={s2}>{s2}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -153,9 +190,12 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
             <Tile label="Meetings held" value={recorded.length} sub={pending ? `${pending} still need an outcome` : "All recorded"} />
-            <Tile label="Showed" value={showed.length} sub={`${pct(showed.length, showed.length + noShows)} show rate`} />
+            <Tile label="Showed" value={showed.length} sub={`${pct(showed.length, due)} show rate`} />
+            <Tile label="No-show" value={noShows} sub={`${pct(noShows, due)} no-show rate`} />
+            <Tile label="Cancelled" value={cancelled.length} sub={`${pct(cancelled.length, due)} cancellation rate`} />
+            <Tile label="Rescheduled" value={rescheduled.length} sub={`${pct(rescheduled.length, due)} reschedule rate`} />
             <Tile label="DQ" value={dq.length} sub={`${pct(dq.length, showed.length)} of shows`} />
             <Tile label="Closed" value={closed.length} sub={`${pct(closed.length, qualified)} close rate`} />
             <Tile label="No close" value={noClose.length} sub={`${pct(noClose.length, qualified)} of qualified`} />
@@ -163,13 +203,55 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
             <Tile label="Recorded" value={`${withRecording}/${showed.length}`} sub="Shows with a Fathom or call link" />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <ReasonBars title="Why they didn't close" reasons={NO_CLOSE_REASONS} rows={noClose} />
             <ReasonBars title="Why they were DQ'd" reasons={DQ_REASONS} rows={dq} />
+            <ReasonBars title="Why they didn't show" reasons={NO_SHOW_REASONS} rows={noShowRows} />
+            <ReasonBars title="Why they cancelled" reasons={CANCEL_REASONS} rows={cancelled} />
+            <ReasonBars
+              title="Why meetings moved"
+              reasons={RESCHEDULE_REASONS}
+              rows={rescheduled.filter((r) => r.appointment_outcome === "rescheduled")}
+            />
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+            <p className="border-b border-border px-4 py-2.5 text-sm font-semibold text-foreground">By lead source</p>
+            <table className="w-full text-xs">
+              <thead className="text-left text-[10px] uppercase tracking-widest text-muted-foreground">
+                <tr>
+                  {["Source", "Booked", "Show", "No-show", "Cancel", "Resched.", "Close", "Revenue"].map((h) => (
+                    <th key={h} className="px-4 py-2 font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border font-mono">
+                {[...new Set(scoped.map(sourceOf))].sort().map((src) => {
+                  const g = scoped.filter((r) => sourceOf(r) === src);
+                  const gDue = g.filter((r) => r.appointment_outcome || (r.reschedule_count ?? 0) > 0).length;
+                  const gShow = g.filter((r) => r.appointment_outcome && SHOWED.includes(r.appointment_outcome));
+                  const gDq = gShow.filter((r) => r.appointment_outcome === "disqualified").length;
+                  const gClosed = gShow.filter((r) => r.appointment_outcome === "showed_closed");
+                  const gRev = gClosed.reduce((s2, r) => s2 + (r.deal_value ?? 0) + (r.monthly_recurring_value ?? 0) * 12, 0);
+                  return (
+                    <tr key={src}>
+                      <td className="px-4 py-2 font-sans text-foreground">{src}</td>
+                      <td className="px-4 py-2">{g.length}</td>
+                      <td className="px-4 py-2">{pct(gShow.length, gDue)}</td>
+                      <td className="px-4 py-2">{pct(g.filter((r) => r.appointment_outcome === "no_show").length, gDue)}</td>
+                      <td className="px-4 py-2">{pct(g.filter((r) => r.appointment_outcome === "cancelled").length, gDue)}</td>
+                      <td className="px-4 py-2">{pct(g.filter((r) => (r.reschedule_count ?? 0) > 0 || r.appointment_outcome === "rescheduled").length, gDue)}</td>
+                      <td className="px-4 py-2">{pct(gClosed.length, gShow.length - gDq)}</td>
+                      <td className="px-4 py-2">{money(gRev)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           <div className="rounded-lg border border-border bg-card">
-            <p className="border-b border-border px-4 py-2.5 text-sm font-semibold text-foreground">No-close and DQ meetings</p>
+            <p className="border-b border-border px-4 py-2.5 text-sm font-semibold text-foreground">No-close, DQ, no-show and cancelled meetings</p>
             {lost.length === 0 ? (
               <p className="p-4 text-xs text-muted-foreground">None in this period.</p>
             ) : (

@@ -2980,7 +2980,11 @@ export type Database = {
           deal_value: number | null
           expected_close_date: string | null
           follow_up_method: string
+          ghl_stage_synced_at: string | null
+          ghl_sync_error: string | null
           id: string
+          meeting_ghl_opportunity_id: string | null
+          meeting_ghl_stage_id: string | null
           monthly_recurring_value: number | null
           notes: string
           outcome_notes: string
@@ -2990,6 +2994,7 @@ export type Database = {
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
           recording_url: string | null
           reschedule_count: number
+          rescheduled_from_id: string | null
           scheduled_for: string | null
           source_call_log_id: string | null
           status: Database["public"]["Enums"]["pipeline_status"]
@@ -3009,7 +3014,11 @@ export type Database = {
           deal_value?: number | null
           expected_close_date?: string | null
           follow_up_method?: string
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
           id?: string
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
@@ -3019,6 +3028,7 @@ export type Database = {
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
           recording_url?: string | null
           reschedule_count?: number
+          rescheduled_from_id?: string | null
           scheduled_for?: string | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
@@ -3038,7 +3048,11 @@ export type Database = {
           deal_value?: number | null
           expected_close_date?: string | null
           follow_up_method?: string
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
           id?: string
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
@@ -3048,6 +3062,7 @@ export type Database = {
           pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
           recording_url?: string | null
           reschedule_count?: number
+          rescheduled_from_id?: string | null
           scheduled_for?: string | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
@@ -3059,6 +3074,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_items_rescheduled_from_id_fkey"
+            columns: ["rescheduled_from_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_items"
             referencedColumns: ["id"]
           },
           {
@@ -3859,6 +3881,7 @@ export type Database = {
         | "second_meeting_booked"
         | "no_close_follow_up"
         | "disqualified"
+        | "cancelled"
       call_outcome:
         | "no_answer"
         | "voicemail"
@@ -4015,6 +4038,7 @@ export const Constants = {
         "second_meeting_booked",
         "no_close_follow_up",
         "disqualified",
+        "cancelled",
       ],
       call_outcome: [
         "no_answer",
