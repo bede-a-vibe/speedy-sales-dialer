@@ -621,15 +621,15 @@ export default function PipelinesPage() {
           <CollapsibleContent className="space-y-6 pt-4">
         <TwoPipelineGuide
           currentView="pipelines"
-          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
+          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales Pipeline"}
           bookedStageName={defaultBookedStage?.name ?? undefined}
           followUpPipelineName={defaultFollowUpPipeline?.name ?? "Outbound Prospecting"}
           followUpStageName={defaultFollowUpStage?.name ?? "Follow Up"}
         />
 
         <PipelineMirrorCards
-          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
-          bookedStageName={defaultBookedStage?.name ?? "Booked Appointment"}
+          bookedPipelineName={defaultBookedPipeline?.name ?? "Sales Pipeline"}
+          bookedStageName={defaultBookedStage?.name ?? "Contacted"}
           bookedOpenCount={booked.length}
           bookedCompletedCount={completedBooked.length}
           bookedStaleCount={staleCount}
@@ -708,7 +708,7 @@ export default function PipelinesPage() {
                 <BookedPipelineBoard
                   items={booked}
                   repMap={repMap}
-                  bookedPipelineName={defaultBookedPipeline?.name ?? "Sales & Growth Sessions"}
+                  bookedPipelineName={defaultBookedPipeline?.name ?? "Sales Pipeline"}
                   bookedEntryStageName={defaultBookedStage?.name ?? null}
                   reps={reps}
                   isSaving={updatePipelineItem.isPending}

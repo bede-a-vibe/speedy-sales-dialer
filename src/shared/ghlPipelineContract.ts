@@ -19,12 +19,12 @@ export const GHL_PIPELINE_CONTRACT = {
     stageName: "Contacted",
   },
   booked: {
-    pipelineName: "Sales & Growth Sessions",
-    // Empty by design: resolved at runtime from the live GHL pipelines API
-    // by name match (see findDefaultBookedPipeline / cacheBookedPipelineIds).
-    pipelineId: "",
-    stageId: "",
-    stageName: "Booked Appointment",
+    // Booked appointments land in the same GHL pipeline as follow-ups:
+    // "Sales Pipeline" → "Contacted" stage.
+    pipelineName: "Sales Pipeline",
+    pipelineId: "6CHrrf2yQfsHCOJ8RkwK",
+    stageId: "0b02d920-b119-4e69-9c6a-8b543aa612b0",
+    stageName: "Contacted",
   },
 } as const;
 
