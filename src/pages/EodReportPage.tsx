@@ -600,7 +600,7 @@ function TeamReportCard({
   );
 }
 
-function TeamReview({ managerId }: { managerId: string }) {
+export function TeamReview({ managerId }: { managerId: string }) {
   const today = melbourneTodayIso();
   const [date, setDate] = useState(today);
   const { data: reps = [] } = useSalesReps();
