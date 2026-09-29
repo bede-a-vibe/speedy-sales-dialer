@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMySelfReviewableCalls, useSaveSelfReview, type SelfReviewableCall } from "@/hooks/useManager";
 import { cn } from "@/lib/utils";
 import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
+import { ListenButton } from "@/components/calls/ListenButton";
 
 /**
  * A rep reviews their own calls and sends them up.
@@ -110,6 +111,17 @@ function CallRow({ call }: { call: SelfReviewableCall }) {
 
       {open && (
         <div className="space-y-3 border-t border-border p-3">
+          {call.dialpadCallId ? (
+            <ListenButton dialpadCallId={call.dialpadCallId} autoPlay={false} className="flex flex-wrap items-center gap-2" />
+          ) : (
+            <p className="text-xs text-muted-foreground">No recording linked to this call.</p>
+          )}
+          {call.transcript && (
+            <details className="rounded-md border border-border bg-muted/30 p-2">
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Read the transcript</summary>
+              <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed">{call.transcript}</pre>
+            </details>
+          )}
           {locked ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
