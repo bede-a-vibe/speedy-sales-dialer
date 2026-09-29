@@ -136,7 +136,7 @@ export function BookedPipelineBoard({
           <h4 className="text-sm font-semibold text-foreground">Booked execution board</h4>
           <p className="text-xs text-muted-foreground">
             Open booked opportunities grouped by appointment timing so reps can work the queue after routing lands in{" "}
-            <span className="font-medium text-foreground">{bookedPipelineName ?? "Sales & Growth Sessions"}</span>
+            <span className="font-medium text-foreground">{bookedPipelineName ?? "Sales Pipeline"}</span>
             {bookedEntryStageName ? <span className="text-muted-foreground"> {"→"} {bookedEntryStageName}</span> : null}.
           </p>
         </div>
