@@ -1,13 +1,10 @@
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallReviewQueue } from "@/components/manager/CallReviewQueue";
 import { PlaybookLocks } from "@/components/manager/PlaybookLocks";
 import { OneOnOnePanel } from "@/components/manager/OneOnOnePanel";
 import { RoleplayResults } from "@/components/manager/RoleplayResults";
-import { KpiPeriodTargets } from "@/components/targets/KpiPeriodTargets";
-import { KpiScorecard } from "@/components/targets/KpiScorecard";
+import { TeamKpis } from "@/components/targets/TeamKpis";
 import { MeetingRevenuePipeline } from "@/components/manager/MeetingRevenuePipeline";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
@@ -23,8 +20,7 @@ export default function ManagerPage() {
         <TabsList>
           <TabsTrigger value="review">Call review</TabsTrigger>
           <TabsTrigger value="eod">EOD reports</TabsTrigger>
-          <TabsTrigger value="targets">Targets</TabsTrigger>
-          <TabsTrigger value="kpis">KPIs</TabsTrigger>
+          <TabsTrigger value="kpis">KPIs &amp; targets</TabsTrigger>
           <TabsTrigger value="revenue">Meetings → revenue</TabsTrigger>
           <TabsTrigger value="flags">Coaching flags</TabsTrigger>
           <TabsTrigger value="oneonones">1:1s</TabsTrigger>
@@ -33,11 +29,7 @@ export default function ManagerPage() {
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
         <TabsContent value="eod" className="mt-4">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
-        <TabsContent value="targets" className="mt-4 space-y-3">
-          <div className="flex justify-end"><Button asChild size="sm" variant="outline"><Link to="/insights?tab=targets">Edit targets</Link></Button></div>
-          <KpiPeriodTargets periods={["week", "month"]} />
-        </TabsContent>
-        <TabsContent value="kpis" className="mt-4 space-y-4"><KpiPeriodTargets /><KpiScorecard /></TabsContent>
+        <TabsContent value="kpis" className="mt-4"><TeamKpis /></TabsContent>
         <TabsContent value="revenue" className="mt-4"><MeetingRevenuePipeline /></TabsContent>
         <TabsContent value="flags" className="mt-4 space-y-4"><ManagerMetrics /><ManagerPlaybook /></TabsContent>
         <TabsContent value="oneonones" className="mt-4"><OneOnOnePanel /></TabsContent>

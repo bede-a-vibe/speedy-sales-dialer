@@ -13,7 +13,6 @@ import { computeFunnel, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { InsightsOverview } from "@/components/insights/InsightsOverview";
 import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
-import { InsightsTargets } from "@/components/insights/InsightsTargets";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { LeadTrackerTab } from "@/components/analytics/LeadTrackerTab";
 import { InsightsSources } from "@/components/insights/InsightsSources";
@@ -21,7 +20,7 @@ import { InsightsPaidAds } from "@/components/insights/InsightsPaidAds";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "sources", "team", "talktime", "targets", "leads", "ads"] as const;
+const TABS = ["overview", "funnel", "sources", "team", "talktime", "leads", "ads"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
@@ -30,7 +29,6 @@ const TITLES: Record<InsightsTab, string> = {
   sources: "Insights · Sources",
   team: "Insights · Team",
   talktime: "Insights · Timing",
-  targets: "Insights · Targets",
   leads: "Insights · Leads",
   ads: "Insights · Paid Ads",
 };
@@ -123,7 +121,6 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="sources">Sources</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="talktime">Timing</TabsTrigger>
-            <TabsTrigger value="targets">Targets</TabsTrigger>
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="ads">Paid Ads</TabsTrigger>
           </TabsList>
@@ -176,18 +173,6 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               bookings={bookings}
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
-            />
-          </TabsContent>
-
-          <TabsContent value="targets">
-            <InsightsTargets
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              metrics={metrics}
-              teamMetrics={teamMetrics}
-              activeRepId={activeRepId}
-              selectedRepLabel={selectedRepLabel}
-              bookings={bookings}
             />
           </TabsContent>
 
