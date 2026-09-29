@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ghlListPipelineOpportunities, ghlUpdateOpportunity, type GhlBoardOpportunity } from "@/lib/ghl";
 import { GHL_PIPELINE_CONTRACT } from "@/shared/ghlPipelineContract";
 import { SALES_PIPELINE_STAGES } from "@/lib/ghlMeetingSync";
@@ -18,6 +19,7 @@ const aud = (n: number) =>
 export function GhlPipelineBoard() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
@@ -56,13 +58,23 @@ export function GhlPipelineBoard() {
     return [...s].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }, [board.data]);
 
+  const sources = useMemo(() => {
+    const set = new Set<string>();
+    opps.forEach((o) => set.add(o.source?.trim() || ""));
+    return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [opps]);
+  const noSourceCount = useMemo(() => opps.filter((o) => !o.source?.trim()).length, [opps]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return opps;
-    return opps.filter((o) =>
+    let list = opps;
+    if (sourceFilter === "none") list = list.filter((o) => !o.source?.trim());
+    else if (sourceFilter !== "all") list = list.filter((o) => (o.source?.trim() || "") === sourceFilter);
+    if (!q) return list;
+    return list.filter((o) =>
       [o.name, o.contact?.name, o.contact?.companyName, o.contact?.phone, o.source].some((v) => v?.toLowerCase().includes(q)),
     );
-  }, [opps, search]);
+  }, [opps, search, sourceFilter]);
 
   const moveTo = async (opp: GhlBoardOpportunity, stageId: string) => {
     if (opp.pipelineStageId === stageId) return;
@@ -97,10 +109,28 @@ export function GhlPipelineBoard() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search opportunities" className="pl-8" />
         </div>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="All sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sources</SelectItem>
+            {sources.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+            {noSourceCount > 0 && (
+              <SelectItem value="none">
+                No source ({noSourceCount})
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={() => board.refetch()} disabled={board.isFetching}>
           <RefreshCw className={`mr-1.5 h-4 w-4 ${board.isFetching ? "animate-spin" : ""}`} /> Refresh from GHL
         </Button>
-        <span className="text-xs text-muted-foreground">{opps.length} opportunities · Sales Pipeline</span>
+        <span className="text-xs text-muted-foreground">
+          {filtered.length === opps.length ? `${opps.length} opportunities` : `${filtered.length} of ${opps.length}`} · Sales Pipeline
+        </span>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-4">
