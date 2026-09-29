@@ -2,6 +2,8 @@ import * as React from "react";
 import { BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
 
 interface SessionSummaryDialogProps {
@@ -10,6 +12,8 @@ interface SessionSummaryDialogProps {
   callCount: number;
   skippedCount: number;
   sessionOutcomes: Partial<Record<CallOutcome, number>>;
+  userId?: string;
+  sessionStartedAtMs?: number | null;
 }
 
 export function SessionSummaryDialog({
@@ -17,8 +21,29 @@ export function SessionSummaryDialog({
   onOpenChange,
   callCount,
   skippedCount,
-  sessionOutcomes,
+  sessionOutcomes: localOutcomes,
+  userId,
+  sessionStartedAtMs,
 }: SessionSummaryDialogProps) {
+  // Bookings made straight in GHL are recovered into call logs by the backend,
+  // not clicked in the dialer — so read booked calls since the session started.
+  const { data: dbBooked = 0 } = useQuery({
+    queryKey: ["session-summary-booked", userId, sessionStartedAtMs],
+    enabled: open && !!userId && !!sessionStartedAtMs,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("call_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId!)
+        .eq("outcome", "booked")
+        .gte("created_at", new Date(sessionStartedAtMs! - 60_000).toISOString());
+      return count ?? 0;
+    },
+  });
+  const extraBooked = Math.max(0, dbBooked - (localOutcomes.booked || 0));
+  const sessionOutcomes: Partial<Record<CallOutcome, number>> = extraBooked
+    ? { ...localOutcomes, booked: (localOutcomes.booked || 0) + extraBooked }
+    : localOutcomes;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -34,7 +59,7 @@ export function SessionSummaryDialog({
         <div className="space-y-4 pt-2">
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-lg border border-border bg-secondary p-3 text-center">
-              <p className="font-mono text-2xl font-bold text-foreground">{callCount}</p>
+              <p className="font-mono text-2xl font-bold text-foreground">{callCount + extraBooked}</p>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Calls</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary p-3 text-center">
