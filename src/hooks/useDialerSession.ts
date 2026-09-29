@@ -146,6 +146,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     setSessionOutcomes({});
     setShowSummary(false);
     setSessionStartedAtMs(now);
+    setSessionStartedAtMs(now);
     setSessionTick(now);
     setSessionPhaseStartedAt(now);
     setAccumulatedDialingMs(0);
