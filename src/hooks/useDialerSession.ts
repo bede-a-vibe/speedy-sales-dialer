@@ -36,6 +36,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
   const [skippedCount, setSkippedCount] = useState(0);
   const [sessionOutcomes, setSessionOutcomes] = useState<Partial<Record<CallOutcome, number>>>({});
   const [showSummary, setShowSummary] = useState(false);
+  const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(null);
 
   // Session timers
   const [sessionTick, setSessionTick] = useState(() => Date.now());
@@ -144,6 +145,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     setSkippedCount(0);
     setSessionOutcomes({});
     setShowSummary(false);
+    setSessionStartedAtMs(now);
     setSessionTick(now);
     setSessionPhaseStartedAt(now);
     setAccumulatedDialingMs(0);
@@ -299,7 +301,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     isDialing, isSessionPaused, isSessionActive,
     isStartingSession, isRecoveringQueue, isBootstrappingSession,
     callCount, skippedCount, sessionOutcomes,
-    showSummary, setShowSummary,
+    showSummary, setShowSummary, sessionStartedAtMs,
     // Timers
     totalDialingMs, totalPausedMs, formatDuration,
     // Refs

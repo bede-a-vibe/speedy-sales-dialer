@@ -2385,6 +2385,8 @@ export default function DialerPage() {
             callCount={session.callCount}
             skippedCount={session.skippedCount}
             sessionOutcomes={session.sessionOutcomes}
+            userId={session.user?.id}
+            sessionStartedAtMs={session.sessionStartedAtMs}
           />
         </Suspense>
 
