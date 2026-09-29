@@ -135,7 +135,7 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Navigate to="/insights?tab=overview" replace />} />
         <Route path="/reports/funnel" element={<Navigate to="/insights?tab=funnel" replace />} />
         <Route path="/analytics" element={<Navigate to="/insights?tab=overview" replace />} />
-        <Route path="/targets" element={<Navigate to="/insights?tab=targets" replace />} />
+        <Route path="/targets" element={<Navigate to="/admin/manager" replace />} />
         <Route
           path="/dialpad-settings"
           element={(

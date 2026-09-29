@@ -1,0 +1,2 @@
+ALTER TABLE public.pipeline_items ADD COLUMN IF NOT EXISTS is_qualified boolean, ADD COLUMN IF NOT EXISTS dq_reason text;
+UPDATE public.pipeline_items SET is_qualified = false, dq_reason = COALESCE(dq_reason, outcome_reason) WHERE appointment_outcome = 'disqualified' AND is_qualified IS NULL;

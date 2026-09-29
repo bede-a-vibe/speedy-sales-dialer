@@ -37,3 +37,38 @@ export function useSaveRampBands() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["kpi-settings"] }),
   });
 }
+
+import { DEFAULT_CONFIG, type TeamTargetsConfig } from "@/lib/teamTargets";
+const TEAM_KEY = "team_targets";
+
+export function useTeamTargets() {
+  return useQuery({
+    queryKey: ["kpi-settings", TEAM_KEY],
+    staleTime: 60_000,
+    queryFn: async (): Promise<TeamTargetsConfig> => {
+      const { data, error } = await (supabase as any).from("kpi_settings").select("value").eq("key", TEAM_KEY).maybeSingle();
+      if (error) throw error;
+      const v = (data?.value ?? null) as Partial<TeamTargetsConfig> | null;
+      if (!v) return DEFAULT_CONFIG;
+      return {
+        roles: { setter: { ...DEFAULT_CONFIG.roles.setter, ...(v.roles?.setter ?? {}) }, closer: { ...DEFAULT_CONFIG.roles.closer, ...(v.roles?.closer ?? {}) } },
+        userRole: v.userRole ?? {},
+        users: v.users ?? {},
+      };
+    },
+  });
+}
+
+export function useSaveTeamTargets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (cfg: TeamTargetsConfig | null) => {
+      const db = (supabase as any).from("kpi_settings");
+      if (!cfg) { const { error } = await db.delete().eq("key", TEAM_KEY); if (error) throw error; return; }
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await db.upsert({ key: TEAM_KEY, value: cfg, updated_by: u.user?.id ?? null, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["kpi-settings"] }),
+  });
+}

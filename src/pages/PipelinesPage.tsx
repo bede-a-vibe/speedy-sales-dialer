@@ -387,7 +387,8 @@ export default function PipelinesPage() {
       ...(extras?.reason !== undefined ? { outcome_reason: extras.reason } : {}),
       ...(extras?.recordingUrl !== undefined ? { recording_url: extras.recordingUrl } : {}),
       ...(extras?.phoneRecordingUrl !== undefined ? { phone_recording_url: extras.phoneRecordingUrl } : {}),
-    };
+      ...(outcome === "disqualified" ? { is_qualified: false, dq_reason: extras?.reason ?? null } : {}),
+    } as Record<string, unknown>;
     try {
       if (outcome === "rescheduled") {
         if (!scheduledFor) {
