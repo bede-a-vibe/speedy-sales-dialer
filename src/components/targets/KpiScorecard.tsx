@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchDialpadHours } from "@/lib/dialpadHours";
+import { useRampBands } from "@/hooks/useKpiSettings";
 import {
   DIAGNOSTICS, bandStatus, productiveHours, rampForTenure, type DiagKey,
 } from "@/lib/kpiStandards";
@@ -98,6 +99,7 @@ function Cell({ value, target, digits = 2, suffix = "", floor }: { value: number
 export function KpiScorecard({ userId }: { userId?: string }) {
   const [days, setDays] = useState(7);
   const { data, isLoading } = useScorecardData(days);
+  const { data: ramp } = useRampBands();
 
   const rows = useMemo<RepRow[]>(() => {
     if (!data) return [];
@@ -109,7 +111,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
     const out: RepRow[] = [];
     for (const [uid, logs] of byUser) {
       const p = data.profiles.find((x: any) => x.user_id === uid);
-      const { band, day } = rampForTenure(p?.created_at);
+      const { band, day } = rampForTenure(p?.created_at, new Date(), ramp?.bands);
       const perDay = new Map<string, number[]>();
       let pickups = 0, conv = 0, bookings = 0;
       for (const l of logs) {
@@ -153,7 +155,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
       });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [data, userId]);
+  }, [data, userId, ramp]);
 
   const alerts = rows.flatMap((r) =>
     (Object.entries(r.diag) as [DiagKey, number | null][])

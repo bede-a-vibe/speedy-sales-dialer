@@ -35,9 +35,9 @@ export const RAMP: RampBand[] = [
   { label: "Day 91+", fromDay: 91, toDay: Infinity, hoursPerDay: 7.5, booksPerHour: 0.9, setsPerDay: 6.75, showRate: 40, minToPass: 0.65 },
 ];
 
-export function rampForTenure(startIso: string | null | undefined, now = new Date()): { band: RampBand; day: number } {
+export function rampForTenure(startIso: string | null | undefined, now = new Date(), bands: RampBand[] = RAMP): { band: RampBand; day: number } {
   const day = startIso ? Math.max(1, Math.floor((now.getTime() - new Date(startIso).getTime()) / 86_400_000) + 1) : 91;
-  return { band: RAMP.find((b) => day >= b.fromDay && day <= b.toDay) ?? RAMP[RAMP.length - 1], day };
+  return { band: bands.find((b) => day >= b.fromDay && day <= b.toDay) ?? bands[bands.length - 1], day };
 }
 
 export type DiagKey =
