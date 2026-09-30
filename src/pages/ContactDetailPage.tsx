@@ -807,15 +807,33 @@ export default function ContactDetailPage() {
                   </div>
                 )}
 
-                {hasDecisionMakerDial && (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                    <p className="text-[11px] uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Decision maker direct line</p>
+                {hasDecisionMakerDial && (() => {
+                  const verified = Boolean((contact as any).dm_phone_verified);
+                  const confirmDm = () => {
+                    updateContact.mutateAsync({ id: contact.id, dm_phone_verified: true, dm_phone_verified_at: new Date().toISOString() } as any)
+                      .then(() => toast.success("Decision maker number confirmed."))
+                      .catch(() => toast.error("Couldn't save that — try again."));
+                  };
+                  const rejectDm = () => {
+                    const c = contact as any;
+                    const wrong = String(c.dm_phone ?? "").replace(/\D/g, "").slice(-9);
+                    const blocklist = Array.from(new Set([...(Array.isArray(c.dm_phone_blocklist) ? c.dm_phone_blocklist : []), wrong].filter(Boolean)));
+                    updateContact.mutateAsync({ id: c.id, dm_phone: null, dm_phone_type: null, dm_phone_verified: false, dm_phone_verified_at: null, dm_phone_blocklist: blocklist } as any)
+                      .then(() => toast.success("Number removed — it won't be added back to this lead."))
+                      .catch(() => toast.error("Couldn't save that — try again."));
+                  };
+                  return (
+                  <div className={`rounded-lg border p-3 ${verified ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-[11px] uppercase tracking-widest ${verified ? "text-emerald-700 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}>Decision maker direct line</p>
+                      <span className={`text-[9px] uppercase tracking-widest font-mono ${verified ? "text-emerald-700 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}>{verified ? "Confirmed" : "Unconfirmed"}</span>
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-foreground">
                       {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
                       <button
                         onClick={() => placeCall(directDecisionMakerPhone)}
                         disabled={dialpadCall.isPending}
-                        className="font-mono text-emerald-700 hover:underline dark:text-emerald-300 disabled:opacity-50"
+                        className={`font-mono hover:underline disabled:opacity-50 ${verified ? "text-emerald-700 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}
                       >
                         {directDecisionMakerPhone}
                       </button>
@@ -823,8 +841,22 @@ export default function ContactDetailPage() {
                         <Badge variant="secondary" className="capitalize">{contact.dm_phone_type.replace(/_/g, " ")}</Badge>
                       )}
                     </div>
+                    {!verified && (
+                      <p className="mt-1 text-[11px] text-amber-800/90 dark:text-amber-200/90">Scraped, not confirmed — may belong to someone else.</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {!verified && (
+                        <button onClick={confirmDm} disabled={updateContact.isPending} className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-500/20 dark:text-emerald-300">
+                          Right person — confirm
+                        </button>
+                      )}
+                      <button onClick={rejectDm} disabled={updateContact.isPending} className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/20">
+                        Wrong person — remove number
+                      </button>
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {(gatekeeperName || routeToDecisionMaker || bestTimeToCall) && (
                   <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 text-xs space-y-1">
