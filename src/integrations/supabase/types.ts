@@ -3817,6 +3817,7 @@ export type Database = {
         Returns: Json
       }
       normalise_lead_channel: { Args: { _v: string }; Returns: string }
+      number_audit: { Args: never; Returns: Json }
       pick_state_backfill_contacts: {
         Args: { _limit: number }
         Returns: {
