@@ -9,6 +9,7 @@ import { MeetingRevenuePipeline } from "@/components/manager/MeetingRevenuePipel
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
 import { TeamReview } from "@/pages/EodReportPage";
+import { NumberChecks } from "@/components/manager/NumberChecks";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function ManagerPage() {
@@ -26,6 +27,7 @@ export default function ManagerPage() {
           <TabsTrigger value="oneonones">1:1s</TabsTrigger>
           <TabsTrigger value="roleplay">Roleplay</TabsTrigger>
           <TabsTrigger value="playbook">Setter access</TabsTrigger>
+          <TabsTrigger value="numbers">Number checks</TabsTrigger>
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
         <TabsContent value="eod" className="mt-4">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
@@ -35,6 +37,7 @@ export default function ManagerPage() {
         <TabsContent value="oneonones" className="mt-4"><OneOnOnePanel /></TabsContent>
         <TabsContent value="roleplay" className="mt-4"><RoleplayResults /></TabsContent>
         <TabsContent value="playbook" className="mt-4"><PlaybookLocks /></TabsContent>
+        <TabsContent value="numbers" className="mt-4"><NumberChecks /></TabsContent>
       </Tabs>
     </div>
     </AppLayout>
