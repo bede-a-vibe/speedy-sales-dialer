@@ -6,6 +6,7 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats";
 import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerformancePanel";
+import { MyCallFunnel } from "@/components/dashboard/MyCallFunnel";
 import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
@@ -60,6 +61,8 @@ export default function DashboardPage() {
           <DailyProgressRing />
           <DashboardPerformancePanel />
         </div>
+
+        <MyCallFunnel />
 
         {/* Row 5: Targets (daily visible, weekly/team collapsed) */}
         <DashboardTargetsOverview />

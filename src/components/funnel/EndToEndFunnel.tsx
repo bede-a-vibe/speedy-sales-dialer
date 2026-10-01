@@ -76,7 +76,7 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
 
   return (
     <div className="rounded-lg border border-border bg-background p-4">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">End-to-End Call Funnel</h3>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -118,12 +118,12 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
           const shownPct = mode === "of_top" ? pctOfTop : pctOfPrev;
 
           return (
-            <div key={stage.key} className="flex items-center gap-3">
-              <div className="w-44 shrink-0">
+            <div key={stage.key} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 sm:flex sm:gap-3">
+              <div className="min-w-0 sm:w-44 sm:shrink-0">
                 <div className="text-sm text-foreground">{stage.label}</div>
                 {stage.sub && <div className="text-[10px] text-muted-foreground truncate">{stage.sub}</div>}
               </div>
-              <div className="flex-1">
+              <div className="col-span-3 order-last sm:order-none sm:col-span-1 sm:flex-1">
                 <div className="relative h-6 rounded-md bg-muted overflow-hidden">
                   <div
                     className="absolute inset-y-0 left-0 bg-primary/80 transition-all"
@@ -131,11 +131,11 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
                   />
                 </div>
               </div>
-              <div className="w-16 text-right font-mono text-sm font-semibold text-foreground">
+              <div className="sm:w-16 text-right font-mono text-sm font-semibold text-foreground">
                 {stage.count.toLocaleString()}
               </div>
-              <div className="w-14 text-right font-mono text-sm text-muted-foreground">{shownPct}%</div>
-              <div className="w-20 text-right font-mono text-xs text-destructive">
+              <div className="sm:w-14 text-right font-mono text-sm text-muted-foreground">{shownPct}%</div>
+              <div className="hidden sm:block sm:w-20 text-right font-mono text-xs text-destructive">
                 {i === 0 ? "" : `-${dropFromPrev}%`}
               </div>
             </div>
