@@ -216,7 +216,15 @@ export function BookedAppointmentsTable({
                 )}
               >
                 <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-semibold text-foreground truncate">{item.contacts?.business_name}</p>
+                  <span
+                    className="cursor-pointer text-sm font-semibold text-foreground truncate transition-colors hover:text-primary hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (item.contact_id) navigate(`/contacts/${item.contact_id}`);
+                    }}
+                  >
+                    {item.contacts?.business_name}
+                  </span>
                   <p className="text-xs text-muted-foreground">
                     {schedule.dayLabel}{schedule.timeLabel ? ` at ${schedule.timeLabel}` : ""}
                   </p>
@@ -307,7 +315,15 @@ export function BookedAppointmentsTable({
                       >
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-medium text-foreground">{item.contacts?.business_name}</div>
+                            <div
+                              className="cursor-pointer font-medium text-foreground transition-colors hover:text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.contact_id) navigate(`/contacts/${item.contact_id}`);
+                              }}
+                            >
+                              {item.contacts?.business_name}
+                            </div>
                             <GhlMirrorStatusBadge
                               ghlContactId={item.contacts?.ghl_contact_id}
                               ghlOpportunityId={item.ghl_opportunity_id}
