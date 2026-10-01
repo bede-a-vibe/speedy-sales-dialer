@@ -27,8 +27,11 @@ export function MyCallFunnel() {
     callLogs, bookedItems, from, to, repUserId: user?.id,
   }), [callLogs, bookedItems, from, to, user?.id]);
   const funnel = useMemo(() => computeFunnel(
-    callLogs.filter((log) => log.user_id === user?.id),
-  ), [callLogs, user?.id]);
+    callLogs.filter((log) => {
+      const day = format(new Date(log.created_at), "yyyy-MM-dd");
+      return log.user_id === user?.id && day >= from && day <= to;
+    }),
+  ), [callLogs, from, to, user?.id]);
 
   return (
     <section className="space-y-4" aria-label="My call funnel">
