@@ -5,7 +5,7 @@ import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "
 import { cn } from "@/lib/utils";
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { BookedOutcomePanel } from "./BookedOutcomePanel";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
@@ -184,7 +184,15 @@ export function BookedPipelineBoard({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-foreground">{item.contacts?.business_name || "Unknown business"}</p>
+                            <span
+                              className="cursor-pointer truncate text-sm font-semibold text-foreground transition-colors hover:text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.contact_id) navigate(`/contacts/${item.contact_id}`);
+                              }}
+                            >
+                              {item.contacts?.business_name || "Unknown business"}
+                            </span>
                             <GhlMirrorStatusBadge
                               ghlOpportunityId={item.ghl_opportunity_id}
                               ghlPipelineId={item.ghl_pipeline_id}

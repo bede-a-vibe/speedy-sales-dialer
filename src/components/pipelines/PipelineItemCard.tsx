@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Check, Clock3, DollarSign, Phone, RefreshCw, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,12 @@ export function PipelineItemCard({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-foreground">{item.contacts?.business_name}</p>
+            <Link
+              to={`/contacts/${item.contact_id}`}
+              className="text-sm font-semibold text-foreground transition-colors hover:text-primary hover:underline"
+            >
+              {item.contacts?.business_name}
+            </Link>
             {item.pipeline_type === "follow_up" && (
               <FollowUpMethodBadge method={item.follow_up_method || "call"} />
             )}
