@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, formatDistanceToNowStrict, isPast, isToday } from "date-fns";
 import { AlertTriangle, ChevronDown, ChevronUp, DollarSign, ExternalLink, Globe, MapPin, Phone, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

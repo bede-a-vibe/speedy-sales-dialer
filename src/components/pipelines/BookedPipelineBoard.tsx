@@ -113,6 +113,7 @@ export function BookedPipelineBoard({
   onSaveLinks?: (item: PipelineItemWithRelations, extras: import("./BookedOutcomePanel").OutcomeExtras) => Promise<void>;
 }) {
   const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
+  const navigate = useNavigate();
   const grouped = useMemo(
     () =>
       BOARD_STAGES.map((stage) => ({
