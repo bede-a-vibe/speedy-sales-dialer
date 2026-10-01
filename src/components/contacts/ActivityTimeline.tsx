@@ -10,6 +10,7 @@ import { useContactCallLogs } from "@/hooks/useCallLogs";
 import { usePaginatedContactNotes } from "@/hooks/useContactNotes";
 import { useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { OUTCOME_CONFIG, type CallOutcome } from "@/data/mockData";
+import { ListenButton } from "@/components/calls/ListenButton";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { formatDurationSeconds } from "@/lib/duration";
 
@@ -144,6 +145,8 @@ type TimelineEntry = {
   meta?: string | null;
   tone?: "default" | "success" | "warning" | "muted";
   callLogId?: string | null;
+  dialpadCallId?: string | null;
+  connected?: boolean;
 };
 
 function iconFor(kind: TimelineEntry["kind"], entry: TimelineEntry) {
@@ -198,8 +201,8 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
       const totalSecs = call.dialpad_total_duration_seconds ?? 0;
       const durationSecs = talkSecs || totalSecs;
       const connected = talkSecs > 0;
-      // Per-call productive time mirrors the KPI formula: 30s dial + talk time (+5m if booked).
-      const productiveSecs = 30 + talkSecs + (call.outcome === "booked" ? 5 * 60 : 0);
+      // Per-call productive time mirrors the KPI formula: 25s dial + talk time (+5m if booked).
+      const productiveSecs = 25 + talkSecs + (call.outcome === "booked" ? 5 * 60 : 0);
       const parts: string[] = [];
       if (call.dialpad_call_id || durationSecs > 0) {
         parts.push(connected ? `Connected · ${formatDurationSeconds(talkSecs)}` : "No connection");
@@ -219,6 +222,8 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
         meta: parts.join(" · ") || null,
         tone: call.outcome === "booked" ? "success" : call.outcome === "dnc" ? "warning" : "default",
         callLogId: call.id,
+        dialpadCallId: call.dialpad_call_id ?? null,
+        connected,
       });
     });
 
@@ -337,6 +342,9 @@ export function ActivityTimeline({ contactId }: { contactId?: string }) {
                           <p className="mt-1 text-xs text-foreground whitespace-pre-wrap line-clamp-4">
                             {entry.detail}
                           </p>
+                        )}
+                        {entry.kind === "call" && entry.dialpadCallId && entry.connected && (
+                          <ListenButton dialpadCallId={entry.dialpadCallId} className="mt-2" />
                         )}
                         {entry.kind === "call" && entry.callLogId && scoresByCallLog.has(entry.callLogId) && (
                           <CallCoachingCard score={scoresByCallLog.get(entry.callLogId)} />
