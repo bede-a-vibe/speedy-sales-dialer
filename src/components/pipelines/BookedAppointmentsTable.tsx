@@ -105,6 +105,7 @@ export function BookedAppointmentsTable({
 }: BookedAppointmentsTableProps) {
   const isMobile = useIsMobile();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [closerFilter, setCloserFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [ghlFilter, setGhlFilter] = useState<GhlFilter>("all");
