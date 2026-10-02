@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { format, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Check, Clock3, DollarSign, Phone, RefreshCw, UserRound } from "lucide-react";
@@ -43,7 +43,7 @@ interface PipelineItemCardProps {
   ) => Promise<void>;
   onChangeMethod?: (id: string, method: FollowUpMethod) => Promise<void>;
   /** Extra content rendered inside the bottom of the card (e.g. an Edit outcome button). */
-  footer?: React.ReactNode;
+  footer?: ReactNode;
 }
 
 export function PipelineItemCard({
@@ -337,6 +337,7 @@ export function PipelineItemCard({
           )}
         </>
       )}
+      {footer}
     </div>
   );
 }
