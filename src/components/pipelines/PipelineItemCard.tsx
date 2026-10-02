@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { format, isPast, isToday } from "date-fns";
 import { AlertTriangle, CalendarClock, Check, Clock3, DollarSign, Phone, RefreshCw, UserRound } from "lucide-react";
@@ -42,6 +42,8 @@ interface PipelineItemCardProps {
     followUpDate?: string,
   ) => Promise<void>;
   onChangeMethod?: (id: string, method: FollowUpMethod) => Promise<void>;
+  /** Extra content rendered inside the bottom of the card (e.g. an Edit outcome button). */
+  footer?: ReactNode;
 }
 
 export function PipelineItemCard({
@@ -56,6 +58,7 @@ export function PipelineItemCard({
   onReschedule,
   onRecordBookedOutcome,
   onChangeMethod,
+  footer,
 }: PipelineItemCardProps) {
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
   const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : BOOKED_APPOINTMENT_DEFAULT_TIME);
@@ -334,6 +337,7 @@ export function PipelineItemCard({
           )}
         </>
       )}
+      {footer}
     </div>
   );
 }
