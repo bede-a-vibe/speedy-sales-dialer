@@ -25,6 +25,7 @@ import {
   useCreatePipelineItem,
   type PipelineItemWithRelations,
   type FollowUpMethod,
+  type SalesRepOption,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
@@ -58,7 +59,7 @@ function EditableHistoryCard({
   item: PipelineItemWithRelations;
   repName: string;
   setterName: string;
-  reps: ReturnType<typeof useSalesReps>["data"] extends infer T ? NonNullable<T> : never;
+  reps: SalesRepOption[];
   isSaving: boolean;
   onAssign: (id: string, userId: string) => Promise<void>;
   onRecordOutcome: (
