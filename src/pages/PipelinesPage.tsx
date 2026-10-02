@@ -6,7 +6,8 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
-import type { OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
+import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
+import { Button } from "@/components/ui/button";
 import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
 import { MeetingsPanel } from "@/pages/MeetingsPage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,6 +25,7 @@ import {
   useCreatePipelineItem,
   type PipelineItemWithRelations,
   type FollowUpMethod,
+  type SalesRepOption,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
@@ -35,11 +37,76 @@ import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpP
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PencilLine } from "lucide-react";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
+}
+
+/** Completed appointment with an "Edit outcome" toggle so a logged result
+ *  (e.g. Closed before the agreement is signed) can be corrected later. */
+function EditableHistoryCard({
+  item,
+  repName,
+  setterName,
+  reps,
+  isSaving,
+  onAssign,
+  onRecordOutcome,
+  onSaveLinks,
+}: {
+  item: PipelineItemWithRelations;
+  repName: string;
+  setterName: string;
+  reps: SalesRepOption[];
+  isSaving: boolean;
+  onAssign: (id: string, userId: string) => Promise<void>;
+  onRecordOutcome: (
+    item: PipelineItemWithRelations,
+    outcome: AppointmentOutcomeValue,
+    notes: string,
+    scheduledFor?: string,
+    dealValue?: number,
+    followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
+    monthlyValue?: number,
+    extras?: OutcomeExtras,
+  ) => Promise<void>;
+  onSaveLinks: (item: PipelineItemWithRelations, extras: OutcomeExtras) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div className="space-y-2">
+      <PipelineItemCard
+        item={item}
+        repName={repName}
+        setterName={setterName}
+        reps={reps}
+        isSaving={isSaving}
+        showActions={false}
+      />
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
+          <PencilLine className="h-3.5 w-3.5" />
+          {editing ? "Close editor" : "Edit outcome"}
+        </Button>
+      </div>
+      {editing && (
+        <BookedOutcomePanel
+          item={item}
+          reps={reps}
+          isSaving={isSaving}
+          onAssign={onAssign}
+          onRecordOutcome={async (...args) => {
+            await onRecordOutcome(...args);
+            setEditing(false);
+          }}
+          onSaveLinks={onSaveLinks}
+        />
+      )}
+    </div>
+  );
 }
 
 type HistoryFilter =
@@ -609,14 +676,16 @@ export default function PipelinesPage() {
         ) : (
           <div className="space-y-3">
             {filteredHistory.map((item) => (
-              <PipelineItemCard
+              <EditableHistoryCard
                 key={item.id}
                 item={item}
                 repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
                 setterName={repMap.get(item.created_by) || "Unknown rep"}
                 reps={reps}
-                isSaving={false}
-                showActions={false}
+                isSaving={updatePipelineItem.isPending}
+                onAssign={handleAssign}
+                onRecordOutcome={handleBookedOutcome}
+                onSaveLinks={handleSaveLinks}
               />
             ))}
           </div>
