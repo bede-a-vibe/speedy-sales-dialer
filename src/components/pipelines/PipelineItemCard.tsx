@@ -42,6 +42,8 @@ interface PipelineItemCardProps {
     followUpDate?: string,
   ) => Promise<void>;
   onChangeMethod?: (id: string, method: FollowUpMethod) => Promise<void>;
+  /** Extra content rendered inside the bottom of the card (e.g. an Edit outcome button). */
+  footer?: React.ReactNode;
 }
 
 export function PipelineItemCard({
@@ -56,6 +58,7 @@ export function PipelineItemCard({
   onReschedule,
   onRecordBookedOutcome,
   onChangeMethod,
+  footer,
 }: PipelineItemCardProps) {
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(item.scheduled_for ? new Date(item.scheduled_for) : undefined);
   const [rescheduleTime, setRescheduleTime] = useState(item.scheduled_for ? format(new Date(item.scheduled_for), "HH:mm") : BOOKED_APPOINTMENT_DEFAULT_TIME);
