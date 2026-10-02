@@ -610,14 +610,16 @@ export default function PipelinesPage() {
         ) : (
           <div className="space-y-3">
             {filteredHistory.map((item) => (
-              <PipelineItemCard
+              <EditableHistoryCard
                 key={item.id}
                 item={item}
                 repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
                 setterName={repMap.get(item.created_by) || "Unknown rep"}
                 reps={reps}
-                isSaving={false}
-                showActions={false}
+                isSaving={updatePipelineItem.isPending}
+                onAssign={handleAssign}
+                onRecordOutcome={handleBookedOutcome}
+                onSaveLinks={handleSaveLinks}
               />
             ))}
           </div>
