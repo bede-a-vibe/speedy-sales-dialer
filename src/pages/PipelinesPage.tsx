@@ -6,7 +6,8 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
-import type { OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
+import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
+import { Button } from "@/components/ui/button";
 import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
 import { MeetingsPanel } from "@/pages/MeetingsPage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,7 +36,7 @@ import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpP
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PencilLine } from "lucide-react";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function getRepLabel(displayName: string | null, email: string | null) {
