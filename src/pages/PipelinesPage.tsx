@@ -76,8 +76,9 @@ function EditableHistoryCard({
   onSaveLinks: (item: PipelineItemWithRelations, extras: OutcomeExtras) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const current = item.appointment_outcome ? getAppointmentOutcomeLabel(item.appointment_outcome) : "None";
   return (
-    <div className="space-y-2">
+    <>
       <PipelineItemCard
         item={item}
         repName={repName}
@@ -85,27 +86,40 @@ function EditableHistoryCard({
         reps={reps}
         isSaving={isSaving}
         showActions={false}
+        footer={
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+            <span className="text-xs text-muted-foreground">
+              Logged as <span className="font-medium text-foreground">{current}</span>
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <PencilLine className="h-3.5 w-3.5" />
+              Change outcome
+            </Button>
+          </div>
+        }
       />
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
-          <PencilLine className="h-3.5 w-3.5" />
-          {editing ? "Close editor" : "Edit outcome"}
-        </Button>
-      </div>
-      {editing && (
-        <BookedOutcomePanel
-          item={item}
-          reps={reps}
-          isSaving={isSaving}
-          onAssign={onAssign}
-          onRecordOutcome={async (...args) => {
-            await onRecordOutcome(...args);
-            setEditing(false);
-          }}
-          onSaveLinks={onSaveLinks}
-        />
-      )}
-    </div>
+      <Dialog open={editing} onOpenChange={setEditing}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto overscroll-contain">
+          <DialogHeader>
+            <DialogTitle>Change outcome — {item.contacts?.business_name ?? "Appointment"}</DialogTitle>
+            <DialogDescription>
+              Currently logged as {current}. Pick the correct result below and it saves straight away.
+            </DialogDescription>
+          </DialogHeader>
+          <BookedOutcomePanel
+            item={item}
+            reps={reps}
+            isSaving={isSaving}
+            onAssign={onAssign}
+            onRecordOutcome={async (...args) => {
+              await onRecordOutcome(...args);
+              setEditing(false);
+            }}
+            onSaveLinks={onSaveLinks}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
