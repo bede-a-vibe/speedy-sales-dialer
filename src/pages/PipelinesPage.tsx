@@ -43,6 +43,71 @@ function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
 }
 
+/** Completed appointment with an "Edit outcome" toggle so a logged result
+ *  (e.g. Closed before the agreement is signed) can be corrected later. */
+function EditableHistoryCard({
+  item,
+  repName,
+  setterName,
+  reps,
+  isSaving,
+  onAssign,
+  onRecordOutcome,
+  onSaveLinks,
+}: {
+  item: PipelineItemWithRelations;
+  repName: string;
+  setterName: string;
+  reps: ReturnType<typeof useSalesReps>["data"] extends infer T ? NonNullable<T> : never;
+  isSaving: boolean;
+  onAssign: (id: string, userId: string) => Promise<void>;
+  onRecordOutcome: (
+    item: PipelineItemWithRelations,
+    outcome: AppointmentOutcomeValue,
+    notes: string,
+    scheduledFor?: string,
+    dealValue?: number,
+    followUpDate?: string,
+    followUpMethod?: FollowUpMethod,
+    monthlyValue?: number,
+    extras?: OutcomeExtras,
+  ) => Promise<void>;
+  onSaveLinks: (item: PipelineItemWithRelations, extras: OutcomeExtras) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div className="space-y-2">
+      <PipelineItemCard
+        item={item}
+        repName={repName}
+        setterName={setterName}
+        reps={reps}
+        isSaving={isSaving}
+        showActions={false}
+      />
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
+          <PencilLine className="h-3.5 w-3.5" />
+          {editing ? "Close editor" : "Edit outcome"}
+        </Button>
+      </div>
+      {editing && (
+        <BookedOutcomePanel
+          item={item}
+          reps={reps}
+          isSaving={isSaving}
+          onAssign={onAssign}
+          onRecordOutcome={async (...args) => {
+            await onRecordOutcome(...args);
+            setEditing(false);
+          }}
+          onSaveLinks={onSaveLinks}
+        />
+      )}
+    </div>
+  );
+}
+
 type HistoryFilter =
   | "all"
   | "no_show"
