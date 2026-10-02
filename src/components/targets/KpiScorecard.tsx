@@ -5,19 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchDialpadHours } from "@/lib/dialpadHours";
+import { fetchProductiveHours } from "@/lib/dialpadHours";
 import { useRampBands } from "@/hooks/useKpiSettings";
 import {
   DIAGNOSTICS, bandStatus, productiveHours, rampForTenure, type DiagKey,
+  melbourneDayKey,
 } from "@/lib/kpiStandards";
 
 const ANSWERED = new Set(["booked", "not_interested", "follow_up", "dnc", "gatekeeper"]);
 const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up"]);
 
-function localDayKey(ms: number) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
 
 /** Per-call stage flags: manager review overrides the AI score. */
 async function fetchStages(since: string) {
@@ -57,7 +54,7 @@ function useScorecardData(days: number) {
         supabase.from("profiles").select("user_id, display_name, email, created_at, is_active"),
         supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
-        fetchDialpadHours(since),
+        fetchProductiveHours(since),
         fetchStages(since),
       ]);
       if (profiles.error) throw profiles.error;
@@ -116,7 +113,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
       let pickups = 0, conv = 0, bookings = 0;
       for (const l of logs) {
         const t = new Date(l.created_at).getTime();
-        const k = localDayKey(t);
+        const k = melbourneDayKey(t);
         (perDay.get(k) ?? perDay.set(k, []).get(k)!).push(t);
         if (ANSWERED.has(l.outcome)) pickups++;
         if ((l.dialpad_talk_time_seconds ?? 0) > 15) conv++;

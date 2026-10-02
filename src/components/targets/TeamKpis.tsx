@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchDialpadHours } from "@/lib/dialpadHours";
-import { productiveHours, periodDays } from "@/lib/kpiStandards";
+import { fetchProductiveHours } from "@/lib/dialpadHours";
+import { melbourneDayKey, productiveHours, periodDays } from "@/lib/kpiStandards";
 import { useTeamTargets, useSaveTeamTargets } from "@/hooks/useKpiSettings";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { TARGET_FIELDS, targetsFor, type RoleKey, type TargetKey, type TeamTargetsConfig, type Targets } from "@/lib/teamTargets";
@@ -18,7 +18,6 @@ type Period = "day" | "week" | "month";
 const ANSWERED = new Set(["booked", "not_interested", "follow_up", "dnc", "gatekeeper", "disqualified"]);
 const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
 const DUE = (o: string | null) => !!o && o !== "rescheduled";
-const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
 function periodStart(p: Period) {
   const d = new Date(); d.setHours(0, 0, 0, 0);
@@ -46,7 +45,7 @@ function useData(period: Period) {
         supabase.from("profiles").select("user_id, display_name, email, is_active"),
         supabase.from("pipeline_items").select("created_by, assigned_user_id, appointment_outcome, is_qualified, created_at, scheduled_for")
           .eq("pipeline_type", "booked").gte("created_at", since),
-        fetchDialpadHours(since),
+        fetchProductiveHours(since),
         supabase.from("call_scores").select("call_log_id, stage_problem_solution, stage_solution_commit, call_logs!inner(user_id)").gte("created_at", since).limit(5000),
         supabase.from("call_reviews").select("call_log_id, stage_problem_solution, stage_solution_commit").gte("created_at", since).limit(5000),
       ]);
@@ -188,7 +187,8 @@ export function TeamKpis() {
       let pickups = 0, conv = 0, bookings = 0;
       for (const l of logs) {
         const ms = new Date(l.created_at).getTime();
-        (perDay.get(dayKey(ms)) ?? perDay.set(dayKey(ms), []).get(dayKey(ms))!).push(ms);
+        const dk = melbourneDayKey(ms);
+        (perDay.get(dk) ?? perDay.set(dk, []).get(dk)!).push(ms);
         if (ANSWERED.has(l.outcome)) pickups++;
         if ((l.dialpad_talk_time_seconds ?? 0) >= 120) conv++;
         if (l.outcome === "booked") bookings++;
