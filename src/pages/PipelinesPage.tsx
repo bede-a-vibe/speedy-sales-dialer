@@ -38,6 +38,7 @@ import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, PencilLine } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
 function getRepLabel(displayName: string | null, email: string | null) {
