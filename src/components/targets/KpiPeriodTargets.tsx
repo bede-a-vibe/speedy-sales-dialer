@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchDialpadHours } from "@/lib/dialpadHours";
+import { fetchProductiveHours } from "@/lib/dialpadHours";
 import { useRampBands } from "@/hooks/useKpiSettings";
 import { ANSWERED_OUTCOMES } from "@/lib/reportMetrics";
 import {
   PRODUCTIVE_DAYS_PER_MONTH, dailyTargetsFor, periodDays, productiveHours, rampForTenure,
+  melbourneDayKey,
 } from "@/lib/kpiStandards";
 
 type Period = "day" | "week" | "month";
@@ -23,7 +24,6 @@ function periodStart(p: Period): Date {
   return d;
 }
 
-const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
 function usePeriodData(period: Period) {
   return useQuery({
@@ -44,7 +44,7 @@ function usePeriodData(period: Period) {
         supabase.from("profiles").select("user_id, display_name, email, created_at"),
         supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
-        fetchDialpadHours(since),
+        fetchProductiveHours(since),
       ]);
       if (profiles.error) throw profiles.error;
       if (appts.error) throw appts.error;
@@ -102,7 +102,7 @@ export function KpiPeriodTargets({ userId, periods = ["day", "week", "month"] }:
       let sets = 0, answered = 0;
       for (const l of logs) {
         const ms = new Date(l.created_at).getTime();
-        const k = dayKey(ms);
+        const k = melbourneDayKey(ms);
         (perDay.get(k) ?? perDay.set(k, []).get(k)!).push(ms);
         if (l.outcome === "booked") sets++;
         if (ANSWERED_OUTCOMES.has(l.outcome)) answered++;

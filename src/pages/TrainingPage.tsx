@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Brain, Building2, Trophy, UserX } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +21,28 @@ import { ObjectionBankPanel } from "@/components/training/ObjectionBankPanel";
 import { useCallLearnings } from "@/hooks/useCallLearnings";
 import { useIsAdmin } from "@/hooks/useUserRole";
 
+const MODULES = [
+  "real-calls", "coach", "lines", "objections",
+  "drills", "patterns", "streams", "definitions",
+] as const;
+type TrainingModule = (typeof MODULES)[number];
+
 export default function TrainingPage() {
   const isAdmin = useIsAdmin();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ?module= keeps the open module across a refresh and makes it linkable, so a
+  // coach can point a rep straight at the drill they need to run.
+  const urlModule = searchParams.get("module");
+  const activeModule: TrainingModule = useMemo(
+    () => ((MODULES as readonly string[]).includes(urlModule ?? "") ? (urlModule as TrainingModule) : "real-calls"),
+    [urlModule],
+  );
+  const setModule = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("module", value);
+    setSearchParams(next, { replace: true });
+  };
   const { callsAnalysed, bookedAnalysed, winningLines, drills, stageLeaks } = useCallLearnings();
   const topLeak = stageLeaks[0];
 
@@ -82,8 +104,8 @@ export default function TrainingPage() {
             <CardDescription>Start with Real Calls and your Coach, then drill the lines and objections that keep costing bookings.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="real-calls" className="space-y-4">
-              <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 md:grid-cols-5">
+            <Tabs value={activeModule} onValueChange={setModule} className="space-y-4">
+              <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 sm:grid-cols-4">
                 <TabsTrigger value="real-calls" className="border border-primary/40 bg-primary/5">
                   <Trophy className="mr-1.5 h-3.5 w-3.5" /> Real Calls
                 </TabsTrigger>
