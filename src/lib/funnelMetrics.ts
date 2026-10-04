@@ -166,23 +166,17 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
   const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
   const eligible = logs.filter((l) => l.created_at.slice(0, 10) >= launchDate);
   const scoped = eligible.length !== logs.length;
-  const connection = eligible.filter((l) => l.reached_connection).length;
-  const problem = eligible.filter((l) => l.reached_problem_awareness).length;
-  const solution = eligible.filter((l) => l.reached_solution_awareness).length;
-  // Clamp booked count to logs that ALSO reached connection so the funnel
-  // percentage stays mathematically valid (booked <= connection). Bookings
-  // made on calls where the rep never tagged Connection are surfaced
-  // separately as `bookedWithoutFunnelTags`.
   const totalBooked = logs.filter((l) => l.outcome === "booked").length;
   const booked = eligible.filter((l) => l.outcome === "booked" && l.reached_connection).length;
   const bookedWithoutFunnelTags = totalBooked - booked;
-  // A booked meeting implies a verbal commitment, so the commitment count can
-  // never sit below the booked count. The AI scoring that sets
-  // reached_commitment lags behind outcomes (unscored/short calls), which
-  // would otherwise show an impossible drop like "86% at Verbal Commitment"
-  // with more bookings than commitments.
-  const taggedCommitment = eligible.filter((l) => l.reached_commitment).length;
-  const commitment = Math.max(taggedCommitment, booked);
+  // Every booking passed through every earlier stage, so no stage before
+  // "booked" may sit below the booking count. Stage tags lag behind outcomes,
+  // so floor each stage at the bookings and cascade upward.
+  const eligibleBooked = eligible.filter((l) => l.outcome === "booked").length;
+  const commitment = Math.max(eligible.filter((l) => l.reached_commitment).length, eligibleBooked);
+  const solution = Math.max(eligible.filter((l) => l.reached_solution_awareness).length, commitment);
+  const problem = Math.max(eligible.filter((l) => l.reached_problem_awareness).length, solution);
+  const connection = Math.max(eligible.filter((l) => l.reached_connection).length, problem);
 
   const top = connection || 1;
   const stages: FunnelStageMetric[] = [

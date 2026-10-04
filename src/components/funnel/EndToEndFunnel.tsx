@@ -28,6 +28,15 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
     const avgAttempts = metrics.dialer.uniqueLeadsDialed > 0
       ? (metrics.dialer.dials / metrics.dialer.uniqueLeadsDialed).toFixed(1)
       : "0";
+    // Every booking went through every earlier stage, so floor each stage at
+    // the bookings count (stage tagging lags behind logged outcomes).
+    const bookingsMade = metrics.bookingsMade.totalBookingsMade;
+    const fc = (k: string) => funnel.stages.find((s) => s.key === k)?.count ?? 0;
+    const commitmentCount = Math.max(fc("commitment"), bookingsMade);
+    const solutionCount = Math.max(fc("solution_awareness"), commitmentCount);
+    const problemCount = Math.max(fc("problem_awareness"), solutionCount);
+    const conversationsCount = Math.max(metrics.dialer.conversations, problemCount);
+    const pickUpsCount = Math.max(metrics.dialer.pickUps, conversationsCount);
 
     return [
       {
@@ -36,27 +45,27 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
         count: metrics.dialer.uniqueLeadsDialed,
         sub: `${metrics.dialer.dials.toLocaleString()} total dials · ${avgAttempts} avg / lead`,
       },
-      { key: "pickups", label: "Pick Ups", count: metrics.dialer.pickUps },
+      { key: "pickups", label: "Pick Ups", count: pickUpsCount },
       {
         key: "conversations",
         label: "Conversations",
-        count: metrics.dialer.conversations,
+        count: conversationsCount,
         sub: "reached connection",
       },
       {
         key: "problem",
         label: "Problem Awareness",
-        count: funnel.stages.find((s) => s.key === "problem_awareness")?.count ?? 0,
+        count: problemCount,
       },
       {
         key: "solution",
         label: "Solution Awareness",
-        count: funnel.stages.find((s) => s.key === "solution_awareness")?.count ?? 0,
+        count: solutionCount,
       },
       {
         key: "commitment",
         label: "Verbal Commitment",
-        count: funnel.stages.find((s) => s.key === "commitment")?.count ?? 0,
+        count: commitmentCount,
       },
       {
         key: "bookings",
