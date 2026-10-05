@@ -83,7 +83,9 @@ export function reasonsForOutcome(outcome: AppointmentOutcomeValue) {
   if (outcome === "no_show") return NO_SHOW_REASONS;
   if (outcome === "cancelled") return CANCEL_REASONS;
   if (outcome === "rescheduled") return RESCHEDULE_REASONS;
-  if (outcome === "showed_no_close" || outcome === "no_close_follow_up") return NO_CLOSE_REASONS;
+  // No-close outcomes also accept DQ reasons: a lead can be not qualified
+  // (e.g. no capacity right now) yet still worth a follow-up later.
+  if (outcome === "showed_no_close" || outcome === "no_close_follow_up") return [...NO_CLOSE_REASONS, ...DQ_REASONS];
   return null;
 }
 
