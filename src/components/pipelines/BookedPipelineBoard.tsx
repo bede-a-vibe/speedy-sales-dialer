@@ -112,7 +112,11 @@ export function BookedPipelineBoard({
   ) => Promise<void>;
   onSaveLinks?: (item: PipelineItemWithRelations, extras: import("./BookedOutcomePanel").OutcomeExtras) => Promise<void>;
 }) {
-  const [activeItem, setActiveItem] = useState<PipelineItemWithRelations | null>(null);
+  // Store only the id so the open dialog always reflects the latest saved data
+  // (e.g. a changed closer) instead of a stale snapshot.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeItem = useMemo(() => items.find((i) => i.id === activeId) ?? null, [items, activeId]);
+  const setActiveItem = (item: PipelineItemWithRelations | null) => setActiveId(item?.id ?? null);
   const navigate = useNavigate();
   const grouped = useMemo(
     () =>
