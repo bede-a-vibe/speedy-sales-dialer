@@ -1,3 +1,4 @@
+import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
@@ -3171,6 +3172,7 @@ export default function DialerPage() {
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
             <div className="space-y-4 lg:col-span-3">
+              <LeadBuckets key={session.currentContact.id} contactId={session.currentContact.id} />
               <RecentCallWarning
                 contactId={session.currentContact.id}
                 phone={(displayContact ?? session.currentContact).phone}

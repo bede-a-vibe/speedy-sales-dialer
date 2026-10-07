@@ -1,3 +1,4 @@
+import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { useState } from "react";
 import { format } from "date-fns";
 import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded, Ban, Video } from "lucide-react";
@@ -194,6 +195,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         placeholder="Optional notes about the appointment result"
         className="min-h-[72px] resize-none bg-background"
       />
+
+      {item.contact_id && <LeadBuckets contactId={item.contact_id} />}
 
       <GhlMirrorDetails
         pipelineType="booked"
