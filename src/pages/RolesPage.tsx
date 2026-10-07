@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+const EmbeddedShell = ({ children }: { children: React.ReactNode; title?: string }) => <>{children}</>;
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +94,8 @@ function formatLastLogin(iso: string | null | undefined): { label: string; tone:
   return { label, tone };
 }
 
-export default function RolesPage() {
+export default function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const Shell = embedded ? EmbeddedShell : AppLayout;
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -183,7 +185,7 @@ export default function RolesPage() {
   const isMutating = grantRole.isPending || revokeRole.isPending;
 
   return (
-    <AppLayout title="User Roles">
+    <Shell title="User Roles">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Summary */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -374,6 +376,6 @@ export default function RolesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppLayout>
+    </Shell>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+const EmbeddedShell = ({ children }: { children: React.ReactNode; title?: string }) => <>{children}</>;
 import { useAllDialpadSettings, useUpsertDialpadSettings, useDeleteDialpadSettings } from "@/hooks/useDialpadSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,8 @@ import { DialpadSyncHealth } from "@/components/admin/DialpadSyncHealth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Radio } from "lucide-react";
 
-export default function DialpadSettingsPage() {
+export default function DialpadSettingsPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const Shell = embedded ? EmbeddedShell : AppLayout;
   const { data: settings = [], isLoading } = useAllDialpadSettings();
   const isAdmin = useIsAdmin();
   const upsert = useUpsertDialpadSettings();
@@ -132,7 +134,7 @@ export default function DialpadSettingsPage() {
   };
 
   return (
-    <AppLayout title="Dialpad Settings">
+    <Shell title="Dialpad Settings">
       <div className="max-w-4xl mx-auto space-y-6">
         {isAdmin && <DialpadSyncHealth />}
         <div className="flex items-center justify-between">
@@ -364,6 +366,6 @@ export default function DialpadSettingsPage() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </Shell>
   );
 }

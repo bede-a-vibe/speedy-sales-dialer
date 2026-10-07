@@ -107,6 +107,7 @@ export function FathomConnectCard() {
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">In Fathom, go to <strong>Settings → API Access</strong>, create a key and paste it here. It's stored securely and never shown again.</p>
+            {webhookSteps}
             <div className="flex gap-2">
               <Input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Fathom API key" className="bg-background" />
             </div>
