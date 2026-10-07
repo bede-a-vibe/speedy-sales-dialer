@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
+import { FathomMatch } from "@/components/fathom/FathomConnect";
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -218,6 +219,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             <Input value={phoneRecordingUrl} onChange={(e) => setPhoneRecordingUrl(e.target.value)} placeholder="Phone / GHL call link" className="w-full bg-background" />
           </div>
         </div>
+        <FathomMatch itemId={item.id} closerId={item.assigned_user_id} scheduledFor={item.scheduled_for} outcome={item.appointment_outcome ?? null} />
         <MeetingRecordingMatches
           contactId={item.contact_id}
           ghlContactId={item.contacts?.ghl_contact_id}
