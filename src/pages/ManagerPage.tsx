@@ -11,6 +11,7 @@ import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
 import { TeamReview } from "@/pages/EodReportPage";
 import { NumberChecks } from "@/components/manager/NumberChecks";
 import { useAuth } from "@/hooks/useAuth";
+import { FathomTeamStatus } from "@/components/fathom/FathomConnect";
 
 export default function ManagerPage() {
   const { user } = useAuth();
@@ -31,7 +32,7 @@ export default function ManagerPage() {
         </TabsList>
         <TabsContent value="review" className="mt-4"><CallReviewQueue /></TabsContent>
         <TabsContent value="eod" className="mt-4">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
-        <TabsContent value="kpis" className="mt-4"><TeamKpis /></TabsContent>
+        <TabsContent value="kpis" className="mt-4 space-y-4"><FathomTeamStatus /><TeamKpis /></TabsContent>
         <TabsContent value="revenue" className="mt-4"><MeetingRevenuePipeline /></TabsContent>
         <TabsContent value="flags" className="mt-4 space-y-4"><ManagerMetrics /><ManagerPlaybook /></TabsContent>
         <TabsContent value="oneonones" className="mt-4"><OneOnOnePanel /></TabsContent>

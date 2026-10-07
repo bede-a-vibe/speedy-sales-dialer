@@ -1931,6 +1931,86 @@ export type Database = {
         }
         Relationships: []
       }
+      fathom_connections: {
+        Row: {
+          api_key: string
+          created_at: string
+          last_error: string | null
+          last_synced_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fathom_meetings: {
+        Row: {
+          attendees: Json
+          created_at: string
+          end_at: string | null
+          fathom_id: string
+          match_confidence: string | null
+          pipeline_item_id: string | null
+          share_url: string | null
+          start_at: string | null
+          summary: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          attendees?: Json
+          created_at?: string
+          end_at?: string | null
+          fathom_id: string
+          match_confidence?: string | null
+          pipeline_item_id?: string | null
+          share_url?: string | null
+          start_at?: string | null
+          summary?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          attendees?: Json
+          created_at?: string
+          end_at?: string | null
+          fathom_id?: string
+          match_confidence?: string | null
+          pipeline_item_id?: string | null
+          share_url?: string | null
+          start_at?: string | null
+          summary?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fathom_meetings_pipeline_item_id_fkey"
+            columns: ["pipeline_item_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ghl_appointments: {
         Row: {
           appointment_status: string | null
