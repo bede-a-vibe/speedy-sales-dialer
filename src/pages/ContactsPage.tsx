@@ -1,3 +1,4 @@
+import { LEAD_BUCKETS } from "@/components/contacts/LeadBuckets";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -765,6 +766,7 @@ export default function ContactsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [bucketFilter, setBucketFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("all");
   const [appointmentOutcomeFilter, setAppointmentOutcomeFilter] = useState("all");
   const [lifecycleFilter, setLifecycleFilter] = useState("all");
@@ -817,6 +819,7 @@ export default function ContactsPage() {
   const { data, isLoading } = usePaginatedContacts({
     industry: industryFilter,
     status: statusFilter,
+    bucket: bucketFilter,
     state: stateFilter,
     appointmentOutcome: appointmentOutcomeFilter,
     lifecycleStage: lifecycleFilter,
@@ -946,17 +949,18 @@ export default function ContactsPage() {
   // Reset selection when filters or page change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, focusFilter, page]);
+  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, focusFilter, page]);
 
   const activeFilters = useMemo(() => ({
     industry: industryFilter,
     status: statusFilter,
+    bucket: bucketFilter,
     state: stateFilter,
     appointmentOutcome: appointmentOutcomeFilter,
     lifecycleStage: lifecycleFilter,
     ownerId: ownerFilter,
     search: debouncedSearch,
-  }), [industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, debouncedSearch]);
+  }), [industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, debouncedSearch]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -1118,7 +1122,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [debouncedSearch, industryFilter, statusFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy]);
+  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -1356,6 +1360,7 @@ export default function ContactsPage() {
           {(() => {
             const advancedCount =
               (statusFilter !== "all" ? 1 : 0) +
+              (bucketFilter !== "all" ? 1 : 0) +
               (appointmentOutcomeFilter !== "all" ? 1 : 0) +
               (sortBy !== "operational" ? 1 : 0);
             return (
@@ -1372,6 +1377,16 @@ export default function ContactsPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 space-y-3" align="end">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Bucket</Label>
+                    <Select value={bucketFilter} onValueChange={(v) => { setBucketFilter(v); setPage(1); }}>
+                      <SelectTrigger className="border-border bg-card"><SelectValue placeholder="Bucket" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All buckets</SelectItem>
+                        {LEAD_BUCKETS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Legacy status</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>

@@ -237,6 +237,7 @@ export type PaginatedContactsFilters = {
   state?: string;
   appointmentOutcome?: string;
   lifecycleStage?: string;
+  bucket?: string;
   ownerId?: string;
   search?: string;
   page?: number;
@@ -255,6 +256,7 @@ async function fetchPaginatedContacts({
   state,
   appointmentOutcome,
   lifecycleStage,
+  bucket,
   ownerId,
   search,
   page = 1,
