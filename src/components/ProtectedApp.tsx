@@ -26,6 +26,7 @@ const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
 const RolesPage = lazy(() => import("@/pages/RolesPage"));
 const SecurityPage = lazy(() => import("@/pages/SecurityPage"));
 const TeamPage = lazy(() => import("@/pages/TeamPage"));
+const ConnectorsPage = lazy(() => import("@/pages/ConnectorsPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function FullPageLoading() {
@@ -168,6 +169,7 @@ function ProtectedRoutes() {
             </AdminRoute>
           )}
         />
+        <Route path="/connectors" element={<ConnectorsPage />} />
         <Route
           path="/admin/team"
           element={(
