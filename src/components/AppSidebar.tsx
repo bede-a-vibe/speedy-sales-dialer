@@ -34,6 +34,7 @@ const mainItems = [
   { title: "Classroom", url: "/classroom", icon: GraduationCap },
   { title: "Training", url: "/training", icon: GraduationCap },
   { title: "End of Day", url: "/eod", icon: NotebookPen },
+  { title: "Connectors", url: "/connectors", icon: Link2 },
 ];
 
 const adminItems = [
