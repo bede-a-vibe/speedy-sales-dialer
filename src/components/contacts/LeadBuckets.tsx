@@ -29,7 +29,7 @@ export function LeadBuckets({ contactId, className }: { contactId: string; class
       toast.error(`Couldn't update bucket: ${error.message}`);
       return;
     }
-    qc.invalidateQueries({ queryKey: ["contacts"] });
+    qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("contact") });
   };
 
   return (
