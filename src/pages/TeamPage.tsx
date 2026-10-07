@@ -14,7 +14,6 @@ import {
   useUpdateGhlUser,
   type TeamMember,
 } from "@/hooks/useMeetings";
-import { FathomConnectCard } from "@/components/fathom/FathomConnect";
 
 function TeamTable({
   members,
