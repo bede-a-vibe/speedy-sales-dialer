@@ -60,10 +60,12 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     qc.invalidateQueries();
     toast.success(q == null ? "Qualification cleared" : q ? "Marked qualified" : "Marked not qualified");
   };
+  // The Not-qualified reason doubles as the outcome reason when none is picked.
+  const effReason = reason || (qualified === false ? dqReason : "");
   const [recordingUrl, setRecordingUrl] = useState(item.recording_url ?? "");
   const [phoneRecordingUrl, setPhoneRecordingUrl] = useState(item.phone_recording_url ?? "");
   const extras = (): OutcomeExtras => ({
-    reason: reason || null,
+    reason: effReason || null,
     recordingUrl: recordingUrl.trim() || null,
     phoneRecordingUrl: phoneRecordingUrl.trim() || null,
   });
@@ -71,7 +73,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const reasonOk = (outcome: AppointmentOutcomeValue) => {
     const allowed = reasonsForOutcome(outcome);
     if (!allowed) return true;
-    if (allowed.some((r) => r.value === reason)) return true;
+    if (allowed.some((r) => r.value === effReason)) return true;
     const which: Partial<Record<AppointmentOutcomeValue, string>> = {
       disqualified: "a DQ", no_show: "a no-show", cancelled: "a cancellation", rescheduled: "a reschedule",
     };
@@ -111,6 +113,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     if (!reasonOk(outcome)) return;
+    if (outcome === "disqualified" && qualified !== false) { setQualified(false); setDqReason(effReason); saveQualified(false, effReason); }
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
     const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
     // Normalize to monthly for storage in monthly_recurring_value.
@@ -127,7 +130,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       undefined,
       undefined,
       mrr,
-      { ...extras(), reason: reasonsForOutcome(outcome) ? reason : null },
+      { ...extras(), reason: reasonsForOutcome(outcome) ? effReason : null },
     );
   };
 
@@ -323,7 +326,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
           <Button size="sm" variant={qualified === false ? "destructive" : "outline"} disabled={isSaving}
             onClick={() => setQualified(false)}>Not qualified</Button>
           {qualified === false && (
-            <Select value={dqReason} onValueChange={(v) => { setDqReason(v); saveQualified(false, v); }}>
+            <Select value={dqReason} onValueChange={(v) => { setDqReason(v); if (!reason) setReason(v); saveQualified(false, v); }}>
               <SelectTrigger className="h-8 w-56 bg-background"><SelectValue placeholder="Why? (required)" /></SelectTrigger>
               <SelectContent>{DQ_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
             </Select>
