@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Video, Link2Off, Link2, RefreshCw } from "lucide-react";
+import { Loader2, Video, Link2Off, Link2, RefreshCw, Copy } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 
 export async function invokeFathom<T = any>(body: Record<string, unknown>): Promise<T> {
@@ -29,6 +29,12 @@ export function FathomConnectCard() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [key, setKey] = useState("");
+  const [secret, setSecret] = useState("");
+  const { data: info } = useQuery({
+    queryKey: ["fathom-connection", "info", user?.id],
+    enabled: !!user,
+    queryFn: () => invokeFathom<{ has_webhook: boolean; matched: number; webhook_url: string }>({ action: "status" }),
+  });
   const { data: conn, isLoading } = useQuery({
     queryKey: ["fathom-connection", user?.id],
     enabled: !!user,
@@ -39,8 +45,8 @@ export function FathomConnectCard() {
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["fathom-connection"] });
   const connect = useMutation({
-    mutationFn: () => invokeFathom({ action: "connect", api_key: key }),
-    onSuccess: (d: any) => { setKey(""); refresh(); toast.success(`Fathom connected — ${d?.result?.fetched ?? 0} meetings pulled, ${d?.result?.matched ?? 0} matched.`); },
+    mutationFn: () => invokeFathom({ action: "connect", api_key: key, webhook_secret: secret }),
+    onSuccess: (d: any) => { setKey(""); setSecret(""); refresh(); toast.success(`Fathom connected — ${d?.result?.fetched ?? 0} meetings pulled, ${d?.result?.matched ?? 0} matched.`); },
     onError: (e: Error) => toast.error(e.message),
   });
   const sync = useMutation({
@@ -48,6 +54,22 @@ export function FathomConnectCard() {
     onSuccess: (d: any) => { refresh(); toast.success(`Synced — ${d?.result?.matched ?? 0} new matches.`); },
     onError: (e: Error) => { refresh(); toast.error(e.message); },
   });
+  const saveHook = useMutation({
+    mutationFn: () => invokeFathom({ action: "set_webhook", webhook_secret: secret }),
+    onSuccess: () => { setSecret(""); refresh(); toast.success("Webhook secret saved."); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const copyUrl = () => { if (info?.webhook_url) { navigator.clipboard.writeText(info.webhook_url); toast.success("Webhook URL copied."); } };
+  const webhookSteps = info?.webhook_url ? (
+    <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-xs">
+      <p className="font-medium text-foreground">Instant matching (optional)</p>
+      <p className="text-muted-foreground">In Fathom, add a webhook with this URL, then paste the webhook secret Fathom gives you below. New meetings match within seconds instead of every 15 minutes.</p>
+      <div className="flex gap-2">
+        <Input readOnly value={info.webhook_url} className="h-8 bg-background font-mono text-[11px]" />
+        <Button size="sm" variant="outline" className="h-8" onClick={copyUrl}><Copy className="h-3.5 w-3.5" /> Copy</Button>
+      </div>
+    </div>
+  ) : null;
   const disconnect = useMutation({
     mutationFn: () => invokeFathom({ action: "disconnect" }),
     onSuccess: () => { refresh(); toast.success("Fathom disconnected."); },
@@ -65,10 +87,16 @@ export function FathomConnectCard() {
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge variant={conn.status === "error" ? "destructive" : "secondary"}>{conn.status === "error" ? "Problem" : "Connected"}</Badge>
               <span className="text-muted-foreground">
-                {conn.last_synced_at ? `Last synced ${formatDistanceToNow(new Date(conn.last_synced_at))} ago` : "Not synced yet"} · checks every 15 minutes
+                {conn.last_synced_at ? `Last synced ${formatDistanceToNow(new Date(conn.last_synced_at))} ago` : "Not synced yet"} · {info?.matched ?? 0} meetings matched
               </span>
+              <Badge variant={info?.has_webhook ? "secondary" : "outline"} className="font-normal">{info?.has_webhook ? "Webhook on" : "Webhook off"}</Badge>
             </div>
             {conn.last_error && <p className="text-xs text-destructive">{conn.last_error}</p>}
+            {webhookSteps}
+            <div className="flex gap-2">
+              <Input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={info?.has_webhook ? "Replace webhook secret" : "Fathom webhook secret"} className="h-8 bg-background" />
+              <Button size="sm" variant="outline" className="h-8" onClick={() => saveHook.mutate()} disabled={!secret.trim() || saveHook.isPending}>Save secret</Button>
+            </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending}>
                 {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync now
@@ -81,6 +109,9 @@ export function FathomConnectCard() {
             <p className="text-xs text-muted-foreground">In Fathom, go to <strong>Settings → API Access</strong>, create a key and paste it here. It's stored securely and never shown again.</p>
             <div className="flex gap-2">
               <Input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Fathom API key" className="bg-background" />
+            </div>
+            <div className="flex gap-2">
+              <Input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="Webhook secret (optional)" className="bg-background" />
               <Button onClick={() => connect.mutate()} disabled={!key.trim() || connect.isPending}>
                 {connect.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Connect
               </Button>
