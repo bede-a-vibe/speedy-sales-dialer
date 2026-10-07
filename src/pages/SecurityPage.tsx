@@ -100,7 +100,6 @@ export default function SecurityPage() {
   return (
     <AppLayout title="Security">
       <div className="max-w-3xl space-y-6">
-        <FathomConnectCard />
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Stay signed in</CardTitle>
