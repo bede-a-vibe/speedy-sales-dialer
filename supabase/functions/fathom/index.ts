@@ -48,11 +48,7 @@ async function fetchMeetings(apiKey: string, since?: string, maxPages = 10) {
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/pty|ltd|electrical|services|group|[^a-z0-9]/g, "");
 
-async function syncUser(userId: string, apiKey: string, lastSynced: string | null) {
-  const since = lastSynced
-    ? new Date(new Date(lastSynced).getTime() - 2 * 3600_000).toISOString()
-    : new Date(Date.now() - 14 * 86400_000).toISOString();
-  const meetings = await fetchMeetings(apiKey, since);
+export async function processMeetings(userId: string, meetings: FathomMeeting[]) {
   let matched = 0;
   for (const m of meetings) {
     const id = String(m.recording_id ?? m.url ?? "");
@@ -116,6 +112,15 @@ async function syncUser(userId: string, apiKey: string, lastSynced: string | nul
     }
     await admin.from("fathom_meetings").upsert({ ...row, pipeline_item_id: itemId, match_confidence: confidence });
   }
+  return matched;
+}
+
+async function syncUser(userId: string, apiKey: string, lastSynced: string | null) {
+  const since = lastSynced
+    ? new Date(new Date(lastSynced).getTime() - 2 * 3600_000).toISOString()
+    : new Date(Date.now() - 14 * 86400_000).toISOString();
+  const meetings = await fetchMeetings(apiKey, since);
+  const matched = await processMeetings(userId, meetings);
   await admin.from("fathom_connections").update({ last_synced_at: new Date().toISOString(), status: "connected", last_error: null, updated_at: new Date().toISOString() }).eq("user_id", userId);
   return { fetched: meetings.length, matched };
 }
@@ -157,10 +162,24 @@ Deno.serve(async (req) => {
       const test = await fetch(`${FATHOM}/meetings`, { headers: { "X-Api-Key": key } });
       if (!test.ok) return json({ error: `Fathom rejected that key (${test.status}). Check it and try again.` }, 400);
       await test.body?.cancel();
-      const { error } = await admin.from("fathom_connections").upsert({ user_id: userId, api_key: key, status: "connected", last_error: null, last_synced_at: null, updated_at: new Date().toISOString() });
+      const secret = typeof body.webhook_secret === "string" ? body.webhook_secret.trim() : "";
+      if (secret && (secret.length < 10 || secret.length > 500)) return json({ error: "That doesn't look like a Fathom webhook secret." }, 400);
+      const { error } = await admin.from("fathom_connections").upsert({ user_id: userId, api_key: key, webhook_secret: secret || null, status: "connected", last_error: null, last_synced_at: null, updated_at: new Date().toISOString() });
       if (error) throw error;
       const result = await syncOne(userId);
       return json({ ok: true, result });
+    }
+    if (action === "set_webhook") {
+      const secret = typeof body.webhook_secret === "string" ? body.webhook_secret.trim() : "";
+      if (secret && (secret.length < 10 || secret.length > 500)) return json({ error: "That doesn't look like a Fathom webhook secret." }, 400);
+      const { error } = await admin.from("fathom_connections").update({ webhook_secret: secret || null, updated_at: new Date().toISOString() }).eq("user_id", userId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "status") {
+      const { data: c } = await admin.from("fathom_connections").select("webhook_secret").eq("user_id", userId).maybeSingle();
+      const { count } = await admin.from("fathom_meetings").select("fathom_id", { count: "exact", head: true }).eq("user_id", userId).not("pipeline_item_id", "is", null);
+      return json({ ok: true, has_webhook: !!c?.webhook_secret, matched: count ?? 0, webhook_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/fathom-webhook?u=${userId}` });
     }
     if (action === "disconnect") {
       await admin.from("fathom_connections").delete().eq("user_id", userId);
