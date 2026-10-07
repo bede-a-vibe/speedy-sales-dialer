@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
