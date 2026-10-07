@@ -14,6 +14,7 @@ import {
   useUpdateGhlUser,
   type TeamMember,
 } from "@/hooks/useMeetings";
+import { FathomConnectCard } from "@/components/fathom/FathomConnect";
 
 function TeamTable({
   members,
@@ -182,6 +183,13 @@ export default function TeamPage() {
             </span>
             <span>Only tick Dialpad for people who actually dial out.</span>
           </div>
+        </ReportSection>
+
+        <ReportSection
+          title="Connectors"
+          description="Connect your own meeting tools so recordings and summaries attach to your appointments automatically. Each person connects their own account."
+        >
+          <FathomConnectCard />
         </ReportSection>
 
         {former.length > 0 ? (
