@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsAdmin } from "@/hooks/useUserRole";
+import { FathomTeamStatus } from "@/components/fathom/FathomConnect";
+import RolesPage from "@/pages/RolesPage";
+import DialpadSettingsPage from "@/pages/DialpadSettingsPage";
 import { AlertTriangle, Phone } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -91,6 +96,9 @@ function TeamTable({
 
 export default function TeamPage() {
   const { toast } = useToast();
+  const isAdmin = useIsAdmin();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") ?? "people";
   const { data: members = [], isLoading } = useTeamMembers();
   const updateGhlUser = useUpdateGhlUser();
 
@@ -138,8 +146,15 @@ export default function TeamPage() {
   };
 
   return (
-    <AppLayout title="Team">
-      <div className="mx-auto max-w-5xl space-y-4">
+    <AppLayout title="Team & settings">
+      <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })} className="mx-auto max-w-6xl space-y-4">
+        <TabsList>
+          <TabsTrigger value="people">People</TabsTrigger>
+          {isAdmin ? <TabsTrigger value="roles">Logins & roles</TabsTrigger> : null}
+          <TabsTrigger value="dialpad">Dialpad</TabsTrigger>
+          <TabsTrigger value="connections">Connections</TabsTrigger>
+        </TabsList>
+        <TabsContent value="people" className="space-y-4">
         {needsAdminRecording.length > 0 ? (
           <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -194,7 +209,18 @@ export default function TeamPage() {
             <TeamTable members={former} statsFor={statsFor} muted />
           </ReportSection>
         ) : null}
-      </div>
+        </TabsContent>
+        {isAdmin ? (
+          <TabsContent value="roles"><RolesPage embedded /></TabsContent>
+        ) : null}
+        <TabsContent value="dialpad"><DialpadSettingsPage embedded /></TabsContent>
+        <TabsContent value="connections" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Each rep connects their own Fathom from the <Link to="/connectors" className="font-medium underline underline-offset-2">Connectors</Link> page. Keys are never visible here.
+          </p>
+          <FathomTeamStatus />
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 }

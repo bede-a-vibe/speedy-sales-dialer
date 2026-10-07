@@ -41,14 +41,12 @@ const adminItems = [
   { title: "Manager", url: "/admin/manager", icon: ClipboardCheck },
   { title: "Insights", url: "/insights", icon: BarChart3 },
   { title: "Clients", url: "/clients", icon: Briefcase },
-  { title: "Team", url: "/admin/team", icon: UsersRound },
+  { title: "Team & settings", url: "/admin/team", icon: UsersRound },
   { title: "GHL Sync", url: "/admin/ghl-sync", icon: RefreshCw },
   { title: "Enrichment", url: "/admin/enrichment", icon: Sparkles },
-  { title: "Dialpad Settings", url: "/dialpad-settings", icon: Settings },
 ];
 
 const adminOnlyItems = [
-  { title: "User Roles", url: "/admin/roles", icon: ShieldCheck },
 ];
 
 export function AppSidebar() {
