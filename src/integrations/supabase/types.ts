@@ -1940,6 +1940,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          webhook_secret: string | null
         }
         Insert: {
           api_key: string
@@ -1949,6 +1950,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          webhook_secret?: string | null
         }
         Update: {
           api_key?: string
@@ -1958,6 +1960,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          webhook_secret?: string | null
         }
         Relationships: []
       }

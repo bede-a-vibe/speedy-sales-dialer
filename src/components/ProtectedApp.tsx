@@ -13,7 +13,6 @@ const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
 const ContactDetailPage = lazy(() => import("@/pages/ContactDetailPage"));
 const PipelinesPage = lazy(() => import("@/pages/PipelinesPage"));
 const InsightsPage = lazy(() => import("@/pages/InsightsPage"));
-const DialpadSettingsPage = lazy(() => import("@/pages/DialpadSettingsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
@@ -23,7 +22,6 @@ const ClassroomPage = lazy(() => import("@/pages/ClassroomPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
-const RolesPage = lazy(() => import("@/pages/RolesPage"));
 const SecurityPage = lazy(() => import("@/pages/SecurityPage"));
 const TeamPage = lazy(() => import("@/pages/TeamPage"));
 const ConnectorsPage = lazy(() => import("@/pages/ConnectorsPage"));
@@ -137,14 +135,7 @@ function ProtectedRoutes() {
         <Route path="/reports/funnel" element={<Navigate to="/insights?tab=funnel" replace />} />
         <Route path="/analytics" element={<Navigate to="/insights?tab=overview" replace />} />
         <Route path="/targets" element={<Navigate to="/admin/manager" replace />} />
-        <Route
-          path="/dialpad-settings"
-          element={(
-            <AdminRoute>
-              <DialpadSettingsPage />
-            </AdminRoute>
-          )}
-        />
+        <Route path="/dialpad-settings" element={<Navigate to="/admin/team?tab=dialpad" replace />} />
         <Route
           path="/admin/ghl-sync"
           element={(
@@ -178,14 +169,7 @@ function ProtectedRoutes() {
             </AdminRoute>
           )}
         />
-        <Route
-          path="/admin/roles"
-          element={(
-            <AdminOnlyRoute>
-              <RolesPage />
-            </AdminOnlyRoute>
-          )}
-        />
+        <Route path="/admin/roles" element={<Navigate to="/admin/team?tab=roles" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       </PageTransition>
