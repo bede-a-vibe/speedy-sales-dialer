@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
-const EmbeddedShell = ({ children }: { children: React.ReactNode; title?: string }) => <>{children}</>;
+const EmbeddedShell = ({ children }: { children: import("react").ReactNode; title?: string }) => <>{children}</>;
 import { useAllDialpadSettings, useUpsertDialpadSettings, useDeleteDialpadSettings } from "@/hooks/useDialpadSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

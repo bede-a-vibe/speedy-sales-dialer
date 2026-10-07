@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
-const EmbeddedShell = ({ children }: { children: React.ReactNode; title?: string }) => <>{children}</>;
+const EmbeddedShell = ({ children }: { children: import("react").ReactNode; title?: string }) => <>{children}</>;
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
