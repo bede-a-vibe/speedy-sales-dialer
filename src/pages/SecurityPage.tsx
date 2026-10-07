@@ -10,6 +10,7 @@ import { Laptop, MonitorSmartphone, RefreshCw, Smartphone, ShieldCheck } from "l
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { getStaySignedIn, setStaySignedIn, shortSessionMinutesLeft } from "@/lib/sessionPersistence";
+import { FathomConnectCard } from "@/components/fathom/FathomConnect";
 
 interface SessionRow {
   session_id: string;
@@ -99,6 +100,7 @@ export default function SecurityPage() {
   return (
     <AppLayout title="Security">
       <div className="max-w-3xl space-y-6">
+        <FathomConnectCard />
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Stay signed in</CardTitle>
