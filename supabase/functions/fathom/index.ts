@@ -48,7 +48,7 @@ async function fetchMeetings(apiKey: string, since?: string, maxPages = 10) {
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/pty|ltd|electrical|services|group|[^a-z0-9]/g, "");
 
-export async function processMeetings(userId: string, meetings: FathomMeeting[]) {
+async function processMeetings(userId: string, meetings: FathomMeeting[]) {
   let matched = 0;
   for (const m of meetings) {
     const id = String(m.recording_id ?? m.url ?? "");
@@ -137,9 +137,40 @@ async function syncOne(userId: string) {
   }
 }
 
+async function verifyWebhook(secret: string, id: string, ts: string, raw: string, sigHeader: string) {
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 600) return false;
+  const keyStr = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+  let keyBytes: Uint8Array;
+  try { keyBytes = Uint8Array.from(atob(keyStr), (c) => c.charCodeAt(0)); }
+  catch { keyBytes = new TextEncoder().encode(secret); }
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${ts}.${raw}`));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  return sigHeader.split(" ").some((p) => p.split(",")[1] === expected);
+}
+
+async function handleWebhook(req: Request, userId: string) {
+  if (!/^[0-9a-f-]{36}$/.test(userId)) return json({ error: "Bad user" }, 400);
+  const raw = await req.text();
+  const id = req.headers.get("webhook-id") ?? "";
+  const ts = req.headers.get("webhook-timestamp") ?? "";
+  const sig = req.headers.get("webhook-signature") ?? "";
+  const { data: conn } = await admin.from("fathom_connections").select("webhook_secret").eq("user_id", userId).maybeSingle();
+  if (!conn?.webhook_secret || !id || !ts || !sig || !(await verifyWebhook(conn.webhook_secret, id, ts, raw, sig))) {
+    return json({ error: "Invalid signature" }, 401);
+  }
+  let meeting: FathomMeeting;
+  try { meeting = JSON.parse(raw); } catch { return json({ error: "Bad body" }, 400); }
+  const matched = await processMeetings(userId, [meeting]);
+  await admin.from("fathom_connections").update({ last_synced_at: new Date().toISOString(), status: "connected", last_error: null }).eq("user_id", userId);
+  return json({ ok: true, matched });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const hookUser = new URL(req.url).searchParams.get("u");
+    if (hookUser) return await handleWebhook(req, hookUser);
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
 
@@ -179,7 +210,7 @@ Deno.serve(async (req) => {
     if (action === "status") {
       const { data: c } = await admin.from("fathom_connections").select("webhook_secret").eq("user_id", userId).maybeSingle();
       const { count } = await admin.from("fathom_meetings").select("fathom_id", { count: "exact", head: true }).eq("user_id", userId).not("pipeline_item_id", "is", null);
-      return json({ ok: true, has_webhook: !!c?.webhook_secret, matched: count ?? 0, webhook_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/fathom-webhook?u=${userId}` });
+      return json({ ok: true, has_webhook: !!c?.webhook_secret, matched: count ?? 0, webhook_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/fathom?u=${userId}` });
     }
     if (action === "disconnect") {
       await admin.from("fathom_connections").delete().eq("user_id", userId);
