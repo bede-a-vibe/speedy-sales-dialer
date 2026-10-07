@@ -304,6 +304,9 @@ async function fetchPaginatedContacts({
   if (lifecycleStage && lifecycleStage !== "all") {
     query = query.eq("lifecycle_stage", lifecycleStage);
   }
+  if (bucket && bucket !== "all") {
+    query = query.contains("tags", [bucket]);
+  }
   if (ownerId && ownerId !== "all") {
     if (ownerId === "unassigned") {
       query = query.is("owner_id", null);
@@ -1020,6 +1023,7 @@ export async function fetchAllMatchingContactIds(filters: PaginatedContactsFilte
       else q = q.eq("status", status);
     }
     if (state && state !== "all") q = q.ilike("state", state);
+    if (filters.bucket && filters.bucket !== "all") q = q.contains("tags", [filters.bucket]);
     if (appointmentOutcome && appointmentOutcome !== "all") {
       q = q.eq("latest_appointment_outcome", appointmentOutcome as AppointmentOutcomeValue);
     }
