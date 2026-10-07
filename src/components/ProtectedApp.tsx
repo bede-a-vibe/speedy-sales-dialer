@@ -136,9 +136,6 @@ function ProtectedRoutes() {
         <Route path="/analytics" element={<Navigate to="/insights?tab=overview" replace />} />
         <Route path="/targets" element={<Navigate to="/admin/manager" replace />} />
         <Route path="/dialpad-settings" element={<Navigate to="/admin/team?tab=dialpad" replace />} />
-            </AdminRoute>
-          )}
-        />
         <Route
           path="/admin/ghl-sync"
           element={(
@@ -173,9 +170,6 @@ function ProtectedRoutes() {
           )}
         />
         <Route path="/admin/roles" element={<Navigate to="/admin/team?tab=roles" replace />} />
-            </AdminOnlyRoute>
-          )}
-        />
         <Route path="*" element={<NotFound />} />
       </Routes>
       </PageTransition>
