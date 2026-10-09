@@ -16,6 +16,7 @@ import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/
 import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
 import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -454,6 +455,8 @@ export default function PipelinesPage() {
     }
   };
 
+  const queryClient = useQueryClient();
+
   const handleBookedOutcome = async (
     item: PipelineItemWithRelations,
     outcome: AppointmentOutcomeValue,
@@ -504,6 +507,63 @@ export default function PipelinesPage() {
         });
 
         toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);
+
+        // ── A close must open the client's revenue record ──────────────────
+        // Marking a meeting closed used to write monthly_recurring_value onto
+        // the pipeline item and stop there. client_deals was only ever written
+        // from the Clients page, so every close needed a second manual step on
+        // a different screen — and in practice nobody did it. Six signed
+        // clients worth $20k/mo were sitting on the board with no revenue
+        // record at all, which is also why MRR and realised LTV read low.
+        //
+        // Opened here, from the numbers the closer just entered. Guarded by
+        // "does this contact already have a deal" rather than by an upsert key,
+        // because a genuine second service for an existing client is a second
+        // deal row and must not overwrite the first.
+        if (outcome === "showed_closed" && item.contact_id) {
+          try {
+            const { data: existing, error: existingError } = await supabase
+              .from("client_deals")
+              .select("id")
+              .eq("contact_id", item.contact_id)
+              .limit(1);
+            if (existingError) throw existingError;
+
+            if (existing && existing.length > 0) {
+              toast.info("Client already has a deal on file — left it alone. Add the extra service on the Clients page.");
+            } else {
+              const monthly = monthlyValue ?? null;
+              const oneOff = monthly == null ? dealValue ?? null : null;
+              const amount = monthly ?? oneOff;
+              if (amount == null) {
+                toast.error("Closed, but no value was entered — add the deal on the Clients page.");
+              } else {
+                const { error: dealError } = await supabase.from("client_deals").insert({
+                  contact_id: item.contact_id,
+                  stream: extras?.stream ?? "other",
+                  amount,
+                  billing_period: monthly != null ? "monthly" : "one_off",
+                  status: "active",
+                  // The meeting date is when it was won; billing starts there
+                  // unless someone corrects it on the Clients page.
+                  start_date: (item.scheduled_for ? new Date(item.scheduled_for) : new Date())
+                    .toISOString()
+                    .slice(0, 10),
+                  gst: false,
+                  created_by: user?.id ?? null,
+                  notes: `Opened automatically when the meeting was marked closed on ${new Date().toLocaleDateString("en-AU")}.`,
+                } as any);
+                if (dealError) throw dealError;
+                queryClient.invalidateQueries({ queryKey: ["client-deals"] });
+                queryClient.invalidateQueries({ queryKey: ["client-rollup"] });
+                toast.success("Client revenue record opened.");
+              }
+            }
+          } catch {
+            // Never block the close itself — the outcome is already saved.
+            toast.error("Closed, but the revenue record failed. Add the deal on the Clients page.");
+          }
+        }
 
         // Create child pipeline_items for the two new outcomes
         if (outcome === "second_meeting_booked" && followUpDate) {

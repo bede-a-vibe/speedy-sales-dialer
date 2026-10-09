@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { FathomMatch } from "@/components/fathom/FathomConnect";
+import { STREAM_LABELS, STREAM_ORDER, type ClientStream } from "@/lib/clientRevenue";
 import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -30,6 +31,8 @@ export interface OutcomeExtras {
   reason?: string | null;
   recordingUrl?: string | null;
   phoneRecordingUrl?: string | null;
+  /** What was sold. Required to open the client_deals row on a close. */
+  stream?: ClientStream | null;
 }
 
 interface BookedOutcomePanelProps {
@@ -70,6 +73,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     reason: effReason || null,
     recordingUrl: recordingUrl.trim() || null,
     phoneRecordingUrl: phoneRecordingUrl.trim() || null,
+    stream,
   });
   /** No Close / DQ can't be saved without a reason that matches the outcome. */
   const reasonOk = (outcome: AppointmentOutcomeValue) => {
@@ -108,6 +112,11 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     (item as any).monthly_recurring_value != null ? String((item as any).monthly_recurring_value) : "",
   );
   const [retainerCadence, setRetainerCadence] = useState<"monthly" | "weekly">("monthly");
+  // Service stream is captured here, at the close, because this is the only
+  // moment someone knows what was actually sold. Without it the client_deals
+  // row cannot be opened (stream is NOT NULL) — which is why closes were
+  // landing on the board and never reaching the revenue table.
+  const [stream, setStream] = useState<ClientStream>("seo");
 
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
@@ -115,6 +124,10 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     if (!reasonOk(outcome)) return;
+    if (outcome === "showed_closed" && !monthlyValue && !dealValue) {
+      toast.error("Enter the retainer or deal value before closing — it opens the client's revenue record.");
+      return;
+    }
     if (outcome === "disqualified" && qualified !== false) { setQualified(false); setDqReason(effReason); saveQualified(false, effReason); }
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
     const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
@@ -321,6 +334,21 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             Stored as ${(parseFloat(monthlyValue) * (52 / 12)).toFixed(2)}/mo for reporting.
           </p>
         ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">What did they buy?</p>
+        <Select value={stream} onValueChange={(v) => setStream(v as ClientStream)}>
+          <SelectTrigger className="h-8 w-56 bg-background"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {STREAM_ORDER.map((sv) => (
+              <SelectItem key={sv} value={sv}>{STREAM_LABELS[sv]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          Used to open the client's revenue record when you hit Close. Change it later on the Clients page if the scope shifts.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-border p-3">
