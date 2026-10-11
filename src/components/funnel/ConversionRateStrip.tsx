@@ -27,7 +27,8 @@ export function ConversionRateStrip({ metrics }: Props) {
   const noDataSubtext = `No data before ${CONVERSATION_TAGGING_LAUNCH_LABEL}`;
   const pickupBooking = metrics.bookingsMade.pickUpsToBookingRate;
   const bookingShowed = pct(setter.showed, setter.appointmentsScheduled);
-  const showedClosed = setter.closeRate;
+  // The strip is labelled Showed → Closed, so it must be closed over ALL showed, not the pitched-and-qualified close rate.
+  const showedClosed = setter.showToCloseRate;
   const leadBooked = pct(metrics.bookingsMade.totalBookingsMade, metrics.dialer.uniqueLeadsDialed);
   const costPerConv = metrics.dialer.conversations > 0
     ? Math.round(metrics.dialer.totalTalkTimeSeconds / metrics.dialer.conversations)

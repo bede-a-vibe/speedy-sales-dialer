@@ -21,7 +21,8 @@ export function ForecastingTab({ metrics, rangeDays, openBookingsCount, openBook
   // Use resolved appointments (outcome assigned) as denominator so future,
   // not-yet-held bookings don't drag the show rate down to misleading levels.
   const showRate = setter.resolvedAppointments > 0 ? setter.showed / setter.resolvedAppointments : 0;
-  const closeRate = setter.closeRate / 100;
+  // Forecast from open bookings: show rate × closed-over-all-showed, not the qualified-only close rate.
+  const closeRate = setter.showToCloseRate / 100;
   const avgDeal = setter.averageDealValue;
 
   const project = (days: number) => {

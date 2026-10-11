@@ -47,7 +47,14 @@ export interface AppointmentPerformanceMetrics {
   noCloseFollowUps: number;
   showed: number;
   showUpRate: number;
+  /** Meetings where a pitch outcome was recorded: closed, no close, verbal, or no-close follow-up. First or second meeting. */
+  pitched: number;
+  /** Pitched meetings not marked unqualified (unjudged stays in). */
+  qualifiedPitched: number;
+  /** closed / pitched, with meetings marked not qualified excluded from the denominator. */
   closeRate: number;
+  /** closed / all showed meetings, qualified or not. */
+  showToCloseRate: number;
   verbalCommitmentRate: number;
   rescheduleRate: number;
   resolvedAppointments: number;
@@ -111,8 +118,10 @@ export interface AppointmentPerformanceMetrics {
   /** qualified shows / judged shows */
   showedQualifiedRate: number;
   qualifiedShowUpRate: number;
+  /** closed / pitched among bookings marked qualified */
   qualifiedCloseRate: number;
   unqualifiedShowUpRate: number;
+  /** closed / pitched among bookings marked not qualified */
   unqualifiedCloseRate: number;
 }
 
@@ -292,6 +301,14 @@ function isSameOrNextDayBooking(item: ReportBookingItem) {
   return dayDifference === 0 || dayDifference === 1;
 }
 
+/** A close decision was recorded: the rep pitched. Discovery-only meetings (second meeting booked) are not pitches. */
+const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
+  "showed_closed",
+  "showed_no_close",
+  "showed_verbal_commitment",
+  "no_close_follow_up",
+]);
+
 const SHOWED_OUTCOMES = new Set<AppointmentOutcomeKey>([
   "showed_closed",
   "showed_no_close",
@@ -377,6 +394,12 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const qualifiedVerbal = qualified.filter((item) => item.appointment_outcome === "showed_verbal_commitment").length;
   const judgedShowed = judged.filter(isShowed).length;
 
+  // ---- Pitched = a close decision was recorded on the meeting (first or
+  // second). "Second meeting booked" is discovery only, so it is not a pitch.
+  const pitchedItems = items.filter((item) => !!item.appointment_outcome && PITCHED_OUTCOMES.has(item.appointment_outcome));
+  const qualifiedPitchedItems = pitchedItems.filter((item) => item.is_qualified !== false);
+  const closedAmong = (list: ReportBookingItem[]) => list.filter((item) => item.appointment_outcome === "showed_closed").length;
+
   // ---- Reschedule history of the slots that resolved ----
   const rescheduleBucket = (item: ReportBookingItem): "0" | "1" | "2" | "3+" => {
     const n = item.reschedule_count ?? 0;
@@ -413,7 +436,10 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       noCloseFollowUps: appointmentOutcomeCounts.no_close_follow_up,
       showed,
       showUpRate: toPercent(showed, resolved.length),
-      closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
+      pitched: pitchedItems.length,
+      qualifiedPitched: qualifiedPitchedItems.length,
+      closeRate: toPercent(closedAmong(qualifiedPitchedItems), qualifiedPitchedItems.length),
+      showToCloseRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       verbalCommitmentRate: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, showed),
       rescheduleRate: toPercent(rescheduled, resolved.length),
       resolvedAppointments,
@@ -452,9 +478,9 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       qualifiedVerbal,
       showedQualifiedRate: toPercent(qualifiedShowedItems.length, judgedShowed),
       qualifiedShowUpRate: showUpOf(qualified),
-      qualifiedCloseRate: toPercent(qualifiedClosed, qualifiedShowedItems.length),
+      qualifiedCloseRate: toPercent(qualifiedClosed, pitchedItems.filter((item) => item.is_qualified === true).length),
       unqualifiedShowUpRate: showUpOf(unqualified),
-      unqualifiedCloseRate: toPercent(unqualifiedClosed, unqualified.filter(isShowed).length),
+      unqualifiedCloseRate: toPercent(unqualifiedClosed, pitchedItems.filter((item) => item.is_qualified === false).length),
     } satisfies AppointmentPerformanceMetrics,
     outcomeCounts: appointmentOutcomeCounts,
   };
