@@ -183,7 +183,7 @@ export interface ReportMetrics {
     callBacks: number;
     pickUpToFollowUpRate: number;
     conversations: number;
-    /** Calls where the rep tagged the Commitment stage (the setter got a yes to the meeting). Since tagging launch. */
+    /** Calls that reached the Commitment stage: tagged as such, or booked (a booking is a commitment). Since tagging launch. */
     commitments: number;
     /** commitments / conversations — the setting-side commitment rate. */
     commitmentRate: number;
@@ -569,8 +569,10 @@ export function getReportMetrics({
   const conversations = filteredCallLogs.filter(
     (log) => log.reached_connection === true && toDateKey(log.created_at) >= launchDate,
   ).length;
+  // A booked call is a commitment whether or not the rep ticked the stage
+  // (reps under-tag: Ben had 8 ticks against 73 bookings), so booked floors it.
   const commitments = filteredCallLogs.filter(
-    (log) => log.reached_commitment === true && toDateKey(log.created_at) >= launchDate,
+    (log) => (log.reached_commitment === true || log.outcome === "booked") && toDateKey(log.created_at) >= launchDate,
   ).length;
   const pickUpsSinceLaunch = filteredCallLogs.filter(
     (log) => ANSWERED_OUTCOMES.has(log.outcome) && toDateKey(log.created_at) >= launchDate,

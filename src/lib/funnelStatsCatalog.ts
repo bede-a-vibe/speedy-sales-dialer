@@ -261,7 +261,7 @@ export const METRIC_FORMULAS: Record<string, string> = {
   verbal_commitments: "Meetings logged as showed with a verbal commitment.",
   verbal_rate: "Verbal commitments ÷ pitched. The closing-side commitment rate.",
   verbal_to_close: "Leads that gave a verbal and then closed ÷ leads that gave a verbal (within the window).",
-  call_commitments: "Dials where the rep tagged the Commitment stage: the prospect agreed to the meeting on the call. Since stage tagging went live.",
+  call_commitments: "Dials where the prospect committed on the call: tagged at the Commitment stage, or booked (a booking counts even if the stage was not ticked). Since stage tagging went live.",
   call_commitment_rate: "Call commitments ÷ conversations. The setting-side commitment rate.",
   qualified_bookings: "Bookings marked qualified by the setter or closer.",
   disqualified_bookings: "Bookings marked not qualified.",
