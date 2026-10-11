@@ -18,6 +18,9 @@ import {
   groupStatsBySubgroup,
   STAT_CATEGORY_LABEL,
   STAT_CATEGORY_DESCRIPTION,
+  STAT_SIDE,
+  SIDE_LABEL,
+  SIDE_ORDER,
   STAT_CATALOG,
   STAT_CATALOG_BY_ID,
   type StatCategory,
@@ -35,8 +38,7 @@ const CATEGORY_ORDER: StatCategory[] = [
   "activity",
   "conversations",
   "outcomes",
-  "bookings",
-];
+  "bookings", "closing"];
 
 export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, onReset }: Props) {
   const [draftIds, setDraftIds] = useState<string[]>(selectedIds);
@@ -137,7 +139,10 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
               </div>
               <div className="text-[11px] opacity-60 mt-0.5">Browse everything</div>
             </button>
-            {CATEGORY_ORDER.map((cat) => {
+            {SIDE_ORDER.map((side) => (
+              <div key={side}>
+                <div className="px-4 pb-1 pt-3 text-[10px] font-mono uppercase tracking-widest text-primary">{SIDE_LABEL[side]}</div>
+            {CATEGORY_ORDER.filter((cat) => STAT_SIDE[cat] === side).map((cat) => {
               const count = grouped[cat].length;
               if (count === 0) return null;
               return (
@@ -162,6 +167,8 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
                 </button>
               );
             })}
+              </div>
+            ))}
           </div>
 
           {/* Middle: Searchable list */}
