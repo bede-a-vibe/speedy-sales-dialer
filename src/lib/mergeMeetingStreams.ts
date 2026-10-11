@@ -91,6 +91,7 @@ export function ghlMeetingToBookingItem(
   row: UnifiedMeetingLite,
   createdBy: string | null,
   contacts: BookedAppointmentReportItem["contacts"] | undefined,
+  isQualified: boolean | null = null,
 ): BookedAppointmentReportItem | null {
   if (!row.id || !row.contact_id || !row.start_time) return null;
   const outcome = mapGhlOutcome(row.resolved_outcome, row.outcome_reason);
@@ -110,7 +111,7 @@ export function ghlMeetingToBookingItem(
     // when a deal was dated on/after the booking.
     monthly_recurring_value: row.led_to_deal && row.mrr ? row.mrr : null,
     reschedule_count: row.reschedule_count ?? 0,
-    is_qualified: null,
+    is_qualified: isQualified,
     stream: "ghl",
     contacts: contacts ?? null,
   };
@@ -132,13 +133,29 @@ export function mergeGhlOnlyMeetings(
   for (const item of dialerItems) {
     if (item.scheduled_for) dialerKeys.add(`${item.contact_id}|${localDateKey(item.scheduled_for)}`);
   }
+  // Qualification is a property of the lead, judged on a dialer booking. A
+  // calendar-only sitting for the same contact inherits that verdict: true if
+  // any booking was marked qualified, false if any was marked not qualified
+  // and none qualified, otherwise unknown.
+  const verdictByContact = new Map<string, boolean>();
+  for (const item of dialerItems) {
+    if (item.is_qualified == null) continue;
+    const prev = verdictByContact.get(item.contact_id);
+    if (prev === true) continue;
+    verdictByContact.set(item.contact_id, item.is_qualified || prev === undefined ? item.is_qualified : prev);
+  }
   const merged: BookedAppointmentReportItem[] = dialerItems.map((item) => ({ ...item, stream: item.stream ?? "dialer" }));
   for (const row of ghlRows) {
     if (row.stream !== "ghl" || row.channel !== COLD_CALL_CHANNEL || !row.is_linked) continue;
     if (!isSalesMeeting(row)) continue;
     if (!row.contact_id || !row.start_time) continue;
     if (dialerKeys.has(`${row.contact_id}|${localDateKey(row.start_time)}`)) continue;
-    const item = ghlMeetingToBookingItem(row, bookerByContact.get(row.contact_id) ?? null, contactsById.get(row.contact_id));
+    const item = ghlMeetingToBookingItem(
+      row,
+      bookerByContact.get(row.contact_id) ?? null,
+      contactsById.get(row.contact_id),
+      verdictByContact.get(row.contact_id) ?? null,
+    );
     if (item) merged.push(item);
   }
   return merged;
