@@ -35,7 +35,7 @@ Generated from `src/lib/funnelStatsCatalog.ts` (METRIC_FORMULAS). The Definition
 | Conversations | reached connection | Dials where the rep tagged that the Connection stage was reached. Counted from the day stage tagging went live. |
 | Dial → Pickup |  | Pick ups ÷ dials. |
 | Pickup → Conversation | since 23 Apr 2026 | Conversations ÷ pick ups, both counted only from the day stage tagging went live. |
-| Call Commitments | reached the commitment stage | Dials where the rep tagged the Commitment stage: the prospect agreed to the meeting on the call. Since stage tagging went live. |
+| Call Commitments | reached the commitment stage | Dials where the prospect committed on the call: tagged at the Commitment stage, or booked (a booking counts even if the stage was not ticked). Since stage tagging went live. |
 | Call Commitment Rate | commitments / conversations | Call commitments ÷ conversations. The setting-side commitment rate. |
 | Immediate Hang-Ups |  | Dials where the connection exit reason is 'hung up immediately'. |
 | Short Hangups <15s |  | Pick ups that ended in under 15 seconds. |
