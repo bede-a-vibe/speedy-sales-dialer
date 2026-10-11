@@ -13,6 +13,8 @@ export type ReportBookingItem = Pick<
   /** Setter's qualification verdict on the booking; null = not judged yet. */
   is_qualified?: boolean | null;
   stream?: "dialer" | "ghl";
+  /** The contact already showed at an earlier booking: a second meeting, not a reschedule. */
+  is_follow_up?: boolean;
 };
 
 export type ReportContact = Pick<
@@ -81,6 +83,18 @@ export interface AppointmentPerformanceMetrics {
   multiRescheduleShowUpRate: number;
   /** Show-up rate by how many times the slot was moved before it sat. */
   showUpByRescheduleCount: Array<{ reschedules: "0" | "1" | "2" | "3+"; sat: number; showed: number; noShows: number; showUpRate: number }>;
+  // ---- Sittings vs leads. `showed` counts sittings; a lead that met twice counts twice. ----
+  /** Distinct contacts with at least one show in the window. */
+  uniqueLeadsShowed: number;
+  /** Distinct contacts whose slot sat (showed or no-show). */
+  uniqueLeadsSat: number;
+  firstMeetingSat: number;
+  firstMeetingShowed: number;
+  firstMeetingShowUpRate: number;
+  /** Sittings where the contact had already showed at an earlier booking. */
+  followUpSat: number;
+  followUpShowed: number;
+  followUpShowUpRate: number;
   // ---- Qualification (from the setter's verdict on each booking) ----
   judgedBookings: number;
   qualifiedBookings: number;
@@ -354,6 +368,10 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       showUpRate: toPercent(showedCount, slots.length),
     };
   });
+  const firstMeetingSat = sat.filter((item) => !item.is_follow_up);
+  const followUpSat = sat.filter((item) => !!item.is_follow_up);
+  const uniqueLeadsShowed = new Set(items.filter(isShowed).map((item) => item.contact_id)).size;
+  const uniqueLeadsSat = new Set(sat.map((item) => item.contact_id)).size;
   const rescheduledSat = sat.filter((item) => (item.reschedule_count ?? 0) > 0);
   const firstTimeSat = sat.filter((item) => (item.reschedule_count ?? 0) === 0);
   const multiRescheduledSat = sat.filter((item) => (item.reschedule_count ?? 0) >= 2);
@@ -392,6 +410,14 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       firstTimeShowUpRate: toPercent(firstTimeSat.filter(isShowed).length, firstTimeSat.length),
       multiRescheduleShowUpRate: toPercent(multiRescheduledSat.filter(isShowed).length, multiRescheduledSat.length),
       showUpByRescheduleCount,
+      uniqueLeadsShowed,
+      uniqueLeadsSat,
+      firstMeetingSat: firstMeetingSat.length,
+      firstMeetingShowed: firstMeetingSat.filter(isShowed).length,
+      firstMeetingShowUpRate: toPercent(firstMeetingSat.filter(isShowed).length, firstMeetingSat.length),
+      followUpSat: followUpSat.length,
+      followUpShowed: followUpSat.filter(isShowed).length,
+      followUpShowUpRate: toPercent(followUpSat.filter(isShowed).length, followUpSat.length),
       judgedBookings: judged.length,
       qualifiedBookings: qualified.length,
       disqualifiedBookings: unqualified.length,
