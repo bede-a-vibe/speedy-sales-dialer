@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 import type { DealStage } from "@/data/constants";
-import { inferBookers, mergeGhlOnlyMeetings, type UnifiedMeetingLite } from "@/lib/mergeMeetingStreams";
+import { inferBookers, markFollowUpMeetings, mergeGhlOnlyMeetings, type BookingHistoryRow, type UnifiedMeetingLite } from "@/lib/mergeMeetingStreams";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
@@ -112,6 +112,8 @@ export interface BookedAppointmentReportItem {
   is_qualified?: boolean | null;
   /** Which booking stream the row came from. GHL-only cold meetings are merged in. */
   stream?: "dialer" | "ghl";
+  /** True when this contact already showed at an earlier booking (second meeting, not a reschedule). */
+  is_follow_up?: boolean;
   contacts?: {
     industry: string | null;
     state: string | null;
@@ -335,7 +337,24 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const ghlRows = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
         (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
       );
-      if (ghlRows.length === 0) return items;
+      // Follow-up (second) meetings need each contact's full booking history,
+      // not just the rows inside the reporting window.
+      const withFollowUps = async (merged: BookedAppointmentReportItem[]) => {
+        const ids = [...new Set(merged.map((m) => m.contact_id))];
+        const history: BookingHistoryRow[] = [];
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data: hist, error: histError } = await supabase
+            .from("pipeline_items")
+            .select("id, contact_id, scheduled_for, appointment_outcome")
+            .eq("pipeline_type", "booked")
+            .in("contact_id", ids.slice(i, i + 200));
+          if (histError) throw histError;
+          history.push(...((hist ?? []) as BookingHistoryRow[]));
+        }
+        return markFollowUpMeetings(merged, history);
+      };
+
+      if (ghlRows.length === 0) return withFollowUps(items);
 
       const ghlContactIds = [...new Set(ghlRows.map((r) => r.contact_id).filter((id): id is string => !!id))];
       const bookedAtByContact = new Map<string, string>();
@@ -359,7 +378,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         const { id, ...rest } = c;
         contactsById.set(id, rest);
       }
-      return mergeGhlOnlyMeetings(items, ghlRows, bookers, contactsById);
+      return withFollowUps(mergeGhlOnlyMeetings(items, ghlRows, bookers, contactsById));
     },
   });
 }

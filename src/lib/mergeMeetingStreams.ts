@@ -165,3 +165,38 @@ export function inferBookers(
   for (const [contactId, userId] of anyCall) if (!result.has(contactId)) result.set(contactId, userId);
   return result;
 }
+
+const SHOWED_SET = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up"]);
+
+export interface BookingHistoryRow {
+  id: string;
+  contact_id: string;
+  scheduled_for: string | null;
+  appointment_outcome: string | null;
+}
+
+/**
+ * Mark each booking as a follow-up meeting when the same contact already SAT
+ * and showed at an earlier booking (an earlier calendar day). A reschedule is
+ * the same first meeting moved, so it is not a follow-up; the prior sitting
+ * must actually have showed. `history` should include every booking for the
+ * contacts in `items`, not just the ones in the reporting window.
+ */
+export function markFollowUpMeetings<T extends BookingHistoryRow>(items: T[], history: BookingHistoryRow[]): (T & { is_follow_up: boolean })[] {
+  const showedDaysByContact = new Map<string, Set<string>>();
+  const note = (row: BookingHistoryRow) => {
+    if (!row.scheduled_for || !row.appointment_outcome || !SHOWED_SET.has(row.appointment_outcome)) return;
+    const set = showedDaysByContact.get(row.contact_id) ?? new Set<string>();
+    set.add(localDateKey(row.scheduled_for));
+    showedDaysByContact.set(row.contact_id, set);
+  };
+  history.forEach(note);
+  items.forEach(note);
+  return items.map((item) => {
+    if (!item.scheduled_for) return { ...item, is_follow_up: false };
+    const day = localDateKey(item.scheduled_for);
+    const days = showedDaysByContact.get(item.contact_id);
+    const hasEarlierShow = !!days && [...days].some((d) => d < day);
+    return { ...item, is_follow_up: hasEarlierShow };
+  });
+}
