@@ -378,7 +378,23 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         const { id, ...rest } = c;
         contactsById.set(id, rest);
       }
-      return withFollowUps(mergeGhlOnlyMeetings(items, ghlRows, bookers, contactsById));
+      // Verdicts live on dialer bookings, which may be outside the window; pull
+      // them for the GHL contacts so a calendar-only sitting inherits the lead's verdict.
+      const { data: verdictRows, error: verdictError } = await supabase
+        .from("pipeline_items")
+        .select("contact_id, is_qualified")
+        .eq("pipeline_type", "booked")
+        .in("contact_id", ghlContactIds)
+        .not("is_qualified", "is", null);
+      if (verdictError) throw verdictError;
+      const verdictCarriers = (verdictRows ?? []).map((r) => ({
+        id: "", contact_id: r.contact_id, created_at: "", created_by: "", assigned_user_id: "", scheduled_for: null,
+        appointment_outcome: null, outcome_recorded_at: null, status: "completed" as const, deal_value: null,
+        monthly_recurring_value: null, reschedule_count: 0, is_qualified: r.is_qualified,
+      })) as BookedAppointmentReportItem[];
+      const mergedAll = mergeGhlOnlyMeetings([...items, ...verdictCarriers], ghlRows, bookers, contactsById);
+      // Drop the verdict carriers again; they were only there to seed the verdict map.
+      return withFollowUps(mergedAll.filter((m) => m.id !== ""));
     },
   });
 }
