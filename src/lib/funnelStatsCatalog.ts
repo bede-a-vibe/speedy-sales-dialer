@@ -31,6 +31,8 @@ export interface StatDefinition {
   format: (m: ReportMetrics) => string;
   /** True if this metric is a percentage (formats deltas as pp). */
   isPercent?: boolean;
+  /** Plain-English rule for the glossary. Filled from METRIC_FORMULAS below. */
+  formula?: string;
 }
 
 function pct(numerator: number, denominator: number) {
@@ -146,7 +148,9 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "closed", label: "Closed", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.showedClosed, format: (m) => String(m.appointmentPerformance.setter.showedClosed) },
   { id: "cancelled", label: "Cancelled", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.cancelled, format: (m) => String(m.appointmentPerformance.setter.cancelled) },
   { id: "show_up_rate", label: "Show-Up Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "showed / (showed + no-shows + cancelled + rescheduled)", raw: (m) => m.appointmentPerformance.setter.showUpRate, format: (m) => `${m.appointmentPerformance.setter.showUpRate}%` },
-  { id: "close_rate", label: "Close Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "closed / showed", raw: (m) => m.appointmentPerformance.setter.closeRate, format: (m) => `${m.appointmentPerformance.setter.closeRate}%` },
+  { id: "pitched", label: "Pitched", category: "bookings", subgroup: "Post-Booking", subtext: "close or no-close recorded", raw: (m) => m.appointmentPerformance.setter.pitched, format: (m) => String(m.appointmentPerformance.setter.pitched) },
+  { id: "close_rate", label: "Close Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "closed / pitched, not-qualified excluded", raw: (m) => m.appointmentPerformance.setter.closeRate, format: (m) => `${m.appointmentPerformance.setter.closeRate}%` },
+  { id: "shown_to_close", label: "Shown → Close", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "closed / all showed", raw: (m) => m.appointmentPerformance.setter.showToCloseRate, format: (m) => `${m.appointmentPerformance.setter.showToCloseRate}%` },
   { id: "no_show_rate", label: "No-Show Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "ghosted / resolved slots", raw: (m) => m.appointmentPerformance.setter.noShowRate, format: (m) => `${m.appointmentPerformance.setter.noShowRate}%` },
   { id: "rescheduled", label: "Rescheduled", category: "bookings", subgroup: "Post-Booking", subtext: "slots that were moved", raw: (m) => m.appointmentPerformance.setter.rescheduled, format: (m) => String(m.appointmentPerformance.setter.rescheduled) },
   { id: "reschedule_rate", label: "Reschedule Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "moved / resolved slots", raw: (m) => m.appointmentPerformance.setter.rescheduleRate, format: (m) => `${m.appointmentPerformance.setter.rescheduleRate}%` },
@@ -168,9 +172,9 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "qualified_show_up_rate", label: "Qualified Show-Up Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "qualified only", raw: (m) => m.appointmentPerformance.setter.qualifiedShowUpRate, format: (m) => `${m.appointmentPerformance.setter.qualifiedShowUpRate}%` },
   { id: "unqualified_show_up_rate", label: "Unqualified Show-Up Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "not qualified only", raw: (m) => m.appointmentPerformance.setter.unqualifiedShowUpRate, format: (m) => `${m.appointmentPerformance.setter.unqualifiedShowUpRate}%` },
   { id: "qualified_closed", label: "Qualified Closed", category: "bookings", subgroup: "Qualification", raw: (m) => m.appointmentPerformance.setter.qualifiedClosed, format: (m) => String(m.appointmentPerformance.setter.qualifiedClosed) },
-  { id: "qualified_close_rate", label: "Qualified Lead Close Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "closed / qualified shows", raw: (m) => m.appointmentPerformance.setter.qualifiedCloseRate, format: (m) => `${m.appointmentPerformance.setter.qualifiedCloseRate}%` },
+  { id: "qualified_close_rate", label: "Qualified Lead Close Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "closed / qualified pitched", raw: (m) => m.appointmentPerformance.setter.qualifiedCloseRate, format: (m) => `${m.appointmentPerformance.setter.qualifiedCloseRate}%` },
   { id: "qualified_booking_close_rate", label: "Qualified Booking → Close", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "closed / qualified bookings", raw: (m) => pct(m.appointmentPerformance.setter.qualifiedClosed, m.appointmentPerformance.setter.qualifiedBookings), format: (m) => `${pct(m.appointmentPerformance.setter.qualifiedClosed, m.appointmentPerformance.setter.qualifiedBookings)}%` },
-  { id: "unqualified_close_rate", label: "Unqualified Close Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "closed / not-qualified shows", raw: (m) => m.appointmentPerformance.setter.unqualifiedCloseRate, format: (m) => `${m.appointmentPerformance.setter.unqualifiedCloseRate}%` },
+  { id: "unqualified_close_rate", label: "Unqualified Close Rate", category: "bookings", subgroup: "Qualification", isPercent: true, subtext: "closed / not-qualified pitched", raw: (m) => m.appointmentPerformance.setter.unqualifiedCloseRate, format: (m) => `${m.appointmentPerformance.setter.unqualifiedCloseRate}%` },
   { id: "qualified_verbal", label: "Qualified Verbals", category: "bookings", subgroup: "Qualification", raw: (m) => m.appointmentPerformance.setter.qualifiedVerbal, format: (m) => String(m.appointmentPerformance.setter.qualifiedVerbal) },
 
   { id: "cash_collected", label: "One-Off Collected", category: "bookings", subgroup: "Revenue", subtext: "setup / one-off fees on closes", raw: (m) => m.appointmentPerformance.setter.cashCollected, format: (m) => `$${m.appointmentPerformance.setter.cashCollected.toLocaleString()}` },
@@ -180,6 +184,86 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "avg_retainer", label: "Avg Retainer", category: "bookings", subgroup: "Revenue", subtext: "monthly, per close", raw: (m) => m.appointmentPerformance.setter.averageRetainer, format: (m) => `$${m.appointmentPerformance.setter.averageRetainer.toLocaleString()}` },
   { id: "avg_one_off", label: "Avg One-Off", category: "bookings", subgroup: "Revenue", subtext: "setup fee, per close", raw: (m) => m.appointmentPerformance.setter.averageOneOff, format: (m) => `$${m.appointmentPerformance.setter.averageOneOff.toLocaleString()}` },
 ];
+
+/**
+ * The metric glossary. One plain-English rule per stat, shown in the
+ * Definitions dialog on the Custom Monitor and exported to docs/metrics-glossary.md.
+ * Bede's rules (12 Oct 2026):
+ *  - A booked slot resolves one of four ways: showed, no-show, cancelled, rescheduled.
+ *  - Show-up rate = showed / every resolved slot scheduled for the day.
+ *  - Close rate = closed / pitched, with meetings marked not qualified excluded.
+ *  - Shown → Close = closed / all showed, qualified or not.
+ *  - Unjudged qualification is unknown, never "not qualified".
+ */
+export const METRIC_FORMULAS: Record<string, string> = {
+  dials: "Every call attempt logged in the dialer in the period, by date dialled.",
+  unique_leads: "Distinct contacts dialled at least once in the period.",
+  avg_attempts: "Dials ÷ unique leads dialled.",
+  pickups: "Dials answered by a person: not interested, DNC, follow-up, booked, or a gatekeeper. Voicemail and no answer are not pickups.",
+  pickup_rate: "Pick ups ÷ dials.",
+  talk_time: "Sum of Dialpad talk time across the period's dials (total call duration when talk time is missing).",
+  avg_talk_dial: "Talk time ÷ dials.",
+  avg_talk_pickup: "Talk time ÷ pick ups.",
+  conversations: "Dials where the rep tagged that the Connection stage was reached. Counted from the day stage tagging went live.",
+  dial_pickup: "Pick ups ÷ dials.",
+  pickup_conversation: "Conversations ÷ pick ups, both counted only from the day stage tagging went live.",
+  immediate_hang_ups: "Dials where the connection exit reason is 'hung up immediately'.",
+  short_hangups_15s: "Pick ups that ended in under 15 seconds.",
+  short_hangups_2m: "Pick ups that ended in under 2 minutes.",
+  long_dq: "Calls over 30 minutes that ended not interested, DNC or disqualified.",
+  no_answer: "Dials logged as no answer.",
+  voicemail: "Dials logged as voicemail (no message left; next number).",
+  not_interested: "Dials logged as not interested.",
+  dnc: "Dials logged as do not call.",
+  follow_ups: "Dials logged as follow-up (call back later).",
+  bookings_made: "Bookings created in the period, by the date the rep booked them, not the meeting date. Includes cold-call meetings that only exist in the GHL calendar.",
+  same_next_day_rate: "Bookings whose meeting is the same or next day ÷ bookings made.",
+  conversation_booking: "Bookings made ÷ conversations, both since stage tagging went live.",
+  pickup_booking: "Bookings made ÷ pick ups.",
+  lead_booked: "Bookings made ÷ unique leads dialled.",
+  showed: "Meetings scheduled in the period that showed: closed, no close, verbal, second meeting booked, or no-close follow-up. Counts sittings; a lead that met twice counts twice.",
+  unique_leads_showed: "Distinct businesses with at least one showed meeting in the period.",
+  first_meeting_show_up_rate: "Show-up rate on slots where the lead had not showed at an earlier meeting.",
+  follow_up_sat: "Resolved slots where the lead had already showed at an earlier meeting (a second meeting; a reschedule is not).",
+  follow_up_show_up_rate: "Showed ÷ resolved slots, second meetings only.",
+  no_shows: "Meetings logged as no-show (ghosted).",
+  closed: "Meetings logged as showed and closed.",
+  cancelled: "Meetings cancelled or disqualified before they sat, plus bookings cancelled by status.",
+  show_up_rate: "Showed ÷ every slot scheduled for the day that resolved (showed + no-shows + cancelled + rescheduled). Pending and upcoming slots are excluded.",
+  no_show_rate: "No-shows ÷ resolved slots. With cancellation and reschedule rate, the four buckets add to 100%.",
+  rescheduled: "Slots that were moved to another time (the old slot).",
+  reschedule_rate: "Rescheduled ÷ resolved slots.",
+  cancellation_rate: "Cancelled ÷ resolved slots.",
+  first_time_show_up_rate: "Show-up rate on slots that were never moved.",
+  rescheduled_sittings: "Resolved slots that had been moved at least once before they resolved.",
+  rescheduled_show_up_rate: "Show-up rate on slots moved at least once.",
+  multi_reschedule_show_up_rate: "Show-up rate on slots moved two or more times.",
+  pitched: "Meetings where a close decision was recorded: closed, no close, verbal commitment, or no-close follow-up. First or second meeting. 'Second meeting booked' is discovery only and is not a pitch.",
+  close_rate: "Closed ÷ pitched, with meetings marked not qualified removed from the denominator. Unjudged meetings stay in.",
+  shown_to_close: "Closed ÷ all showed meetings, qualified or not. 20 showed, 10 qualified, 10 closed = 50% here and 100% close rate.",
+  verbal_commitments: "Meetings logged as showed with a verbal commitment.",
+  verbal_rate: "Verbal commitments ÷ showed.",
+  qualified_bookings: "Bookings marked qualified by the setter or closer.",
+  disqualified_bookings: "Bookings marked not qualified.",
+  qualified_coverage: "Bookings with a qualified verdict ÷ all bookings. Shows how much of the sample has been judged.",
+  qualified_rate: "Qualified ÷ bookings with a verdict.",
+  qualified_showed: "Showed meetings marked qualified.",
+  showed_qualified_rate: "Qualified showed ÷ judged showed.",
+  qualified_show_up_rate: "Show-up rate on bookings marked qualified.",
+  unqualified_show_up_rate: "Show-up rate on bookings marked not qualified.",
+  qualified_closed: "Closed meetings marked qualified.",
+  qualified_close_rate: "Closed ÷ pitched, bookings marked qualified only.",
+  qualified_booking_close_rate: "Closed ÷ all bookings marked qualified, whether or not they sat.",
+  unqualified_close_rate: "Closed ÷ pitched, bookings marked not qualified only.",
+  qualified_verbal: "Verbal commitments on bookings marked qualified.",
+  cash_collected: "Sum of one-off / setup fees on closed meetings.",
+  retainers_won: "Sum of monthly retainers on closed meetings.",
+  closed_value: "First collection: one-off fee plus first retainer month, summed over closed meetings.",
+  avg_deal_value: "First collection ÷ closed meetings. A $4k retainer with no setup fee is a $4k deal.",
+  avg_retainer: "Retainers won ÷ closed meetings.",
+  avg_one_off: "One-off fees ÷ closed meetings.",
+};
+for (const stat of STAT_CATALOG) stat.formula = METRIC_FORMULAS[stat.id];
 
 export const STAT_CATALOG_BY_ID = new Map<string, StatDefinition>(
   STAT_CATALOG.map((stat) => [stat.id, stat]),

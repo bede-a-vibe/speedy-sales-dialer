@@ -11,14 +11,14 @@ import {
   User,
   Pencil,
   Plus,
-  BarChart3,
-} from "lucide-react";
+  BarChart3, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MetricPickerDialog } from "./MetricPickerDialog";
+import { MetricGlossaryDialog } from "./MetricGlossaryDialog";
 import { computeDelta, STAT_CATALOG_BY_ID, STAT_CATEGORY_LABEL } from "@/lib/funnelStatsCatalog";
 import type { ReportMetrics } from "@/lib/reportMetrics";
 import { BENCHMARK_DIMENSIONS, BENCHMARK_NONE } from "@/lib/benchmarkDimensions";
@@ -111,6 +111,7 @@ export function CustomStatGrid({
   canEditSegment,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(getInitialView);
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -269,6 +270,10 @@ export function CustomStatGrid({
               Bars
             </button>
           </div>
+          <Button variant="ghost" size="sm" onClick={() => setGlossaryOpen(true)} title="How each metric is worked out">
+            <BookOpen className="h-3.5 w-3.5" />
+            Definitions
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
             <Settings2 className="h-3.5 w-3.5" />
             Customize columns
@@ -419,6 +424,7 @@ export function CustomStatGrid({
         onApply={handleApply}
         onReset={onReset}
       />
+      <MetricGlossaryDialog open={glossaryOpen} onOpenChange={setGlossaryOpen} />
     </div>
   );
 }
