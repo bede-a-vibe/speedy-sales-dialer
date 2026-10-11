@@ -3,7 +3,7 @@ import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
 
 export type ReportCallLog = Pick<
   Tables<"call_logs">,
-  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds" | "exit_reason_connection" | "reached_connection"
+  "id" | "contact_id" | "outcome" | "created_at" | "user_id" | "dialpad_talk_time_seconds" | "dialpad_total_duration_seconds" | "exit_reason_connection" | "reached_connection" | "reached_commitment"
 >;
 export type ReportBookingItem = Pick<
   Tables<"pipeline_items">,
@@ -73,6 +73,14 @@ export interface AppointmentPerformanceMetrics {
   averageOneOff: number;
   cancelled: number;
   verbalCommitments: number;
+  /** verbal commitments / pitched — the closing-side commitment rate. */
+  verbalRateOfPitched: number;
+  /** Distinct leads that gave a verbal commitment in the window. */
+  verbalLeads: number;
+  /** Of those, leads that have a closed meeting. */
+  verbalLeadsClosed: number;
+  /** verbalLeadsClosed / verbalLeads */
+  verbalToCloseRate: number;
   // ---- Resolution buckets. A booked slot ends one of four ways: showed,
   // no-show, cancelled or rescheduled. Show-up rate = showed / all four, and
   // the other three rates use the same denominator so they add up to 100%.
@@ -175,6 +183,10 @@ export interface ReportMetrics {
     callBacks: number;
     pickUpToFollowUpRate: number;
     conversations: number;
+    /** Calls where the rep tagged the Commitment stage (the setter got a yes to the meeting). Since tagging launch. */
+    commitments: number;
+    /** commitments / conversations — the setting-side commitment rate. */
+    commitmentRate: number;
     /** Pickups on/after the conversation-tagging launch date. Use as the
      *  denominator for Pickup → Conversation so it stays apples-to-apples
      *  with `conversations` (which is also clipped to launch). */
@@ -399,6 +411,9 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const pitchedItems = items.filter((item) => !!item.appointment_outcome && PITCHED_OUTCOMES.has(item.appointment_outcome));
   const qualifiedPitchedItems = pitchedItems.filter((item) => item.is_qualified !== false);
   const closedAmong = (list: ReportBookingItem[]) => list.filter((item) => item.appointment_outcome === "showed_closed").length;
+  const verbalLeadIds = new Set(items.filter((item) => item.appointment_outcome === "showed_verbal_commitment").map((item) => item.contact_id));
+  const closedLeadIds = new Set(items.filter((item) => item.appointment_outcome === "showed_closed").map((item) => item.contact_id));
+  const verbalLeadsClosed = [...verbalLeadIds].filter((id) => closedLeadIds.has(id)).length;
 
   // ---- Reschedule history of the slots that resolved ----
   const rescheduleBucket = (item: ReportBookingItem): "0" | "1" | "2" | "3+" => {
@@ -452,6 +467,10 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       averageOneOff: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(cashCollected / appointmentOutcomeCounts.showed_closed) : 0,
       cancelled,
       verbalCommitments: appointmentOutcomeCounts.showed_verbal_commitment,
+      verbalRateOfPitched: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, pitchedItems.length),
+      verbalLeads: verbalLeadIds.size,
+      verbalLeadsClosed,
+      verbalToCloseRate: toPercent(verbalLeadsClosed, verbalLeadIds.size),
       noShowRate: toPercent(noShows, resolved.length),
       cancellationRate: toPercent(cancelled, resolved.length),
       rescheduledSittings: rescheduledResolved.length,
@@ -549,6 +568,9 @@ export function getReportMetrics({
   const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
   const conversations = filteredCallLogs.filter(
     (log) => log.reached_connection === true && toDateKey(log.created_at) >= launchDate,
+  ).length;
+  const commitments = filteredCallLogs.filter(
+    (log) => log.reached_commitment === true && toDateKey(log.created_at) >= launchDate,
   ).length;
   const pickUpsSinceLaunch = filteredCallLogs.filter(
     (log) => ANSWERED_OUTCOMES.has(log.outcome) && toDateKey(log.created_at) >= launchDate,
@@ -750,6 +772,8 @@ export function getReportMetrics({
       callBacks,
       pickUpToFollowUpRate: toPercent(callBacks, pickUps),
       conversations,
+      commitments,
+      commitmentRate: toPercent(commitments, conversations),
       pickUpsSinceLaunch,
       conversationToBookingRate,
       conversationMetricsScoped: rangeStartsBeforeLaunch,

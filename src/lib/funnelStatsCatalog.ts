@@ -2,20 +2,34 @@ import type { ReportMetrics } from "@/lib/reportMetrics";
 import { formatDurationSeconds } from "@/lib/duration";
 import { CONVERSATION_TAGGING_LAUNCH_LABEL } from "@/data/constants";
 
-export type StatCategory = "activity" | "conversations" | "outcomes" | "bookings";
+export type StatCategory = "activity" | "conversations" | "outcomes" | "bookings" | "closing";
+
+/** The two sides of the job. Setting ends when the booked meeting resolves; closing starts when the closer pitches. */
+export type StatSide = "setting" | "closing";
+export const SIDE_ORDER: StatSide[] = ["setting", "closing"];
+export const SIDE_LABEL: Record<StatSide, string> = { setting: "Setting", closing: "Closing" };
+export const STAT_SIDE: Record<StatCategory, StatSide> = {
+  activity: "setting",
+  conversations: "setting",
+  outcomes: "setting",
+  bookings: "setting",
+  closing: "closing",
+};
 
 export const STAT_CATEGORY_LABEL: Record<StatCategory, string> = {
   activity: "Activity",
   conversations: "Conversations",
   outcomes: "Outcomes",
   bookings: "Bookings",
+  closing: "Closing",
 };
 
 export const STAT_CATEGORY_DESCRIPTION: Record<StatCategory, string> = {
   activity: "Dials, leads, talk time",
   conversations: "Pickups, conversations & quality",
   outcomes: "Disposition results",
-  bookings: "Booked, showed, closed & revenue",
+  bookings: "Booked, qualified & showed",
+  closing: "Pitched, verbal, closed & revenue",
 };
 
 export interface StatDefinition {
@@ -76,6 +90,8 @@ export const STAT_CATALOG: StatDefinition[] = [
         ? "—"
         : `${pct(m.dialer.conversations, m.dialer.pickUpsSinceLaunch)}%`,
   },
+  { id: "call_commitments", label: "Call Commitments", category: "conversations", subgroup: "Volume", subtext: "reached the commitment stage", raw: (m) => m.dialer.commitments, format: (m) => String(m.dialer.commitments) },
+  { id: "call_commitment_rate", label: "Call Commitment Rate", category: "conversations", subgroup: "Conversion %", isPercent: true, subtext: "commitments / conversations", raw: (m) => m.dialer.commitmentRate, format: (m) => `${m.dialer.commitmentRate}%` },
   { id: "immediate_hang_ups", label: "Immediate Hang-Ups", category: "conversations", subgroup: "Quality", raw: (m) => m.dialer.immediateHangUps, format: (m) => String(m.dialer.immediateHangUps) },
   { id: "short_hangups_15s", label: "Short Hangups <15s", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder15s, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder15s) },
   { id: "short_hangups_2m", label: "Short Hangups <2m", category: "conversations", subgroup: "Quality", raw: (m) => m.outboundDiagnostic.shortHangupsUnder2m, format: (m) => String(m.outboundDiagnostic.shortHangupsUnder2m) },
@@ -160,7 +176,8 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "rescheduled_show_up_rate", label: "Show-Up Rate (rescheduled)", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "slots moved at least once", raw: (m) => m.appointmentPerformance.setter.rescheduledShowUpRate, format: (m) => `${m.appointmentPerformance.setter.rescheduledShowUpRate}%` },
   { id: "multi_reschedule_show_up_rate", label: "Show-Up Rate (moved 2+)", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "slots moved two or more times", raw: (m) => m.appointmentPerformance.setter.multiRescheduleShowUpRate, format: (m) => `${m.appointmentPerformance.setter.multiRescheduleShowUpRate}%` },
   { id: "verbal_commitments", label: "Verbal Commitments", category: "bookings", subgroup: "Post-Booking", raw: (m) => m.appointmentPerformance.setter.verbalCommitments, format: (m) => String(m.appointmentPerformance.setter.verbalCommitments) },
-  { id: "verbal_rate", label: "Verbal Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "verbal / showed", raw: (m) => m.appointmentPerformance.setter.verbalCommitmentRate, format: (m) => `${m.appointmentPerformance.setter.verbalCommitmentRate}%` },
+  { id: "verbal_rate", label: "Verbal Commitment Rate", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "verbal / pitched", raw: (m) => m.appointmentPerformance.setter.verbalRateOfPitched, format: (m) => `${m.appointmentPerformance.setter.verbalRateOfPitched}%` },
+  { id: "verbal_to_close", label: "Verbal → Closed", category: "bookings", subgroup: "Post-Booking", isPercent: true, subtext: "verbal leads that closed", raw: (m) => m.appointmentPerformance.setter.verbalToCloseRate, format: (m) => `${m.appointmentPerformance.setter.verbalToCloseRate}%` },
 
   // ===== Qualification (the setter's verdict on each booking; unjudged = unknown, not unqualified) =====
   { id: "qualified_bookings", label: "Qualified Bookings", category: "bookings", subgroup: "Qualification", subtext: "marked qualified", raw: (m) => m.appointmentPerformance.setter.qualifiedBookings, format: (m) => String(m.appointmentPerformance.setter.qualifiedBookings) },
@@ -242,7 +259,10 @@ export const METRIC_FORMULAS: Record<string, string> = {
   close_rate: "Closed ÷ pitched, with meetings marked not qualified removed from the denominator. Unjudged meetings stay in.",
   shown_to_close: "Closed ÷ all showed meetings, qualified or not. 20 showed, 10 qualified, 10 closed = 50% here and 100% close rate.",
   verbal_commitments: "Meetings logged as showed with a verbal commitment.",
-  verbal_rate: "Verbal commitments ÷ showed.",
+  verbal_rate: "Verbal commitments ÷ pitched. The closing-side commitment rate.",
+  verbal_to_close: "Leads that gave a verbal and then closed ÷ leads that gave a verbal (within the window).",
+  call_commitments: "Dials where the rep tagged the Commitment stage: the prospect agreed to the meeting on the call. Since stage tagging went live.",
+  call_commitment_rate: "Call commitments ÷ conversations. The setting-side commitment rate.",
   qualified_bookings: "Bookings marked qualified by the setter or closer.",
   disqualified_bookings: "Bookings marked not qualified.",
   qualified_coverage: "Bookings with a qualified verdict ÷ all bookings. Shows how much of the sample has been judged.",
@@ -265,6 +285,22 @@ export const METRIC_FORMULAS: Record<string, string> = {
 };
 for (const stat of STAT_CATALOG) stat.formula = METRIC_FORMULAS[stat.id];
 
+/** Closing side: everything from the pitch onward. Setting keeps booked → showed. */
+const CLOSING_SUBGROUP: Record<string, string> = {
+  pitched: "Pitch & close", close_rate: "Pitch & close", shown_to_close: "Pitch & close", closed: "Pitch & close",
+  verbal_commitments: "Verbal", verbal_rate: "Verbal", verbal_to_close: "Verbal", qualified_verbal: "Verbal",
+  follow_up_sat: "Second meetings", follow_up_show_up_rate: "Second meetings",
+  qualified_closed: "Qualified", qualified_close_rate: "Qualified", qualified_booking_close_rate: "Qualified", unqualified_close_rate: "Qualified",
+  cash_collected: "Revenue", retainers_won: "Revenue", closed_value: "Revenue", avg_deal_value: "Revenue", avg_retainer: "Revenue", avg_one_off: "Revenue",
+};
+for (const stat of STAT_CATALOG) {
+  const sub = CLOSING_SUBGROUP[stat.id];
+  if (sub) {
+    stat.category = "closing";
+    stat.subgroup = sub;
+  }
+}
+
 export const STAT_CATALOG_BY_ID = new Map<string, StatDefinition>(
   STAT_CATALOG.map((stat) => [stat.id, stat]),
 );
@@ -275,6 +311,7 @@ export function groupStatsByCategory(): Record<StatCategory, StatDefinition[]> {
     conversations: [],
     outcomes: [],
     bookings: [],
+    closing: [],
   };
   for (const stat of STAT_CATALOG) {
     out[stat.category].push(stat);

@@ -1,20 +1,22 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { STAT_CATALOG, STAT_CATEGORY_LABEL, type StatCategory } from "@/lib/funnelStatsCatalog";
+import { STAT_CATALOG, STAT_CATEGORY_LABEL, STAT_SIDE, SIDE_LABEL, SIDE_ORDER, type StatCategory } from "@/lib/funnelStatsCatalog";
 
 /**
  * Metric definitions, rendered straight from the stat catalog so the page
  * can never disagree with the numbers. Same text ships in docs/metrics-glossary.md.
  */
 const RULES = [
+  "Setting runs from the dial to the booked meeting resolving (showed, no-show, cancelled, rescheduled). Closing starts when the closer pitches.",
   "A booked slot resolves one of four ways: showed, no-show, cancelled, rescheduled. Pending and upcoming slots are not resolved.",
   "Show-up rate = showed ÷ every slot scheduled for the day that resolved. No-show, cancellation and reschedule rates share that denominator, so the four add to 100%.",
   "Pitched = a close decision was recorded on the meeting (closed, no close, verbal, no-close follow-up), first or second meeting.",
+  "Two commitment rates: Call Commitment Rate (setting) = calls reaching the commitment stage ÷ conversations; Verbal Commitment Rate (closing) = verbals ÷ pitched.",
   "Close rate = closed ÷ pitched, with meetings marked not qualified excluded. Shown → Close = closed ÷ all showed.",
   "A qualified verdict is set on the booking. Unjudged means unknown, never not qualified.",
   "Avg deal value = first collection: one-off fee plus the first retainer month.",
 ];
 
-const ORDER: StatCategory[] = ["activity", "conversations", "outcomes", "bookings"];
+const ORDER: StatCategory[] = ["activity", "conversations", "outcomes", "bookings", "closing"];
 
 export function MetricGlossaryDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -30,7 +32,10 @@ export function MetricGlossaryDialog({ open, onOpenChange }: { open: boolean; on
             {RULES.map((r) => <li key={r}>{r}</li>)}
           </ul>
         </div>
-        {ORDER.map((category) => {
+        {SIDE_ORDER.map((side) => (
+          <div key={side} className="space-y-3">
+            <h2 className="border-b border-border pb-1 text-[11px] font-mono uppercase tracking-widest text-primary">{SIDE_LABEL[side]} side</h2>
+        {ORDER.filter((category) => STAT_SIDE[category] === side).map((category) => {
           const stats = STAT_CATALOG.filter((s) => s.category === category);
           const subgroups = [...new Set(stats.map((s) => s.subgroup ?? ""))];
           return (
@@ -55,6 +60,8 @@ export function MetricGlossaryDialog({ open, onOpenChange }: { open: boolean; on
             </section>
           );
         })}
+          </div>
+        ))}
       </DialogContent>
     </Dialog>
   );
