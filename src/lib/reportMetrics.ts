@@ -117,13 +117,13 @@ export interface AppointmentPerformanceMetrics {
   disqualifiedBookings: number;
   /** judged / all bookings — how much of the sample has a verdict. */
   qualifiedCoverage: number;
-  /** qualified / judged */
+  /** qualified / all bookings. Unjudged bookings count as not qualified here. */
   qualifiedRate: number;
   qualifiedShowed: number;
   qualifiedNoShows: number;
   qualifiedClosed: number;
   qualifiedVerbal: number;
-  /** qualified shows / judged shows */
+  /** qualified shows / all shows. Unjudged shows count as not qualified here. */
   showedQualifiedRate: number;
   qualifiedShowUpRate: number;
   /** closed / pitched among bookings marked qualified */
@@ -404,7 +404,6 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const qualifiedClosed = qualified.filter((item) => item.appointment_outcome === "showed_closed").length;
   const unqualifiedClosed = unqualified.filter((item) => item.appointment_outcome === "showed_closed").length;
   const qualifiedVerbal = qualified.filter((item) => item.appointment_outcome === "showed_verbal_commitment").length;
-  const judgedShowed = judged.filter(isShowed).length;
 
   // ---- Pitched = a close decision was recorded on the meeting (first or
   // second). "Second meeting booked" is discovery only, so it is not a pitch.
@@ -490,12 +489,12 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       qualifiedBookings: qualified.length,
       disqualifiedBookings: unqualified.length,
       qualifiedCoverage: toPercent(judged.length, items.length),
-      qualifiedRate: toPercent(qualified.length, judged.length),
+      qualifiedRate: toPercent(qualified.length, items.length),
       qualifiedShowed: qualifiedShowedItems.length,
       qualifiedNoShows,
       qualifiedClosed,
       qualifiedVerbal,
-      showedQualifiedRate: toPercent(qualifiedShowedItems.length, judgedShowed),
+      showedQualifiedRate: toPercent(qualifiedShowedItems.length, showed),
       qualifiedShowUpRate: showUpOf(qualified),
       qualifiedCloseRate: toPercent(qualifiedClosed, pitchedItems.filter((item) => item.is_qualified === true).length),
       unqualifiedShowUpRate: showUpOf(unqualified),

@@ -78,11 +78,11 @@ Generated from `src/lib/funnelStatsCatalog.ts` (METRIC_FORMULAS). The Definition
 | Qualified Bookings | marked qualified | Bookings marked qualified by the setter or closer. |
 | Not Qualified | marked not qualified | Bookings marked not qualified. |
 | Verdict Coverage | bookings with a verdict | Bookings with a qualified verdict ÷ all bookings. Shows how much of the sample has been judged. |
-| Qualified Booking Rate | qualified / bookings with a verdict | Qualified ÷ bookings with a verdict. |
+| Qualified Booking Rate | qualified / all bookings | Bookings marked qualified ÷ all bookings. A booking with no verdict counts as not qualified here, so mark them. |
 | Qualified Showed |  | Showed meetings marked qualified. |
-| Showed → Qualified | qualified share of judged shows | Qualified showed ÷ judged showed. |
-| Qualified Show-Up Rate | qualified only | Show-up rate on bookings marked qualified. |
-| Unqualified Show-Up Rate | not qualified only | Show-up rate on bookings marked not qualified. |
+| Qualified Show Rate | qualified shows / all shows | Showed meetings marked qualified ÷ all showed meetings. 13 qualified of 26 shows = 50%. Unjudged shows count as not qualified here. |
+| Show-Up Rate (qualified) | showed / resolved, qualified bookings only | Show-up rate on bookings marked qualified. |
+| Show-Up Rate (not qualified) | showed / resolved, not-qualified bookings only | Show-up rate on bookings marked not qualified. |
 
 # Closing side
 
