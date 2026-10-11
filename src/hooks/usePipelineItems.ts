@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 import type { DealStage } from "@/data/constants";
+import { inferBookers, mergeGhlOnlyMeetings, type UnifiedMeetingLite } from "@/lib/mergeMeetingStreams";
 
 export type PipelineType = "follow_up" | "booked";
 export type PipelineStatus = "open" | "completed" | "canceled";
@@ -107,6 +108,10 @@ export interface BookedAppointmentReportItem {
   deal_value: number | null;
   monthly_recurring_value: number | null;
   reschedule_count: number;
+  /** Setter's qualification verdict on the booking (null = not judged yet). */
+  is_qualified?: boolean | null;
+  /** Which booking stream the row came from. GHL-only cold meetings are merged in. */
+  stream?: "dialer" | "ghl";
   contacts?: {
     industry: string | null;
     state: string | null;
@@ -271,7 +276,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 
@@ -290,22 +295,71 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
 
       if (error) throw error;
 
-      const items = (data ?? []) as BookedAppointmentReportItem[];
-      return items.filter((item) => {
-        // Compare using local date representations for timezone correctness
-        const toLocalDate = (iso: string) => {
-          const d = new Date(iso);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        };
-        const createdDate = toLocalDate(item.created_at);
-        const scheduledDate = item.scheduled_for ? toLocalDate(item.scheduled_for) : null;
-
+      // Compare using local date representations for timezone correctness
+      const toLocalDate = (iso: string) => {
+        const d = new Date(iso);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const inRange = (createdIso: string, scheduledIso: string | null) => {
+        const createdDate = toLocalDate(createdIso);
+        const scheduledDate = scheduledIso ? toLocalDate(scheduledIso) : null;
         const matchesCreatedRange = (!from || createdDate >= from) && (!to || createdDate <= to);
         const matchesScheduledRange =
           !!scheduledDate && (!from || scheduledDate >= from) && (!to || scheduledDate <= to);
-
         return matchesCreatedRange || matchesScheduledRange;
-      });
+      };
+
+      const items = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) =>
+        inRange(item.created_at, item.scheduled_for),
+      );
+
+      // Cold-call meetings that only exist in the GHL calendar (no dialer row).
+      // See mergeMeetingStreams.ts for why ads bookings are excluded.
+      let ghlQuery = supabase
+        .from("v_meetings_unified")
+        .select(
+          "id, stream, contact_id, start_time, booked_at, rep_user_id, resolved_outcome, outcome_reason, reschedule_count, mrr, led_to_deal, channel, is_linked, meeting_type, title",
+        )
+        .eq("stream", "ghl")
+        .eq("channel", "Cold Call")
+        .eq("is_linked", true);
+      if (from && to) {
+        const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+        const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+        ghlQuery = ghlQuery.or(
+          `and(booked_at.gte.${fromIso},booked_at.lte.${toIso}),and(start_time.gte.${fromIso},start_time.lte.${toIso})`,
+        );
+      }
+      const { data: ghlData, error: ghlError } = await ghlQuery;
+      if (ghlError) throw ghlError;
+      const ghlRows = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
+        (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
+      );
+      if (ghlRows.length === 0) return items;
+
+      const ghlContactIds = [...new Set(ghlRows.map((r) => r.contact_id).filter((id): id is string => !!id))];
+      const bookedAtByContact = new Map<string, string>();
+      for (const r of ghlRows) {
+        if (r.contact_id && r.booked_at) bookedAtByContact.set(r.contact_id, r.booked_at);
+      }
+      const [callsRes, contactsRes] = await Promise.all([
+        supabase.from("call_logs").select("contact_id, user_id, created_at").in("contact_id", ghlContactIds),
+        supabase
+          .from("contacts")
+          .select(
+            "id, industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count",
+          )
+          .in("id", ghlContactIds),
+      ]);
+      if (callsRes.error) throw callsRes.error;
+      if (contactsRes.error) throw contactsRes.error;
+      const bookers = inferBookers(callsRes.data ?? [], bookedAtByContact);
+      const contactsById = new Map<string, NonNullable<BookedAppointmentReportItem["contacts"]>>();
+      for (const c of contactsRes.data ?? []) {
+        const { id, ...rest } = c;
+        contactsById.set(id, rest);
+      }
+      return mergeGhlOnlyMeetings(items, ghlRows, bookers, contactsById);
     },
   });
 }
