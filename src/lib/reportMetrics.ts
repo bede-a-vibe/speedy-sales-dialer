@@ -10,6 +10,9 @@ export type ReportBookingItem = Pick<
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
 > & {
   monthly_recurring_value?: number | null;
+  /** Setter's qualification verdict on the booking; null = not judged yet. */
+  is_qualified?: boolean | null;
+  stream?: "dialer" | "ghl";
 };
 
 export type ReportContact = Pick<
@@ -47,8 +50,55 @@ export interface AppointmentPerformanceMetrics {
   rescheduleRate: number;
   resolvedAppointments: number;
   pendingOutcome: number;
+  /** One-off / setup fees across closes. */
   cashCollected: number;
+  /** Monthly retainers (MRR) won across closes. */
+  retainersWon: number;
+  /** One-off fees plus first retainer month across closes — the first collection. */
+  closedValue: number;
+  /** First collection per close: retainer + one-off. */
   averageDealValue: number;
+  /** Monthly retainer per close (closes with no retainer count as $0). */
+  averageRetainer: number;
+  /** One-off / setup fee per close (closes with no one-off count as $0). */
+  averageOneOff: number;
+  cancelled: number;
+  verbalCommitments: number;
+  // ---- Sitting buckets. A booked slot ends one of four ways: it sat (showed
+  // or no-show), it was moved (rescheduled), or it was called off (cancelled).
+  // Show-up and no-show rates are judged only on slots that sat. ----
+  /** no-shows / (showed + no-shows) — the ghost rate. */
+  noShowRate: number;
+  /** cancelled / all booked slots */
+  cancellationRate: number;
+  /** Slots that sat after being moved at least once. */
+  rescheduledSittings: number;
+  /** Show-up rate on slots that had been rescheduled at least once. */
+  rescheduledShowUpRate: number;
+  /** Show-up rate on slots never rescheduled. */
+  firstTimeShowUpRate: number;
+  /** Show-up rate on slots rescheduled two or more times. */
+  multiRescheduleShowUpRate: number;
+  /** Show-up rate by how many times the slot was moved before it sat. */
+  showUpByRescheduleCount: Array<{ reschedules: "0" | "1" | "2" | "3+"; sat: number; showed: number; noShows: number; showUpRate: number }>;
+  // ---- Qualification (from the setter's verdict on each booking) ----
+  judgedBookings: number;
+  qualifiedBookings: number;
+  disqualifiedBookings: number;
+  /** judged / all bookings — how much of the sample has a verdict. */
+  qualifiedCoverage: number;
+  /** qualified / judged */
+  qualifiedRate: number;
+  qualifiedShowed: number;
+  qualifiedNoShows: number;
+  qualifiedClosed: number;
+  qualifiedVerbal: number;
+  /** qualified shows / judged shows */
+  showedQualifiedRate: number;
+  qualifiedShowUpRate: number;
+  qualifiedCloseRate: number;
+  unqualifiedShowUpRate: number;
+  unqualifiedCloseRate: number;
 }
 
 export interface RepDialerMetrics {
@@ -227,35 +277,91 @@ function isSameOrNextDayBooking(item: ReportBookingItem) {
   return dayDifference === 0 || dayDifference === 1;
 }
 
+const SHOWED_OUTCOMES = new Set<AppointmentOutcomeKey>([
+  "showed_closed",
+  "showed_no_close",
+  "showed_verbal_commitment",
+  "second_meeting_booked",
+  "no_close_follow_up",
+]);
+
+function isShowed(item: ReportBookingItem) {
+  return !!item.appointment_outcome && SHOWED_OUTCOMES.has(item.appointment_outcome);
+}
+
+/**
+ * First collection on a close: the one-off / setup fee plus the first month of
+ * the retainer. A $4k retainer with no setup fee is a $4k deal; a $2k setup
+ * plus $2k retainer is also $4k.
+ */
+function firstCollection(item: ReportBookingItem) {
+  return (item.deal_value ?? 0) + (item.monthly_recurring_value ?? 0);
+}
+
 function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const appointmentOutcomeCounts = createAppointmentOutcomeCounts();
 
   let cashCollected = 0;
+  let retainersWon = 0;
+  let closedValue = 0;
 
   for (const item of items) {
     if (item.appointment_outcome) {
       appointmentOutcomeCounts[item.appointment_outcome] += 1;
     }
-    if (item.appointment_outcome === "showed_closed" && item.deal_value != null) {
-      cashCollected += item.deal_value;
+    if (item.appointment_outcome === "showed_closed") {
+      cashCollected += item.deal_value ?? 0;
+      retainersWon += item.monthly_recurring_value ?? 0;
+      closedValue += firstCollection(item);
     }
   }
 
   const resolvedAppointments = items.filter((item) => !!item.appointment_outcome).length;
-  const showed =
-    appointmentOutcomeCounts.showed_closed
-    + appointmentOutcomeCounts.showed_no_close
-    + appointmentOutcomeCounts.showed_verbal_commitment
-    + appointmentOutcomeCounts.second_meeting_booked
-    + appointmentOutcomeCounts.no_close_follow_up;
+  const showed = items.filter(isShowed).length;
+  const noShows = appointmentOutcomeCounts.no_show;
   const pendingOutcome = items.filter(
     (item) => !item.appointment_outcome && item.scheduled_for && new Date(item.scheduled_for) < new Date(),
   ).length;
 
+  // ---- Qualification. Only bookings with a verdict count on either side;
+  // an unjudged booking is unknown, not unqualified. ----
+  const judged = items.filter((item) => item.is_qualified != null);
+  const qualified = judged.filter((item) => item.is_qualified === true);
+  const unqualified = judged.filter((item) => item.is_qualified === false);
+  const qualifiedShowedItems = qualified.filter(isShowed);
+  const unqualifiedShowedItems = unqualified.filter(isShowed);
+  const qualifiedNoShows = qualified.filter((item) => item.appointment_outcome === "no_show").length;
+  const unqualifiedNoShows = unqualified.filter((item) => item.appointment_outcome === "no_show").length;
+  const qualifiedClosed = qualified.filter((item) => item.appointment_outcome === "showed_closed").length;
+  const unqualifiedClosed = unqualified.filter((item) => item.appointment_outcome === "showed_closed").length;
+  const qualifiedVerbal = qualified.filter((item) => item.appointment_outcome === "showed_verbal_commitment").length;
+  const judgedShowed = judged.filter(isShowed).length;
+
+  // ---- Reschedule history of the slots that actually sat ----
+  const sat = items.filter((item) => isShowed(item) || item.appointment_outcome === "no_show");
+  const rescheduleBucket = (item: ReportBookingItem): "0" | "1" | "2" | "3+" => {
+    const n = item.reschedule_count ?? 0;
+    return n <= 0 ? "0" : n === 1 ? "1" : n === 2 ? "2" : "3+";
+  };
+  const showUpByRescheduleCount = (["0", "1", "2", "3+"] as const).map((bucket) => {
+    const slots = sat.filter((item) => rescheduleBucket(item) === bucket);
+    const showedCount = slots.filter(isShowed).length;
+    return {
+      reschedules: bucket,
+      sat: slots.length,
+      showed: showedCount,
+      noShows: slots.length - showedCount,
+      showUpRate: toPercent(showedCount, slots.length),
+    };
+  });
+  const rescheduledSat = sat.filter((item) => (item.reschedule_count ?? 0) > 0);
+  const firstTimeSat = sat.filter((item) => (item.reschedule_count ?? 0) === 0);
+  const multiRescheduledSat = sat.filter((item) => (item.reschedule_count ?? 0) >= 2);
+
   return {
     metrics: {
       appointmentsScheduled: items.length,
-      noShows: appointmentOutcomeCounts.no_show,
+      noShows,
       rescheduled: appointmentOutcomeCounts.rescheduled,
       showedClosed: appointmentOutcomeCounts.showed_closed,
       showedNoClose: appointmentOutcomeCounts.showed_no_close,
@@ -263,14 +369,43 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       secondMeetingsBooked: appointmentOutcomeCounts.second_meeting_booked,
       noCloseFollowUps: appointmentOutcomeCounts.no_close_follow_up,
       showed,
-      showUpRate: toPercent(showed, items.length),
+      // Cancelled, rescheduled, pending and upcoming are not evidence either
+      // way, so they stay out of the denominator.
+      showUpRate: toPercent(showed, showed + noShows),
       closeRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       verbalCommitmentRate: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, showed),
       rescheduleRate: toPercent(appointmentOutcomeCounts.rescheduled, items.length),
       resolvedAppointments,
       pendingOutcome,
       cashCollected,
-      averageDealValue: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(cashCollected / appointmentOutcomeCounts.showed_closed) : 0,
+      retainersWon,
+      closedValue,
+      averageDealValue: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(closedValue / appointmentOutcomeCounts.showed_closed) : 0,
+      averageRetainer: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(retainersWon / appointmentOutcomeCounts.showed_closed) : 0,
+      averageOneOff: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(cashCollected / appointmentOutcomeCounts.showed_closed) : 0,
+      cancelled: appointmentOutcomeCounts.cancelled,
+      verbalCommitments: appointmentOutcomeCounts.showed_verbal_commitment,
+      noShowRate: toPercent(noShows, showed + noShows),
+      cancellationRate: toPercent(appointmentOutcomeCounts.cancelled, items.length),
+      rescheduledSittings: rescheduledSat.length,
+      rescheduledShowUpRate: toPercent(rescheduledSat.filter(isShowed).length, rescheduledSat.length),
+      firstTimeShowUpRate: toPercent(firstTimeSat.filter(isShowed).length, firstTimeSat.length),
+      multiRescheduleShowUpRate: toPercent(multiRescheduledSat.filter(isShowed).length, multiRescheduledSat.length),
+      showUpByRescheduleCount,
+      judgedBookings: judged.length,
+      qualifiedBookings: qualified.length,
+      disqualifiedBookings: unqualified.length,
+      qualifiedCoverage: toPercent(judged.length, items.length),
+      qualifiedRate: toPercent(qualified.length, judged.length),
+      qualifiedShowed: qualifiedShowedItems.length,
+      qualifiedNoShows,
+      qualifiedClosed,
+      qualifiedVerbal,
+      showedQualifiedRate: toPercent(qualifiedShowedItems.length, judgedShowed),
+      qualifiedShowUpRate: toPercent(qualifiedShowedItems.length, qualifiedShowedItems.length + qualifiedNoShows),
+      qualifiedCloseRate: toPercent(qualifiedClosed, qualifiedShowedItems.length),
+      unqualifiedShowUpRate: toPercent(unqualifiedShowedItems.length, unqualifiedShowedItems.length + unqualifiedNoShows),
+      unqualifiedCloseRate: toPercent(unqualifiedClosed, unqualifiedShowedItems.length),
     } satisfies AppointmentPerformanceMetrics,
     outcomeCounts: appointmentOutcomeCounts,
   };
