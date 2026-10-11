@@ -7010,6 +7010,230 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ---------------------------------------------------------------
+      // Dialpad number pool management (admin only).
+      // Reserved numbers in Dialpad = GET /numbers?status=available. A rep can
+      // hold several numbers; the dialer rotates the outbound caller ID among
+      // the numbers assigned to that rep (caller_id_pool). Numbers stay
+      // assigned so callbacks still ring the rep — never swap a rep's primary.
+      // ---------------------------------------------------------------
+      case "list_dialpad_numbers": {
+        if (!isAdmin) return jsonResponse({ error: "Admin access required" }, 403);
+        const available: unknown[] = [];
+        let cursor: string | null = null;
+        for (let page = 0; page < 20; page++) {
+          const qs = new URLSearchParams({ status: "available" });
+          if (typeof params.area_code === "string" && params.area_code) qs.set("area_code", params.area_code);
+          if (cursor) qs.set("cursor", cursor);
+          const res = await fetch(`${DIALPAD_BASE}/numbers?${qs}`, {
+            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok) {
+            return jsonResponse({ error: `Dialpad API error [${res.status}]`, details: payload }, res.status);
+          }
+          const items = isRecord(payload) && Array.isArray(payload.items) ? payload.items : [];
+          available.push(...items);
+          cursor = isRecord(payload) && typeof payload.cursor === "string" && payload.cursor ? payload.cursor : null;
+          if (!cursor) break;
+        }
+
+        const { data: settingsRows, error: settingsError } = await adminClient
+          .from("dialpad_settings")
+          .select("user_id, dialpad_user_id, dialpad_phone_number")
+          .eq("is_active", true);
+        if (settingsError) return jsonResponse({ error: "Failed to read dialpad_settings", details: settingsError.message }, 500);
+
+        const users: unknown[] = [];
+        for (const row of settingsRows ?? []) {
+          const res = await fetch(`${DIALPAD_BASE}/users/${row.dialpad_user_id}`, {
+            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+          });
+          const payload = await res.json().catch(() => null);
+          users.push({
+            user_id: row.user_id,
+            dialpad_user_id: row.dialpad_user_id,
+            primary_number: row.dialpad_phone_number,
+            ok: res.ok,
+            phone_numbers: isRecord(payload) && Array.isArray(payload.phone_numbers) ? payload.phone_numbers : [],
+            display_name: isRecord(payload) && typeof payload.display_name === "string" ? payload.display_name : null,
+            error: res.ok ? null : payload,
+          });
+        }
+        return jsonResponse({ available, users });
+      }
+
+      case "assign_dialpad_number":
+      case "unassign_dialpad_number": {
+        if (!isAdmin) return jsonResponse({ error: "Admin access required" }, 403);
+        const number = typeof params.number === "string" ? params.number.trim() : "";
+        if (!/^\+\d{8,15}$/.test(number)) return jsonResponse({ error: "number must be E.164 (e.g. +61485976919)" }, 400);
+
+        const poolAreaCode = (e164: string): string | null => {
+          if (/^\+614/.test(e164)) return "04";
+          if (/^\+612/.test(e164)) return "02";
+          if (/^\+613/.test(e164)) return "03";
+          if (/^\+617/.test(e164)) return "07";
+          if (/^\+618/.test(e164)) return "08";
+          return null;
+        };
+        const poolRegion: Record<string, string> = { "02": "NSW/ACT", "03": "VIC/TAS", "04": "Mobile", "07": "QLD", "08": "WA/SA/NT" };
+
+        if (action === "assign_dialpad_number") {
+          const targetUserId = typeof params.user_id === "string" ? params.user_id : "";
+          if (!targetUserId) return jsonResponse({ error: "user_id is required" }, 400);
+          const { data: settings, error: settingsError } = await adminClient
+            .from("dialpad_settings")
+            .select("dialpad_user_id")
+            .eq("user_id", targetUserId)
+            .eq("is_active", true)
+            .maybeSingle();
+          if (settingsError) return jsonResponse({ error: "Failed to read dialpad_settings", details: settingsError.message }, 500);
+          if (!settings?.dialpad_user_id) return jsonResponse({ error: "That rep has no active Dialpad user configured" }, 400);
+
+          const { count: poolCount } = await adminClient
+            .from("caller_id_pool")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", targetUserId)
+            .eq("is_active", true);
+          if ((poolCount ?? 0) >= 8) return jsonResponse({ error: "Pool cap is 8 active numbers per rep" }, 400);
+
+          const targetId = /^\d+$/.test(settings.dialpad_user_id) ? Number(settings.dialpad_user_id) : settings.dialpad_user_id;
+          const res = await fetch(`${DIALPAD_BASE}/numbers/${encodeURIComponent(number)}/assign`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ target_id: targetId, target_type: "user", primary: false }),
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok) return jsonResponse({ error: `Dialpad API error [${res.status}]`, details: payload }, res.status);
+
+          const areaCode = poolAreaCode(number);
+          const { data: existing } = await adminClient
+            .from("caller_id_pool")
+            .select("id")
+            .eq("user_id", targetUserId)
+            .eq("phone_number", number)
+            .maybeSingle();
+          if (existing?.id) {
+            await adminClient
+              .from("caller_id_pool")
+              .update({ is_active: true, owned_attested: true, attested_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+              .eq("id", existing.id);
+          } else {
+            const { data: maxRow } = await adminClient
+              .from("caller_id_pool")
+              .select("position")
+              .eq("user_id", targetUserId)
+              .order("position", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            await adminClient.from("caller_id_pool").insert({
+              user_id: targetUserId,
+              phone_number: number,
+              label: "Dialpad",
+              position: (maxRow?.position ?? -1) + 1,
+              is_active: true,
+              owned_attested: true,
+              attested_at: new Date().toISOString(),
+              area_code: areaCode,
+              region: areaCode ? poolRegion[areaCode] ?? null : null,
+              created_by: user.id,
+            });
+          }
+          return jsonResponse({ ok: true, number, dialpad: payload });
+        }
+
+        // unassign: back to the company's reserved pool (never released)
+        const res = await fetch(`${DIALPAD_BASE}/numbers/${encodeURIComponent(number)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) return jsonResponse({ error: `Dialpad API error [${res.status}]`, details: payload }, res.status);
+        await adminClient
+          .from("caller_id_pool")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("phone_number", number);
+        return jsonResponse({ ok: true, number, dialpad: payload });
+      }
+
+      case "sync_caller_id_pool": {
+        if (!isAdmin) return jsonResponse({ error: "Admin access required" }, 403);
+        const onlyUserId = typeof params.user_id === "string" && params.user_id ? params.user_id : null;
+        let settingsQuery = adminClient.from("dialpad_settings").select("user_id, dialpad_user_id").eq("is_active", true);
+        if (onlyUserId) settingsQuery = settingsQuery.eq("user_id", onlyUserId);
+        const { data: settingsRows, error: settingsError } = await settingsQuery;
+        if (settingsError) return jsonResponse({ error: "Failed to read dialpad_settings", details: settingsError.message }, 500);
+
+        const areaCodeOf = (e164: string): string | null => {
+          if (/^\+614/.test(e164)) return "04";
+          if (/^\+612/.test(e164)) return "02";
+          if (/^\+613/.test(e164)) return "03";
+          if (/^\+617/.test(e164)) return "07";
+          if (/^\+618/.test(e164)) return "08";
+          return null;
+        };
+        const regionOf: Record<string, string> = { "02": "NSW/ACT", "03": "VIC/TAS", "04": "Mobile", "07": "QLD", "08": "WA/SA/NT" };
+        const summary: unknown[] = [];
+
+        for (const row of settingsRows ?? []) {
+          const res = await fetch(`${DIALPAD_BASE}/users/${row.dialpad_user_id}`, {
+            headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok) {
+            summary.push({ user_id: row.user_id, ok: false, error: payload });
+            continue;
+          }
+          const numbers = (isRecord(payload) && Array.isArray(payload.phone_numbers) ? payload.phone_numbers : [])
+            .filter((n): n is string => typeof n === "string" && /^\+\d{8,15}$/.test(n));
+
+          const { data: poolRows } = await adminClient
+            .from("caller_id_pool")
+            .select("id, phone_number, position, is_active, label")
+            .eq("user_id", row.user_id)
+            .order("position", { ascending: true });
+          const pool = poolRows ?? [];
+          let nextPosition = pool.length ? Math.max(...pool.map((p) => p.position)) + 1 : 0;
+          let added = 0, reactivated = 0, deactivated = 0;
+
+          for (const n of numbers) {
+            const found = pool.find((p) => p.phone_number === n);
+            if (found) {
+              if (!found.is_active) {
+                await adminClient.from("caller_id_pool").update({ is_active: true, updated_at: new Date().toISOString() }).eq("id", found.id);
+                reactivated++;
+              }
+              continue;
+            }
+            if (pool.filter((p) => p.is_active).length + added >= 8) break;
+            const areaCode = areaCodeOf(n);
+            await adminClient.from("caller_id_pool").insert({
+              user_id: row.user_id,
+              phone_number: n,
+              label: "Dialpad",
+              position: nextPosition++,
+              is_active: true,
+              owned_attested: true,
+              attested_at: new Date().toISOString(),
+              area_code: areaCode,
+              region: areaCode ? regionOf[areaCode] ?? null : null,
+              created_by: user.id,
+            });
+            added++;
+          }
+          // Numbers that came from Dialpad but are no longer on the user go inactive.
+          for (const p of pool) {
+            if (p.is_active && p.label === "Dialpad" && !numbers.includes(p.phone_number)) {
+              await adminClient.from("caller_id_pool").update({ is_active: false, updated_at: new Date().toISOString() }).eq("id", p.id);
+              deactivated++;
+            }
+          }
+          summary.push({ user_id: row.user_id, ok: true, dialpad_numbers: numbers, added, reactivated, deactivated });
+        }
+        return jsonResponse({ ok: true, summary });
+      }
+
       case "sync_users": {
         
 

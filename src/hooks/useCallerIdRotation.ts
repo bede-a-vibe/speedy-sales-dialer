@@ -7,7 +7,7 @@ import { deriveLeadAreaCode, AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "
  * Caller ID rotation.
  *
  * Every rep can be assigned a pool of up to 8 outbound caller ID numbers.
- * The dialer rotates which one is used every 40 dials so no single number
+ * The dialer rotates which one is used every 50 dials so no single number
  * gets spam-flagged as the team scales.
  *
  * LOCAL PRESENCE: when the CURRENT lead has a derivable AU area code, we
@@ -19,7 +19,7 @@ import { deriveLeadAreaCode, AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "
  * eligible for rotation — no blank / unattested CLI.
  *
  * Formula (per candidate subset):
- *   subset[floor(rotation_dial_count / 40) % subset.length]
+ *   subset[floor(rotation_dial_count / 50) % subset.length]
  *
  * If the pool is empty this hook returns `activeNumber = null` and the dialer
  * falls back to its existing single-number behaviour (`selectedCallerId` /
@@ -40,7 +40,7 @@ export interface CallerIdPoolEntry {
   attested_at: string | null;
 }
 
-const ROTATION_INTERVAL = 40;
+const ROTATION_INTERVAL = 50;
 
 export type CallerIdSelectionReason = "local" | "rotation" | "fallback";
 

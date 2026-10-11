@@ -7,13 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Radio, RotateCcw } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Radio, RotateCcw, RefreshCw, Download, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "@/lib/callingCompliance";
 
 const MAX_POOL_SIZE = 8;
-const ROTATION_INTERVAL = 40;
+const ROTATION_INTERVAL = 50;
 
 function deriveAreaCode(e164: string): AuAreaCode | null {
   if (/^\+614/.test(e164)) return "04";
@@ -26,7 +26,7 @@ function deriveAreaCode(e164: string): AuAreaCode | null {
 
 // Accepts E.164 (+61...) or Australian mobile / landline forms; we normalize to E.164.
 function normalizeToE164(raw: string): string | null {
-  const trimmed = raw.trim().replace(/[\s()\-]/g, "");
+  const trimmed = raw.trim().replace(/[\s()-]/g, "");
   if (!trimmed) return null;
   if (/^\+\d{8,15}$/.test(trimmed)) return trimmed;
   // AU mobile 04xxxxxxxx → +614xxxxxxxx
@@ -208,6 +208,61 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
     onError: () => toast.error("Failed to reset counter."),
   });
 
+  // ---- Dialpad reserved-number pool (admin, via the dialpad edge function) ----
+  const [reservedOpen, setReservedOpen] = useState(false);
+  const reservedQuery = useQuery({
+    queryKey: ["dialpad-reserved-numbers"],
+    enabled: reservedOpen,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("dialpad", { body: { action: "list_dialpad_numbers" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Dialpad request failed");
+      return data as {
+        available: Array<{ number: string; area_code?: string | null; type?: string | null; status?: string | null }>;
+        users: Array<{ user_id: string; dialpad_user_id: string; primary_number: string | null; ok: boolean; phone_numbers: string[]; display_name: string | null }>;
+      };
+    },
+  });
+  const invokeDialpad = async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("dialpad", { body });
+    if (error) throw error;
+    if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Dialpad request failed");
+    return data;
+  };
+  const syncFromDialpad = useMutation({
+    mutationFn: () => invokeDialpad({ action: "sync_caller_id_pool", user_id: selectedUserId }),
+    onSuccess: (data) => {
+      const row = data?.summary?.[0];
+      toast.success(row?.ok ? `Synced: ${row.added} added, ${row.reactivated} reactivated, ${row.deactivated} deactivated.` : "Synced.");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["dialpad-reserved-numbers"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Sync failed."),
+  });
+  const assignFromDialpad = useMutation({
+    mutationFn: (number: string) => invokeDialpad({ action: "assign_dialpad_number", number, user_id: selectedUserId }),
+    onSuccess: (_d, number) => {
+      toast.success(`${number} assigned in Dialpad and added to rotation.`);
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["dialpad-reserved-numbers"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Assign failed."),
+  });
+  const returnToDialpad = useMutation({
+    mutationFn: (number: string) => invokeDialpad({ action: "unassign_dialpad_number", number }),
+    onSuccess: (_d, number) => {
+      toast.success(`${number} returned to the Dialpad reserved pool.`);
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["dialpad-reserved-numbers"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Unassign failed."),
+  });
+  const selectedRepLabel = profiles.find((p) => p.user_id === selectedUserId)?.display_name
+    ?? profiles.find((p) => p.user_id === selectedUserId)?.email
+    ?? "this rep";
+  const repDialpad = reservedQuery.data?.users.find((u) => u.user_id === selectedUserId);
+
   const move = (index: number, delta: number) => {
     const target = pool[index + delta];
     if (!target) return;
@@ -321,6 +376,21 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
                             <Button variant="ghost" size="icon" disabled={idx === pool.length - 1} onClick={() => move(idx, 1)}>
                               <ArrowDown className="h-4 w-4" />
                             </Button>
+                            {row.label === "Dialpad" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Unassign in Dialpad and return it to the reserved pool"
+                                disabled={returnToDialpad.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Return ${row.phone_number} to the Dialpad reserved pool? Callbacks to it will no longer reach ${selectedRepLabel}.`)) {
+                                    returnToDialpad.mutate(row.phone_number);
+                                  }
+                                }}
+                              >
+                                <Undo2 className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" onClick={() => removeNumber.mutate(row.id)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -370,6 +440,91 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
                 Required by AU telemarketing rules — only owned, answerable numbers may be used as caller ID. Never present a blank or withheld CLI.
               </span>
             </label>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Dialpad numbers</p>
+                <p className="text-xs text-muted-foreground">
+                  Reserved numbers sit unassigned in Dialpad. Assigning one to {selectedRepLabel} keeps it on them so callbacks still ring, and the dialer rotates the caller ID across their numbers every {ROTATION_INTERVAL} dials.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={syncFromDialpad.isPending}
+                  onClick={() => syncFromDialpad.mutate()}
+                  title="Pull this rep's numbers from Dialpad into the rotation pool"
+                >
+                  {syncFromDialpad.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Sync from Dialpad
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={reservedQuery.isFetching}
+                  onClick={() => {
+                    if (reservedOpen) reservedQuery.refetch();
+                    else setReservedOpen(true);
+                  }}
+                >
+                  {reservedQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  {reservedOpen ? "Reload reserved" : "Load reserved numbers"}
+                </Button>
+              </div>
+            </div>
+
+            {reservedQuery.isError && (
+              <p className="mt-3 text-xs text-destructive">
+                {reservedQuery.error instanceof Error ? reservedQuery.error.message : "Could not reach Dialpad."}
+              </p>
+            )}
+
+            {reservedQuery.data && (
+              <div className="mt-3 space-y-3">
+                {repDialpad && (
+                  <p className="text-xs text-muted-foreground">
+                    Dialpad currently has {repDialpad.phone_numbers.length} number{repDialpad.phone_numbers.length === 1 ? "" : "s"} on {selectedRepLabel}:{" "}
+                    <span className="font-mono text-foreground">{repDialpad.phone_numbers.join(", ") || "none"}</span>
+                  </p>
+                )}
+                {reservedQuery.data.available.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No reserved numbers in Dialpad right now.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Reserved number</TableHead>
+                        <TableHead>Area</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="w-[180px] text-right">Assign</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reservedQuery.data.available.map((n) => (
+                        <TableRow key={n.number}>
+                          <TableCell className="font-mono text-sm">{n.number}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{n.area_code ?? deriveAreaCode(n.number) ?? "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{n.type ?? "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={assignFromDialpad.isPending || activePool.length >= MAX_POOL_SIZE}
+                              onClick={() => assignFromDialpad.mutate(n.number)}
+                            >
+                              Assign to {selectedRepLabel}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
