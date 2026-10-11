@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Search, X, ArrowUp, ArrowDown, GripVertical, RotateCcw } from "lucide-react";
 import {
   Dialog,
@@ -79,6 +81,23 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
 
   const toggle = (id: string) => {
     setDraftIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  // Drag to reorder the selected columns. The grip is the handle, so the
+  // arrow and remove buttons keep working as plain clicks.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setDraftIds((prev) => {
+      const from = prev.indexOf(String(active.id));
+      const to = prev.indexOf(String(over.id));
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
+    });
   };
 
   const move = (id: string, direction: "up" | "down") => {
@@ -240,15 +259,13 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
                     No columns selected. Tick metrics on the left.
                   </p>
                 ) : (
-                  draftIds.map((id, idx) => {
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={draftIds} strategy={verticalListSortingStrategy}>
+                  {draftIds.map((id, idx) => {
                     const stat = STAT_CATALOG_BY_ID.get(id);
                     if (!stat) return null;
                     return (
-                      <div
-                        key={id}
-                        className="group flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5"
-                      >
-                        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                      <SortableRow key={id} id={id}>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-foreground truncate">{stat.label}</div>
                           <div className="text-[10px] text-muted-foreground truncate">
@@ -283,9 +300,11 @@ export function MetricPickerDialog({ open, onOpenChange, selectedIds, onApply, o
                             <X className="h-3 w-3" />
                           </button>
                         </div>
-                      </div>
+                      </SortableRow>
                     );
-                  })
+                  })}
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </ScrollArea>
@@ -343,5 +362,35 @@ function MetricRow({
         )}
       </div>
     </label>
+  );
+}
+
+/** One selected column. The grip carries the drag listeners; the rest of the row stays clickable. */
+function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: transform ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)` : undefined,
+        transition,
+      }}
+      className={cn(
+        "group flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5",
+        isDragging && "relative z-10 shadow-md ring-1 ring-primary/40",
+      )}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground/60 hover:text-foreground active:cursor-grabbing"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      {children}
+    </div>
   );
 }
