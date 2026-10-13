@@ -63,6 +63,9 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
       rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
     const showed = sum("showed");
     const noshow = sum("noshow");
+    const cancelled = sum("cancelled");
+    const rescheduled = sum("rescheduled");
+    const resolved = showed + noshow + cancelled + rescheduled;
     const won = sum("contacts_won");
     const booked = sum("contacts_booked");
     const shown = sum("contacts_showed");
@@ -70,13 +73,16 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
       meetings: sum("meetings_booked"),
       showed,
       noshow,
+      cancelled,
+      rescheduled,
+      resolved,
       pending: sum("pending"),
       reschedules: sum("reschedules"),
       upcoming: sum("upcoming"),
       won,
       mrr: sum("mrr"),
       amount: sum("total_amount"),
-      showRate: showed + noshow > 0 ? Math.round((1000 * showed) / (showed + noshow)) / 10 : null,
+      showRate: resolved > 0 ? Math.round((1000 * showed) / resolved) / 10 : null,
       closeFromShow: shown > 0 ? Math.round((1000 * won) / shown) / 10 : null,
       closeFromBooked: booked > 0 ? Math.round((1000 * won) / booked) / 10 : null,
     };
@@ -99,7 +105,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
               outcome recorded ({pendingShare}% of meetings in this range).
             </p>
             <p className="text-muted-foreground">
-              Show rate below is calculated on the {totals.showed + totals.noshow} meetings that were
+              Show rate below is calculated on the {totals.resolved} meetings that were
               dispositioned. Clearing the queue on the{" "}
               <Link to="/meetings" className="font-medium underline underline-offset-2">
                 Meetings page
@@ -265,12 +271,14 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
         )}
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          Show rate = showed ÷ (showed + no-show). Meetings with no recorded outcome are excluded
-          from the denominator rather than counted as no-shows, and a rescheduled meeting is counted
-          as moved rather than missed — "Moved" is how many times meetings were pushed, with the
-          share of meetings affected in brackets. Close rate counts distinct contacts
-          with a signed deal dated on or after the booking, so one client with three meetings counts
-          once.
+          Show rate = showed ÷ (showed + no-show + cancelled + rescheduled): every meeting that was
+          on the calendar for its day and resolved one way or the other. Meetings with no recorded
+          outcome are excluded from the denominator rather than counted as no-shows. A setter booking
+          appears in both the dialer and the GHL calendar; it is counted once here (the dialer row wins),
+          and onboarding calls are left out. "Moved" is how many times meetings were pushed, with the
+          share of meetings affected in brackets. Close rate counts distinct contacts with a signed deal
+          dated on or after the booking, so one client with three meetings counts once. MRR is monthly
+          retainers won; One-off is setup and one-off fees only.
         </p>
       </ReportSection>
     </div>

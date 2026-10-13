@@ -79,6 +79,7 @@ export interface PipelineItemWithRelations {
     id: string;
     business_name: string;
     contact_person: string | null;
+    dm_name: string | null;
     industry: string;
     phone: string;
     state: string | null;
@@ -170,6 +171,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
             id,
             business_name,
             contact_person,
+            dm_name,
             industry,
             phone,
             state,
@@ -253,6 +255,7 @@ export function useContactPipelineItems(contactId?: string) {
             id,
             business_name,
             contact_person,
+            dm_name,
             industry,
             phone,
             state,

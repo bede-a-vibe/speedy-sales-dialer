@@ -368,6 +368,8 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   let cashCollected = 0;
   let retainersWon = 0;
   let closedValue = 0;
+  let retainerDeals = 0;
+  let oneOffDeals = 0;
 
   for (const item of items) {
     if (item.appointment_outcome) {
@@ -376,6 +378,8 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
     if (item.appointment_outcome === "showed_closed") {
       cashCollected += item.deal_value ?? 0;
       retainersWon += item.monthly_recurring_value ?? 0;
+      if ((item.monthly_recurring_value ?? 0) > 0) retainerDeals += 1;
+      if ((item.deal_value ?? 0) > 0) oneOffDeals += 1;
       closedValue += firstCollection(item);
     }
   }
@@ -462,8 +466,10 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       retainersWon,
       closedValue,
       averageDealValue: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(closedValue / appointmentOutcomeCounts.showed_closed) : 0,
-      averageRetainer: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(retainersWon / appointmentOutcomeCounts.showed_closed) : 0,
-      averageOneOff: appointmentOutcomeCounts.showed_closed > 0 ? Math.round(cashCollected / appointmentOutcomeCounts.showed_closed) : 0,
+      // A one-off-only close must not drag the average retainer down (and vice versa):
+      // each average is taken over the closes that actually include that component.
+      averageRetainer: retainerDeals > 0 ? Math.round(retainersWon / retainerDeals) : 0,
+      averageOneOff: oneOffDeals > 0 ? Math.round(cashCollected / oneOffDeals) : 0,
       cancelled,
       verbalCommitments: appointmentOutcomeCounts.showed_verbal_commitment,
       verbalRateOfPitched: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, pitchedItems.length),

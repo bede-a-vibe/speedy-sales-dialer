@@ -5,6 +5,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
+import { RebookQueue } from "@/components/pipelines/RebookQueue";
+import { useRebookQueue } from "@/hooks/useRebookQueue";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
 import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
 import { Button } from "@/components/ui/button";
@@ -323,12 +325,14 @@ export default function PipelinesPage() {
   const activeTab =
     tabParam === "history" ? "history" :
     tabParam === "booked" ? "booked" :
+    tabParam === "rebook" ? "rebook" :
     tabParam === "closing" ? "closing" :
     tabParam === "meetings" ? "meetings" :
     "board";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
+  const { data: rebookItems = [] } = useRebookQueue();
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
@@ -413,6 +417,15 @@ export default function PipelinesPage() {
     if (historyFilter === "all") return completedBooked;
     return completedBooked.filter((item) => item.appointment_outcome === historyFilter);
   }, [completedBooked, historyFilter]);
+
+  // Said yes on the call, no signed agreement yet. Pinned so the outcome gets updated the day the contract lands.
+  const verbalCommitments = useMemo(
+    () =>
+      completedBooked
+        .filter((item) => item.appointment_outcome === "showed_verbal_commitment")
+        .sort((a, b) => (b.scheduled_for ?? "").localeCompare(a.scheduled_for ?? "")),
+    [completedBooked],
+  );
 
   const setterStats = useMemo(
     () => sortRepStats(buildRepStats(filteredHistory, (item) => item.created_by, repMap), setterSort),
@@ -669,6 +682,39 @@ export default function PipelinesPage() {
           </div>
         </div>
 
+        {historyFilter === "all" && verbalCommitments.length > 0 ? (
+          <div className="space-y-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Verbal commitments awaiting signature ({verbalCommitments.length})
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Said yes on the call but nothing signed yet. Once the agreement is in, change the outcome to Close and enter the first collection.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setHistoryFilter("showed_verbal_commitment")}>
+                Show only these
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {verbalCommitments.map((item) => (
+                <EditableHistoryCard
+                  key={`verbal-${item.id}`}
+                  item={item}
+                  repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
+                  setterName={repMap.get(item.created_by) || "Unknown rep"}
+                  reps={reps}
+                  isSaving={updatePipelineItem.isPending}
+                  onAssign={handleAssign}
+                  onRecordOutcome={handleBookedOutcome}
+                  onSaveLinks={handleSaveLinks}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <RepStatsTable
             title="Appointment setters"
@@ -798,6 +844,7 @@ export default function PipelinesPage() {
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
+            <TabsTrigger value="rebook">Rebook{rebookItems.length > 0 ? ` (${rebookItems.length})` : ""}</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
             <TabsTrigger value="closing">Close tracking</TabsTrigger>
             <TabsTrigger value="meetings">All meetings</TabsTrigger>
@@ -838,6 +885,9 @@ export default function PipelinesPage() {
                 />
               </>
             )}
+          </TabsContent>
+          <TabsContent value="rebook" className="mt-4">
+            <RebookQueue reps={reps} repMap={repMap} />
           </TabsContent>
           <TabsContent value="history" className="mt-4">
             {renderHistory()}

@@ -108,6 +108,6 @@ Generated from `src/lib/funnelStatsCatalog.ts` (METRIC_FORMULAS). The Definition
 | Retainers Won | monthly retainers on closes | Sum of monthly retainers on closed meetings. |
 | First Collection | one-off + first retainer month | First collection: one-off fee plus first retainer month, summed over closed meetings. |
 | Avg Deal Value | first collection per close | First collection ÷ closed meetings. A $4k retainer with no setup fee is a $4k deal. |
-| Avg Retainer | monthly, per close | Retainers won ÷ closed meetings. |
-| Avg One-Off | setup fee, per close | One-off fees ÷ closed meetings. |
+| Avg Retainer | monthly, per retainer close | Retainers won ÷ closes that include a retainer. A one-off-only close does not count. |
+| Avg One-Off | per one-off close | One-off fees ÷ closes that include a one-off fee. A retainer-only close does not count. |
 
