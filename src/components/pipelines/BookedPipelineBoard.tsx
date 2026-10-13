@@ -204,7 +204,7 @@ export function BookedPipelineBoard({
                               ghlStageId={item.ghl_stage_id}
                             />
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">{item.contacts?.contact_person || "No contact name"}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.contacts?.contact_person || item.contacts?.dm_name || "No contact name"}</p>
                         </div>
                         {stage.key === "stale" ? (
                           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />

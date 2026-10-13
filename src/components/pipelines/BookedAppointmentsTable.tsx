@@ -253,7 +253,7 @@ export function BookedAppointmentsTable({
             <CollapsibleContent>
               <div className="px-1 pt-2">
                 <div className="mb-2 space-y-1 text-xs text-muted-foreground">
-                  <p>{item.contacts?.contact_person || "No contact"} · {item.contacts?.industry}</p>
+                  <p>{item.contacts?.contact_person || item.contacts?.dm_name || "No contact"} · {item.contacts?.industry}</p>
                   <a href={`tel:${item.contacts?.phone || ""}`} className="inline-flex items-center gap-1 hover:text-foreground">
                     <Phone className="h-3 w-3" /> {item.contacts?.phone}
                   </a>
@@ -332,7 +332,7 @@ export function BookedAppointmentsTable({
                             />
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {item.contacts?.contact_person || "No contact"}
+                            {item.contacts?.contact_person || item.contacts?.dm_name || "No contact"}
                             {!item.contacts?.ghl_contact_id ? " · sync waits on contact link" : !item.ghl_opportunity_id ? " · contact linked, mirror pending" : ""}
                           </div>
                         </td>

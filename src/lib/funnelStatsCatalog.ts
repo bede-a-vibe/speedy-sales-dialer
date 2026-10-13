@@ -198,8 +198,8 @@ export const STAT_CATALOG: StatDefinition[] = [
   { id: "retainers_won", label: "Retainers Won", category: "bookings", subgroup: "Revenue", subtext: "monthly retainers on closes", raw: (m) => m.appointmentPerformance.setter.retainersWon, format: (m) => `$${m.appointmentPerformance.setter.retainersWon.toLocaleString()}` },
   { id: "closed_value", label: "First Collection", category: "bookings", subgroup: "Revenue", subtext: "one-off + first retainer month", raw: (m) => m.appointmentPerformance.setter.closedValue, format: (m) => `$${m.appointmentPerformance.setter.closedValue.toLocaleString()}` },
   { id: "avg_deal_value", label: "Avg Deal Value", category: "bookings", subgroup: "Revenue", subtext: "first collection per close", raw: (m) => m.appointmentPerformance.setter.averageDealValue, format: (m) => `$${m.appointmentPerformance.setter.averageDealValue.toLocaleString()}` },
-  { id: "avg_retainer", label: "Avg Retainer", category: "bookings", subgroup: "Revenue", subtext: "monthly, per close", raw: (m) => m.appointmentPerformance.setter.averageRetainer, format: (m) => `$${m.appointmentPerformance.setter.averageRetainer.toLocaleString()}` },
-  { id: "avg_one_off", label: "Avg One-Off", category: "bookings", subgroup: "Revenue", subtext: "setup fee, per close", raw: (m) => m.appointmentPerformance.setter.averageOneOff, format: (m) => `$${m.appointmentPerformance.setter.averageOneOff.toLocaleString()}` },
+  { id: "avg_retainer", label: "Avg Retainer", category: "bookings", subgroup: "Revenue", subtext: "monthly, per retainer close", raw: (m) => m.appointmentPerformance.setter.averageRetainer, format: (m) => `$${m.appointmentPerformance.setter.averageRetainer.toLocaleString()}` },
+  { id: "avg_one_off", label: "Avg One-Off", category: "bookings", subgroup: "Revenue", subtext: "per one-off close", raw: (m) => m.appointmentPerformance.setter.averageOneOff, format: (m) => `$${m.appointmentPerformance.setter.averageOneOff.toLocaleString()}` },
 ];
 
 /**
@@ -280,8 +280,8 @@ export const METRIC_FORMULAS: Record<string, string> = {
   retainers_won: "Sum of monthly retainers on closed meetings.",
   closed_value: "First collection: one-off fee plus first retainer month, summed over closed meetings.",
   avg_deal_value: "First collection ÷ closed meetings. A $4k retainer with no setup fee is a $4k deal.",
-  avg_retainer: "Retainers won ÷ closed meetings.",
-  avg_one_off: "One-off fees ÷ closed meetings.",
+  avg_retainer: "Retainers won ÷ closes that include a retainer. A one-off-only close does not count.",
+  avg_one_off: "One-off fees ÷ closes that include a one-off fee. A retainer-only close does not count.",
 };
 for (const stat of STAT_CATALOG) stat.formula = METRIC_FORMULAS[stat.id];
 
