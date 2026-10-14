@@ -112,6 +112,10 @@ export function ghlMeetingToBookingItem(
     monthly_recurring_value: row.led_to_deal && row.mrr ? row.mrr : null,
     reschedule_count: row.reschedule_count ?? 0,
     is_qualified: isQualified,
+    // The view already resolved this one through resolve_meeting_bucket, so
+    // pass it straight through. Re-deriving it from the mapped enum would put
+    // the rule back in two places, which is the bug this removed.
+    resolved_bucket: row.resolved_outcome,
     stream: "ghl",
     contacts: contacts ?? null,
   };
@@ -183,13 +187,13 @@ export function inferBookers(
   return result;
 }
 
-const SHOWED_SET = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up"]);
-
 export interface BookingHistoryRow {
   id: string;
   contact_id: string;
   scheduled_for: string | null;
   appointment_outcome: string | null;
+  /** From public.resolve_meeting_bucket() — the one rule for attendance. */
+  resolved_bucket?: string | null;
 }
 
 /**
@@ -202,7 +206,10 @@ export interface BookingHistoryRow {
 export function markFollowUpMeetings<T extends BookingHistoryRow>(items: T[], history: BookingHistoryRow[]): (T & { is_follow_up: boolean })[] {
   const showedDaysByContact = new Map<string, Set<string>>();
   const note = (row: BookingHistoryRow) => {
-    if (!row.scheduled_for || !row.appointment_outcome || !SHOWED_SET.has(row.appointment_outcome)) return;
+    // Note this now counts a disqualified meeting as a prior sitting, because
+    // it was one. The old local set left DQs out, so a lead DQ'd at the first
+    // meeting looked like a first-timer at the second.
+    if (!row.scheduled_for || row.resolved_bucket !== "showed") return;
     const set = showedDaysByContact.get(row.contact_id) ?? new Set<string>();
     set.add(localDateKey(row.scheduled_for));
     showedDaysByContact.set(row.contact_id, set);

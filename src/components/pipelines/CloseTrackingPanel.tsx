@@ -30,18 +30,14 @@ type Row = {
   phone_recording_url: string | null;
   deal_value: number | null;
   monthly_recurring_value: number | null;
+  /** From public.resolve_meeting_bucket() — the one rule for attendance. */
+  resolved_bucket: string | null;
   reschedule_count: number | null;
   contacts: { business_name: string | null; lead_channel: string | null; lead_source: string | null } | null;
 };
 
-const SHOWED: AppointmentOutcomeValue[] = [
-  "showed_closed",
-  "showed_no_close",
-  "no_close_follow_up",
-  "showed_verbal_commitment",
-  "second_meeting_booked",
-  "disqualified",
-];
+// Attendance is decided once, by public.resolve_meeting_bucket in the database.
+const didShow = (row: { resolved_bucket?: string | null }) => row.resolved_bucket === "showed";
 const NO_CLOSE: AppointmentOutcomeValue[] = ["showed_no_close", "no_close_follow_up"];
 
 const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
@@ -96,7 +92,7 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
       const { data, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, assigned_user_id, created_by, scheduled_for, appointment_outcome, outcome_reason, recording_url, phone_recording_url, deal_value, monthly_recurring_value, reschedule_count, contacts:contacts!pipeline_items_contact_id_fkey(business_name, lead_channel, lead_source)",
+          "id, contact_id, assigned_user_id, created_by, scheduled_for, appointment_outcome, outcome_reason, recording_url, phone_recording_url, deal_value, monthly_recurring_value, reschedule_count, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(business_name, lead_channel, lead_source)",
         )
         .eq("pipeline_type", "booked")
         .gte("scheduled_for", since)
@@ -126,7 +122,7 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
   const rescheduled = scoped.filter((r) => (r.reschedule_count ?? 0) > 0 || r.appointment_outcome === "rescheduled");
   // Every meeting that was due (had a result or was moved) is the base for the attendance rates.
   const due = scoped.filter((r) => r.appointment_outcome || (r.reschedule_count ?? 0) > 0).length;
-  const showed = recorded.filter((r) => SHOWED.includes(r.appointment_outcome!));
+  const showed = recorded.filter(didShow);
   const dq = showed.filter((r) => r.appointment_outcome === "disqualified");
   const qualified = showed.length - dq.length;
   const closed = showed.filter((r) => r.appointment_outcome === "showed_closed");
@@ -229,7 +225,7 @@ export function CloseTrackingPanel({ reps }: { reps: SalesRepOption[] }) {
                 {[...new Set(scoped.map(sourceOf))].sort().map((src) => {
                   const g = scoped.filter((r) => sourceOf(r) === src);
                   const gDue = g.filter((r) => r.appointment_outcome || (r.reschedule_count ?? 0) > 0).length;
-                  const gShow = g.filter((r) => r.appointment_outcome && SHOWED.includes(r.appointment_outcome));
+                  const gShow = g.filter(didShow);
                   const gDq = gShow.filter((r) => r.appointment_outcome === "disqualified").length;
                   const gClosed = gShow.filter((r) => r.appointment_outcome === "showed_closed");
                   const gRev = gClosed.reduce((s2, r) => s2 + (r.deal_value ?? 0) + (r.monthly_recurring_value ?? 0) * 12, 0);

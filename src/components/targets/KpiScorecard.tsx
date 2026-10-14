@@ -16,7 +16,10 @@ const ANSWERED = new Set(["booked", "not_interested", "follow_up", "dnc", "gatek
 // "disqualified" belongs here: the prospect sat the meeting and was judged
 // not qualified. TeamKpis already counted it; these two did not, so the same
 // meeting changed the show rate depending on which screen you opened.
-const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
+// Attendance comes from the database's resolved_bucket (one rule, in
+// public.resolve_meeting_bucket). This file used to keep its own copy of
+// the showed set, and the copies drifted.
+const didShow = (row: { resolved_bucket?: string | null }) => row.resolved_bucket === "showed";
 
 
 /** Per-call stage flags: manager review overrides the AI score. */
@@ -55,7 +58,7 @@ function useScorecardData(days: number) {
       }
       const [profiles, appts, dp, stages] = await Promise.all([
         supabase.from("profiles").select("user_id, display_name, email, created_at, is_active"),
-        supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
+        supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for, resolved_bucket")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
         fetchProductiveHours(since),
         fetchStages(since),
@@ -132,7 +135,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
         return v.length ? (100 * v.filter((x: any) => x[k]).length) / v.length : null;
       };
       const mine = data.appts.filter((a: any) => a.created_by === uid && a.appointment_outcome);
-      const showed = mine.filter((a: any) => SHOWED.has(a.appointment_outcome)).length;
+      const showed = mine.filter((a: any) => didShow(a)).length;
       const decided = mine.filter((a: any) => a.appointment_outcome !== "rescheduled").length;
       out.push({
         userId: uid,
@@ -150,7 +153,7 @@ export function KpiScorecard({ userId }: { userId?: string }) {
           problem_to_solution: rate("stage_problem_solution"),
           solution_to_commitment: rate("stage_solution_commit"),
           // Qualified = showed and progressed (closed, verbal, 2nd meeting, follow-up) — not a flat "showed, no close".
-          showed_to_qualified: showed ? (100 * mine.filter((a: any) => SHOWED.has(a.appointment_outcome) && a.appointment_outcome !== "showed_no_close").length) / showed : null,
+          showed_to_qualified: showed ? (100 * mine.filter((a: any) => didShow(a) && a.appointment_outcome !== "showed_no_close").length) / showed : null,
         },
       });
     }

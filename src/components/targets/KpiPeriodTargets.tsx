@@ -17,7 +17,10 @@ type Period = "day" | "week" | "month";
 // "disqualified" belongs here: the prospect sat the meeting and was judged
 // not qualified. TeamKpis already counted it; these two did not, so the same
 // meeting changed the show rate depending on which screen you opened.
-const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
+// Attendance comes from the database's resolved_bucket (one rule, in
+// public.resolve_meeting_bucket). This file used to keep its own copy of
+// the showed set, and the copies drifted.
+const didShow = (row: { resolved_bucket?: string | null }) => row.resolved_bucket === "showed";
 
 function periodStart(p: Period): Date {
   const d = new Date();
@@ -45,7 +48,7 @@ function usePeriodData(period: Period) {
       }
       const [profiles, appts, dp] = await Promise.all([
         supabase.from("profiles").select("user_id, display_name, email, created_at"),
-        supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for")
+        supabase.from("pipeline_items").select("created_by, appointment_outcome, scheduled_for, resolved_bucket")
           .eq("pipeline_type", "booked").gte("scheduled_for", since).lte("scheduled_for", new Date().toISOString()),
         fetchProductiveHours(since),
       ]);
@@ -116,7 +119,7 @@ export function KpiPeriodTargets({ userId, periods = ["day", "week", "month"] }:
       const worked = dp ? dp.days : perDay.size;
       const estimated = !dp;
       const mine = data.appts.filter((a: any) => a.created_by === uid);
-      const showed = mine.filter((a: any) => SHOWED.has(a.appointment_outcome)).length;
+      const showed = mine.filter((a: any) => didShow(a)).length;
       const closed = mine.filter((a: any) => a.appointment_outcome === "showed_closed").length;
       const full = periodDays(period);
       const mk = (label: string, actual: number, daily: number | null, digits: number): Metric => ({

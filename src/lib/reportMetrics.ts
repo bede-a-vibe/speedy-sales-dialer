@@ -15,6 +15,8 @@ export type ReportBookingItem = Pick<
   stream?: "dialer" | "ghl";
   /** The contact already showed at an earlier booking: a second meeting, not a reschedule. */
   is_follow_up?: boolean;
+  /** How the slot resolved, from public.resolve_meeting_bucket() in the database. */
+  resolved_bucket?: string | null;
 };
 
 export type ReportContact = Pick<
@@ -321,42 +323,36 @@ const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
   "no_close_follow_up",
 ]);
 
-const SHOWED_OUTCOMES = new Set<AppointmentOutcomeKey>([
-  "showed_closed",
-  "showed_no_close",
-  "showed_verbal_commitment",
-  "second_meeting_booked",
-  "no_close_follow_up",
-]);
-
+/** Did they turn up. Same single rule as every other surface. */
 function isShowed(item: ReportBookingItem) {
-  return !!item.appointment_outcome && SHOWED_OUTCOMES.has(item.appointment_outcome);
+  return bucketOf(item) === "showed";
 }
 
 type SlotBucket = "showed" | "noshow" | "cancelled" | "rescheduled";
 
+const SLOT_BUCKETS = new Set<SlotBucket>(["showed", "noshow", "cancelled", "rescheduled"]);
+
 /**
- * How a booked slot resolved. Bede's definition (12 Oct 2026): a slot either
- * showed, was ghosted (no-show), was called off (cancelled) or was moved
- * (rescheduled). Show-up rate is showed over all four; the other three are
- * reported as their own rates so they add up to 100%. Pending and upcoming
- * slots are not resolved and stay out of every denominator.
+ * How a booked slot resolved.
+ *
+ * This is NOT decided here. `resolved_bucket` comes from
+ * public.resolve_meeting_bucket() in the database, which is the single rule:
+ * showed / noshow / cancelled / rescheduled / upcoming / pending. The same
+ * function backs v_meetings_unified, so the Sources page, the Meetings page,
+ * get_rep_meeting_stats and everything built on getReportMetrics now answer
+ * from one definition.
+ *
+ * It used to be re-derived here from appointment_outcome, and the copy drifted:
+ * a disqualification counted as a sitting in this file and as a cancellation in
+ * the view, so the same 97 meetings read 36 showed on one page and 33 on
+ * another. If the rule needs to change, change the SQL function.
+ *
+ * Pending and upcoming slots are not resolved and return null, so they stay out
+ * of every denominator.
  */
 function bucketOf(item: ReportBookingItem): SlotBucket | null {
-  const o = item.appointment_outcome;
-  if (item.status === "canceled" && o !== "disqualified") return "cancelled";
-  if (!o) return null;
-  // A disqualification is a VERDICT on a meeting that happened, not a slot that
-  // failed. Bucketing it as cancelled charged the rep for a no-show on a call
-  // they actually sat, and pulled the lead out of the qualified-show denominator
-  // where it belongs as a judged "not qualified". It is checked before the
-  // cancelled status because the outcome, not the row status, is the truth here.
-  if (o === "disqualified") return "showed";
-  if (SHOWED_OUTCOMES.has(o)) return "showed";
-  if (o === "no_show") return "noshow";
-  if (o === "rescheduled") return "rescheduled";
-  if (o === "cancelled") return "cancelled";
-  return null;
+  const bucket = item.resolved_bucket;
+  return bucket && SLOT_BUCKETS.has(bucket as SlotBucket) ? (bucket as SlotBucket) : null;
 }
 
 /**
