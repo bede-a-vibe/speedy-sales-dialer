@@ -22,8 +22,15 @@ export interface ClosedDealCall {
   /** The meeting itself. Fathom share link, or the older recording_url column. */
   meetingRecordingUrl: string | null;
   meetingRecordingSource: "fathom" | "link" | null;
-  /** Days between the booking call and the meeting. */
+  /**
+   * Days from the booking call to the FIRST meeting it created — not to the
+   * meeting that eventually closed. Measuring to the close swallows no-shows
+   * and rebooks into what reads as a long lead time: JR Dixon showed 11 days
+   * when the set was 8 days out and the first meeting was ghosted.
+   */
   daysToMeeting: number | null;
+  /** Meetings before the one that closed: a ghosted first attempt or a second sitting. */
+  priorMeetings: number;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -65,7 +72,7 @@ export function useClosedDealCalls() {
       const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
       const itemIds = rows.map((r) => r.id);
 
-      const [callsRes, fathomRes] = await Promise.all([
+      const [callsRes, fathomRes, allSlotsRes] = await Promise.all([
         // The booking call for each of these contacts.
         supabase
           .from("call_logs")
@@ -77,9 +84,24 @@ export function useClosedDealCalls() {
           .from("fathom_meetings")
           .select("pipeline_item_id, share_url, start_at")
           .in("pipeline_item_id", itemIds),
+        supabase
+          .from("pipeline_items")
+          .select("contact_id, scheduled_for")
+          .eq("pipeline_type", "booked")
+          .in("contact_id", contactIds)
+          .order("scheduled_for", { ascending: true }),
       ]);
       if (callsRes.error) throw callsRes.error;
       if (fathomRes.error) throw fathomRes.error;
+      if (allSlotsRes.error) throw allSlotsRes.error;
+
+      const slotsByContact = new Map<string, string[]>();
+      for (const slot of allSlotsRes.data ?? []) {
+        if (!slot.contact_id || !slot.scheduled_for) continue;
+        const list = slotsByContact.get(slot.contact_id) ?? [];
+        list.push(slot.scheduled_for);
+        slotsByContact.set(slot.contact_id, list);
+      }
 
       const setterIds = [...new Set((callsRes.data ?? []).map((c) => c.user_id).filter(Boolean))] as string[];
       const { data: profiles } = setterIds.length
@@ -99,10 +121,15 @@ export function useClosedDealCalls() {
         .map((r) => {
           const call = callByContact.get(r.contact_id);
           const fathom = fathomByItem.get(r.id) ?? null;
+          const slots = slotsByContact.get(r.contact_id) ?? [];
+          const firstSlot = slots[0] ?? r.scheduled_for;
           const daysToMeeting =
-            call && r.scheduled_for
-              ? Math.round((new Date(r.scheduled_for).getTime() - new Date(call.created_at).getTime()) / MS_PER_DAY)
+            call && firstSlot
+              ? Math.round((new Date(firstSlot).getTime() - new Date(call.created_at).getTime()) / MS_PER_DAY)
               : null;
+          const priorMeetings = r.scheduled_for
+            ? slots.filter((t) => new Date(t).getTime() < new Date(r.scheduled_for as string).getTime()).length
+            : 0;
           return {
             pipelineItemId: r.id,
             contactId: r.contact_id,
@@ -124,6 +151,7 @@ export function useClosedDealCalls() {
             meetingRecordingUrl: fathom ?? r.recording_url ?? null,
             meetingRecordingSource: fathom ? "fathom" : r.recording_url ? "link" : null,
             daysToMeeting,
+            priorMeetings,
           };
         });
     },

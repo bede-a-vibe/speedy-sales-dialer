@@ -31,8 +31,13 @@ function DealCard({ deal }: { deal: ClosedDealCall }) {
           <p className="text-[11px] text-muted-foreground">
             Closed {fmtDate(deal.metAt)}
             {deal.mrr ? ` · ${money(deal.mrr)}/mo` : ""}
-            {deal.daysToMeeting != null ? ` · booked ${deal.daysToMeeting} day${deal.daysToMeeting === 1 ? "" : "s"} out` : ""}
+            {deal.daysToMeeting != null ? ` · set ${deal.daysToMeeting} day${deal.daysToMeeting === 1 ? "" : "s"} out` : ""}
             {deal.setting?.setterName ? ` · set by ${deal.setting.setterName}` : ""}
+            {/* Named explicitly so a ghosted first attempt is never mistaken
+                for a long lead time, which is how it used to read. */}
+            {deal.priorMeetings > 0
+              ? ` · closed on attempt ${deal.priorMeetings + 1}`
+              : ""}
           </p>
         </div>
 
