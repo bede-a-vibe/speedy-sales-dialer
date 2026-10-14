@@ -13,7 +13,10 @@ import {
 } from "@/lib/kpiStandards";
 
 type Period = "day" | "week" | "month";
-const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up"]);
+// "disqualified" belongs here: the prospect sat the meeting and was judged
+// not qualified. TeamKpis already counted it; these two did not, so the same
+// meeting changed the show rate depending on which screen you opened.
+const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
 
 function periodStart(p: Period): Date {
   const d = new Date();
