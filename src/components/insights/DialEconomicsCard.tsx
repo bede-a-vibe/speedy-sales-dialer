@@ -29,19 +29,20 @@ export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; date
           <Coins className="h-4 w-4 text-primary" /> Dial economics
         </CardTitle>
         <CardDescription className="text-xs">
-          New monthly recurring revenue won per dial placed, in the selected range.
+          Cold calling only. New monthly recurring revenue from clients someone actually dialled,
+          per dial placed, in the selected range.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           label="$ per dial"
           value={isLoading || !data ? "—" : formatCurrencyCents(data.mrrPerDial)}
-          sub="new MRR ÷ dials"
+          sub="cold-call MRR ÷ dials"
           icon={DollarSign}
           highlight
         />
         <Metric label="Dials" value={isLoading || !data ? "—" : data.dials.toLocaleString()} sub="calls logged" icon={PhoneCall} />
-        <Metric label="New MRR won" value={isLoading || !data ? "—" : formatCurrency(data.newMrr)} sub="/mo, deals started" icon={Coins} />
+        <Metric label="New MRR won" value={isLoading || !data ? "—" : formatCurrency(data.newMrr)} sub="/mo, from dialling" icon={Coins} />
         <Metric
           label="Deals closed"
           value={isLoading || !data ? "—" : data.dealsClosed.toLocaleString()}
@@ -49,6 +50,15 @@ export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; date
           icon={Handshake}
         />
       </CardContent>
+      {data && data.excludedDeals > 0 ? (
+        <CardContent className="pt-0">
+          <p className="text-[11px] text-muted-foreground">
+            Excludes {data.excludedDeals} deal{data.excludedDeals === 1 ? "" : "s"} worth{" "}
+            {formatCurrency(data.excludedMrr)}/mo that nobody dialled — paid ads and inbound. Counting
+            those here would credit cold calling with revenue the ads bought.
+          </p>
+        </CardContent>
+      ) : null}
     </Card>
   );
 }
