@@ -343,13 +343,19 @@ type SlotBucket = "showed" | "noshow" | "cancelled" | "rescheduled";
  * slots are not resolved and stay out of every denominator.
  */
 function bucketOf(item: ReportBookingItem): SlotBucket | null {
-  if (item.status === "canceled") return "cancelled";
   const o = item.appointment_outcome;
+  if (item.status === "canceled" && o !== "disqualified") return "cancelled";
   if (!o) return null;
+  // A disqualification is a VERDICT on a meeting that happened, not a slot that
+  // failed. Bucketing it as cancelled charged the rep for a no-show on a call
+  // they actually sat, and pulled the lead out of the qualified-show denominator
+  // where it belongs as a judged "not qualified". It is checked before the
+  // cancelled status because the outcome, not the row status, is the truth here.
+  if (o === "disqualified") return "showed";
   if (SHOWED_OUTCOMES.has(o)) return "showed";
   if (o === "no_show") return "noshow";
   if (o === "rescheduled") return "rescheduled";
-  if (o === "cancelled" || o === "disqualified") return "cancelled";
+  if (o === "cancelled") return "cancelled";
   return null;
 }
 
