@@ -6,6 +6,11 @@ import { STAT_CATALOG, STAT_CATEGORY_LABEL, STAT_SIDE, SIDE_LABEL, SIDE_ORDER, t
  * can never disagree with the numbers. Same text ships in docs/metrics-glossary.md.
  */
 const RULES = [
+  // The two rules that made this page look like it contradicted the Sources
+  // tab: a different population, and two different date bases on one card.
+  "This page counts COLD CALL meetings only: dialer bookings plus GHL calendar meetings on the cold-call channel. Ads and inbound bookings are left out, so the Sources tab — which covers every channel — shows higher booked and lower show-up numbers for the same dates.",
+  "Two date bases sit on this page. Bookings Made counts by the day the booking was created; everything about the meeting itself (showed, no-show, show-up rate, close rate) counts by the day of the meeting. The same meetings give a different total under each.",
+  "A disqualification counts as a sitting: they turned up and were judged not qualified. It is not a no-show and not a cancellation.",
   "Setting runs from the dial to the booked meeting resolving (showed, no-show, cancelled, rescheduled). Closing starts when the closer pitches.",
   "A booked slot resolves one of four ways: showed, no-show, cancelled, rescheduled. Pending and upcoming slots are not resolved.",
   "Show-up rate = showed ÷ every slot scheduled for the day that resolved. No-show, cancellation and reschedule rates share that denominator, so the four add to 100%.",
