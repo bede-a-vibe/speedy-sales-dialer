@@ -5,6 +5,23 @@
  * to that cutoff — changing it moves the metric >4x and breaks every target.
  */
 export const PRODUCTIVE_IDLE_CUTOFF_MIN = 15;
+
+const MELBOURNE_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Melbourne",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * The reporting day for every KPI: a Melbourne calendar day.
+ *
+ * Days worked is the denominator for hours/day against the 7.5h target, so it
+ * cannot depend on the viewer's machine. This was previously duplicated in
+ * three KPI components using local getFullYear()/getMonth()/getDate(), which
+ * silently shifted day boundaries for anyone outside Melbourne.
+ */
+export const melbourneDayKey = (ms: number) => MELBOURNE_DAY.format(new Date(ms));
 /** 223 working days/yr after holidays + leave ÷ 12. Never 21.7. */
 export const PRODUCTIVE_DAYS_PER_MONTH = 18.6;
 
@@ -104,25 +121,6 @@ export function periodDays(period: "day" | "week" | "month"): number {
   return period === "day" ? 1 : period === "week" ? WORKING_DAYS_PER_WEEK : PRODUCTIVE_DAYS_PER_MONTH;
 }
 
-/**
- * Productive hours from real Dialpad call spans (start→end). Calls whose gap to
- * the previous call's end is ≤15 min are joined into one session; hours = sum of
- * session spans. Same locked cutoff, measured on actual call times.
- */
-export function productiveHoursFromCalls(spans: { start: number; end: number }[]): number {
-  if (!spans.length) return 0;
-  const s = [...spans].sort((a, b) => a.start - b.start);
-  const cutoff = PRODUCTIVE_IDLE_CUTOFF_MIN * 60_000;
-  let ms = 0, curStart = s[0].start, curEnd = Math.max(s[0].start, s[0].end);
-  for (let i = 1; i < s.length; i++) {
-    const { start, end } = s[i];
-    if (start - curEnd <= cutoff) curEnd = Math.max(curEnd, end);
-    else { ms += curEnd - curStart; curStart = start; curEnd = Math.max(start, end); }
-  }
-  ms += curEnd - curStart;
-  return ms / 3_600_000;
-}
-
 /** Locked dial-time allowance per dial (ring + connect handling), per owner definition. */
 export const DIAL_SECONDS_PER_DIAL = 25;
 
@@ -131,9 +129,11 @@ export const BOOKING_MINUTES = 5;
 
 /**
  * Productive dialling hours, owner definition: (dials × 25 seconds) + connected
- * talk time + (bookings × 5 minutes). Replaces the session-span measure for
- * reps with Dialpad calls; the span-based fallback above still covers reps
- * with none.
+ * talk time + (bookings × 5 minutes).
+ *
+ * Fed by fetchProductiveHours(), which counts calls from BOTH Dialpad and GHL.
+ * Reps with no call rows in either system fall back to productiveHours() above,
+ * which measures spans between dial timestamps instead.
  */
 export function productiveDiallingHours(dials: number, talkTimeSeconds: number, bookings = 0): number {
   return (dials * DIAL_SECONDS_PER_DIAL + (talkTimeSeconds || 0) + bookings * BOOKING_MINUTES * 60) / 3600;

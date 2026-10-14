@@ -26,6 +26,9 @@ async function fetchCalls(since: Date): Promise<Row[]> {
       .from("dialpad_calls")
       .select("user_id, call_log_id, contact_id, talk_time_seconds")
       .gte("started_at", since.toISOString())
+      // Unique stable sort: without it offset paging drops or repeats rows,
+      // which would quietly corrupt the very counts this panel reports.
+      .order("dialpad_call_id", { ascending: true })
       .range(from, from + 999);
     if (error) throw error;
     out.push(...((data ?? []) as Row[]));
