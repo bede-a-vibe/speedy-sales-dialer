@@ -64,24 +64,69 @@ export function monthsBetween(a: Date | string, b: Date | string): number {
   return Math.max(0, days / 30.44);
 }
 
-export function dealRevenueToDate(deal: ClientDealLike, now: Date = new Date()): number {
-  const amount = Number(deal.amount) || 0;
+/** Whole calendar months from a→b, counting only anniversaries actually reached. */
+export function calendarMonthsBetween(a: Date, b: Date): number {
+  let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+const PERIOD_DAYS: Partial<Record<BillingPeriod, number>> = { weekly: 7, fortnightly: 14 };
+const PERIOD_MONTHS: Partial<Record<BillingPeriod, number>> = { monthly: 1, quarterly: 3, annually: 12 };
+
+/**
+ * How many times the client has actually been invoiced.
+ *
+ * Odin bills the first period UP FRONT: a client who signed this morning has
+ * already paid once. Revenue was previously prorated by elapsed fraction of a
+ * month, so a deal signed today reported $32 of a $4,000 retainer and one
+ * signed three days ago reported $426. Those are not real numbers — nobody is
+ * invoiced by the hour.
+ *
+ * The two ends mean different things, which is why they are counted
+ * differently:
+ *  - An ENDED deal's end_date is the day billing stopped, i.e. the day after
+ *    the last paid period. Payments = whole periods between start and end.
+ *  - A LIVE deal is inside a period it has already paid for, so payments =
+ *    elapsed periods + 1.
+ */
+export function billedPeriods(deal: ClientDealLike, now: Date = new Date()): number {
   const start = new Date(deal.start_date);
   if (isNaN(start.getTime()) || start > now) return 0;
-  // Billing stops the day a deal is paused or ends — revenue must stop accruing there too.
+
   const stops: Date[] = [now];
   if (deal.end_date) stops.push(new Date(deal.end_date));
   if ((deal.status === "paused" || deal.status === "churned") && deal.paused_at) {
     stops.push(new Date(deal.paused_at));
   }
-  const effectiveEnd = stops
-    .filter((d) => !isNaN(d.getTime()))
-    .reduce((min, d) => (d < min ? d : min), now);
-  if (deal.billing_period === "one_off") {
-    return amount;
+  const valid = stops.filter((d) => !isNaN(d.getTime()));
+  const effectiveEnd = valid.reduce((min, d) => (d < min ? d : min), now);
+  const ended = effectiveEnd < now;
+
+  const months = PERIOD_MONTHS[deal.billing_period as BillingPeriod];
+  if (months) {
+    const elapsed = Math.floor(calendarMonthsBetween(start, effectiveEnd) / months);
+    return ended ? Math.max(1, elapsed) : elapsed + 1;
   }
-  const monthly = toMonthly(amount, deal.billing_period);
-  return monthly * monthsBetween(start, effectiveEnd);
+
+  const days = PERIOD_DAYS[deal.billing_period as BillingPeriod];
+  if (days) {
+    const elapsed = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY / days);
+    return ended ? Math.max(1, elapsed) : elapsed + 1;
+  }
+
+  return 1;
+}
+
+export function dealRevenueToDate(deal: ClientDealLike, now: Date = new Date()): number {
+  const amount = Number(deal.amount) || 0;
+  const start = new Date(deal.start_date);
+  if (isNaN(start.getTime()) || start > now) return 0;
+  // A one-off is collected once, on day one.
+  if (deal.billing_period === "one_off") return amount;
+  // amount is the per-period price, so this is cash invoiced — never normalise
+  // to monthly here or a weekly deal's revenue silently quadruples.
+  return amount * billedPeriods(deal, now);
 }
 
 export function formatCurrency(n: number): string {
