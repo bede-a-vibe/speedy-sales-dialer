@@ -118,7 +118,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
 
       <ReportSection
         title="Show rate & close rate by lead source"
-        description="Every booked meeting from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound)."
+        description="Every booked meeting from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound). This is the only view spanning every channel — the Funnel and Custom Monitor count cold call only, so their totals are smaller and their show rate higher. Compare those against the Cold Call row here, not the Total."
       >
         <div className="mb-4 flex flex-wrap items-center gap-4">
           <div className="space-y-1">
