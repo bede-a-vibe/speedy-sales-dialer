@@ -16,7 +16,10 @@ import { TARGET_FIELDS, targetsFor, type RoleKey, type TargetKey, type TeamTarge
 
 type Period = "day" | "week" | "month";
 const ANSWERED = new Set(["booked", "not_interested", "follow_up", "dnc", "gatekeeper", "disqualified"]);
-const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
+// Attendance comes from the database's resolved_bucket (one rule, in
+// public.resolve_meeting_bucket). This file used to keep its own copy of
+// the showed set, and the copies drifted.
+const didShow = (row: { resolved_bucket?: string | null }) => row.resolved_bucket === "showed";
 const DUE = (o: string | null) => !!o && o !== "rescheduled";
 
 function periodStart(p: Period) {
@@ -43,7 +46,7 @@ function useData(period: Period) {
       }
       const [profiles, booked, dp, scores, reviews] = await Promise.all([
         supabase.from("profiles").select("user_id, display_name, email, is_active"),
-        supabase.from("pipeline_items").select("created_by, assigned_user_id, appointment_outcome, is_qualified, created_at, scheduled_for")
+        supabase.from("pipeline_items").select("created_by, assigned_user_id, appointment_outcome, is_qualified, created_at, scheduled_for, resolved_bucket")
           .eq("pipeline_type", "booked").gte("created_at", since),
         fetchProductiveHours(since),
         supabase.from("call_scores").select("call_log_id, stage_problem_solution, stage_solution_commit, call_logs!inner(user_id)").gte("created_at", since).limit(5000),
@@ -204,9 +207,9 @@ export function TeamKpis() {
       const judged = mine.filter((b) => b.is_qualified != null);
       const qualified = mine.filter((b) => b.is_qualified === true);
       const due = mine.filter((b) => DUE(b.appointment_outcome));
-      const showed = due.filter((b) => SHOWED.has(b.appointment_outcome));
+      const showed = due.filter((b) => didShow(b));
       const qDue = qualified.filter((b) => DUE(b.appointment_outcome));
-      const qShowed = qDue.filter((b) => SHOWED.has(b.appointment_outcome));
+      const qShowed = qDue.filter((b) => didShow(b));
       const closeBase = showed.filter((b) => b.appointment_outcome !== "disqualified");
       const actual: Record<TargetKey, number | null> = {
         dialsPerDay: logs.length / worked,

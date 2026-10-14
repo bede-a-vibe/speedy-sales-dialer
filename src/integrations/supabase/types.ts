@@ -3071,6 +3071,8 @@ export type Database = {
       }
       pipeline_items: {
         Row: {
+          /** Computed column: public.resolved_bucket(pipeline_items). How the slot resolved, from the single rule in resolve_meeting_bucket(). */
+          resolved_bucket: string | null
           appointment_outcome:
             | Database["public"]["Enums"]["appointment_outcome"]
             | null

@@ -115,6 +115,14 @@ export interface BookedAppointmentReportItem {
   stream?: "dialer" | "ghl";
   /** True when this contact already showed at an earlier booking (second meeting, not a reschedule). */
   is_follow_up?: boolean;
+  /**
+   * How the slot resolved — showed / noshow / cancelled / rescheduled /
+   * upcoming / pending — decided by public.resolve_meeting_bucket in the
+   * database and read here rather than re-derived. That duplication is what
+   * let the Sources page and the Custom Monitor report different show rates
+   * for the same meetings.
+   */
+  resolved_bucket?: string | null;
   contacts?: {
     industry: string | null;
     state: string | null;
@@ -281,7 +289,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 
@@ -348,7 +356,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         for (let i = 0; i < ids.length; i += 200) {
           const { data: hist, error: histError } = await supabase
             .from("pipeline_items")
-            .select("id, contact_id, scheduled_for, appointment_outcome")
+            .select("id, contact_id, scheduled_for, appointment_outcome, resolved_bucket")
             .eq("pipeline_type", "booked")
             .in("contact_id", ids.slice(i, i + 200));
           if (histError) throw histError;
