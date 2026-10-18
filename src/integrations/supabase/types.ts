@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -3071,8 +3071,6 @@ export type Database = {
       }
       pipeline_items: {
         Row: {
-          /** Computed column: public.resolved_bucket(pipeline_items). How the slot resolved, from the single rule in resolve_meeting_bucket(). */
-          resolved_bucket: string | null
           appointment_outcome:
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
@@ -3107,6 +3105,7 @@ export type Database = {
           source_call_log_id: string | null
           status: Database["public"]["Enums"]["pipeline_status"]
           updated_at: string
+          resolved_bucket: string | null
         }
         Insert: {
           appointment_outcome?:
@@ -3973,6 +3972,20 @@ export type Database = {
         Returns: number
       }
       relink_ghl_appointments: { Args: never; Returns: Json }
+      resolve_meeting_bucket: {
+        Args: {
+          _outcome: Database["public"]["Enums"]["appointment_outcome"]
+          _scheduled_for: string
+          _status: Database["public"]["Enums"]["pipeline_status"]
+        }
+        Returns: string
+      }
+      resolved_bucket: {
+        Args: { "": Database["public"]["Tables"]["pipeline_items"]["Row"] }
+        Returns: {
+          error: true
+        } & "the function public.resolved_bucket with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
+      }
       set_appointment_outcome: {
         Args: {
           _appointment_id: string
