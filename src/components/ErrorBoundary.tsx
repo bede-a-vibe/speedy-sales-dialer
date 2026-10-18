@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isChunkLoadError, recoverChunkLoad } from "@/lib/chunkRecovery";
 
 interface Props {
   children: ReactNode;
@@ -24,9 +25,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("[ErrorBoundary]", error, errorInfo);
+    try {
+      recoverChunkLoad(error, window.sessionStorage, () => window.location.reload());
+    } catch {
+      // The manual reload remains available if browser storage is blocked.
+    }
   }
 
   handleRetry = () => {
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: null });
   };
 
