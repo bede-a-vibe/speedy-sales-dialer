@@ -758,7 +758,7 @@ async function aiExtractName(text: string, apiKey: string): Promise<string | nul
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3.1-flash-lite",
         temperature: 0.1,
         response_format: { type: "json_object" },
         messages: [
