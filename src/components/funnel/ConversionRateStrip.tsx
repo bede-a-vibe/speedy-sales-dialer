@@ -26,7 +26,9 @@ export function ConversionRateStrip({ metrics }: Props) {
   const sinceSubtext = scoped ? `Since ${CONVERSATION_TAGGING_LAUNCH_LABEL}` : undefined;
   const noDataSubtext = `No data before ${CONVERSATION_TAGGING_LAUNCH_LABEL}`;
   const pickupBooking = metrics.bookingsMade.pickUpsToBookingRate;
-  const bookingShowed = pct(setter.showed, setter.appointmentsScheduled);
+  // The glossary definition: showed over every RESOLVED slot (showed + no-show + cancelled + rescheduled).
+  // Dividing by appointmentsScheduled counted upcoming and cancelled bookings as if they had been missed.
+  const bookingShowed = setter.showUpRate;
   // The strip is labelled Showed → Closed, so it must be closed over ALL showed, not the pitched-and-qualified close rate.
   const showedClosed = setter.showToCloseRate;
   const leadBooked = pct(metrics.bookingsMade.totalBookingsMade, metrics.dialer.uniqueLeadsDialed);
@@ -52,7 +54,7 @@ export function ConversionRateStrip({ metrics }: Props) {
           subtext={conversationBooking === null ? noDataSubtext : sinceSubtext}
         />
         <StatCard compact label="Pickup → Booking" value={`${pickupBooking}%`} />
-        <StatCard compact label="Booking → Showed" value={`${bookingShowed}%`} />
+        <StatCard compact label="Show-Up Rate" value={`${bookingShowed}%`} subtext="showed ÷ resolved slots" />
         <StatCard compact label="Showed → Closed" value={`${showedClosed}%`} />
         <StatCard compact label="Lead → Booked" value={`${leadBooked}%`} />
         <StatCard
