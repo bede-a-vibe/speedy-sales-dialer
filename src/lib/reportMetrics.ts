@@ -426,7 +426,7 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
     return n <= 0 ? "0" : n === 1 ? "1" : n === 2 ? "2" : "3+";
   };
   const showUpByRescheduleCount = (["0", "1", "2", "3+"] as const).map((bucket) => {
-    const slots = resolved.filter((item) => rescheduleBucket(item) === bucket);
+    const slots = resolved.filter((item) => !item.is_follow_up && rescheduleBucket(item) === bucket);
     const showedCount = countBucket(slots, "showed");
     return {
       reschedules: bucket,
@@ -436,11 +436,14 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       showUpRate: toPercent(showedCount, slots.length),
     };
   });
-  const rescheduledResolved = resolved.filter((item) => (item.reschedule_count ?? 0) > 0);
-  const firstTimeResolved = resolved.filter((item) => (item.reschedule_count ?? 0) === 0);
-  const multiRescheduledResolved = resolved.filter((item) => (item.reschedule_count ?? 0) >= 2);
+  // ---- Setting-side show-up is measured on FIRST meetings only. A follow-up (the lead
+  // already sat on an earlier day) is the closer's slot, not the setter's, and is reported as
+  // Second-Meeting Show-Up Rate. KEO 19 Oct 2026 was a decision call, not a setting call. ----
   const firstMeetingResolved = resolved.filter((item) => !item.is_follow_up);
   const followUpResolved = resolved.filter((item) => !!item.is_follow_up);
+  const rescheduledResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) > 0);
+  const firstTimeResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) === 0);
+  const multiRescheduledResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) >= 2);
   const uniqueLeadsShowed = new Set(items.filter(isShowed).map((item) => item.contact_id)).size;
   const uniqueLeadsSat = new Set(resolved.map((item) => item.contact_id)).size;
 
@@ -455,13 +458,13 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       secondMeetingsBooked: appointmentOutcomeCounts.second_meeting_booked,
       noCloseFollowUps: appointmentOutcomeCounts.no_close_follow_up,
       showed,
-      showUpRate: toPercent(showed, resolved.length),
+      showUpRate: showUpOf(firstMeetingResolved),
       pitched: pitchedItems.length,
       qualifiedPitched: qualifiedPitchedItems.length,
       closeRate: toPercent(closedAmong(qualifiedPitchedItems), qualifiedPitchedItems.length),
       showToCloseRate: toPercent(appointmentOutcomeCounts.showed_closed, showed),
       verbalCommitmentRate: toPercent(appointmentOutcomeCounts.showed_verbal_commitment, showed),
-      rescheduleRate: toPercent(rescheduled, resolved.length),
+      rescheduleRate: toPercent(countBucket(firstMeetingResolved, "rescheduled"), firstMeetingResolved.length),
       resolvedAppointments,
       pendingOutcome,
       cashCollected,
@@ -478,8 +481,8 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
       verbalLeads: verbalLeadIds.size,
       verbalLeadsClosed,
       verbalToCloseRate: toPercent(verbalLeadsClosed, verbalLeadIds.size),
-      noShowRate: toPercent(noShows, resolved.length),
-      cancellationRate: toPercent(cancelled, resolved.length),
+      noShowRate: toPercent(countBucket(firstMeetingResolved, "noshow"), firstMeetingResolved.length),
+      cancellationRate: toPercent(countBucket(firstMeetingResolved, "cancelled"), firstMeetingResolved.length),
       rescheduledSittings: rescheduledResolved.length,
       rescheduledShowUpRate: showUpOf(rescheduledResolved),
       firstTimeShowUpRate: showUpOf(firstTimeResolved),
