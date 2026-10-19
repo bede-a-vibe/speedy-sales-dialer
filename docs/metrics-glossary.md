@@ -4,11 +4,14 @@ Generated from `src/lib/funnelStatsCatalog.ts` (METRIC_FORMULAS). The Definition
 
 ## The rules
 
-- Setting runs from the dial to the booked meeting resolving. Closing starts when the closer pitches.
-- Two commitment rates: Call Commitment Rate (setting) = calls reaching the commitment stage ÷ conversations; Verbal Commitment Rate (closing) = verbals ÷ pitched.
+- This page counts COLD CALL meetings only: dialer bookings plus GHL calendar meetings on the cold-call channel. Ads and inbound bookings are left out, so the Sources tab — which covers every channel — shows higher booked and lower show-up numbers for the same dates.
+- Two date bases sit on this page. Bookings Made counts by the day the booking was created; everything about the meeting itself (showed, no-show, show-up rate, close rate) counts by the day of the meeting. The same meetings give a different total under each.
+- A disqualification counts as a sitting: they turned up and were judged not qualified. It is not a no-show and not a cancellation.
+- Setting runs from the dial to the booked meeting resolving (showed, no-show, cancelled, rescheduled). Closing starts when the closer pitches.
 - A booked slot resolves one of four ways: showed, no-show, cancelled, rescheduled. Pending and upcoming slots are not resolved.
-- Show-up rate = showed ÷ every slot scheduled for the day that resolved. No-show, cancellation and reschedule rates share that denominator, so the four add to 100%.
+- Show-up rate = showed ÷ every FIRST-MEETING slot scheduled for the day that resolved. A follow-up slot (the lead already sat on an earlier day) is the closer's meeting and is reported as Second-Meeting Show-Up Rate. No-show, cancellation and reschedule rates share the first-meeting denominator, so the four add to 100%. The Sources page and Team stats still count every slot.
 - Pitched = a close decision was recorded on the meeting (closed, no close, verbal, no-close follow-up), first or second meeting.
+- Two commitment rates: Call Commitment Rate (setting) = calls reaching the commitment stage ÷ conversations; Verbal Commitment Rate (closing) = verbals ÷ pitched.
 - Close rate = closed ÷ pitched, with meetings marked not qualified excluded. Shown → Close = closed ÷ all showed.
 - A qualified verdict is set on the booking. Unjudged means unknown, never not qualified.
 - Avg deal value = first collection: one-off fee plus the first retainer month.
@@ -63,18 +66,18 @@ Generated from `src/lib/funnelStatsCatalog.ts` (METRIC_FORMULAS). The Definition
 | Lead → Booked |  | Bookings made ÷ unique leads dialled. |
 | Showed | sittings; a lead that met twice counts twice | Meetings scheduled in the period that showed: closed, no close, verbal, second meeting booked, or no-close follow-up. Counts sittings; a lead that met twice counts twice. |
 | Unique Leads Showed | distinct businesses that showed | Distinct businesses with at least one showed meeting in the period. |
-| First-Meeting Show-Up Rate | first slot with a lead | Show-up rate on slots where the lead had not showed at an earlier meeting. |
+| First-Meeting Show-Up Rate | first slot with a lead | Same number as Show-Up Rate: showed ÷ resolved slots where the lead had not sat at an earlier meeting. |
 | No-Shows |  | Meetings logged as no-show (ghosted). |
 | Cancelled |  | Meetings cancelled or disqualified before they sat, plus bookings cancelled by status. |
-| Show-Up Rate | showed / (showed + no-shows + cancelled + rescheduled) | Showed ÷ every slot scheduled for the day that resolved (showed + no-shows + cancelled + rescheduled). Pending and upcoming slots are excluded. |
-| No-Show Rate | ghosted / resolved slots | No-shows ÷ resolved slots. With cancellation and reschedule rate, the four buckets add to 100%. |
+| Show-Up Rate | first meetings: showed / resolved slots | First meetings only: showed ÷ every first-meeting slot scheduled for the day that resolved (showed + no-shows + cancelled + rescheduled). A follow-up slot (the lead already sat on an earlier day) is the closer's meeting and sits in Second-Meeting Show-Up Rate. Pending and upcoming slots are excluded. |
+| No-Show Rate | first meetings: ghosted / resolved slots | First meetings only: no-shows ÷ resolved first-meeting slots. With cancellation and reschedule rate, the four buckets add to 100%. |
 | Rescheduled | slots that were moved | Slots that were moved to another time (the old slot). |
-| Reschedule Rate | moved / resolved slots | Rescheduled ÷ resolved slots. |
-| Cancellation Rate | cancelled / resolved slots | Cancelled ÷ resolved slots. |
-| Show-Up Rate (never moved) | slots never rescheduled | Show-up rate on slots that were never moved. |
+| Reschedule Rate | first meetings: moved / resolved slots | First meetings only: rescheduled ÷ resolved first-meeting slots. |
+| Cancellation Rate | first meetings: cancelled / resolved slots | First meetings only: cancelled ÷ resolved first-meeting slots. |
+| Show-Up Rate (never moved) | slots never rescheduled | Show-up rate on first-meeting slots that were never moved. |
 | Rescheduled Slots Resolved | moved at least once, then resolved | Resolved slots that had been moved at least once before they resolved. |
-| Show-Up Rate (rescheduled) | slots moved at least once | Show-up rate on slots moved at least once. |
-| Show-Up Rate (moved 2+) | slots moved two or more times | Show-up rate on slots moved two or more times. |
+| Show-Up Rate (rescheduled) | slots moved at least once | Show-up rate on first-meeting slots moved at least once. |
+| Show-Up Rate (moved 2+) | slots moved two or more times | Show-up rate on first-meeting slots moved two or more times. |
 | Qualified Bookings | marked qualified | Bookings marked qualified by the setter or closer. |
 | Not Qualified | marked not qualified | Bookings marked not qualified. |
 | Verdict Coverage | bookings with a verdict | Bookings with a qualified verdict ÷ all bookings. Shows how much of the sample has been judged. |
