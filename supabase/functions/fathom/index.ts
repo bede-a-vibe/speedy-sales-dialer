@@ -79,7 +79,13 @@ async function processMeetings(userId: string, meetings: FathomMeeting[]) {
       const { data: items } = await admin
         .from("pipeline_items")
         .select("id, recording_url, scheduled_for, contacts(business_name, email, dm_email)")
-        .eq("assigned_user_id", userId)
+        // Deliberately NOT filtered to assigned_user_id. The setter books the
+        // meeting and the closer sits it, so a recording made on the closer's
+        // Fathom account routinely belongs to a slot assigned to the setter.
+        // Filtering by owner silently orphaned every one of those: seven had
+        // to be linked by hand on 15 Oct 2026, three of them closed deals.
+        // Disambiguation is the email / business-name scoring below, which
+        // still needs a real signal to link and falls back to "ambiguous".
         .eq("pipeline_type", "booked")
         .gte("scheduled_for", new Date(t - WINDOW_MS).toISOString())
         .lte("scheduled_for", new Date(t + WINDOW_MS).toISOString());
