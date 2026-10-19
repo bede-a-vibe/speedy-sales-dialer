@@ -5,11 +5,12 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
+import { ShowUpHeatMap } from "@/components/reports/ShowUpHeatMap";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
 import { DialClockCard } from "@/components/insights/DialClockCard";
 import { PickupRateTrendCard } from "@/components/insights/PickupRateTrendCard";
-import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData } from "@/lib/hourlyMetrics";
+import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData, getShowUpHeatMapData } from "@/lib/hourlyMetrics";
 
 interface Props {
   dateFrom: string;
@@ -40,6 +41,10 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
     () => getPickupHeatMapData(callLogs, activeRepId),
     [callLogs, activeRepId],
   );
+  const showUpHeatMapCells = useMemo(
+    () => getShowUpHeatMapData(bookings, activeRepId),
+    [bookings, activeRepId],
+  );
 
   return (
     <div className="space-y-5">
@@ -67,6 +72,13 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
           <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
         </ReportSection>
       </div>
+
+      <ReportSection
+        title="Show-Up Rate Heat Map"
+        description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ resolved slots (showed + no-show + cancelled + rescheduled); follow-up meetings excluded.`}
+      >
+        <ShowUpHeatMap cells={showUpHeatMapCells} />
+      </ReportSection>
 
       <ReportSection
         title="Hourly Breakdown"

@@ -1,5 +1,5 @@
 import type { ReportCallLog, ReportBookingItem } from "./reportMetrics";
-import { ANSWERED_OUTCOMES, getTalkTimeSeconds } from "./reportMetrics";
+import { ANSWERED_OUTCOMES, bucketOf, getTalkTimeSeconds } from "./reportMetrics";
 
 export interface HourlyRow {
   hour: number;
@@ -128,6 +128,51 @@ export function getPickupHeatMapData(
       const d = dials.get(key) ?? 0;
       const p = picks.get(key) ?? 0;
       cells.push({ dayOfWeek: dow, hour: h, dials: d, pickUps: p, pickUpRate: d > 0 ? p / d : 0 });
+    }
+  }
+  return cells;
+}
+
+export interface ShowUpHeatMapCell {
+  dayOfWeek: number; // 0=Mon, 6=Sun
+  hour: number;
+  /** Slots scheduled at this day/hour that resolved (showed, no-show, cancelled, rescheduled). */
+  resolved: number;
+  showed: number;
+  showUpRate: number;
+}
+
+/**
+ * Show-up by the day and hour the meeting was SCHEDULED FOR (not when it was booked).
+ * First meetings only, like the Setting-side Show-Up Rate: a follow-up is the closer's slot.
+ * The rep filter is the setter, so Ben sees when his sets hold.
+ */
+export function getShowUpHeatMapData(
+  bookedItems: ReportBookingItem[],
+  repUserId?: string,
+): ShowUpHeatMapCell[] {
+  const resolved = new Map<string, number>();
+  const showed = new Map<string, number>();
+
+  for (const item of bookedItems) {
+    if (!item.scheduled_for) continue;
+    if (repUserId && item.created_by !== repUserId) continue;
+    if (item.is_follow_up) continue;
+    const bucket = bucketOf(item);
+    if (!bucket) continue;
+    const d = new Date(item.scheduled_for);
+    const key = `${(d.getDay() + 6) % 7}-${d.getHours()}`;
+    resolved.set(key, (resolved.get(key) ?? 0) + 1);
+    if (bucket === "showed") showed.set(key, (showed.get(key) ?? 0) + 1);
+  }
+
+  const cells: ShowUpHeatMapCell[] = [];
+  for (let dow = 0; dow < 7; dow++) {
+    for (let h = 0; h < 24; h++) {
+      const key = `${dow}-${h}`;
+      const r = resolved.get(key) ?? 0;
+      const s = showed.get(key) ?? 0;
+      cells.push({ dayOfWeek: dow, hour: h, resolved: r, showed: s, showUpRate: r > 0 ? s / r : 0 });
     }
   }
   return cells;
