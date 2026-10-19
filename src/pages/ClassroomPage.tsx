@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Classroom } from "@/components/playbook/Classroom";
-import { ClosedDealCallLibrary } from "@/components/playbook/ClosedDealCallLibrary";
+import { CallLibrary } from "@/components/playbook/CallLibrary";
 import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 import { OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from "@/components/training/ObjectionBankPanel";
 
@@ -123,7 +123,7 @@ export default function ClassroomPage() {
 
         <Classroom />
 
-        <ClosedDealCallLibrary />
+        <CallLibrary />
 
         <AskTheCoach onRoleplay={(q) => { setRoleplayObjection(q); setRoleplayOpen(true); }} />
       </div>
