@@ -328,7 +328,7 @@ function isShowed(item: ReportBookingItem) {
   return bucketOf(item) === "showed";
 }
 
-type SlotBucket = "showed" | "noshow" | "cancelled" | "rescheduled";
+export type SlotBucket = "showed" | "noshow" | "cancelled" | "rescheduled";
 
 const SLOT_BUCKETS = new Set<SlotBucket>(["showed", "noshow", "cancelled", "rescheduled"]);
 
@@ -350,7 +350,7 @@ const SLOT_BUCKETS = new Set<SlotBucket>(["showed", "noshow", "cancelled", "resc
  * Pending and upcoming slots are not resolved and return null, so they stay out
  * of every denominator.
  */
-function bucketOf(item: ReportBookingItem): SlotBucket | null {
+export function bucketOf(item: ReportBookingItem): SlotBucket | null {
   const bucket = item.resolved_bucket;
   return bucket && SLOT_BUCKETS.has(bucket as SlotBucket) ? (bucket as SlotBucket) : null;
 }
