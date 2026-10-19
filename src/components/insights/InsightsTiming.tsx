@@ -5,12 +5,12 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import { HourlyBreakdownTable } from "@/components/reports/HourlyBreakdownTable";
 import { BookingHeatMap } from "@/components/reports/BookingHeatMap";
 import { PickupHeatMap } from "@/components/reports/PickupHeatMap";
-import { ShowUpHeatMap } from "@/components/reports/ShowUpHeatMap";
+import { RateHeatMap } from "@/components/reports/RateHeatMap";
 import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
 import { DialClockCard } from "@/components/insights/DialClockCard";
 import { PickupRateTrendCard } from "@/components/insights/PickupRateTrendCard";
-import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData, getShowUpHeatMapData } from "@/lib/hourlyMetrics";
+import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData, getShowUpHeatMapData, getCloseRateHeatMapData } from "@/lib/hourlyMetrics";
 
 interface Props {
   dateFrom: string;
@@ -45,6 +45,10 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
     () => getShowUpHeatMapData(bookings, activeRepId),
     [bookings, activeRepId],
   );
+  const closeRateHeatMapCells = useMemo(
+    () => getCloseRateHeatMapData(bookings, activeRepId),
+    [bookings, activeRepId],
+  );
 
   return (
     <div className="space-y-5">
@@ -73,12 +77,20 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
         </ReportSection>
       </div>
 
-      <ReportSection
-        title="Show-Up Rate Heat Map"
-        description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ resolved slots (showed + no-show + cancelled + rescheduled); follow-up meetings excluded.`}
-      >
-        <ShowUpHeatMap cells={showUpHeatMapCells} />
-      </ReportSection>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <ReportSection
+          title="Show-Up Rate Heat Map"
+          description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ resolved slots; follow-ups excluded.`}
+        >
+          <RateHeatMap cells={showUpHeatMapCells} hitLabel="showed" baseLabel="slots" emptyMessage="No resolved meetings in this date range." />
+        </ReportSection>
+        <ReportSection
+          title="Close Rate Heat Map"
+          description={`Closed ÷ pitched meetings by the day and hour of the pitch${activeRepId ? `, closed by ${selectedRepLabel}` : ""}. First or second meeting; not-qualified leads excluded.`}
+        >
+          <RateHeatMap cells={closeRateHeatMapCells} minSlots={2} hitLabel="closed" baseLabel="pitched" emptyMessage="No pitched meetings in this date range." />
+        </ReportSection>
+      </div>
 
       <ReportSection
         title="Hourly Breakdown"
