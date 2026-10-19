@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ShowUpHeatMapCell } from "@/lib/hourlyMetrics";
+import type { RateHeatMapCell } from "@/lib/hourlyMetrics";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOUR_START = 6;
@@ -13,26 +13,31 @@ function formatHour(hour: number) {
 }
 
 interface Props {
-  cells: ShowUpHeatMapCell[];
-  /** A cell needs this many resolved slots before its colour means anything. */
+  cells: RateHeatMapCell[];
+  /** A cell needs this many slots in the denominator before its colour means anything. */
   minSlots?: number;
+  /** "showed" / "closed": what the numerator is called in tooltips and the legend. */
+  hitLabel: string;
+  /** "slots" / "pitched": what the denominator is called. */
+  baseLabel: string;
+  emptyMessage: string;
 }
 
 /**
- * Show-up rate by the day and hour the meeting was scheduled for. Colour is the
- * rate; a cell with fewer than `minSlots` resolved slots stays grey so one lucky
- * 1-for-1 slot never reads as the best hour of the week.
+ * A rate by the day and hour the meeting was scheduled for. Colour is the rate; a
+ * cell with fewer than `minSlots` in the denominator stays grey so one lucky 1-for-1
+ * slot never reads as the best hour of the week.
  */
-export function ShowUpHeatMap({ cells, minSlots = 3 }: Props) {
+export function RateHeatMap({ cells, minSlots = 3, hitLabel, baseLabel, emptyMessage }: Props) {
   const { grid, hasData, best } = useMemo(() => {
-    const grid = new Map<string, ShowUpHeatMapCell>();
+    const grid = new Map<string, RateHeatMapCell>();
     let hasData = false;
-    let best: ShowUpHeatMapCell | null = null;
+    let best: RateHeatMapCell | null = null;
     for (const c of cells) {
       if (c.hour < HOUR_START || c.hour > HOUR_END) continue;
       grid.set(`${c.dayOfWeek}-${c.hour}`, c);
-      if (c.resolved > 0) hasData = true;
-      if (c.resolved >= minSlots && (!best || c.showUpRate > best.showUpRate || (c.showUpRate === best.showUpRate && c.resolved > best.resolved))) best = c;
+      if (c.base > 0) hasData = true;
+      if (c.base >= minSlots && (!best || c.rate > best.rate || (c.rate === best.rate && c.base > best.base))) best = c;
     }
     return { grid, hasData, best };
   }, [cells, minSlots]);
@@ -40,7 +45,7 @@ export function ShowUpHeatMap({ cells, minSlots = 3 }: Props) {
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
 
   if (!hasData) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No resolved meetings in this date range.</p>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
@@ -61,9 +66,9 @@ export function ShowUpHeatMap({ cells, minSlots = 3 }: Props) {
               </div>
               {hours.map((h) => {
                 const cell = grid.get(`${dow}-${h}`);
-                const resolved = cell?.resolved ?? 0;
-                const showed = cell?.showed ?? 0;
-                const rate = cell?.showUpRate ?? 0;
+                const resolved = cell?.base ?? 0;
+                const showed = cell?.hits ?? 0;
+                const rate = cell?.rate ?? 0;
                 const qualifies = resolved >= minSlots;
                 const intensity = qualifies ? rate : 0;
                 return (
@@ -85,8 +90,8 @@ export function ShowUpHeatMap({ cells, minSlots = 3 }: Props) {
                         <span className="text-muted-foreground">No meetings · {day} {formatHour(h)}</span>
                       ) : (
                         <>
-                          <span className="font-semibold">{Math.round(rate * 100)}%</span> showed ·{" "}
-                          {showed}/{resolved} slots · {day} {formatHour(h)}
+                          <span className="font-semibold">{Math.round(rate * 100)}%</span> {hitLabel} ·{" "}
+                          {showed}/{resolved} {baseLabel} · {day} {formatHour(h)}
                           {!qualifies && <span className="ml-1 text-muted-foreground">(low volume)</span>}
                         </>
                       )}
@@ -111,11 +116,11 @@ export function ShowUpHeatMap({ cells, minSlots = 3 }: Props) {
               }}
             />
           ))}
-          <span>Higher show-up %</span>
-          <span className="ml-3">· Cells need {minSlots}+ resolved slots to qualify</span>
+          <span>Higher {hitLabel} %</span>
+          <span className="ml-3">· Cells need {minSlots}+ {baseLabel} to qualify</span>
           {best ? (
             <span className="ml-3">
-              · Best: {DAY_LABELS[best.dayOfWeek]} {formatHour(best.hour)}, {best.showed}/{best.resolved} showed
+              · Best: {DAY_LABELS[best.dayOfWeek]} {formatHour(best.hour)}, {best.hits}/{best.base} {hitLabel}
             </span>
           ) : null}
         </div>

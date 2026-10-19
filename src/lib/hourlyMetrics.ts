@@ -1,5 +1,5 @@
 import type { ReportCallLog, ReportBookingItem } from "./reportMetrics";
-import { ANSWERED_OUTCOMES, bucketOf, getTalkTimeSeconds } from "./reportMetrics";
+import { ANSWERED_OUTCOMES, PITCHED_OUTCOMES, bucketOf, getTalkTimeSeconds } from "./reportMetrics";
 
 export interface HourlyRow {
   hour: number;
@@ -133,13 +133,31 @@ export function getPickupHeatMapData(
   return cells;
 }
 
-export interface ShowUpHeatMapCell {
+export interface RateHeatMapCell {
   dayOfWeek: number; // 0=Mon, 6=Sun
   hour: number;
-  /** Slots scheduled at this day/hour that resolved (showed, no-show, cancelled, rescheduled). */
-  resolved: number;
-  showed: number;
-  showUpRate: number;
+  /** Denominator: resolved slots for show-up, pitched meetings for close rate. */
+  base: number;
+  hits: number;
+  rate: number;
+}
+
+function toRateCells(base: Map<string, number>, hits: Map<string, number>): RateHeatMapCell[] {
+  const cells: RateHeatMapCell[] = [];
+  for (let dow = 0; dow < 7; dow++) {
+    for (let h = 0; h < 24; h++) {
+      const key = `${dow}-${h}`;
+      const b = base.get(key) ?? 0;
+      const n = hits.get(key) ?? 0;
+      cells.push({ dayOfWeek: dow, hour: h, base: b, hits: n, rate: b > 0 ? n / b : 0 });
+    }
+  }
+  return cells;
+}
+
+function slotKey(iso: string) {
+  const d = new Date(iso);
+  return `${(d.getDay() + 6) % 7}-${d.getHours()}`;
 }
 
 /**
@@ -150,7 +168,7 @@ export interface ShowUpHeatMapCell {
 export function getShowUpHeatMapData(
   bookedItems: ReportBookingItem[],
   repUserId?: string,
-): ShowUpHeatMapCell[] {
+): RateHeatMapCell[] {
   const resolved = new Map<string, number>();
   const showed = new Map<string, number>();
 
@@ -160,20 +178,34 @@ export function getShowUpHeatMapData(
     if (item.is_follow_up) continue;
     const bucket = bucketOf(item);
     if (!bucket) continue;
-    const d = new Date(item.scheduled_for);
-    const key = `${(d.getDay() + 6) % 7}-${d.getHours()}`;
+    const key = slotKey(item.scheduled_for);
     resolved.set(key, (resolved.get(key) ?? 0) + 1);
     if (bucket === "showed") showed.set(key, (showed.get(key) ?? 0) + 1);
   }
+  return toRateCells(resolved, showed);
+}
 
-  const cells: ShowUpHeatMapCell[] = [];
-  for (let dow = 0; dow < 7; dow++) {
-    for (let h = 0; h < 24; h++) {
-      const key = `${dow}-${h}`;
-      const r = resolved.get(key) ?? 0;
-      const s = showed.get(key) ?? 0;
-      cells.push({ dayOfWeek: dow, hour: h, resolved: r, showed: s, showUpRate: r > 0 ? s / r : 0 });
-    }
+/**
+ * Close rate by the day and hour of the meeting that was pitched: closed ÷ pitched
+ * (closed, no close, verbal, no-close follow-up), first or second meeting, with
+ * not-qualified leads removed, exactly as the Custom Monitor's Close Rate. The rep
+ * filter is the closer.
+ */
+export function getCloseRateHeatMapData(
+  bookedItems: ReportBookingItem[],
+  repUserId?: string,
+): RateHeatMapCell[] {
+  const pitched = new Map<string, number>();
+  const closed = new Map<string, number>();
+
+  for (const item of bookedItems) {
+    if (!item.scheduled_for || !item.appointment_outcome) continue;
+    if (repUserId && item.assigned_user_id !== repUserId) continue;
+    if (!PITCHED_OUTCOMES.has(item.appointment_outcome)) continue;
+    if (item.is_qualified === false) continue;
+    const key = slotKey(item.scheduled_for);
+    pitched.set(key, (pitched.get(key) ?? 0) + 1);
+    if (item.appointment_outcome === "showed_closed") closed.set(key, (closed.get(key) ?? 0) + 1);
   }
-  return cells;
+  return toRateCells(pitched, closed);
 }

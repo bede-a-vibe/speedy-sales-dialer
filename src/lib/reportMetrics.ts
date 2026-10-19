@@ -316,7 +316,7 @@ function isSameOrNextDayBooking(item: ReportBookingItem) {
 }
 
 /** A close decision was recorded: the rep pitched. Discovery-only meetings (second meeting booked) are not pitches. */
-const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
+export const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
   "showed_closed",
   "showed_no_close",
   "showed_verbal_commitment",
