@@ -22,14 +22,16 @@ export function invalidateContactCaches(queryClient: QueryClient, contactId?: st
   void queryClient.invalidateQueries({ queryKey: ["contacts-paginated"] });
 }
 
-const DIALER_TARGET_BUFFER = 40;
-const DIALER_PREFETCH_THRESHOLD = 25;
-const DIALER_CLAIM_SIZE = 25;
-const DIALER_INITIAL_CLAIM_SIZE = 12;
-const DIALER_LOCK_MINUTES = 15;
+// Small holdings on purpose: with several reps dialling, a 40-lead buffer per rep fenced off
+// leads nobody was about to ring. The server caps live locks per rep as well (claim_dialer_leads_core).
+const DIALER_TARGET_BUFFER = 8;
+const DIALER_PREFETCH_THRESHOLD = 4;
+const DIALER_CLAIM_SIZE = 5;
+const DIALER_INITIAL_CLAIM_SIZE = 5;
+const DIALER_LOCK_MINUTES = 10;
 const DIALER_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 const DIALER_PREVIEW_DEBOUNCE_MS = 250;
-const DIALER_MIN_BUFFER_FLOOR = 8;
+const DIALER_MIN_BUFFER_FLOOR = 3;
 const DIALER_EMPTY_REFILL_RETRY_LIMIT = 3;
 const DIALER_EMPTY_REFILL_BACKOFF_MS = 400;
 const DIALER_EXHAUSTION_GRACE_MS = 5000;
