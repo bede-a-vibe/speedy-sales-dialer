@@ -25,6 +25,6 @@ begin
     JOIN visible_contacts vc ON vc.id = c.id
     ORDER BY vc.never_dialled DESC, vc.ever_connected ASC,');
   n := (length(src) - length(replace(src, 'never_dialled', ''))) / length('never_dialled');
-  if n <> 4 then raise exception 'expected 4 never_dialled references, found %', n; end if;
+  if n <> 3 then raise exception 'expected 3 never_dialled references (alias + two ORDER BYs), found %', n; end if;
   execute src;
 end $$;
