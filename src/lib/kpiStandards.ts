@@ -138,3 +138,16 @@ export const BOOKING_MINUTES = 5;
 export function productiveDiallingHours(dials: number, talkTimeSeconds: number, bookings = 0): number {
   return (dials * DIAL_SECONDS_PER_DIAL + (talkTimeSeconds || 0) + bookings * BOOKING_MINUTES * 60) / 3600;
 }
+
+/** Auto no-answer: hang up and log No Answer after ~3.5 rings (AU ring cadence ≈ 6s). */
+export const AUTO_NO_ANSWER_SECONDS = 21;
+
+/** Call states that count as "still ringing, nobody has answered". */
+export function isRingingState(state: string | null | undefined): boolean {
+  return state === "connecting" || state === "calling" || state === "ringing";
+}
+
+/** True once a still-ringing call has rung for the full auto no-answer window. */
+export function shouldAutoNoAnswer(state: string | null | undefined, ringingSeconds: number): boolean {
+  return isRingingState(state) && ringingSeconds >= AUTO_NO_ANSWER_SECONDS;
+}
