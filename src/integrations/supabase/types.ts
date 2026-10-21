@@ -2792,6 +2792,39 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_corrections: {
+        Row: {
+          corrected_by: string | null
+          created_at: string | null
+          evidence: string | null
+          field: string
+          from_value: string | null
+          id: string
+          pipeline_item_id: string | null
+          to_value: string | null
+        }
+        Insert: {
+          corrected_by?: string | null
+          created_at?: string | null
+          evidence?: string | null
+          field: string
+          from_value?: string | null
+          id?: string
+          pipeline_item_id?: string | null
+          to_value?: string | null
+        }
+        Update: {
+          corrected_by?: string | null
+          created_at?: string | null
+          evidence?: string | null
+          field?: string
+          from_value?: string | null
+          id?: string
+          pipeline_item_id?: string | null
+          to_value?: string | null
+        }
+        Relationships: []
+      }
       meeting_outcome_log: {
         Row: {
           appointment_id: string
