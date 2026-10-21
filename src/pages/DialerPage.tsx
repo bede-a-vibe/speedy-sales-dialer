@@ -1,5 +1,6 @@
 import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AUTO_NO_ANSWER_SECONDS, isRingingState } from "@/lib/kpiStandards";
 import { format } from "date-fns";
 import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
@@ -2175,6 +2176,42 @@ export default function DialerPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [canSubmit, isOnline, session.currentContact, dialpad.isCallTerminal, session.isDialing, session.isSessionActive, session.isSessionPaused, logAndNext, skipLead]);
 
+  // ── Auto no-answer: hang up + log No Answer after ~3.5 rings ──
+  const [autoNoAnswerEnabled, setAutoNoAnswerEnabledState] = useState(() => {
+    try { return localStorage.getItem("speedy:auto-no-answer") !== "off"; } catch { return true; }
+  });
+  const setAutoNoAnswerEnabled = useCallback((v: boolean) => {
+    setAutoNoAnswerEnabledState(v);
+    try { localStorage.setItem("speedy:auto-no-answer", v ? "on" : "off"); } catch { /* ignore */ }
+  }, []);
+  const [ringingSeconds, setRingingSeconds] = useState<number | null>(null);
+  const autoNoAnswerFiredForRef = useRef<string | null>(null);
+  const ringingNow = isRingingState(dialpad.activeDialpadCallState) && !!session.currentContact;
+  const ringingContactId = session.currentContact?.id ?? null;
+
+  useEffect(() => {
+    if (!ringingNow || !autoNoAnswerEnabled || session.selectedOutcome || !ringingContactId) {
+      setRingingSeconds(null);
+      return;
+    }
+    const startedAt = Date.now();
+    setRingingSeconds(0);
+    const id = window.setInterval(() => {
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      setRingingSeconds(secs);
+      if (secs >= AUTO_NO_ANSWER_SECONDS && autoNoAnswerFiredForRef.current !== ringingContactId) {
+        autoNoAnswerFiredForRef.current = ringingContactId;
+        window.clearInterval(id);
+        setRingingSeconds(null);
+        dialpad.fireAndForgetHangup();
+        toast.info("No answer after 3.5 rings — moving on.");
+        void logAndNext("no_answer");
+      }
+    }, 500);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ringingNow, autoNoAnswerEnabled, session.selectedOutcome, ringingContactId]);
+
   const outcomes: CallOutcome[] = ["no_answer", "voicemail", "not_interested", "dnc", "follow_up", "booked", "disqualified", "gatekeeper"];
   const currentLeadMeta = session.currentContact ? (session.currentContact as Record<string, unknown>) : null;
   const quickFacts = session.currentContact ? [
@@ -2643,6 +2680,22 @@ export default function DialerPage() {
               ) : (
                 <span className="font-mono text-[11px] text-destructive">
                   No Dialpad assignment
+                </span>
+              )}
+
+              {/* Auto no-answer after 3.5 rings */}
+              <label className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 accent-primary"
+                  checked={autoNoAnswerEnabled}
+                  onChange={(e) => setAutoNoAnswerEnabled(e.target.checked)}
+                />
+                Auto-skip after 3.5 rings
+              </label>
+              {ringingSeconds !== null && autoNoAnswerEnabled && (
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-foreground">
+                  Ringing · {Math.max(0, AUTO_NO_ANSWER_SECONDS - ringingSeconds)}s
                 </span>
               )}
 
