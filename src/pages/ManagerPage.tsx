@@ -12,6 +12,7 @@ import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
 import { TeamReview } from "@/pages/EodReportPage";
 import { NumberChecks } from "@/components/manager/NumberChecks";
+import { EarningsProjection } from "@/components/manager/EarningsProjection";
 import { useAuth } from "@/hooks/useAuth";
 import { FathomTeamStatus } from "@/components/fathom/FathomConnect";
 
@@ -25,6 +26,7 @@ const TABS = [
   { value: "roleplay", label: "Roleplay" },
   { value: "playbook", label: "Setter access" },
   { value: "numbers", label: "Number checks" },
+  { value: "earnings", label: "Earnings" },
 ] as const;
 
 type ManagerTab = (typeof TABS)[number]["value"];
@@ -39,6 +41,7 @@ const TITLES: Record<ManagerTab, string> = {
   roleplay: "Manager · Roleplay",
   playbook: "Manager · Setter access",
   numbers: "Manager · Number checks",
+  earnings: "Manager · Earnings projection",
 };
 
 export default function ManagerPage() {
@@ -88,6 +91,7 @@ export default function ManagerPage() {
           <TabsContent value="roleplay"><RoleplayResults /></TabsContent>
           <TabsContent value="playbook"><PlaybookLocks /></TabsContent>
           <TabsContent value="numbers"><NumberChecks /></TabsContent>
+          <TabsContent value="earnings"><EarningsProjection /></TabsContent>
         </Tabs>
       </div>
     </AppLayout>
