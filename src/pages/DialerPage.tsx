@@ -2,7 +2,7 @@ import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_NO_ANSWER_SECONDS, isRingingState } from "@/lib/kpiStandards";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, Maximize2, Minimize2, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -2184,6 +2184,15 @@ export default function DialerPage() {
     setAutoNoAnswerEnabledState(v);
     try { localStorage.setItem("speedy:auto-no-answer", v ? "on" : "off"); } catch { /* ignore */ }
   }, []);
+  // Simple view: the lead, the phone and the outcome buttons, nothing else. Built for a
+  // half-width window with the script open beside it. Persisted per browser.
+  const [simpleMode, setSimpleModeState] = useState<boolean>(() => {
+    try { return localStorage.getItem("speedy:dialer-mode") === "simple"; } catch { return false; }
+  });
+  const setSimpleMode = useCallback((v: boolean) => {
+    setSimpleModeState(v);
+    try { localStorage.setItem("speedy:dialer-mode", v ? "simple" : "full"); } catch { /* ignore */ }
+  }, []);
   const [ringingSeconds, setRingingSeconds] = useState<number | null>(null);
   const autoNoAnswerFiredForRef = useRef<string | null>(null);
   const ringingNow = isRingingState(dialpad.activeDialpadCallState) && !!session.currentContact;
@@ -2386,7 +2395,7 @@ export default function DialerPage() {
 
   return (
     <AppLayout title="Dialer">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className={cn("mx-auto space-y-6", simpleMode ? "max-w-2xl" : "max-w-6xl")}>
         {isCoach && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
             <div>
@@ -2414,7 +2423,7 @@ export default function DialerPage() {
             </div>
           </div>
         )}
-        {!session.isSessionActive && <DailyTarget />}
+        {!session.isSessionActive && !simpleMode && <DailyTarget />}
 
         <Suspense fallback={<Dialog open={session.showSummary}><DialogContent className="sm:max-w-md"><PanelSkeleton height="h-56" /></DialogContent></Dialog>}>
           <SessionSummaryDialog
@@ -2548,6 +2557,10 @@ export default function DialerPage() {
                 )}
               </Button>
               <DialerShortcutsPopover />
+              <Button variant={simpleMode ? "secondary" : "outline"} size="sm" className="gap-1.5" onClick={() => setSimpleMode(!simpleMode)} title="Simple view keeps the lead, the phone and the outcome buttons and hides everything else">
+                {simpleMode ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+                {simpleMode ? "Simple view on" : "Simple view"}
+              </Button>
               <Button variant="outline" size="sm" className="gap-1.5" disabled={!isOnline} onClick={() => setManualOpen(true)}>
                 <PhoneCall className="h-3.5 w-3.5" /> Manual Dial
               </Button>
@@ -2767,6 +2780,10 @@ export default function DialerPage() {
                       )}
                       {session.isRecoveringQueue ? "Recovering…" : "Recover Queue"}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSimpleMode(!simpleMode)}>
+                      {simpleMode ? <Maximize2 className="mr-2 h-4 w-4" /> : <Minimize2 className="mr-2 h-4 w-4" />}
+                      {simpleMode ? "Full view" : "Simple view"}
+                    </DropdownMenuItem>
                     <DropdownMenuItem disabled={!isOnline} onClick={() => setManualOpen(true)}>
                       <PhoneCall className="mr-2 h-4 w-4" />
                       Manual Dial
@@ -2858,14 +2875,16 @@ export default function DialerPage() {
             )}
 
             {/* Row 2 — compact Power Hour, folded into the same strip container */}
-            <div className="border-t border-border/60 px-3 py-2">
-              <PowerHourTimer
-                sessionCallCount={session.callCount}
-                isSessionActive={session.isSessionActive}
-                autoStart
-                compact
-              />
-            </div>
+            {!simpleMode && (
+              <div className="border-t border-border/60 px-3 py-2">
+                <PowerHourTimer
+                  sessionCallCount={session.callCount}
+                  isSessionActive={session.isSessionActive}
+                  autoStart
+                  compact
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -3183,7 +3202,7 @@ export default function DialerPage() {
               && session.queue.queueSupervisor.health !== "idle"
               && session.queue.queueSupervisor.health !== "healthy"
               && session.queue.queueSupervisor.health !== "refilling"
-              && session.queue.queueSupervisor.health !== "bootstrapping" && (
+              && !simpleMode && session.queue.queueSupervisor.health !== "bootstrapping" && (
               <div className={cn("rounded-lg border px-4 py-3", queueSupervisorSummary.bannerClassName)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -3211,21 +3230,23 @@ export default function DialerPage() {
             )}
 
             {/* Smart views: one-tap queue configurations + team-saved filter sets */}
-            <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2.5">
-              <SmartViewsBar
-                currentFilters={currentFilterSnapshot}
-                onReset={resetAdvancedFilters}
-                onApply={applySmartList}
-                disabled={session.isSessionActive}
-              />
-              {session.isSessionActive && (
-                <p className="mt-1 text-[11px] text-muted-foreground">Stop the session to switch views — the queue rebuilds on the next start.</p>
-              )}
-            </div>
+            {!simpleMode && (
+              <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2.5">
+                <SmartViewsBar
+                  currentFilters={currentFilterSnapshot}
+                  onReset={resetAdvancedFilters}
+                  onApply={applySmartList}
+                  disabled={session.isSessionActive}
+                />
+                {session.isSessionActive && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">Stop the session to switch views — the queue rebuilds on the next start.</p>
+                )}
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-            <div className="space-y-4 lg:col-span-3">
-              <LeadBuckets key={session.currentContact.id} contactId={session.currentContact.id} />
+            <div className={cn("grid grid-cols-1 gap-6", !simpleMode && "lg:grid-cols-5")}>
+            <div className={cn("space-y-4", !simpleMode && "lg:col-span-3")}>
+              {!simpleMode && <LeadBuckets key={session.currentContact.id} contactId={session.currentContact.id} />}
               <RecentCallWarning
                 contactId={session.currentContact.id}
                 phone={(displayContact ?? session.currentContact).phone}
@@ -3315,21 +3336,24 @@ export default function DialerPage() {
                 </div>
               )}
 
-              {/* Live talk aid — script/opener visible by default, right under the card */}
-              <CollapsiblePanel
-                title="Live Talk Aid"
-                subtitle="Scripts · Objections · Voicemails"
-                icon={<NotebookPen className="h-4 w-4" />}
-                defaultOpen
-              >
-                <SalesToolkit
-                  contactIndustry={session.currentContact?.industry ?? null}
-                  businessName={session.currentContact?.business_name ?? null}
-                  city={session.currentContact?.city ?? null}
-                  state={session.currentContact?.state ?? null}
-                  attemptCount={session.currentContact?.call_attempt_count ?? 0}
-                />
-              </CollapsiblePanel>
+              {/* Live talk aid — script/opener visible by default, right under the card. Hidden in
+                  Simple view: the rep has the script open in another window. */}
+              {!simpleMode && (
+                <CollapsiblePanel
+                  title="Live Talk Aid"
+                  subtitle="Scripts · Objections · Voicemails"
+                  icon={<NotebookPen className="h-4 w-4" />}
+                  defaultOpen
+                >
+                  <SalesToolkit
+                    contactIndustry={session.currentContact?.industry ?? null}
+                    businessName={session.currentContact?.business_name ?? null}
+                    city={session.currentContact?.city ?? null}
+                    state={session.currentContact?.state ?? null}
+                    attemptCount={session.currentContact?.call_attempt_count ?? 0}
+                  />
+                </CollapsiblePanel>
+              )}
 
               {/* Consolidated capture — collapsed by default (fast for no-answer flow),
                   auto-expands when call actually connects. Two tabs: DM · Intelligence
@@ -3426,7 +3450,7 @@ export default function DialerPage() {
 
             </div>
 
-            <div className="space-y-4 lg:col-span-2 lg:sticky lg:top-6 lg:self-start">
+            <div className={cn("space-y-4", !simpleMode && "lg:col-span-2 lg:sticky lg:top-6 lg:self-start")}>
               {dialBlockedReason && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-100">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -3436,7 +3460,7 @@ export default function DialerPage() {
                 </div>
               )}
               {/* Live coach: instant brush-off lines + ask box, right where the rep is looking mid-call */}
-              <LiveCoachPanel />
+              {!simpleMode && <LiveCoachPanel />}
               {/* Log This Call — outcomes + conversation tagging in one card */}
               <div data-coach-step="log-call-panel">
               <LogCallPanel
@@ -3528,14 +3552,16 @@ export default function DialerPage() {
               </div>
 
               {/* Notes — directly under Log This Call so reps don't have to scan */}
-              <div data-coach-step="notes-panel">
-              <ContactNotesPanel
-                contactId={session.currentContact.id}
-                notes={session.notes}
-                onNotesChange={session.setNotes}
-                enabled={session.isSessionActive}
-              />
-              </div>
+              {!simpleMode && (
+                <div data-coach-step="notes-panel">
+                <ContactNotesPanel
+                  contactId={session.currentContact.id}
+                  notes={session.notes}
+                  onNotesChange={session.setNotes}
+                  enabled={session.isSessionActive}
+                />
+                </div>
+              )}
 
               {requiresPipelineAssignment && (
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
