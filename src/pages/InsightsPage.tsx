@@ -13,6 +13,7 @@ import { computeFunnel, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { InsightsOverview } from "@/components/insights/InsightsOverview";
 import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
+import { ClosingTracker } from "@/components/insights/ClosingTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { LeadTrackerTab } from "@/components/analytics/LeadTrackerTab";
 import { InsightsSources } from "@/components/insights/InsightsSources";
@@ -20,12 +21,13 @@ import { InsightsPaidAds } from "@/components/insights/InsightsPaidAds";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "sources", "team", "talktime", "leads", "ads"] as const;
+const TABS = ["overview", "funnel", "closing", "sources", "team", "talktime", "leads", "ads"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
   overview: "Insights · Overview",
   funnel: "Insights · Funnel",
+  closing: "Insights · Closing",
   sources: "Insights · Sources",
   team: "Insights · Team",
   talktime: "Insights · Timing",
@@ -118,6 +120,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
           <TabsList className="mb-4 h-auto flex-wrap gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
+            <TabsTrigger value="closing">Closing</TabsTrigger>
             <TabsTrigger value="sources">Sources</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="talktime">Timing</TabsTrigger>
@@ -162,6 +165,16 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
               repNameMap={repNameMap}
+            />
+          </TabsContent>
+
+          <TabsContent value="closing">
+            <ClosingTracker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              bookings={bookings}
+              activeRepId={activeRepId}
+              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
             />
           </TabsContent>
 
