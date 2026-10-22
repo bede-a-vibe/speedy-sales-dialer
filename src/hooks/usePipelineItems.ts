@@ -109,6 +109,10 @@ export interface BookedAppointmentReportItem {
   deal_value: number | null;
   monthly_recurring_value: number | null;
   reschedule_count: number;
+  /** Why a showed meeting did not close, or why it was missed (see appointments.ts reason lists). */
+  outcome_reason?: string | null;
+  /** Why a sitting was disqualified. */
+  dq_reason?: string | null;
   /** Setter's qualification verdict on the booking (null = not judged yet). */
   is_qualified?: boolean | null;
   /** Which booking stream the row came from. GHL-only cold meetings are merged in. */
@@ -289,7 +293,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 
