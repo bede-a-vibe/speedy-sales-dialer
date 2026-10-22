@@ -46,6 +46,18 @@ function fmtDay(key: string) {
   return `${d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" })} ${d.getUTCDate()} ${d.toLocaleDateString("en-AU", { month: "short", timeZone: "UTC" })}`;
 }
 
+/**
+ * Bede's bookable calendar: 9:00 to 18:30 Monday to Friday (9.5 one-hour slots), a half day
+ * to 13:00 on Saturday (4), nothing Sunday. The directors' meeting takes 9 to 10 on Monday
+ * and Thursday. Evenings to 20:00 happen but are not counted as standing capacity.
+ */
+export function availableSlotsForDay(key: string) {
+  const dow = weekdayIndex(key);
+  if (dow === 6) return 0;
+  if (dow === 5) return 4;
+  return dow === 0 || dow === 3 ? 8.5 : 9.5;
+}
+
 interface Column {
   key: string;
   label: string;
@@ -77,6 +89,7 @@ function buildColumns(from: string, to: string): Column[] {
 }
 
 interface Stats {
+  availableSlots: number;
   booked: number;
   due: number;
   resolved: number;
@@ -115,7 +128,7 @@ interface Stats {
 
 function emptyStats(): Stats {
   return {
-    booked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
+    availableSlots: 0, booked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0, followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
     qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
@@ -124,6 +137,7 @@ function emptyStats(): Stats {
 
 function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<string, number>): Stats {
   const s = emptyStats();
+  for (const d of days) s.availableSlots += availableSlotsForDay(d);
   const due = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
   s.booked = items.filter((i) => i.created_at && days.has(dayKey(i.created_at))).length;
   s.due = due.length;
@@ -215,6 +229,7 @@ function buildSections(): SectionDef[] {
     {
       title: "Bookings",
       rows: [
+        { label: "Available slots", fmt: "n", hint: "9:00 to 18:30 Mon to Fri (less the Mon and Thu directors' hour), 9:00 to 13:00 Sat", value: (s) => s.availableSlots },
         { label: "Bookings made", fmt: "n", hint: "by the day they were booked", value: (s) => s.booked },
         { label: "Bookings due", fmt: "n", hint: "meetings scheduled for the day", value: (s) => s.due, emphasis: true },
         { label: "Resolved slots", fmt: "n", hint: "showed + no-show + cancelled + rescheduled", value: (s) => s.resolved },
@@ -226,6 +241,7 @@ function buildSections(): SectionDef[] {
         { label: "Rescheduled", fmt: "n", value: (s) => s.rescheduled },
         { label: "Double booked", fmt: "n", hint: "slots sharing a closer and a start time", value: (s) => s.doubleBooked },
         { label: "Meeting time (Fathom)", fmt: "hm", hint: "recorded sittings only", value: (s) => s.meetingMinutes },
+        { label: "Booking rate", fmt: "pct", hint: "bookings due ÷ available slots", value: (s) => pct(s.due, s.availableSlots), emphasis: true },
       ],
     },
     {
