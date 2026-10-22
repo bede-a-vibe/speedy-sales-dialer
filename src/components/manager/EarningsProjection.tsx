@@ -128,8 +128,18 @@ function RepCard({ name, observed, lookbackDays }: { name: string; observed: Obs
     ];
   }, [inputs, p.annual]);
 
-  const nextTier = SETTER_PLAN.tiers.find((t) => t.minDeals > p.closes) ?? null;
   const tierNow = tierFor(SETTER_PLAN, p.closes, p.revenue);
+  // The next tier is the first one paying MORE than today's, reached on deals or on the
+  // revenue equivalent, whichever is closer; a rep already on 18% via revenue is not sent
+  // back to the 15% deal line.
+  const nextTier = SETTER_PLAN.tiers.find((t) => t.rate > (tierNow?.rate ?? 0)) ?? null;
+  const nextTierGap = useMemo(() => {
+    if (!nextTier) return null;
+    const closesByDeals = Math.max(0, nextTier.minDeals - p.closes);
+    const closesByRevenue = inputs.avgCollection > 0 ? Math.max(0, (nextTier.minRevenue - p.revenue) / inputs.avgCollection) : Infinity;
+    const closes = Math.min(closesByDeals, closesByRevenue);
+    return { closes, revenue: closes * inputs.avgCollection };
+  }, [nextTier, p.closes, p.revenue, inputs.avgCollection]);
   const set = (patch: Partial<Inputs>) => setInputs((cur) => ({ ...cur, ...patch }));
   const changed = JSON.stringify(inputs) !== JSON.stringify(base);
 
@@ -202,10 +212,12 @@ function RepCard({ name, observed, lookbackDays }: { name: string; observed: Obs
               <span className="text-foreground">Take-home before super</span>
               <span className="font-mono text-foreground">{money(p.monthly)}</span>
             </div>
-            {nextTier ? (
+            {nextTier && nextTierGap ? (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                {nextTier.minDeals - p.closes > 0 ? `${(nextTier.minDeals - p.closes).toFixed(1)} more closes a month reaches ${pct(nextTier.rate)}.` : ""}
+                {nextTierGap.closes.toFixed(1)} more close{nextTierGap.closes.toFixed(1) === "1.0" ? "" : "s"} a month ({money(nextTierGap.revenue)} more revenue) reaches {pct(nextTier.rate)}.
               </p>
+            ) : tierNow ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">Top tier.</p>
             ) : null}
           </div>
         </div>
