@@ -377,8 +377,15 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     contactsRef.current = contacts;
   }, [contacts]);
 
+  // Every lead this session has already dialled and dispositioned. A claim that is in
+  // flight when a lead is logged can hand the same lead straight back (the lock is
+  // released and the status update races the refill), and the buffer merge only knew
+  // about leads currently IN the buffer. Powering Brisbane, 23 Oct 2026: logged not
+  // interested at 16:33, re-dialled at 16:37.
+  const handledIdsRef = useRef<Set<string>>(new Set());
+
   const claimIntoBuffer = useCallback(async (activeSessionId: string, seedContacts: Contact[], desiredMinimum: number) => {
-    const seenIds = new Set(seedContacts.map((contact) => contact.id));
+    const seenIds = new Set([...seedContacts.map((contact) => contact.id), ...handledIdsRef.current]);
     const mergedContacts = [...seedContacts];
     let latestTotalCount = mergedContacts.length;
     let emptyRetries = 0;
@@ -442,6 +449,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     startingRef.current = false;
     startInFlightRef.current = null;
     setSessionId(null);
+    handledIdsRef.current = new Set();
     contactsRef.current = [];
     setContacts([]);
     setTotalCount(0);
@@ -486,7 +494,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
           const currentIds = new Set(contactsRef.current.map((c) => c.id));
           const freshContacts = [...contactsRef.current];
           for (const c of nextContacts) {
-            if (!currentIds.has(c.id)) {
+            if (!currentIds.has(c.id) && !handledIdsRef.current.has(c.id)) {
               freshContacts.push(c);
               currentIds.add(c.id);
             }
@@ -634,6 +642,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
       startingRef.current = true;
       setQueueHealth("bootstrapping");
       // Don't set sessionId state yet — prevents prefetch effect from racing
+      handledIdsRef.current = new Set();
       contactsRef.current = [];
       setContacts([]);
       setTotalCount(0);
@@ -695,6 +704,7 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
 
   const discardContact = useCallback(async (contactId: string, options?: DiscardDialerContactOptions) => {
     const activeSessionId = sessionRef.current;
+    handledIdsRef.current.add(contactId);
 
     contactsRef.current = contactsRef.current.filter((contact) => contact.id !== contactId);
     setContacts(contactsRef.current);
