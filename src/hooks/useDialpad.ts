@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 interface DialpadCallParams {
   phone: string;
@@ -55,6 +56,32 @@ function normalizeDialpadResponse(data: unknown): DialpadActionResponse {
   };
 }
 
+// supabase-js hides every non-2xx behind "Edge Function returned a non-2xx status code".
+// The dialpad function always answers with { error, message, status_code, details }, and
+// that body is the only thing that says WHY (Dialpad 429, DND stuck, bad number, 5xx).
+// Without it the toast is useless and the 409/429 retry matching below never fires.
+async function readFunctionErrorBody(error: unknown): Promise<string | null> {
+  if (!(error instanceof FunctionsHttpError)) return null;
+  const response = error.context as Response | undefined;
+  if (!response || typeof response.text !== "function") return null;
+  try {
+    const raw = await response.text();
+    if (!raw.trim()) return `Dialpad function returned ${response.status}`;
+    let body: Record<string, unknown> | null = null;
+    try { body = JSON.parse(raw) as Record<string, unknown>; } catch { body = null; }
+    if (!body) return `Dialpad function returned ${response.status}: ${raw.slice(0, 200)}`;
+    const headline = typeof body.error === "string" && body.error.trim() ? body.error.trim() : null;
+    const detail = typeof body.message === "string" && body.message.trim() ? body.message.trim() : null;
+    const status = typeof body.status_code === "number" ? body.status_code : response.status;
+    const parts = [headline ?? `Dialpad function returned ${status}`];
+    if (!headline?.includes(`[${status}]`) && !String(headline).includes(String(status))) parts[0] += ` [${status}]`;
+    if (detail && detail !== headline) parts.push(detail);
+    return parts.join(": ");
+  } catch {
+    return `Dialpad function returned ${response.status}`;
+  }
+}
+
 function getDialpadErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -74,7 +101,8 @@ async function invokeDialpadAction(body: Record<string, unknown>, fallbackMessag
   const { data, error } = await supabase.functions.invoke("dialpad", { body });
 
   if (error) {
-    throw new Error(getDialpadErrorMessage(error, fallbackMessage));
+    const detailed = await readFunctionErrorBody(error);
+    throw new Error(detailed ?? getDialpadErrorMessage(error, fallbackMessage));
   }
 
   const response = normalizeDialpadResponse(data);
