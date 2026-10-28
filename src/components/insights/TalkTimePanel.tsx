@@ -52,7 +52,18 @@ function Tile({ label, value, sub, icon: Icon }: { label: string; value: string;
 
 export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
   const [rep, setRep] = useState("all");
-  const { data: calls = [], isLoading } = useDialpadCallStats(dateFrom, dateTo);
+  const { data: allCalls = [], isLoading } = useDialpadCallStats(dateFrom, dateTo);
+  // Inbound calls (prospects ringing back) are not dials: they are left out of
+  // every call and connect count here. Talk time still counts them, since the
+  // rep was on the phone either way.
+  const calls = useMemo(
+    () => allCalls.filter((c) => (c.direction ?? "outbound") !== "inbound"),
+    [allCalls],
+  );
+  const inboundTalk = useMemo(
+    () => allCalls.filter((c) => c.direction === "inbound").reduce((s, c) => s + (c.talk_time_seconds ?? 0), 0),
+    [allCalls],
+  );
   const { data: reps = [] } = useSalesReps();
 
   const repName = useMemo(() => {
@@ -85,7 +96,7 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
   const totals = useMemo(() => {
     const totalCalls = calls.length;
     const connected = calls.filter((c) => c.is_connected).length;
-    const talk = calls.reduce((s, c) => s + (c.talk_time_seconds ?? 0), 0);
+    const talk = calls.reduce((s, c) => s + (c.talk_time_seconds ?? 0), 0) + inboundTalk;
     return {
       totalCalls,
       connected,
@@ -93,7 +104,7 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
       connectRate: totalCalls > 0 ? connected / totalCalls : 0,
       avgTalk: connected > 0 ? talk / connected : 0,
     };
-  }, [calls]);
+  }, [calls, inboundTalk]);
 
   // Heat map: talk-time seconds by [day][hour], filtered by selected rep.
   const heat = useMemo(() => {

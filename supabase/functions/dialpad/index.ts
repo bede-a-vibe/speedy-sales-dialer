@@ -5377,6 +5377,10 @@ async function catchUpDialpadCallRecords(params: {
     .is("call_log_id", null)
     .not("contact_id", "is", null)
     .not("user_id", "is", null)
+    // A prospect ringing back is not the rep's dial. Linking it by time window
+    // stole the outbound log (437 of Ben's by 28 Oct 2026) and orphaned the
+    // outbound row, which step 1.5 then logged as a second dial.
+    .or("direction.is.null,direction.neq.inbound")
     .gte("started_at", since)
     .limit(200);
   for (const row of unlinked ?? []) {
@@ -5406,6 +5410,10 @@ async function catchUpDialpadCallRecords(params: {
     .is("call_log_id", null)
     .not("contact_id", "is", null)
     .not("user_id", "is", null)
+    // Inbound calls are never auto-logged as dials (319 phantom "no answer"
+    // dials for Ben by 28 Oct 2026). The DB trigger call_logs_skip_phantom_autolog
+    // enforces the same rule as a backstop.
+    .or("direction.is.null,direction.neq.inbound")
     .gte("started_at", since)
     .lte("started_at", autoLogCutoff)
     .limit(200);
