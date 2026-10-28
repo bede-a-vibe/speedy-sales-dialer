@@ -16,6 +16,7 @@ export interface ConversationProgressState {
   reachedConnection: boolean;
   reachedProblem: boolean;
   reachedSolution: boolean;
+  reachedPitched: boolean;
   reachedCommitment: boolean;
   exitReasonConnection: string | null;
   exitReasonProblem: string | null;
@@ -30,6 +31,7 @@ export const EMPTY_CONVERSATION_PROGRESS: ConversationProgressState = {
   reachedConnection: false,
   reachedProblem: false,
   reachedSolution: false,
+  reachedPitched: false,
   reachedCommitment: false,
   exitReasonConnection: null,
   exitReasonProblem: null,
@@ -48,6 +50,23 @@ interface Props {
   embedded?: boolean;
   /** One-tap "the line dropped" — fills progress + schedules an immediate ring-back. */
   onCallDropped?: () => void;
+}
+
+type ReachedStage = "reachedConnection" | "reachedProblem" | "reachedSolution" | "reachedPitched" | "reachedCommitment";
+const REACHED_STAGES: ReachedStage[] = ["reachedConnection", "reachedProblem", "reachedSolution", "reachedPitched", "reachedCommitment"];
+
+export function updateReachedStage(value: ConversationProgressState, stage: ReachedStage, checked: boolean): ConversationProgressState {
+  const next = { ...value };
+  const index = REACHED_STAGES.indexOf(stage);
+  REACHED_STAGES.forEach((key, i) => {
+    if ((checked && i <= index) || (!checked && i >= index)) next[key] = checked;
+  });
+  return next;
+}
+
+/** Keep the explicit pitch checkpoint in the existing call notes, independently of solution awareness. */
+export function withPitchedStageNote(notes: string, pitched: boolean): string | undefined {
+  return [notes.trim(), pitched ? "Stage reached: Pitched" : ""].filter(Boolean).join("\n") || undefined;
 }
 
 /**
@@ -96,43 +115,10 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
 
   // Cascading: ticking a later stage auto-ticks earlier ones.
   const setStage = (
-    stage: "reachedConnection" | "reachedProblem" | "reachedSolution" | "reachedCommitment",
+    stage: ReachedStage,
     checked: boolean,
   ) => {
-    const next = { ...value };
-    if (checked) {
-      if (stage === "reachedCommitment") {
-        next.reachedConnection = true;
-        next.reachedProblem = true;
-        next.reachedSolution = true;
-        next.reachedCommitment = true;
-      } else if (stage === "reachedSolution") {
-        next.reachedConnection = true;
-        next.reachedProblem = true;
-        next.reachedSolution = true;
-      } else if (stage === "reachedProblem") {
-        next.reachedConnection = true;
-        next.reachedProblem = true;
-      } else {
-        next.reachedConnection = true;
-      }
-    } else {
-      if (stage === "reachedConnection") {
-        next.reachedConnection = false;
-        next.reachedProblem = false;
-        next.reachedSolution = false;
-        next.reachedCommitment = false;
-      } else if (stage === "reachedProblem") {
-        next.reachedProblem = false;
-        next.reachedSolution = false;
-        next.reachedCommitment = false;
-      } else if (stage === "reachedSolution") {
-        next.reachedSolution = false;
-        next.reachedCommitment = false;
-      } else {
-        next.reachedCommitment = false;
-      }
-    }
+    const next = updateReachedStage(value, stage, checked);
     const newExitStage = getExitStage(next, outcomeIsBooked);
     onChange(clearStaleExitReasons(next, newExitStage));
   };
@@ -149,6 +135,7 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
     !value.reachedConnection &&
     !value.reachedProblem &&
     !value.reachedSolution &&
+    !value.reachedPitched &&
     !value.reachedCommitment &&
     value.exitReasonConnection === "hung_up_immediately";
 
@@ -166,6 +153,7 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
       reachedConnection: false,
       reachedProblem: false,
       reachedSolution: false,
+      reachedPitched: false,
       reachedCommitment: false,
       exitReasonConnection: "hung_up_immediately",
       exitReasonProblem: null,
@@ -230,6 +218,7 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
           <StageRow label="Connected" checked={value.reachedConnection} onChange={(c) => setStage("reachedConnection", c)} />
           <StageRow label="Problem" checked={value.reachedProblem} onChange={(c) => setStage("reachedProblem", c)} />
           <StageRow label="Solution" checked={value.reachedSolution} onChange={(c) => setStage("reachedSolution", c)} />
+          <StageRow label="Pitched" checked={value.reachedPitched ?? false} onChange={(c) => setStage("reachedPitched", c)} />
           <StageRow label="Commitment" checked={value.reachedCommitment} onChange={(c) => setStage("reachedCommitment", c)} />
         </div>
       </div>

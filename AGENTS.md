@@ -7,3 +7,4 @@
 - The dashboard's personal call funnel reuses the Insights KPI strip and funnel chart, filtering call logs and booking metrics to the signed-in rep so both views share definitions.
 - Fathom is connected per closer: each user's API key lives in fathom_connections (key column not granted to browser roles) and only the `fathom` edge function reads it — keys are personal to each Fathom account.
 - Recover stale lazy-page imports through the shared error boundary with a session-guarded document reload; React retries reuse rejected imports and cannot fetch a new deployment manifest.
+- The dialer's explicit Pitched checkpoint sits between Solution and Commitment and is retained in call notes; keep it distinct from solution awareness without changing the existing reporting schema.

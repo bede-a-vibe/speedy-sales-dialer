@@ -21,7 +21,7 @@ import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopov
 import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { MarketingCapture } from "@/components/dialer/MarketingCapture";
-import { EMPTY_CONVERSATION_PROGRESS, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
+import { EMPTY_CONVERSATION_PROGRESS, withPitchedStageNote, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
 import { LiveCoachPanel } from "@/components/dialer/LiveCoachPanel";
 import { SmartViewsBar } from "@/components/dialer/SmartViewsBar";
@@ -1705,7 +1705,7 @@ export default function DialerPage() {
             contact_id: contactId,
             user_id: userId,
             outcome: outcomeToLog,
-            notes: pipelineNotes || undefined,
+            notes: withPitchedStageNote(pipelineNotes || "", cp.reachedPitched),
             follow_up_date: scheduledFor,
             dialpad_call_id: dialpadCallId,
             reached_connection: cp.reachedConnection,
