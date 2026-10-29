@@ -197,154 +197,182 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
         </div>
       )}
 
-      {/* Business Name & Industry */}
-      <div className="flex items-start justify-between">
-        <div>
-          {onRenameBusiness && isRenaming ? (
-            <div className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); void commitRename(); }
-                  if (e.key === "Escape") { setIsRenaming(false); setRenameValue(contact.business_name); }
-                }}
-                className="w-64 rounded-md border border-primary/40 bg-background px-2 py-1 text-lg font-bold text-foreground outline-none"
-              />
-              <button type="button" onClick={() => void commitRename()} disabled={isSavingName}
-                className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
-                {isSavingName ? "Saving…" : "Save"}
+      {/* Header: the name on its own line, then one line of context chips, then links and actions.
+          Industry and location live here once (they used to repeat lower down), and actions
+          sit on their own row so a long business name never has to wrap around them. */}
+      <div className="space-y-2">
+        {onRenameBusiness && isRenaming ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); void commitRename(); }
+                if (e.key === "Escape") { setIsRenaming(false); setRenameValue(contact.business_name); }
+              }}
+              className="w-full max-w-md rounded-md border border-primary/40 bg-background px-2 py-1 text-lg font-bold text-foreground outline-none"
+            />
+            <button type="button" onClick={() => void commitRename()} disabled={isSavingName}
+              className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+              {isSavingName ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => { setIsRenaming(false); setRenameValue(contact.business_name); }}
+              className="px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <h3 className="group flex items-start gap-1.5 text-lg font-bold leading-tight text-foreground">
+            <span className="min-w-0 break-words">{contact.business_name}</span>
+            {onRenameBusiness && (
+              <button
+                type="button"
+                title="Rename this business"
+                onClick={() => { setRenameValue(contact.business_name); setIsRenaming(true); }}
+                className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
               </button>
-              <button type="button" onClick={() => { setIsRenaming(false); setRenameValue(contact.business_name); }}
-                className="px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground">
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <h3 className="group flex items-center gap-1.5 text-lg font-bold text-foreground">
-              {contact.business_name}
-              {onRenameBusiness && (
-                <button
-                  type="button"
-                  title="Rename this business"
-                  onClick={() => { setRenameValue(contact.business_name); setIsRenaming(true); }}
-                  className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                >
-                  <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                </button>
-              )}
-            </h3>
+            )}
+          </h3>
+        )}
+
+        {/* Context chips: who they are and where the lead sits, in one glance */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {contact.industry && (
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-accent px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-accent-foreground">
+              <Briefcase className="h-3 w-3" />
+              {contact.industry}
+            </span>
+          )}
+          {(contact.city || contact.state) && (
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground">
+              <MapPin className="h-3 w-3" />
+              {[contact.city, contact.state].filter(Boolean).join(", ")}
+            </span>
           )}
           {contact.contact_person && (
-            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-              <User className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+              <User className="h-3 w-3" />
               {contact.contact_person}
-            </p>
+            </span>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          {headerActions}
           {contact.lifecycle_stage && (
-            <span className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${LIFECYCLE_STAGE_COLORS[contact.lifecycle_stage as LifecycleStage] || "bg-accent text-accent-foreground border-border"}`}>
+            <span className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest ${LIFECYCLE_STAGE_COLORS[contact.lifecycle_stage as LifecycleStage] || "bg-accent text-accent-foreground border-border"}`}>
               {LIFECYCLE_STAGE_LABELS[contact.lifecycle_stage as LifecycleStage] || contact.lifecycle_stage}
             </span>
           )}
-          <span className="text-[10px] uppercase tracking-widest font-mono bg-accent text-accent-foreground px-2 py-1 rounded">
-            {contact.industry}
-          </span>
+          {tierCfg && (
+            <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-widest ${tierCfg.color}`}>
+              <Zap className="h-3 w-3" />
+              {tierCfg.label}
+            </span>
+          )}
+          {poolCfg && poolLabel && (
+            <span className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest ${poolCfg.color}`}>
+              {poolLabel}
+            </span>
+          )}
+          {hasRating && (
+            <span className="inline-flex items-center gap-1 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono text-amber-800 dark:text-yellow-300" title={`${reviewCount} Google reviews`}>
+              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
+              {rating ? rating.toFixed(1) : "—"} ({reviewCount})
+            </span>
+          )}
+          {contact.business_size && (
+            <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground">
+              {contact.business_size}
+            </span>
+          )}
+          {contact.buying_signal_strength && contact.buying_signal_strength !== "None" && (
+            <span className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+              <Zap className="h-3 w-3" />
+              Signal: {contact.buying_signal_strength}
+            </span>
+          )}
         </div>
+
+        {/* Links on the left, actions on the right */}
+        {(() => {
+          const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
+          const hasLinks = Boolean(contact.gmb_link || ghlUrl || contact.website || contact.email);
+          if (!hasLinks && !headerActions) return null;
+          const linkClass = "inline-flex items-center gap-1 rounded-md border border-border bg-secondary px-2 py-1 text-[11px] text-secondary-foreground transition-colors hover:bg-accent";
+          return (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {contact.gmb_link && (
+                <a href={contact.gmb_link} target="_blank" rel="noopener noreferrer" className={linkClass} title="Google Business Profile">
+                  <MapPin className="h-3 w-3" /> GMB <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                </a>
+              )}
+              {ghlUrl && (
+                <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className={linkClass} title="Open contact in GoHighLevel">
+                  <UserCheck className="h-3 w-3" /> GHL <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                </a>
+              )}
+              {contact.website && (
+                <a href={contact.website} target="_blank" rel="noopener noreferrer" className={linkClass} title={contact.website}>
+                  <Globe className="h-3 w-3" /> Website <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                </a>
+              )}
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} className={`${linkClass} max-w-[220px]`} title={contact.email}>
+                  <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{contact.email}</span>
+                </a>
+              )}
+              {headerActions && <div className="ml-auto flex items-center gap-1.5">{headerActions}</div>}
+            </div>
+          );
+        })()}
       </div>
 
-      {/* Quick links — GMB / GHL / Website at the top for fast lookups */}
-      {(contact.gmb_link || getGhlContactUrl(contact.ghl_contact_id) || contact.website) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {contact.gmb_link && (
-            <a
-              href={contact.gmb_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
-            >
-              <MapPin className="h-3.5 w-3.5" /> GMB Profile <ExternalLink className="h-3 w-3 opacity-50" />
-            </a>
-          )}
-          {(() => {
-            const ghlUrl = getGhlContactUrl(contact.ghl_contact_id);
-            return ghlUrl ? (
-              <a
-                href={ghlUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open contact in GoHighLevel"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
-              >
-                <UserCheck className="h-3.5 w-3.5" /> GHL Contact <ExternalLink className="h-3 w-3 opacity-50" />
-              </a>
-            ) : null;
-          })()}
-          {contact.website && (
-            <a
-              href={contact.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground hover:bg-accent transition-colors"
-            >
-              <Globe className="h-3.5 w-3.5" /> Website <ExternalLink className="h-3 w-3 opacity-50" />
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Business Phone with Type Badge */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <a
-            href={`tel:${contact.phone}`}
-            className="flex-1 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-md px-3 py-2.5 text-primary hover:bg-primary/20 transition-colors group"
-          >
-            <PhoneIcon className="h-4 w-4 group-hover:animate-pulse" />
-            <span className="font-mono text-sm font-semibold">{contact.phone}</span>
-          </a>
-          <span className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1.5 rounded border ${phoneType.color}`}>
+      {/* Phone: the number, its type, the attempts, and the number-quality control on one line */}
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={`tel:${contact.phone}`}
+          className="group flex min-w-[200px] flex-1 items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-primary transition-colors hover:bg-primary/20"
+        >
+          <PhoneIcon className="h-4 w-4 shrink-0 group-hover:animate-pulse" />
+          <span className="font-mono text-sm font-semibold">{contact.phone}</span>
+          <span className={`ml-auto rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest ${phoneType.color}`}>
             {phoneType.label}
           </span>
-        </div>
-
-        {/* Call Stats & Phone Quality */}
-        <div className="flex items-center gap-2 text-xs">
-          {(contact.call_attempt_count ?? 0) > 0 && (
-            <span className="font-mono text-muted-foreground bg-accent px-2 py-1 rounded border border-border">
-              {contact.call_attempt_count} attempt{(contact.call_attempt_count ?? 0) !== 1 ? 's' : ''}
-            </span>
-          )}
-          {(contact.voicemail_count ?? 0) > 0 && (
-            <span className="font-mono text-amber-800 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/15 px-2 py-1 rounded border border-amber-500/30">
-              {contact.voicemail_count} VM{(contact.voicemail_count ?? 0) !== 1 ? 's' : ''}
-            </span>
-          )}
-          {onMarkPhoneQuality && (
-            <div className="flex items-center gap-1 ml-auto">
-              {['confirmed', 'suspect', 'dead'].map((q) => {
-                const cfg = PHONE_QUALITY_CONFIG[q];
-                const QIcon = cfg.icon;
-                const isActive = contact.phone_number_quality === q;
-                return (
-                  <button
-                    key={q}
-                    onClick={() => onMarkPhoneQuality(q)}
-                    title={`Mark as ${cfg.label}`}
-                    className={`p-1 rounded border transition-colors ${
-                      isActive ? cfg.color + ' ring-1 ring-offset-1 ring-offset-background' : 'text-muted-foreground/50 bg-transparent border-transparent hover:' + cfg.color
-                    }`}
-                  >
-                    <QIcon className="h-3 w-3" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        </a>
+        {(contact.call_attempt_count ?? 0) > 0 && (
+          <span className="rounded border border-border bg-accent px-2 py-1 font-mono text-[11px] text-muted-foreground" title="Dials to this lead so far">
+            {contact.call_attempt_count} attempt{(contact.call_attempt_count ?? 0) !== 1 ? "s" : ""}
+          </span>
+        )}
+        {(contact.voicemail_count ?? 0) > 0 && (
+          <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[11px] text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+            {contact.voicemail_count} VM{(contact.voicemail_count ?? 0) !== 1 ? "s" : ""}
+          </span>
+        )}
+        {onMarkPhoneQuality && (
+          <div className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5" role="group" aria-label="Number quality">
+            {["confirmed", "suspect", "dead"].map((q) => {
+              const cfg = PHONE_QUALITY_CONFIG[q];
+              const QIcon = cfg.icon;
+              const isActive = contact.phone_number_quality === q;
+              return (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => onMarkPhoneQuality(q)}
+                  title={`Number ${cfg.label.toLowerCase()}`}
+                  aria-pressed={isActive}
+                  className={`flex items-center gap-1 rounded border px-1.5 py-1 text-[10px] transition-colors ${
+                    isActive ? cfg.color : "border-transparent bg-transparent text-muted-foreground/60 hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  <QIcon className="h-3 w-3" />
+                  {isActive && <span className="font-mono uppercase tracking-widest">{cfg.label}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {isBusinessRoutedNumber && (
@@ -470,46 +498,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
         ) : null
       )}
 
-      {/* Intelligence badge row — lead context, after the actionable info */}
-      {(tierCfg || poolLabel || contact.industry || hasRating || contact.business_size || contact.buying_signal_strength) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {tierCfg && (
-            <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-mono font-bold px-2.5 py-1 rounded border ${tierCfg.color}`}>
-              <Zap className="h-3 w-3" />
-              {tierCfg.label}
-            </span>
-          )}
-          {poolCfg && poolLabel && (
-            <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border ${poolCfg.color}`}>
-              {poolLabel}
-            </span>
-          )}
-          {contact.industry && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-accent text-accent-foreground">
-              <Briefcase className="h-3 w-3" />
-              {contact.industry}
-            </span>
-          )}
-          {hasRating && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-yellow-500/30 bg-yellow-500/10 text-amber-800 dark:text-yellow-300">
-              <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
-              {rating ? rating.toFixed(1) : "—"} · {reviewCount} reviews
-            </span>
-          )}
-          {contact.business_size && (
-            <span className="inline-flex items-center text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-border bg-secondary text-secondary-foreground">
-              {contact.business_size}
-            </span>
-          )}
-          {contact.buying_signal_strength && (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-              <Zap className="h-3 w-3" />
-              Signal: {contact.buying_signal_strength}
-            </span>
-          )}
-        </div>
-      )}
-
       {/* Existing agency callout */}
       {contact.has_existing_agency && (
         <div className="flex items-start gap-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-md px-3.5 py-2.5 text-fuchsia-900 dark:text-fuchsia-100">
@@ -526,24 +514,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
           </div>
         </div>
       )}
-
-      {/* Contact Info Grid — email + location (GMB/GHL/Website live in the top quick-links) */}
-      <div className="grid grid-cols-2 gap-3">
-        <a
-          href={`mailto:${contact.email}`}
-          className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground hover:bg-accent transition-colors"
-        >
-          <Mail className="h-4 w-4" />
-          <span className="text-sm truncate">{contact.email || "No email"}</span>
-        </a>
-
-        {(contact.city || contact.state) && (
-          <div className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 py-2.5 text-secondary-foreground">
-            <MapPin className="h-4 w-4" />
-            <span className="text-sm truncate">{[contact.city, contact.state].filter(Boolean).join(", ")}</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
