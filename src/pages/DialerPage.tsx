@@ -1,8 +1,7 @@
-import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_NO_ANSWER_SECONDS, isRingingState } from "@/lib/kpiStandards";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, Maximize2, Minimize2, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, NotebookPen, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Brain, Maximize2, Minimize2, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, Megaphone, MoreHorizontal, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -23,8 +22,6 @@ import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligenc
 import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { EMPTY_CONVERSATION_PROGRESS, withPitchedStageNote, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
 import { LogCallPanel } from "@/components/dialer/LogCallPanel";
-import { LiveCoachPanel } from "@/components/dialer/LiveCoachPanel";
-import { SmartViewsBar } from "@/components/dialer/SmartViewsBar";
 import { IncomingCallerCard } from "@/components/dialer/IncomingCallerCard";
 import { CollapsiblePanel } from "@/components/dialer/CollapsiblePanel";
 import { Badge } from "@/components/ui/badge";
@@ -3229,24 +3226,8 @@ export default function DialerPage() {
               </div>
             )}
 
-            {/* Smart views: one-tap queue configurations + team-saved filter sets */}
-            {!simpleMode && (
-              <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2.5">
-                <SmartViewsBar
-                  currentFilters={currentFilterSnapshot}
-                  onReset={resetAdvancedFilters}
-                  onApply={applySmartList}
-                  disabled={session.isSessionActive}
-                />
-                {session.isSessionActive && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">Stop the session to switch views — the queue rebuilds on the next start.</p>
-                )}
-              </div>
-            )}
-
             <div className={cn("grid grid-cols-1 gap-6", !simpleMode && "lg:grid-cols-5")}>
             <div className={cn("space-y-4", !simpleMode && "lg:col-span-3")}>
-              {!simpleMode && <LeadBuckets key={session.currentContact.id} contactId={session.currentContact.id} />}
               <RecentCallWarning
                 contactId={session.currentContact.id}
                 phone={(displayContact ?? session.currentContact).phone}
@@ -3334,25 +3315,6 @@ export default function DialerPage() {
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                   Session paused — this lead is held in your queue and no new call will start until you resume.
                 </div>
-              )}
-
-              {/* Live talk aid — script/opener visible by default, right under the card. Hidden in
-                  Simple view: the rep has the script open in another window. */}
-              {!simpleMode && (
-                <CollapsiblePanel
-                  title="Live Talk Aid"
-                  subtitle="Scripts · Objections · Voicemails"
-                  icon={<NotebookPen className="h-4 w-4" />}
-                  defaultOpen
-                >
-                  <SalesToolkit
-                    contactIndustry={session.currentContact?.industry ?? null}
-                    businessName={session.currentContact?.business_name ?? null}
-                    city={session.currentContact?.city ?? null}
-                    state={session.currentContact?.state ?? null}
-                    attemptCount={session.currentContact?.call_attempt_count ?? 0}
-                  />
-                </CollapsiblePanel>
               )}
 
               {/* Consolidated capture — collapsed by default (fast for no-answer flow),
@@ -3459,8 +3421,6 @@ export default function DialerPage() {
                   </span>
                 </div>
               )}
-              {/* Live coach: instant brush-off lines + ask box, right where the rep is looking mid-call */}
-              {!simpleMode && <LiveCoachPanel />}
               {/* Log This Call — outcomes + conversation tagging in one card */}
               <div data-coach-step="log-call-panel">
               <LogCallPanel
