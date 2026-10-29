@@ -46,13 +46,16 @@ export const OutcomeButton = React.forwardRef<HTMLButtonElement, OutcomeButtonPr
         <span className="truncate">{label || config.label}</span>
         <div className={cn("ml-auto flex shrink-0 items-center", compact ? "gap-1" : "gap-2")}>
           {hint && (
-            <span className={cn("font-medium uppercase tracking-widest text-primary/80", compact ? "text-[9px]" : "text-[10px]")}>
+            <span className={cn("font-medium text-primary/80", compact ? "text-[9px]" : "text-[10px] uppercase tracking-widest")}>
               {hint}
             </span>
           )}
-          <kbd className={cn("rounded bg-background/30 font-mono opacity-50", compact ? "px-1 py-0.5 text-[9px]" : "px-1.5 py-0.5 text-[10px]")}>
-            {config.shortcut}
-          </kbd>
+          {/* In a compact tile the hint takes the key's spot, so the label keeps its room. */}
+          {!(compact && hint) && (
+            <kbd className={cn("rounded bg-background/30 font-mono opacity-50", compact ? "px-1 py-0.5 text-[9px]" : "px-1.5 py-0.5 text-[10px]")}>
+              {config.shortcut}
+            </kbd>
+          )}
         </div>
       </button>
     );

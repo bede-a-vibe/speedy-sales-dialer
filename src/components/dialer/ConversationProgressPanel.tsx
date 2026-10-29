@@ -134,6 +134,9 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
   };
 
   const currentExitValue = exitStage ? (value[STAGE_TO_FIELD[exitStage]] as string | null) : null;
+  // EXIT_STAGE_LABELS read "Lost at X" for the reports; here the row already says
+  // "Ended at", so only the stage name is wanted.
+  const exitStageName = exitStage ? EXIT_STAGE_LABELS[exitStage].replace(/^Lost at /, "") : null;
 
   const setExitReason = (v: string) => {
     if (!exitStage) return;
@@ -184,13 +187,13 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
                 aria-pressed={on}
                 onClick={() => setStage(key, !on)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
                   on
                     ? "border-primary/60 bg-primary/15 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground",
                 )}
               >
-                {on ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-current opacity-40" />}
+                {on && <Check className="h-3 w-3" />}
                 {label}
               </button>
             );
@@ -252,11 +255,11 @@ export function ConversationProgressPanel({ value, onChange, outcomeIsBooked, em
 
         {exitStage && (
           <div className="min-w-0 space-y-1">
-            <Label className="truncate text-[10px] uppercase tracking-widest text-muted-foreground" title={`Why did the call end at ${EXIT_STAGE_LABELS[exitStage]}?`}>
-              Ended at {EXIT_STAGE_LABELS[exitStage]}
+            <Label className="block truncate text-[10px] uppercase tracking-widest text-muted-foreground" title={`Why did the call end at ${exitStageName}?`}>
+              Ended at {exitStageName}
             </Label>
             <Select value={currentExitValue ?? NONE} onValueChange={setExitReason}>
-              <SelectTrigger className="h-8 border-border bg-background text-xs" aria-label={`Why did the call end at ${EXIT_STAGE_LABELS[exitStage]}?`}>
+              <SelectTrigger className="h-8 border-border bg-background text-xs" aria-label={`Why did the call end at ${exitStageName}?`}>
                 <SelectValue placeholder="Why? (optional)" />
               </SelectTrigger>
               <SelectContent>

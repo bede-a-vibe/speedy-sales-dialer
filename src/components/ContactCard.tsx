@@ -332,7 +332,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
         >
           <PhoneIcon className="h-4 w-4 shrink-0 group-hover:animate-pulse" />
           <span className="font-mono text-sm font-semibold">{contact.phone}</span>
-          <span className={`ml-auto rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest ${phoneType.color}`}>
+          <span className={`ml-auto rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest ${phoneType.color}`}>
             {phoneType.label}
           </span>
         </a>
@@ -412,7 +412,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
             )}
           </div>
 
-          {(contact.dm_phone || contact.dm_email) && (
+          {hasDM && (contact.dm_phone || contact.dm_email) && (
             <div className="flex flex-wrap items-center gap-1.5">
               {contact.dm_phone && (onCallDM ? (
                 <button
@@ -496,12 +496,20 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
             </button>
           ) : (
             <p className="text-[11px] leading-snug text-sky-900/85 dark:text-sky-100/85">
-              No decision maker on file. Capture the name and a direct mobile or extension in Capture details once you have it.
+              {isBusinessRoutedNumber
+                ? "No decision maker on file. Use this call to find out who runs the show and get a direct mobile or extension before requeueing."
+                : "No decision maker on file. Capture the name and a direct mobile or extension in Capture details once you have it."}
             </p>
           ))}
 
+          {hasDM && !contact.dm_phone && isBusinessRoutedNumber && (
+            <p className="text-[11px] leading-snug text-sky-900/85 dark:text-sky-100/85">
+              No direct line yet. Use this call to get {contact.dm_name ? `${contact.dm_name}'s` : "the decision maker's"} mobile or extension before requeueing.
+            </p>
+          )}
+
           {isBusinessRoutedNumber && (
-            <div className="flex flex-wrap gap-1.5" aria-label="Switchboard checklist">
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Switchboard checklist">
               {businessLineWorkflowItems.map((item) => {
                 const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
                 return (

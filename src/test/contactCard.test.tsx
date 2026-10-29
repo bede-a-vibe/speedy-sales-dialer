@@ -23,8 +23,8 @@ const base = {
 };
 
 // The tidied contact card header (29 Oct 2026): industry and location once,
-// no "No email" filler, links and actions on one row, phone + type + attempts
-// + number quality on one line.
+// no "No email" filler, links and actions sharing one wrapping row, phone +
+// type + attempts + number quality on one line.
 describe("ContactCard header", () => {
   it("shows the industry once and the location as a chip, with no email filler", () => {
     render(<ContactCard contact={base} onMarkPhoneQuality={vi.fn()} />);
@@ -35,7 +35,7 @@ describe("ContactCard header", () => {
     expect(screen.getByText("5.0 (16)")).toBeInTheDocument();
   });
 
-  it("puts the email in the links row only when there is one, next to the header actions", () => {
+  it("puts the email in the links row only when there is one, in the same row as the header actions", () => {
     render(
       <ContactCard
         contact={{ ...base, email: "office@apex.example" }}
@@ -99,6 +99,22 @@ describe("ContactCard header", () => {
     expect(block.textContent).toContain("still needed");
     expect(block.textContent).toContain("not captured");
     expect(screen.queryByRole("button", { name: /Add decision maker/ })).toBeNull();
+  });
+
+  it("does not show a decision-maker email when there is no name or number behind it", () => {
+    render(<ContactCard contact={{ ...base, phone_type: "landline", dm_email: "someone@apex.example" }} />);
+    const block = screen.getByTestId("decision-maker-block");
+    expect(screen.queryByRole("link", { name: /someone@apex.example/ })).toBeNull();
+    expect(block.textContent).toContain("No decision maker on file");
+    expect(block.textContent).toContain("who runs the show");
+  });
+
+  it("keeps the next-step line for a switchboard lead with a name but no direct line", () => {
+    render(<ContactCard contact={{ ...base, phone_type: "landline", dm_name: "Nathan Pike" }} />);
+    const block = screen.getByTestId("decision-maker-block");
+    expect(block.textContent).toContain("Nathan Pike");
+    expect(block.textContent).toContain("No direct line yet");
+    expect(block.textContent).toContain("Nathan Pike's mobile or extension");
   });
 
   it("shows nothing about a decision maker for a mobile lead with none on file", () => {
