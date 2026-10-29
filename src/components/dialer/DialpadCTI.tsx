@@ -27,7 +27,11 @@ interface DialpadCTIProps {
   headless?: boolean;
   /** Phone number to dial (E.164 format) */
   phoneNumber?: string | null;
-  /** Whether to auto-initiate the call when phoneNumber changes */
+  /**
+   * Whether to auto-initiate the call when phoneNumber changes. The dialer page
+   * does NOT use this: useDialerDialpad owns placement and calls `initiateCall`
+   * on the handle, so the CTI and the server can never dial different numbers.
+   */
   autoInitiateCall?: boolean;
   /** Outbound caller ID to use (E.164 format) */
   outboundCallerId?: string | null;
