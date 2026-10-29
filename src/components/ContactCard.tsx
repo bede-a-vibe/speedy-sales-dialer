@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Phone, Pencil, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, ArrowRight, Info, CheckCircle2, CircleDashed, Star, Briefcase, Zap, Handshake } from "lucide-react";
+import { Phone, Pencil, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, CheckCircle2, CircleDashed, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
-import { resolveDialTarget } from "@/lib/dialTarget";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
@@ -120,21 +119,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
   const bestRouteToDecisionMaker = contact.best_route_to_decision_maker || contact.best_route_to_dm;
   const decisionMakerRole = contact.dm_role || contact.dm_title;
   const isBusinessRoutedNumber = contact.phone_type === "landline" || contact.phone_type === "business_line";
-  // Same resolver the dial engine uses, so this can never describe a different
-  // number from the one that actually rings.
-  const resolvedTarget = resolveDialTarget(contact);
-  const dialStrategyLabel = resolvedTarget.isDmDirect
-    ? "Best route"
-    : isBusinessRoutedNumber
-      ? "Switchboard route"
-      : "Primary route";
-  const dialStrategySummary = resolvedTarget.number
-    ? `Dialling ${resolvedTarget.number}. ${resolvedTarget.reason}`
-    : isBusinessRoutedNumber
-      ? contact.gatekeeper_name
-        ? `Main line likely routes through ${contact.gatekeeper_name}.`
-        : "Main line likely routes through reception or a gatekeeper."
-      : "This looks like a direct number, so start here.";
   const businessLineWorkflowItems = isBusinessRoutedNumber
     ? [
         {
@@ -354,27 +338,6 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
                 );
               })}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Dial Strategy */}
-      <div className="rounded-md border border-border bg-background/80 p-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <Info className="h-4 w-4 text-primary" />
-          <p className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">{dialStrategyLabel}</p>
-        </div>
-        <p className="text-sm text-foreground">{dialStrategySummary}</p>
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          {bestRouteToDecisionMaker && (
-            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1">
-              <ArrowRight className="h-3 w-3" /> Route: {bestRouteToDecisionMaker}
-            </span>
-          )}
-          {contact.best_time_to_call && (
-            <span className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1">
-              <Clock className="h-3 w-3" /> Best time: {contact.best_time_to_call}
-            </span>
           )}
         </div>
       </div>
