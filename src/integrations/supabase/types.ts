@@ -275,6 +275,96 @@ export type Database = {
           },
         ]
       }
+      call_logs_removed_phantom: {
+        Row: {
+          contact_id: string
+          created_at: string
+          dialpad_call_id: string | null
+          dialpad_summary: string | null
+          dialpad_talk_time_seconds: number | null
+          dialpad_total_duration_seconds: number | null
+          dialpad_transcript: string | null
+          drop_off_reason: string | null
+          exit_reason_booking: string | null
+          exit_reason_commitment: string | null
+          exit_reason_connection: string | null
+          exit_reason_notes: string | null
+          exit_reason_problem: string | null
+          exit_reason_solution: string | null
+          follow_up_date: string | null
+          id: string
+          notes: string | null
+          opener_used_id: string | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment: boolean
+          reached_connection: boolean
+          reached_problem_awareness: boolean
+          reached_solution_awareness: boolean
+          removed_at: string
+          removed_reason: string
+          transcript_synced_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          dialpad_call_id?: string | null
+          dialpad_summary?: string | null
+          dialpad_talk_time_seconds?: number | null
+          dialpad_total_duration_seconds?: number | null
+          dialpad_transcript?: string | null
+          drop_off_reason?: string | null
+          exit_reason_booking?: string | null
+          exit_reason_commitment?: string | null
+          exit_reason_connection?: string | null
+          exit_reason_notes?: string | null
+          exit_reason_problem?: string | null
+          exit_reason_solution?: string | null
+          follow_up_date?: string | null
+          id?: string
+          notes?: string | null
+          opener_used_id?: string | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment?: boolean
+          reached_connection?: boolean
+          reached_problem_awareness?: boolean
+          reached_solution_awareness?: boolean
+          removed_at?: string
+          removed_reason: string
+          transcript_synced_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          dialpad_call_id?: string | null
+          dialpad_summary?: string | null
+          dialpad_talk_time_seconds?: number | null
+          dialpad_total_duration_seconds?: number | null
+          dialpad_transcript?: string | null
+          drop_off_reason?: string | null
+          exit_reason_booking?: string | null
+          exit_reason_commitment?: string | null
+          exit_reason_connection?: string | null
+          exit_reason_notes?: string | null
+          exit_reason_problem?: string | null
+          exit_reason_solution?: string | null
+          follow_up_date?: string | null
+          id?: string
+          notes?: string | null
+          opener_used_id?: string | null
+          outcome?: Database["public"]["Enums"]["call_outcome"]
+          reached_commitment?: boolean
+          reached_connection?: boolean
+          reached_problem_awareness?: boolean
+          reached_solution_awareness?: boolean
+          removed_at?: string
+          removed_reason?: string
+          transcript_synced_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       call_openers: {
         Row: {
           created_at: string
