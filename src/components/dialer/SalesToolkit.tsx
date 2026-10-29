@@ -20,7 +20,9 @@ interface SalesToolkitProps {
  * - Objection Handlers
  * - Voicemail Templates
  *
- * Sits in the dialer's left column so reps have instant access during calls.
+ * Lives inside the Filters & tools drawer, which only opens before a session.
+ * It no longer sits beside the live call: the Live Talk Aid panel was removed
+ * on 29 Oct 2026 because reps run the script from the Miro board instead.
  */
 export function SalesToolkit({ contactIndustry, businessName, city, state, attemptCount }: SalesToolkitProps) {
   const [isExpanded, setIsExpanded] = useState(false);

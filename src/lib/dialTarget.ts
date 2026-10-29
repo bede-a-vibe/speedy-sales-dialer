@@ -1,8 +1,10 @@
 /**
  * The ONE place that decides which number a lead gets dialled on.
  *
- * Both the dial engine and the contact card read this, so the number a rep
- * sees can never disagree with the number that actually rings.
+ * The dial engine reads this to pick the number, the call strip shows that
+ * number with a DM-direct badge, and the contact card uses it to word the
+ * note under an unverified decision-maker mobile. One resolver, so nothing a
+ * rep sees can disagree with the number that actually rings.
  *
  * Policy (set 17 Sep 2026, after scraped decision-maker numbers proved
  * consistently wrong — including numbers belonging to other businesses):
@@ -28,7 +30,7 @@ export interface DialTarget {
   number: string | null;
   /** True only when we're deliberately dialling a decision-maker direct line. */
   isDmDirect: boolean;
-  /** Plain-English reason, shown to the rep on the card. */
+  /** Plain-English reason for the choice. Not rendered anywhere since the route card went (29 Oct 2026); kept for logs and tooling. */
   reason: string;
 }
 

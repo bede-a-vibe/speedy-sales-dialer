@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Phone, Pencil, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, CheckCircle2, CircleDashed, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, Star, Briefcase, Zap, Handshake } from "lucide-react";
+import { resolveDialTarget } from "@/lib/dialTarget";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
@@ -55,7 +56,6 @@ interface ContactCardProps {
     gatekeeper_notes?: string | null;
     best_route_to_decision_maker?: string | null;
     best_route_to_dm?: string | null;
-    best_time_to_call?: string | null;
     phone_number_quality?: string | null;
     call_attempt_count?: number | null;
     voicemail_count?: number | null;
@@ -119,6 +119,11 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
   const bestRouteToDecisionMaker = contact.best_route_to_decision_maker || contact.best_route_to_dm;
   const decisionMakerRole = contact.dm_role || contact.dm_title;
   const isBusinessRoutedNumber = contact.phone_type === "landline" || contact.phone_type === "business_line";
+  // Same resolver the dial engine uses: on a switchboard main line an unverified
+  // DM mobile is dialled first, otherwise the main number rings until a rep
+  // confirms the DM number on a call. The note under the DM number must say
+  // which one is true, or it tells the rep the wrong number will ring.
+  const dmMobileRingsFirst = resolveDialTarget(contact).isDmDirect;
   const businessLineWorkflowItems = isBusinessRoutedNumber
     ? [
         {
@@ -413,7 +418,9 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
                 </div>
                 {!isDmVerified && (
                   <p className="text-[11px] text-amber-800/90 dark:text-amber-200/90">
-                    Not confirmed yet — the dialer calls the main line until you confirm this reaches {contact.dm_name || "the decision maker"}.
+                    {dmMobileRingsFirst
+                      ? "Not confirmed yet. The main line is a switchboard, so the dialer tries this mobile first. Confirm or reject it on the call."
+                      : `Not confirmed yet. The dialer calls the main line until you confirm this reaches ${contact.dm_name || "the decision maker"}.`}
                   </p>
                 )}
                 {(onConfirmDM || onRejectDM) && (
