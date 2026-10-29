@@ -66,4 +66,43 @@ describe("ContactCard header", () => {
     expect(tel).toHaveAttribute("href", "tel:+61 406 020 003");
     expect(tel.textContent).toContain("Mobile");
   });
+
+  it("renders one decision-maker block with the direct line, the verification state and the two actions", () => {
+    const onConfirmDM = vi.fn();
+    const onRejectDM = vi.fn();
+    render(
+      <ContactCard
+        contact={{ ...base, phone_type: "landline", dm_name: "Nathan Pike", dm_role: "Owner", dm_phone: "0408 250 687", dm_phone_type: "mobile", dm_phone_verified: false, dm_email: "nathan@apex.example" }}
+        onConfirmDM={onConfirmDM}
+        onRejectDM={onRejectDM}
+      />,
+    );
+    const block = screen.getByTestId("decision-maker-block");
+    expect(block.textContent).toContain("Nathan Pike");
+    expect(block.textContent).toContain("Owner");
+    expect(block.textContent).toContain("Unverified");
+    expect(screen.getByRole("link", { name: /0408 250 687/ })).toHaveAttribute("href", "tel:0408 250 687");
+    expect(screen.getByRole("link", { name: /nathan@apex.example/ })).toHaveAttribute("href", "mailto:nathan@apex.example");
+    expect(block.textContent).toContain("switchboard, so the dialer tries this mobile first");
+    screen.getByRole("button", { name: /Right person, confirm/ }).click();
+    screen.getByRole("button", { name: /Wrong person, remove number/ }).click();
+    expect(onConfirmDM).toHaveBeenCalledTimes(1);
+    expect(onRejectDM).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Business Line Workflow")).toBeNull();
+    expect(screen.queryByText(/Number type/)).toBeNull();
+  });
+
+  it("shows the switchboard checklist and a capture hint for a landline with no decision maker", () => {
+    render(<ContactCard contact={{ ...base, phone_type: "landline" }} />);
+    const block = screen.getByTestId("decision-maker-block");
+    expect(block.textContent).toContain("No decision maker on file");
+    expect(block.textContent).toContain("still needed");
+    expect(block.textContent).toContain("not captured");
+    expect(screen.queryByRole("button", { name: /Add decision maker/ })).toBeNull();
+  });
+
+  it("shows nothing about a decision maker for a mobile lead with none on file", () => {
+    render(<ContactCard contact={base} />);
+    expect(screen.queryByTestId("decision-maker-block")).toBeNull();
+  });
 });

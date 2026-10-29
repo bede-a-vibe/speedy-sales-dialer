@@ -124,26 +124,23 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
   // confirms the DM number on a call. The note under the DM number must say
   // which one is true, or it tells the rep the wrong number will ring.
   const dmMobileRingsFirst = resolveDialTarget(contact).isDmDirect;
+  // Switchboard checklist: what we still need to get past reception. The number
+  // type itself is already on the phone row, so it is not repeated here.
   const businessLineWorkflowItems = isBusinessRoutedNumber
     ? [
         {
-          label: "Number type",
-          value: phoneType.label,
-          complete: true,
-        },
-        {
-          label: "Decision maker direct line",
-          value: contact.dm_phone ? contact.dm_phone : "Still needed",
+          label: "Direct line",
+          value: contact.dm_phone ? contact.dm_phone : "still needed",
           complete: Boolean(contact.dm_phone),
         },
         {
-          label: "Gatekeeper context",
-          value: contact.gatekeeper_name ? contact.gatekeeper_name : "Not captured",
+          label: "Gatekeeper",
+          value: contact.gatekeeper_name ? contact.gatekeeper_name : "not captured",
           complete: Boolean(contact.gatekeeper_name),
         },
         {
-          label: "Routing guidance",
-          value: bestRouteToDecisionMaker ? bestRouteToDecisionMaker : "Ask how to reach the right person fastest",
+          label: "Route",
+          value: bestRouteToDecisionMaker ? bestRouteToDecisionMaker : "ask how to reach the right person fastest",
           complete: Boolean(bestRouteToDecisionMaker),
         },
       ]
@@ -375,127 +372,157 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
         )}
       </div>
 
-      {isBusinessRoutedNumber && (
-        <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-300">Business Line Workflow</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {businessLineWorkflowItems.map((item) => {
-              const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
-              return (
-                <div key={item.label} className="rounded-md border border-sky-500/20 bg-background/60 px-3 py-2">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono text-sky-800 dark:text-sky-200/80">
-                    <StatusIcon className={`h-3.5 w-3.5 ${item.complete ? 'text-green-700 dark:text-green-300' : 'text-sky-700/70 dark:text-sky-300/70'}`} />
-                    {item.label}
-                  </div>
-                  <p className="mt-1 text-sm text-foreground">{item.value}</p>
-                </div>
-              );
-            })}
-          </div>
-          {!contact.dm_phone && (
-            <p className="text-xs text-sky-900/85 dark:text-sky-100/85">
-              Best next step: use this call to confirm the correct decision maker and capture a direct mobile or extension before requeueing.
+      {/* Decision maker: who to ask for, the direct line, and whether we trust it. On a
+          switchboard main line it also carries the checklist for getting past reception.
+          One block instead of two stacked cards (Bede, 29 Oct 2026). */}
+      {(hasDM || isBusinessRoutedNumber) && (
+        <div
+          className={`rounded-md border p-3 space-y-2 ${
+            hasDM ? "border-green-500/25 bg-green-500/10" : "border-sky-500/30 bg-sky-500/10"
+          }`}
+          data-testid="decision-maker-block"
+        >
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p
+              className={`flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest ${
+                hasDM ? "text-green-800 dark:text-green-300" : "text-sky-800 dark:text-sky-300"
+              }`}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Decision maker
             </p>
-          )}
-        </div>
-      )}
-
-      {/* Decision Maker Section */}
-      {hasDM ? (
-        <div className="bg-green-500/10 border border-green-500/25 rounded-md p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-green-700 dark:text-green-300" />
-            <p className="text-[10px] uppercase tracking-widest font-mono text-green-800 dark:text-green-300">Decision Maker</p>
-          </div>
-          <div className="space-y-1.5">
             {contact.dm_name && (
-              <p className="text-sm font-semibold text-foreground">
+              <span className="text-sm font-semibold text-foreground">
                 {contact.dm_name}
                 {decisionMakerRole && (
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">({decisionMakerRole})</span>
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">{decisionMakerRole}</span>
                 )}
-              </p>
+              </span>
             )}
             {contact.dm_phone && (
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => onCallDM?.(contact.dm_phone!)}
-                    className="flex items-center gap-2 bg-green-500/15 dark:bg-green-500/20 border border-green-500/30 rounded-md px-3 py-1.5 text-green-800 dark:text-green-300 hover:bg-green-500/25 dark:hover:bg-green-500/30 transition-colors text-sm font-mono"
-                  >
-                    <Smartphone className="h-3.5 w-3.5" />
-                    {contact.dm_phone}
-                  </button>
-                  {dmPhoneType && (
-                    <span className={`text-[9px] uppercase tracking-widest font-mono px-1.5 py-1 rounded border ${dmPhoneType.color}`}>
-                      {dmPhoneType.label}
-                    </span>
-                  )}
-                  <span
-                    className={`text-[9px] uppercase tracking-widest font-mono px-1.5 py-1 rounded border ${
-                      isDmVerified
-                        ? "text-green-800 dark:text-green-300 bg-green-500/10 border-green-500/30"
-                        : "text-amber-800 dark:text-amber-300 bg-amber-500/10 border-amber-500/30"
-                    }`}
-                  >
-                    {isDmVerified ? "Verified" : "Unverified"}
-                  </span>
-                </div>
-                {!isDmVerified && (
-                  <p className="text-[11px] text-amber-800/90 dark:text-amber-200/90">
-                    {dmMobileRingsFirst
-                      ? "Not confirmed yet. The main line is a switchboard, so the dialer tries this mobile first. Confirm or reject it on the call."
-                      : `Not confirmed yet. The dialer calls the main line until you confirm this reaches ${contact.dm_name || "the decision maker"}.`}
-                  </p>
-                )}
-                {(onConfirmDM || onRejectDM) && (
-                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                    {onConfirmDM && !isDmVerified && (
-                      <button
-                        onClick={onConfirmDM}
-                        className="flex items-center gap-1.5 rounded-md border border-green-500/40 bg-green-500/10 px-2 py-1 text-[11px] font-medium text-green-800 transition-colors hover:bg-green-500/20 dark:text-green-300"
-                      >
-                        <UserCheck className="h-3 w-3" />
-                        Right person — confirm
-                      </button>
-                    )}
-                    {onRejectDM && (
-                      <button
-                        onClick={onRejectDM}
-                        className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/20"
-                      >
-                        <UserX className="h-3 w-3" />
-                        Wrong person — remove number
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {contact.dm_email && (
-              <a
-                href={`mailto:${contact.dm_email}`}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              <span
+                className={`ml-auto rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest ${
+                  isDmVerified
+                    ? "border-green-500/30 bg-green-500/10 text-green-800 dark:text-green-300"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                }`}
               >
-                <Mail className="h-3.5 w-3.5" />
-                {contact.dm_email}
-              </a>
+                {isDmVerified ? "Verified" : "Unverified"}
+              </span>
             )}
           </div>
+
+          {(contact.dm_phone || contact.dm_email) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {contact.dm_phone && (onCallDM ? (
+                <button
+                  type="button"
+                  onClick={() => onCallDM(contact.dm_phone!)}
+                  title="Call the decision maker direct"
+                  className="flex items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/15 px-2.5 py-1 font-mono text-sm text-green-800 transition-colors hover:bg-green-500/25 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30"
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  {contact.dm_phone}
+                </button>
+              ) : (
+                <a
+                  href={`tel:${contact.dm_phone}`}
+                  title="Decision maker direct line"
+                  className="flex items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/15 px-2.5 py-1 font-mono text-sm text-green-800 transition-colors hover:bg-green-500/25 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30"
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  {contact.dm_phone}
+                </a>
+              ))}
+              {contact.dm_phone && dmPhoneType && (
+                <span className={`rounded border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest ${dmPhoneType.color}`}>
+                  {dmPhoneType.label}
+                </span>
+              )}
+              {contact.dm_email && (
+                <a
+                  href={`mailto:${contact.dm_email}`}
+                  title={contact.dm_email}
+                  className="inline-flex max-w-[240px] items-center gap-1 rounded-md border border-border bg-secondary px-2 py-1 text-[11px] text-secondary-foreground transition-colors hover:bg-accent"
+                >
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{contact.dm_email}</span>
+                </a>
+              )}
+            </div>
+          )}
+
+          {contact.dm_phone && !isDmVerified && (
+            <p className="text-[11px] leading-snug text-amber-800/90 dark:text-amber-200/90">
+              {dmMobileRingsFirst
+                ? "Not confirmed yet. The main line is a switchboard, so the dialer tries this mobile first. Confirm or reject it on the call."
+                : `Not confirmed yet. The dialer calls the main line until you confirm this reaches ${contact.dm_name || "the decision maker"}.`}
+            </p>
+          )}
+
+          {contact.dm_phone && (onConfirmDM || onRejectDM) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {onConfirmDM && !isDmVerified && (
+                <button
+                  type="button"
+                  onClick={onConfirmDM}
+                  className="flex h-7 items-center gap-1.5 rounded-md border border-green-500/40 bg-green-500/10 px-2 text-[11px] font-medium text-green-800 transition-colors hover:bg-green-500/20 dark:text-green-300"
+                >
+                  <UserCheck className="h-3 w-3" />
+                  Right person, confirm
+                </button>
+              )}
+              {onRejectDM && (
+                <button
+                  type="button"
+                  onClick={onRejectDM}
+                  className="flex h-7 items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/20"
+                >
+                  <UserX className="h-3 w-3" />
+                  Wrong person, remove number
+                </button>
+              )}
+            </div>
+          )}
+
+          {!hasDM && (onAddDM ? (
+            <button
+              type="button"
+              onClick={onAddDM}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-sky-500/40 bg-background/60 px-3 py-2 text-xs text-sky-900 transition-colors hover:bg-background dark:text-sky-100"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Add decision maker details
+            </button>
+          ) : (
+            <p className="text-[11px] leading-snug text-sky-900/85 dark:text-sky-100/85">
+              No decision maker on file. Capture the name and a direct mobile or extension in Capture details once you have it.
+            </p>
+          ))}
+
+          {isBusinessRoutedNumber && (
+            <div className="flex flex-wrap gap-1.5" aria-label="Switchboard checklist">
+              {businessLineWorkflowItems.map((item) => {
+                const StatusIcon = item.complete ? CheckCircle2 : CircleDashed;
+                return (
+                  <span
+                    key={item.label}
+                    title={`${item.label}: ${item.value}`}
+                    className={`inline-flex max-w-full items-center gap-1 rounded border px-2 py-0.5 text-[11px] ${
+                      item.complete
+                        ? "border-green-500/30 bg-green-500/10 text-green-900 dark:text-green-200"
+                        : "border-sky-500/30 bg-background/60 text-sky-900/85 dark:text-sky-100/85"
+                    }`}
+                  >
+                    <StatusIcon className="h-3 w-3 shrink-0" />
+                    <span className="font-mono text-[10px] uppercase tracking-widest">{item.label}</span>
+                    <span className="truncate">{item.value}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
-      ) : (
-        contact.phone_type === "landline" || contact.phone_type === "business_line" ? (
-          <button
-            onClick={onAddDM}
-            className="w-full flex items-center justify-center gap-2 bg-secondary/50 border border-dashed border-border rounded-md px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-sm"
-          >
-            <UserCheck className="h-4 w-4" />
-            Add Decision Maker Details
-          </button>
-        ) : null
       )}
 
       {/* Existing agency callout */}
