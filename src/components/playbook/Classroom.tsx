@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type React from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, GraduationCap, Link2, Loader2, Lock, Pencil, Plus, Save, Trash2, Video, X,
@@ -29,22 +30,48 @@ import {
  * re-explained on every call.
  */
 
-/* ---------- notes renderer: paragraphs, ## headings, ### labels, **bold**, "- " bullets, "a | b" tables, --- rules, links ---------- */
+/* ---------- notes renderer: paragraphs, ## headings, ### labels, **bold**, *italic*, "- " bullets, "a | b" tables, --- rules, [label](url) and bare links ---------- */
 const URL_RE = /(https?:\/\/[^\s)]+)/g;
-function Notes({ text }: { text: string }) {
+// [label](https://...) markdown links. Split with a capturing group so the
+// pieces come back as [text, label, url, text, ...].
+const MD_LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const LINK_CLASS = "text-primary underline underline-offset-2";
+export function Notes({ text }: { text: string }) {
   const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  // Bare URLs become links; everything else is returned as text.
+  const linkify = (s: string, key: string) =>
+    s.split(URL_RE).map((seg, j) =>
+      /^https?:\/\//.test(seg)
+        ? <a key={`${key}-${j}`} href={seg} target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>{seg}</a>
+        : seg,
+    );
+  // *italic* (single asterisks, not part of a ** pair) and bare URLs.
+  const emphasis = (s: string, key: string) =>
+    s.split(/(?<![*\w])(\*[^*\n]+\*)(?![*\w])/g).map((part, k) =>
+      part.length > 2 && part.startsWith("*") && part.endsWith("*") && !part.startsWith("**")
+        ? <em key={`${key}-${k}`}>{linkify(part.slice(1, -1), `${key}-${k}`)}</em>
+        : linkify(part, `${key}-${k}`),
+    );
+  // [label](url) first, so the url inside never gets linkified twice.
+  const links = (s: string, key: string) => {
+    const parts = s.split(MD_LINK_RE);
+    const out: React.ReactNode[] = [];
+    for (let i = 0; i < parts.length; i += 3) {
+      out.push(emphasis(parts[i], `${key}-${i}`));
+      if (i + 2 < parts.length) {
+        out.push(
+          <a key={`${key}-${i}-link`} href={parts[i + 2]} target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
+            {parts[i + 1]}
+          </a>,
+        );
+      }
+    }
+    return out;
+  };
   const inline = (s: string) =>
     s.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="text-foreground">{part.slice(2, -2)}</strong>;
-      return (
-        <span key={i}>
-          {part.split(URL_RE).map((seg, j) =>
-            /^https?:\/\//.test(seg)
-              ? <a key={j} href={seg} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">{seg}</a>
-              : seg,
-          )}
-        </span>
-      );
+      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="text-foreground">{links(part.slice(2, -2), `b${i}`)}</strong>;
+      return <span key={i}>{links(part, `t${i}`)}</span>;
     });
   const line = (l: string, key: number) => {
     if (/^###\s+/.test(l)) return <p key={key} className="pt-1 font-mono text-[10px] uppercase tracking-widest text-primary">{l.replace(/^###\s+/, "")}</p>;
