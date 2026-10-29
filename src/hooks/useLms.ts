@@ -18,10 +18,16 @@ export interface LmsLesson {
   component: string | null;
 }
 
+// Courses and lessons are edited outside the app too (SQL updates, the
+// classroom packages), and the global client never refetches on focus. A tab
+// left open on the Classroom showed the old course list for a whole afternoon
+// (29 Oct 2026). Refetch whenever the page is opened or the window regains focus.
+const LMS_REFETCH = { staleTime: 0, refetchOnMount: "always" as const, refetchOnWindowFocus: true };
+
 export function useLmsCourses() {
   return useQuery({
     queryKey: ["lms-courses"],
-    staleTime: 60_000,
+    ...LMS_REFETCH,
     queryFn: async (): Promise<LmsCourse[]> => {
       const { data, error } = await supabase.from("lms_courses").select("*").order("sort").order("title");
       if (error) throw error;
@@ -34,7 +40,7 @@ export function useLmsCourses() {
 export function useLmsLessons() {
   return useQuery({
     queryKey: ["lms-lessons"],
-    staleTime: 60_000,
+    ...LMS_REFETCH,
     queryFn: async (): Promise<LmsLesson[]> => {
       const { data, error } = await supabase.from("lms_lessons").select("*").order("sort").order("created_at");
       if (error) throw error;
