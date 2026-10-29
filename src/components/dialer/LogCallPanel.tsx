@@ -5,6 +5,7 @@ import { DQ_REASONS, DNC_REASONS, OUTCOME_CONFIG, type DqReason, type DncReason 
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Mail, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import {
   ConversationProgressPanel,
   type ConversationProgressState,
@@ -83,6 +84,7 @@ function FlagChip({
       type="button"
       onClick={onClick}
       aria-pressed={checked}
+      title={hint}
       className={cn(
         "inline-flex min-w-0 items-center gap-1.5 rounded border px-2 py-1.5 text-left text-xs transition-colors",
         checked ? onClasses : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50",
@@ -93,7 +95,6 @@ function FlagChip({
       </span>
       {icon}
       <span className="truncate">{label}</span>
-      {hint && <span className="ml-1 shrink-0 text-[10px] text-muted-foreground">{hint}</span>}
     </button>
   );
 }
@@ -171,43 +172,6 @@ export function LogCallPanel({
         {OUTCOME_ORDER.map(renderOutcome)}
       </div>
 
-      <SectionDivider label="Conversation" />
-
-      <ConversationProgressPanel
-        embedded
-        value={conversationProgress}
-        onChange={onConversationProgressChange}
-        outcomeIsBooked={selectedOutcome === "booked"}
-        onCallDropped={onCallDropped}
-      />
-
-      {(onMobileGatekeeperChange || onEmailFlagChange) && (
-        <div className="flex flex-wrap gap-1.5">
-          {onMobileGatekeeperChange && (
-            <FlagChip
-              checked={gatekeeperChecked}
-              tone="amber"
-              icon={<Shield className="h-3.5 w-3.5 shrink-0" />}
-              label="Mobile reaches a gatekeeper"
-              onClick={() => {
-                const next = !gatekeeperChecked;
-                setGatekeeperChecked(next);
-                onMobileGatekeeperChange(next);
-              }}
-            />
-          )}
-          {onEmailFlagChange && (
-            <FlagChip
-              checked={emailFlag}
-              icon={<Mail className="h-3.5 w-3.5 shrink-0" />}
-              label="Worth an email tonight"
-              hint={emailFlag ? "drafts on EOD" : undefined}
-              onClick={() => onEmailFlagChange(!emailFlag)}
-            />
-          )}
-        </div>
-      )}
-
       {selectedOutcome === "disqualified" && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 space-y-2">
           <p className="flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
@@ -216,26 +180,29 @@ export function LogCallPanel({
               <span className="font-medium text-foreground">DQ reason, required.</span> {OUTCOME_CONFIG.disqualified.description}
             </span>
           </p>
-          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="DQ reason">
+          {/* A real radio group: arrow keys move between reasons, one tab stop. */}
+          <RadioGroupPrimitive.Root
+            value={dqReason ?? ""}
+            onValueChange={(v) => onDqReasonChange?.(v as DqReason)}
+            aria-label="DQ reason"
+            className="grid grid-cols-2 gap-1.5"
+          >
             {DQ_REASONS.map((r) => (
-              <button
-                key={r.value}
-                type="button"
-                role="radio"
-                aria-checked={dqReason === r.value}
-                title={r.description}
-                onClick={() => onDqReasonChange?.(r.value)}
-                className={cn(
-                  "rounded border px-2 py-1.5 text-left text-xs transition-colors",
-                  dqReason === r.value
-                    ? "border-destructive bg-destructive/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:border-muted-foreground/50",
-                )}
-              >
-                {r.label}
-              </button>
+              <label key={r.value} title={r.description} className="relative block">
+                <RadioGroupPrimitive.Item value={r.value} className="peer sr-only" />
+                <span
+                  className={cn(
+                    "block cursor-pointer rounded border px-2 py-1.5 text-left text-xs transition-colors",
+                    "border-border bg-card text-muted-foreground hover:border-muted-foreground/50",
+                    "peer-data-[state=checked]:border-destructive peer-data-[state=checked]:bg-destructive/10 peer-data-[state=checked]:text-foreground",
+                    "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1",
+                  )}
+                >
+                  {r.label}
+                </span>
+              </label>
             ))}
-          </div>
+          </RadioGroupPrimitive.Root>
           <Textarea
             placeholder="Optional note (context for the DQ)"
             value={dqNotes}
@@ -271,6 +238,43 @@ export function LogCallPanel({
           </div>
         </div>
       )}
+      <SectionDivider label="Conversation" />
+
+      <ConversationProgressPanel
+        embedded
+        value={conversationProgress}
+        onChange={onConversationProgressChange}
+        outcomeIsBooked={selectedOutcome === "booked"}
+        onCallDropped={onCallDropped}
+      />
+
+      {(onMobileGatekeeperChange || onEmailFlagChange) && (
+        <div className="flex flex-wrap gap-1.5">
+          {onMobileGatekeeperChange && (
+            <FlagChip
+              checked={gatekeeperChecked}
+              tone="amber"
+              icon={<Shield className="h-3.5 w-3.5 shrink-0" />}
+              label="Mobile reaches a gatekeeper"
+              onClick={() => {
+                const next = !gatekeeperChecked;
+                setGatekeeperChecked(next);
+                onMobileGatekeeperChange(next);
+              }}
+            />
+          )}
+          {onEmailFlagChange && (
+            <FlagChip
+              checked={emailFlag}
+              icon={<Mail className="h-3.5 w-3.5 shrink-0" />}
+              label="Worth an email tonight"
+              hint="Flagged leads get a draft on the End of Day page"
+              onClick={() => onEmailFlagChange(!emailFlag)}
+            />
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

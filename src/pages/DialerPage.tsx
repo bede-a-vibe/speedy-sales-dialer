@@ -113,7 +113,7 @@ const DIALER_COACH_STEPS: CoachStep[] = [
   {
     target: "log-call-panel",
     title: "5. Log the call outcome",
-    body: "Every call must be dispositioned. Quick outcomes (No Answer, Voicemail) are at the top; conversation outcomes (Not Interested, DNC, Follow-up, Booked) are below. Click an outcome to select it — click again to fast-log.",
+    body: "Every call must be dispositioned. All eight outcomes sit in one grid at the top and the number keys 1 to 8 select them. Click an outcome to select it, click it again to save and move to the next lead. Disqualified and Do Not Call open their reason pickers right under the grid.",
     placement: "left",
   },
   {
