@@ -61,3 +61,9 @@ export function eventForDialpadState(state: string | null | undefined, terminal:
   if (["hangup", "ended", "completed", "canceled", "cancelled", "missed", "voicemail"].includes(s)) return { type: "terminal" };
   return null;
 }
+
+/** Does a resolve/status result describe a call that is already over? */
+export function isTerminalResult(res: { state?: string | null; terminal?: boolean; already_ended?: boolean }): boolean {
+  if (res.terminal || res.already_ended) return true;
+  return eventForDialpadState(res.state, false)?.type === "terminal";
+}

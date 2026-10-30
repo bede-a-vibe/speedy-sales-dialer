@@ -37,6 +37,13 @@ interface DialpadCTIProps {
   onCallRinging?: (payload: CallRingingPayload) => void;
   /** Callback when user auth state changes in the CTI */
   onAuthChange?: (authenticated: boolean, userId?: number) => void;
+  /**
+   * Claim Dialpad's "current tab" (the one that receives call events) as soon
+   * as the iframe loads. Default true. A carrier mounted in a tab the rep is
+   * not working in passes false so it does not take the events away from a
+   * dialer tab mid-call; `initiate_call` claims the tab at dial time anyway.
+   */
+  claimTabOnLoad?: boolean;
 }
 
 /** Imperative handle exposed via ref so a native call bar can drive the CTI. */
@@ -94,6 +101,7 @@ export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function
   customData,
   onCallRinging,
   onAuthChange,
+  claimTabOnLoad = true,
 }, ref) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -149,14 +157,14 @@ export const DialpadCTI = forwardRef<DialpadCTIHandle, DialpadCTIProps>(function
 
   // ── Enable the current tab when iframe loads ──
   useEffect(() => {
-    if (iframeLoaded && clientId) {
+    if (iframeLoaded && clientId && claimTabOnLoad) {
       // Small delay to ensure the CTI is fully initialised
       const timer = setTimeout(() => {
         sendMessage("enable_current_tab");
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [iframeLoaded, clientId, sendMessage]);
+  }, [iframeLoaded, clientId, claimTabOnLoad, sendMessage]);
 
   // ── Auto-initiate call when phoneNumber changes ──
   useEffect(() => {

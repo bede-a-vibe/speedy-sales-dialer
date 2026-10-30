@@ -1,5 +1,5 @@
 import { LeadBuckets } from "@/components/contacts/LeadBuckets";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -147,7 +147,17 @@ export default function ContactDetailPage() {
   // place a call and disables its buttons while one is live.
   const callDockRef = useRef<ContactCallDockHandle | null>(null);
   const [callState, setCallState] = useState<NativeCallState>("idle");
+  const [callCarriesAudio, setCallCarriesAudio] = useState(false);
   const callBusy = dialpadCall.isPending || callState === "dialing" || callState === "ringing" || callState === "connected";
+  const onCallStateChange = useCallback((state: NativeCallState, carriesAudio: boolean) => {
+    setCallState(state);
+    setCallCarriesAudio(carriesAudio);
+  }, []);
+  // The embedded Dialpad lives in this page, so leaving mid-call drops the line.
+  const leaveToContacts = () => {
+    if (callBusy && callCarriesAudio && !window.confirm("You're on a call through this page. Leaving will drop it. Leave anyway?")) return;
+    navigate("/contacts");
+  };
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -528,7 +538,7 @@ export default function ContactDetailPage() {
         {/* HEADER — identity + what-to-do-now */}
         <div className="space-y-3">
           <div className="flex items-start gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/contacts")}>
+            <Button variant="ghost" size="sm" onClick={leaveToContacts}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1 min-w-0">
@@ -654,7 +664,7 @@ export default function ContactDetailPage() {
             businessName={contact.business_name}
             dialpadUserId={myDialpadSettings?.dialpad_user_id ?? null}
             onServerPlace={placeViaServer}
-            onStateChange={setCallState}
+            onStateChange={onCallStateChange}
           />
         </div>
 

@@ -29,3 +29,14 @@ describe("contact call dock state", () => {
     expect(nextCallState("ended", { type: "ringing_off" })).toBe("ended");
   });
 });
+
+describe("isTerminalResult", () => {
+  it("reads the server flags first, then the state word", async () => {
+    const { isTerminalResult } = await import("@/lib/callDockState");
+    expect(isTerminalResult({ state: "ringing", terminal: true })).toBe(true);
+    expect(isTerminalResult({ state: "connected", already_ended: true })).toBe(true);
+    expect(isTerminalResult({ state: "hangup" })).toBe(true);
+    expect(isTerminalResult({ state: "ringing" })).toBe(false);
+    expect(isTerminalResult({ state: null })).toBe(false);
+  });
+});
