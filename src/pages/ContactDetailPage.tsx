@@ -1,5 +1,5 @@
 import { LeadBuckets } from "@/components/contacts/LeadBuckets";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -25,6 +25,8 @@ import { useContactPipelineItems, useCreatePipelineItem, useSalesReps } from "@/
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
+import { ContactCallDock, type ContactCallDockHandle } from "@/components/contacts/ContactCallDock";
+import type { NativeCallState } from "@/components/dialer/NativeCallBar";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
 import { formatDurationSeconds } from "@/lib/duration";
@@ -141,6 +143,11 @@ export default function ContactDetailPage() {
   const { data: salesReps = [] } = useSalesReps();
   const dialpadCall = useDialpadCall();
   const { data: myDialpadSettings } = useMyDialpadSettings();
+  // The embedded Dialpad lives in ContactCallDock; the page only asks it to
+  // place a call and disables its buttons while one is live.
+  const callDockRef = useRef<ContactCallDockHandle | null>(null);
+  const [callState, setCallState] = useState<NativeCallState>("idle");
+  const callBusy = dialpadCall.isPending || callState === "dialing" || callState === "ringing" || callState === "connected";
 
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -256,20 +263,22 @@ export default function ContactDetailPage() {
       toast.error(describeWindowReason(callWindow, contact?.state ?? null));
       return;
     }
+    // Through the embedded Dialpad when it is signed in (the bar shows ringing,
+    // connected and Hang Up), otherwise the dock falls back to placeViaServer.
+    await callDockRef.current?.placeCall(phone);
+  };
+
+  const placeViaServer = async (phone: string): Promise<string | null> => {
     if (!myDialpadSettings?.dialpad_user_id) {
-      toast.error("Connect your Dialpad number in Dialpad Settings first.");
-      return;
+      throw new Error("Connect your Dialpad number in Dialpad Settings first.");
     }
-    try {
-      await dialpadCall.mutateAsync({
-        phone,
-        dialpad_user_id: myDialpadSettings.dialpad_user_id,
-        contact_id: contact.id,
-      });
-      toast.success(`Calling ${phone} via Dialpad…`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't start the Dialpad call.");
-    }
+    if (!contact) return null;
+    const res = await dialpadCall.mutateAsync({
+      phone,
+      dialpad_user_id: myDialpadSettings.dialpad_user_id,
+      contact_id: contact.id,
+    });
+    return res.dialpad_call_id ?? null;
   };
 
   useEffect(() => {
@@ -615,10 +624,10 @@ export default function ContactDetailPage() {
               variant="hero"
               className="font-semibold"
               onClick={() => placeCall(hasDecisionMakerDial ? directDecisionMakerPhone : contact.phone)}
-              disabled={dialpadCall.isPending}
+              disabled={callBusy}
             >
               <Phone className="mr-1.5 h-3.5 w-3.5" />
-              {hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
+              {callBusy ? "On a call" : hasDecisionMakerDial ? "Call decision maker" : "Call main line"}
             </Button>
             {hasDecisionMakerDial && (
               <Button
@@ -626,7 +635,7 @@ export default function ContactDetailPage() {
                 variant="outline"
                 className="font-mono"
                 onClick={() => placeCall(contact.phone)}
-                disabled={dialpadCall.isPending}
+                disabled={callBusy}
               >
                 <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
                 {contact.phone}
@@ -637,6 +646,15 @@ export default function ContactDetailPage() {
               New task
             </Button>
           </div>
+
+          {/* Live call: ringing / connected / Hang Up, driven by the embedded Dialpad */}
+          <ContactCallDock
+            ref={callDockRef}
+            contactId={contact.id}
+            businessName={contact.business_name}
+            onServerPlace={placeViaServer}
+            onStateChange={setCallState}
+          />
         </div>
 
         {/* TWO-COLUMN RECORD */}
@@ -767,7 +785,7 @@ export default function ContactDetailPage() {
                   <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Phone</p>
                   <button
                     onClick={() => placeCall(contact.phone)}
-                    disabled={dialpadCall.isPending || !contact.phone}
+                    disabled={callBusy || !contact.phone}
                     className="font-mono text-foreground hover:underline disabled:opacity-50"
                   >
                     <Phone className="mr-1.5 inline h-3.5 w-3.5" /> {contact.phone || "—"}
@@ -834,7 +852,7 @@ export default function ContactDetailPage() {
                       {contact.dm_name && <span className="font-medium">{contact.dm_name}</span>}
                       <button
                         onClick={() => placeCall(directDecisionMakerPhone)}
-                        disabled={dialpadCall.isPending}
+                        disabled={callBusy}
                         className={`font-mono hover:underline disabled:opacity-50 ${verified ? "text-emerald-700 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}`}
                       >
                         {directDecisionMakerPhone}
