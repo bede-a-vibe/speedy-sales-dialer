@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextCallState } from "@/components/contacts/ContactCallDock";
+import { nextCallState } from "@/lib/callDockState";
 
 // The contact page's call bar is driven by Dialpad's ringing events plus a
 // server poll for the hang-up. These are the transitions the rep sees.

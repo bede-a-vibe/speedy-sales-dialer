@@ -25,7 +25,7 @@ import { useContactPipelineItems, useCreatePipelineItem, useSalesReps } from "@/
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
-import { ContactCallDock, type ContactCallDockHandle } from "@/components/contacts/ContactCallDock";
+import { ContactCallDock, type ContactCallDockHandle, type ServerPlacement } from "@/components/contacts/ContactCallDock";
 import type { NativeCallState } from "@/components/dialer/NativeCallBar";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
@@ -268,17 +268,17 @@ export default function ContactDetailPage() {
     await callDockRef.current?.placeCall(phone);
   };
 
-  const placeViaServer = async (phone: string): Promise<string | null> => {
+  const placeViaServer = async (phone: string): Promise<ServerPlacement> => {
     if (!myDialpadSettings?.dialpad_user_id) {
       throw new Error("Connect your Dialpad number in Dialpad Settings first.");
     }
-    if (!contact) return null;
+    if (!contact) return { callId: null, state: null };
     const res = await dialpadCall.mutateAsync({
       phone,
       dialpad_user_id: myDialpadSettings.dialpad_user_id,
       contact_id: contact.id,
     });
-    return res.dialpad_call_id ?? null;
+    return { callId: res.dialpad_call_id ?? null, state: res.state ?? null };
   };
 
   useEffect(() => {
@@ -652,6 +652,7 @@ export default function ContactDetailPage() {
             ref={callDockRef}
             contactId={contact.id}
             businessName={contact.business_name}
+            dialpadUserId={myDialpadSettings?.dialpad_user_id ?? null}
             onServerPlace={placeViaServer}
             onStateChange={setCallState}
           />
