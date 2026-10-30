@@ -11,6 +11,8 @@ interface NativeCallBarProps {
   state: NativeCallState;
   connectedAt: number | null;
   dialpadAuthenticated: boolean;
+  /** A hang-up is in flight with the server; the button waits for its answer. */
+  hangingUp?: boolean;
   onHangUp: () => void;
   onRevealDialpad: () => void;
 }
@@ -32,6 +34,7 @@ export function NativeCallBar({
   state,
   connectedAt,
   dialpadAuthenticated,
+  hangingUp = false,
   onHangUp,
   onRevealDialpad,
 }: NativeCallBarProps) {
@@ -133,10 +136,10 @@ export function NativeCallBar({
             size="sm"
             className="h-8 text-xs"
             onClick={onHangUp}
-            disabled={state === "idle" || state === "ended"}
+            disabled={state === "idle" || state === "ended" || hangingUp}
           >
-            <PhoneOff className="mr-1 h-3 w-3" />
-            Hang Up
+            {hangingUp ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PhoneOff className="mr-1 h-3 w-3" />}
+            {hangingUp ? "Ending…" : "Hang Up"}
           </Button>
         </div>
       </div>
