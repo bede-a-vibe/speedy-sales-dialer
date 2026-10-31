@@ -240,7 +240,7 @@ async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Pr
   return results;
 }
 
-type SupaClient = ReturnType<typeof createClient>;
+type SupaClient = ReturnType<typeof createClient<any, "public", any>>;
 
 interface SyncParams {
   sinceMs?: number;
@@ -364,7 +364,7 @@ async function syncGhlCalls(supabase: SupaClient, params: SyncParams) {
     const batch = rows.slice(i, i + UPSERT_BATCH);
     const { error } = await supabase
       .from("ghl_calls")
-      .upsert(batch, { onConflict: "alt_id" });
+      .upsert(batch as unknown as Record<string, unknown>[], { onConflict: "alt_id" });
     if (error) {
       errors.push(`upsert: ${error.message}`);
       break;
