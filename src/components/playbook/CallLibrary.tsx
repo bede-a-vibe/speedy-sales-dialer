@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ListenButton } from "@/components/calls/ListenButton";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
-import { SHOWED_BUCKETS, hasRecording, useCallLibrary, type LibraryBucket, type LibraryCall } from "@/hooks/useCallLibrary";
+import { SHOWED_BUCKETS, hasRecording, hasSetAudio, useCallLibrary, type LibraryBucket, type LibraryCall } from "@/hooks/useCallLibrary";
 import { cn } from "@/lib/utils";
 
 /** Ben's first day. Everything the setter can learn from starts here. */
@@ -81,7 +81,7 @@ function CallRow({ call }: { call: LibraryCall }) {
           </p>
         </div>
 
-        {call.setting?.dialpadCallId ? (
+        {call.setting?.dialpadCallId && hasSetAudio(call) ? (
           <ListenButton dialpadCallId={call.setting.dialpadCallId} className="shrink-0" />
         ) : (
           <Badge variant="outline" className="shrink-0 text-[10px] font-normal text-muted-foreground">
@@ -167,7 +167,7 @@ export function CallLibrary() {
     [calls, filter, setter],
   );
   const coverage = useMemo(() => {
-    const withSet = visible.filter((c) => c.setting?.dialpadCallId).length;
+    const withSet = visible.filter(hasSetAudio).length;
     const withMeeting = visible.filter((c) => c.meetingRecordingUrl).length;
     return { withSet, withMeeting };
   }, [visible]);
