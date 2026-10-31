@@ -104,13 +104,15 @@ export const hasRecording = (call: Pick<LibraryCall, "setting" | "meetingRecordi
 
 /** Dialpad's view of a call: did it connect, or does it carry a recording? */
 export function dialpadCallHasAudio(row: {
+  sync_status?: string | null;
   is_connected: boolean | null;
   talk_time_seconds: number | null;
   recording_id: string | null;
   recording_url: string | null;
   recording_share_link: string | null;
 } | null | undefined): boolean {
-  if (!row) return true;
+  // No row, or a row the Dialpad sync has not filled in yet: we can't tell, so show it.
+  if (!row || (row.sync_status != null && row.sync_status !== "synced")) return true;
   return Boolean(row.is_connected || (row.talk_time_seconds ?? 0) > 0 || row.recording_id || row.recording_url || row.recording_share_link);
 }
 
@@ -185,11 +187,11 @@ export function useCallLibrary(sinceIso: string) {
       const dialpadRows = dialpadIds.length
         ? await supabase
             .from("dialpad_calls")
-            .select("dialpad_call_id, is_connected, talk_time_seconds, recording_id, recording_url, recording_share_link")
+            .select("dialpad_call_id, sync_status, is_connected, talk_time_seconds, recording_id, recording_url, recording_share_link")
             .in("dialpad_call_id", dialpadIds)
         : { data: [], error: null };
-      if (dialpadRows.error) throw dialpadRows.error;
-      const dialpadById = new Map((dialpadRows.data ?? []).map((d) => [d.dialpad_call_id, d]));
+      // A failed lookup only loses the dead-dial check; it must not blank the library.
+      const dialpadById = new Map((dialpadRows.error ? [] : dialpadRows.data ?? []).map((d) => [d.dialpad_call_id, d]));
 
       const nameByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.display_name || p.email?.split("@")[0] || null]));
       const fathomByItem = new Map((fathomRes.data ?? []).map((f) => [f.pipeline_item_id as string, f.share_url as string | null]));

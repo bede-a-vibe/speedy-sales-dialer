@@ -68,6 +68,9 @@ describe("hasRecording", () => {
     expect(dialpadCallHasAudio({ ...row, talk_time_seconds: 198 })).toBe(true);
     expect(dialpadCallHasAudio({ ...row, recording_id: "rec" })).toBe(true);
     expect(dialpadCallHasAudio(undefined)).toBe(true);
+    // Not swept by the Dialpad sync yet: unknown, so it stays.
+    expect(dialpadCallHasAudio({ ...row, sync_status: "pending" })).toBe(true);
+    expect(dialpadCallHasAudio({ ...row, sync_status: "synced" })).toBe(false);
   });
 });
 
@@ -80,6 +83,8 @@ describe("CallLibrary", () => {
     call({ pipelineItemId: "e", businessName: "Ghost Plumbing", bucket: "no_show" }),
     // Linked to a two-second failed dial: a Listen button here would only error.
     call({ pipelineItemId: "f", businessName: "Infuse Electrical", bucket: "closed", setting: setting("dp-dead", null, false) }),
+    // Same dead dial, but the meeting was recorded: listed, with no Listen button for the dial.
+    call({ pipelineItemId: "g", businessName: "OTOLEC", bucket: "closed", setting: setting("dp-dead-2", null, false), meetingRecordingUrl: "https://fathom.video/share/g", meetingRecordingSource: "fathom", setterName: "Lachlan" }),
   ];
 
   it("lists only slots with something to hear and says how many it hid", () => {
@@ -90,15 +95,27 @@ describe("CallLibrary", () => {
     expect(screen.queryByText("24 Hr Test & Tag")).toBeNull();
     expect(screen.queryByText("Sparkon Electrical")).toBeNull();
     expect(screen.queryByText("Infuse Electrical")).toBeNull();
+    expect(screen.getByText("OTOLEC")).toBeInTheDocument();
     expect(screen.getAllByText("Listen to the call")).toHaveLength(1);
-    // Showed bucket: a and d shown, b, c and f hidden; the no-show e is in another bucket.
-    expect(screen.getByText(/2 slots · 1 with the booking call · 1 with the meeting recording · 3 slots without any recording hidden\./)).toBeInTheDocument();
+    expect(screen.getAllByText("No set audio").length).toBeGreaterThanOrEqual(2);
+    // Showed bucket: a, d and g shown; b, c and f hidden; the no-show e is in another bucket.
+    expect(screen.getByText(/3 slots · 1 with the booking call · 2 with the meeting recording · 3 slots without any recording hidden\./)).toBeInTheDocument();
     // The bucket counts only count what the list will show.
     const toggles = screen.getAllByRole("radio");
     const closed = toggles.find((t) => t.textContent?.startsWith("Closed"));
     const showed = toggles.find((t) => t.textContent?.startsWith("Showed"));
-    expect(closed?.textContent).toBe("Closed1");
-    expect(showed?.textContent).toBe("Showed2");
+    expect(closed?.textContent).toBe("Closed2");
+    expect(showed?.textContent).toBe("Showed3");
+  });
+
+  it("follows the setter filter in the list, the counts and the hidden note", () => {
+    data.calls = fixtures;
+    render(<CallLibrary />);
+    const lachlan = screen.getAllByRole("radio").find((t) => t.textContent === "Lachlan");
+    fireEvent.click(lachlan!);
+    expect(screen.getByText("OTOLEC")).toBeInTheDocument();
+    expect(screen.queryByText("JR Dixon Electrical")).toBeNull();
+    expect(screen.getByText(/^1 slot · 0 with the booking call · 1 with the meeting recording\.$/)).toBeInTheDocument();
   });
 
   it("explains an empty bucket when everything in it was hidden", () => {

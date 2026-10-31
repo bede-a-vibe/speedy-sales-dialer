@@ -24,7 +24,7 @@ const FILTERS: Array<{ key: Filter; label: string; hint: string }> = [
   { key: "second_meeting", label: "2nd booked", hint: "sat, discovery only" },
   { key: "no_show", label: "No-show", hint: "the set did not hold" },
   { key: "cancelled", label: "Cancelled", hint: "pulled out before the slot" },
-  { key: "all", label: "All", hint: "every booked slot" },
+  { key: "all", label: "All", hint: "every booked slot with a recording" },
 ];
 
 const BUCKET_STYLE: Record<LibraryBucket, { label: string; className: string }> = {
