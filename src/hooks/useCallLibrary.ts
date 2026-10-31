@@ -84,10 +84,19 @@ export function bucketFor(outcome: AppointmentOutcomeValue | null, status: strin
 export const SHOWED_BUCKETS = new Set<LibraryBucket>(["closed", "verbal", "no_close", "dq", "second_meeting"]);
 
 /**
+ * Has something to listen to: the booking call's Dialpad audio or the meeting
+ * recording. The Classroom's call library only lists these (Bede, 31 Oct 2026:
+ * a slot with neither has nothing to learn from in a listening library). A
+ * transcript on its own does not count; the library is for hearing the call.
+ */
+export const hasRecording = (call: Pick<LibraryCall, "setting" | "meetingRecordingUrl">): boolean =>
+  Boolean(call.setting?.dialpadCallId || call.meetingRecordingUrl);
+
+/**
  * Every booked slot since the given date, with the two recordings that explain it:
- * the cold call that booked the meeting and the meeting itself. Nothing is dropped
- * for lacking audio; a library that only shows the calls we happen to have recorded
- * teaches that those are the ones that work.
+ * the cold call that booked the meeting and the meeting itself. The hook returns
+ * every slot; the library hides the ones with nothing to hear (see `hasRecording`)
+ * and says how many it hid, so the survivorship bias stays visible.
  */
 export function useCallLibrary(sinceIso: string) {
   return useQuery({

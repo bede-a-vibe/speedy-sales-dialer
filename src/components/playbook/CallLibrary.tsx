@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ListenButton } from "@/components/calls/ListenButton";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
-import { SHOWED_BUCKETS, useCallLibrary, type LibraryBucket, type LibraryCall } from "@/hooks/useCallLibrary";
+import { SHOWED_BUCKETS, hasRecording, useCallLibrary, type LibraryBucket, type LibraryCall } from "@/hooks/useCallLibrary";
 import { cn } from "@/lib/utils";
 
 /** Ben's first day. Everything the setter can learn from starts here. */
@@ -135,24 +135,35 @@ function CallRow({ call }: { call: LibraryCall }) {
 }
 
 /**
- * Every booked slot since Ben started, with the cold call that set it and the meeting
- * recording when there is one. Filter by how the slot ended and compare: the sets that
- * held against the sets that didn't, the sittings that closed against the ones that were
- * disqualified. Slots with no audio are listed and labelled, never hidden.
+ * Every booked slot since Ben started that has something to hear: the cold call that
+ * set it, the meeting recording, or both. Filter by how the slot ended and compare: the
+ * sets that held against the sets that didn't, the sittings that closed against the ones
+ * that were disqualified. Slots with neither recording are hidden (Bede, 31 Oct 2026) and
+ * counted, so a bucket that looks thin is visibly thin rather than silently trimmed.
  */
 export function CallLibrary() {
   const { data: calls = [], isLoading } = useCallLibrary(LIBRARY_SINCE);
   const [filter, setFilter] = useState<Filter>("showed");
   const [setter, setSetter] = useState<string>("all");
 
-  const setters = useMemo(() => [...new Set(calls.map((c) => c.setterName).filter((n): n is string => Boolean(n)))].sort(), [calls]);
+  const recorded = useMemo(() => calls.filter(hasRecording), [calls]);
+  const setters = useMemo(() => [...new Set(recorded.map((c) => c.setterName).filter((n): n is string => Boolean(n)))].sort(), [recorded]);
+  const bySetter = (c: LibraryCall) => setter === "all" || c.setterName === setter;
   const counts = useMemo(() => {
     const map = new Map<Filter, number>();
-    for (const f of FILTERS) map.set(f.key, calls.filter((c) => matches(c, f.key) && (setter === "all" || c.setterName === setter)).length);
+    for (const f of FILTERS) map.set(f.key, recorded.filter((c) => matches(c, f.key) && bySetter(c)).length);
     return map;
-  }, [calls, setter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recorded, setter]);
   const visible = useMemo(
-    () => calls.filter((c) => matches(c, filter) && (setter === "all" || c.setterName === setter)),
+    () => recorded.filter((c) => matches(c, filter) && bySetter(c)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recorded, filter, setter],
+  );
+  /** Slots in this bucket with nothing to hear, so the rep knows what is not on the list. */
+  const hidden = useMemo(
+    () => calls.filter((c) => !hasRecording(c) && matches(c, filter) && bySetter(c)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [calls, filter, setter],
   );
   const coverage = useMemo(() => {
@@ -160,6 +171,7 @@ export function CallLibrary() {
     const withMeeting = visible.filter((c) => c.meetingRecordingUrl).length;
     return { withSet, withMeeting };
   }, [visible]);
+  const hiddenNote = hidden > 0 ? `${hidden} slot${hidden === 1 ? "" : "s"} without any recording hidden` : null;
 
   return (
     <Card>
@@ -169,9 +181,9 @@ export function CallLibrary() {
           Call library
         </CardTitle>
         <CardDescription className="text-xs">
-          Every booked slot since 28 Sep: the cold call that set it and the meeting recording. Flip between Showed and
-          No-show to hear what a set that holds sounds like against one that doesn't, then between Closed and DQ to hear
-          the difference in the sitting.
+          Every booked slot since 28 Sep with something to hear: the cold call that set it, the meeting recording, or
+          both. Flip between Showed and No-show to hear what a set that holds sounds like against one that doesn't, then
+          between Closed and DQ to hear the difference in the sitting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -201,11 +213,14 @@ export function CallLibrary() {
             ))}
           </>
         ) : visible.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Nothing in this bucket yet.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {hiddenNote ? `Nothing with a recording in this bucket yet. ${hiddenNote}.` : "Nothing in this bucket yet."}
+          </p>
         ) : (
           <>
             <p className="text-[11px] text-muted-foreground">
-              {visible.length} slot{visible.length === 1 ? "" : "s"} · {coverage.withSet} with the booking call · {coverage.withMeeting} with the meeting recording.
+              {visible.length} slot{visible.length === 1 ? "" : "s"} · {coverage.withSet} with the booking call · {coverage.withMeeting} with the meeting recording
+              {hiddenNote ? ` · ${hiddenNote}` : ""}.
             </p>
             <div className="space-y-2">
               {visible.map((c) => (
