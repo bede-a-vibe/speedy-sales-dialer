@@ -38,6 +38,12 @@ export interface LibraryCall {
     callLogId: string;
     calledAt: string;
     dialpadCallId: string | null;
+    /**
+     * Whether Dialpad has anything to play for that id. A linked call that never
+     * connected (a two-second failed dial) has no recording, and the Listen
+     * button would only fail. Unknown (no synced Dialpad row) is taken as true.
+     */
+    hasAudio: boolean;
     talkSeconds: number | null;
     transcript: string | null;
     summary: string | null;
@@ -83,11 +89,38 @@ export function bucketFor(outcome: AppointmentOutcomeValue | null, status: strin
 
 export const SHOWED_BUCKETS = new Set<LibraryBucket>(["closed", "verbal", "no_close", "dq", "second_meeting"]);
 
+/** The booking call can be played: it is linked to a Dialpad call that has audio. */
+export const hasSetAudio = (call: Pick<LibraryCall, "setting">): boolean =>
+  Boolean(call.setting?.dialpadCallId && call.setting.hasAudio);
+
+/**
+ * Has something to listen to: the booking call's Dialpad audio or the meeting
+ * recording. The Classroom's call library only lists these (Bede, 31 Oct 2026:
+ * a slot with neither has nothing to learn from in a listening library). A
+ * transcript on its own does not count; the library is for hearing the call.
+ */
+export const hasRecording = (call: Pick<LibraryCall, "setting" | "meetingRecordingUrl">): boolean =>
+  hasSetAudio(call) || Boolean(call.meetingRecordingUrl);
+
+/** Dialpad's view of a call: did it connect, or does it carry a recording? */
+export function dialpadCallHasAudio(row: {
+  sync_status?: string | null;
+  is_connected: boolean | null;
+  talk_time_seconds: number | null;
+  recording_id: string | null;
+  recording_url: string | null;
+  recording_share_link: string | null;
+} | null | undefined): boolean {
+  // No row, or a row the Dialpad sync has not filled in yet: we can't tell, so show it.
+  if (!row || (row.sync_status != null && row.sync_status !== "synced")) return true;
+  return Boolean(row.is_connected || (row.talk_time_seconds ?? 0) > 0 || row.recording_id || row.recording_url || row.recording_share_link);
+}
+
 /**
  * Every booked slot since the given date, with the two recordings that explain it:
- * the cold call that booked the meeting and the meeting itself. Nothing is dropped
- * for lacking audio; a library that only shows the calls we happen to have recorded
- * teaches that those are the ones that work.
+ * the cold call that booked the meeting and the meeting itself. The hook returns
+ * every slot; the library hides the ones with nothing to hear (see `hasRecording`)
+ * and says how many it hid, so the survivorship bias stays visible.
  */
 export function useCallLibrary(sinceIso: string) {
   return useQuery({
@@ -147,6 +180,19 @@ export function useCallLibrary(sinceIso: string) {
       if (historyRes.error) throw historyRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
+      // Dialpad's own record of each booking call, to tell a playable call from a
+      // linked two-second failed dial. Fetched after the call logs because the ids
+      // come from them; missing rows are treated as playable rather than hidden.
+      const dialpadIds = [...new Set((callsRes.data ?? []).map((c) => c.dialpad_call_id).filter((id): id is string => Boolean(id)))];
+      const dialpadRows = dialpadIds.length
+        ? await supabase
+            .from("dialpad_calls")
+            .select("dialpad_call_id, sync_status, is_connected, talk_time_seconds, recording_id, recording_url, recording_share_link")
+            .in("dialpad_call_id", dialpadIds)
+        : { data: [], error: null };
+      // A failed lookup only loses the dead-dial check; it must not blank the library.
+      const dialpadById = new Map((dialpadRows.error ? [] : dialpadRows.data ?? []).map((d) => [d.dialpad_call_id, d]));
+
       const nameByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.display_name || p.email?.split("@")[0] || null]));
       const fathomByItem = new Map((fathomRes.data ?? []).map((f) => [f.pipeline_item_id as string, f.share_url as string | null]));
 
@@ -202,6 +248,7 @@ export function useCallLibrary(sinceIso: string) {
                   callLogId: call.id,
                   calledAt: call.created_at,
                   dialpadCallId: call.dialpad_call_id,
+                  hasAudio: call.dialpad_call_id ? dialpadCallHasAudio(dialpadById.get(call.dialpad_call_id)) : false,
                   talkSeconds: call.dialpad_talk_time_seconds,
                   transcript: call.dialpad_transcript,
                   summary: call.dialpad_summary,
