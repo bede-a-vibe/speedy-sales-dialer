@@ -61,8 +61,17 @@ function isBlockedSearchHost(host: string): boolean {
   const h = host.toLowerCase();
   if (/\.(gov|edu)(\.[a-z]{2})?$/.test(h)) return true;
   if (h.includes("directory") || h.includes("-listings") || h.includes("businessprofile")) return true;
-  if (SEARCH_HOST_BLOCKLIST.some((needle) => h.includes(needle))) return true;
+  if (SEARCH_HOST_BLOCKLIST.some((needle) => hostHasLabels(h, needle))) return true;
   return isDirectoryHost(h);
+}
+
+// Whole-label match: "bing" matches bing.com but not plumbing.com.au, "aircon"
+// matches aircon.com.au but not brisbaneaircon.com.au. A plain substring test
+// blocked every plumber's and air-con business's own site.
+function hostHasLabels(host: string, needle: string): boolean {
+  const h = host.toLowerCase();
+  const n = needle.toLowerCase();
+  return h === n || h.startsWith(n + ".") || h.endsWith("." + n) || h.includes("." + n + ".");
 }
 
 // Hosts that list many businesses (directories, data brokers, review and lead
