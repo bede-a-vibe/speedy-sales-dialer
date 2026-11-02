@@ -115,6 +115,22 @@ function websiteHost(input: string | null | undefined): string | null {
   }
 }
 
+/**
+ * True when the stored website is the bare homepage of a listed directory
+ * (https://www.infobel.com). That URL says nothing about the lead, so it is
+ * safe to drop. A path (a Facebook page, the lead's own listing) is kept as a
+ * link even though it is never scraped. Search and redirect URLs are dropped.
+ */
+function isDroppableDirectoryWebsite(input: string | null | undefined): boolean {
+  const raw = (input ?? "").trim();
+  const host = websiteHost(raw);
+  if (!host) return false;
+  if (/(^|\.)(google\.[a-z.]+|duckduckgo\.com|bing\.com)$/.test(host)) return true;
+  if (!isBlockedSearchHost(host)) return false;
+  const rest = raw.replace(/^https?:\/\//i, "").replace(/^[^/?#]+/, "");
+  return /^\/?([?#].*)?$/.test(rest);
+}
+
 /** True when the lead's stored website is a directory/aggregator, not its own site. */
 function isDirectoryWebsite(input: string | null | undefined): boolean {
   const host = websiteHost(input);
@@ -2163,7 +2179,7 @@ Deno.serve(async (req) => {
         update.website = r.resolvedWebsite;
         if (r.siteFromSearch) websites_found++;
         if (r.websiteWasDirectory) update.deep_crawl_attempted = false;
-      } else if (r.websiteWasDirectory) {
+      } else if (r.websiteWasDirectory && isDroppableDirectoryWebsite(c.website)) {
         update.website = null;
       }
 
