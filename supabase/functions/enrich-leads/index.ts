@@ -61,7 +61,64 @@ function isBlockedSearchHost(host: string): boolean {
   const h = host.toLowerCase();
   if (/\.(gov|edu)(\.[a-z]{2})?$/.test(h)) return true;
   if (h.includes("directory") || h.includes("-listings") || h.includes("businessprofile")) return true;
-  return SEARCH_HOST_BLOCKLIST.some((needle) => h.includes(needle));
+  if (SEARCH_HOST_BLOCKLIST.some((needle) => h.includes(needle))) return true;
+  return isDirectoryHost(h);
+}
+
+// Hosts that list many businesses (directories, data brokers, review and lead
+// marketplaces, news, link-in-bio, site builders, our own agencies). A lead whose
+// website points at one of these is NOT that business's site: scraping it copies
+// the directory's own owner name, ABN, email and ad pixels onto every lead that
+// shares it (2 Nov 2026: "Alain Wahba" landed on 448 leads from infobel.com).
+// Matched as the host itself or any subdomain of it.
+const DIRECTORY_HOSTS = [
+  "infobel.com", "infobelpro.com", "chamberofcommerce.com", "dlook.com.au",
+  "mapquest.com", "birdeye.com", "getbirdeye.com.au", "service.com.au",
+  "toptradiesaustralia.com.au", "australia-corp.com", "creditorwatch.com.au",
+  "topproperty.eco", "duckduckgo.com", "tradieverify.com.au",
+  "localbusinessguide.com.au", "sgpgrid.com", "showmelocal.com", "placedigger.com",
+  "asic4.com", "traderefer.au", "rymaps.com", "companylookup.au",
+  "findmyplumber.com.au", "servicetasker.com.au", "maintainmyhouse.com.au",
+  "ausplumber.com", "enfsolar.com", "vnbis.com", "rocketreach.co",
+  "instantlead.com.au", "misterwhat-au.com", "top4.com.au", "about.me",
+  "b2bhint.com", "locale.online", "mappaus.com", "top10place.com",
+  "plumberlist.com.au", "abc.net.au", "local.com.au", "tradiebuzz.com.au",
+  "australiadatahouse.com", "superpages.com.au", "worldplaces.me",
+  "pinkpages.com.au", "australiantradies.au", "abn-lookup.com", "ebay.com.au",
+  "go4it.com.au", "aubiz.net", "australiandatabase.com", "fresha.com",
+  "info-clipper.com", "signalhire.com", "hvacrsearch.com.au",
+  "ihandymanhub.com.au", "masterplumbers.asn.au", "nextdoor.com", "bdir.in",
+  "localbiznetwork.com", "msn.com", "reverseaustralia.com", "amazon.com.au",
+  "tpg.com.au", "afr.com", "hvacrnews.com.au", "personlookup.com.au",
+  "provenexpert.com", "radar.au", "sbs.com.au", "westnet.com.au", "iinet.net.au",
+  "starofservice.com.au", "tasklegend.com.au", "thegoodguys.com.au", "theorg.com",
+  "worldstandards.eu", "houzz.com.au", "lawconnect.com", "letfindout.com",
+  "fireflylisting.com", "localmint.com", "mail.com", "homeimprovement2day.com.au",
+  "homeimprovementpages.com.au", "linktr.ee", "brand.page", "sitelift.site",
+  "airah.org.au", "dentist.com.au", "custom-kitchen-cabinets.com",
+  "veritasdigital.com.au", "growthconsultinggroup.com.au", "odindigital.com.au",
+];
+
+function isDirectoryHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^www\./, "").replace(/:\d+$/, "");
+  return DIRECTORY_HOSTS.some((d) => h === d || h.endsWith("." + d));
+}
+
+/** Host of a stored website value, or null. */
+function websiteHost(input: string | null | undefined): string | null {
+  const base = input ? normalizeWebsite(input) : null;
+  if (!base) return null;
+  try {
+    return new URL(base).host.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/** True when the lead's stored website is a directory/aggregator, not its own site. */
+function isDirectoryWebsite(input: string | null | undefined): boolean {
+  const host = websiteHost(input);
+  return !!host && isBlockedSearchHost(host);
 }
 
 function isRealBusinessName(name: string | null | undefined): boolean {
@@ -502,6 +559,8 @@ async function resolveStateForContact(website: string): Promise<{
   const started = Date.now();
   const base = normalizeWebsite(website);
   if (!base) return { state: null, source: null, ambiguous: false, reachable: false, pagesFetched: 0, ms: 0 };
+  // A directory's address is not the lead's address; state drives calling hours.
+  if (isDirectoryWebsite(website)) return { state: null, source: null, ambiguous: false, reachable: false, pagesFetched: 0, ms: 0 };
 
   const ev = newStateEvidence();
   let pages = 0;
@@ -856,6 +915,7 @@ async function processContact(
   resolvedWebsite: string | null;
   siteFromEmail: boolean;
   siteFromSearch: boolean;
+  websiteWasDirectory: boolean;
   industry: string | null;
   homepageText: string | null;
   pagesFetched: number;
@@ -865,7 +925,10 @@ async function processContact(
   aiCalled: boolean;
 }> {
   const start = Date.now();
-  let base = contact.website ? normalizeWebsite(contact.website) : null;
+  // A directory page is not the lead's site: never scrape it, and look for the
+  // real site the same way as for a lead with no website at all.
+  const websiteWasDirectory = isDirectoryWebsite(contact.website);
+  let base = contact.website && !websiteWasDirectory ? normalizeWebsite(contact.website) : null;
   let siteFromEmail = false;
   let siteFromSearch = false;
   let resolvedWebsite: string | null = base;
@@ -873,7 +936,7 @@ async function processContact(
   // Derive site from a business email domain when no website is set.
   if (!base && contact.email) {
     const dom = emailDomain(contact.email);
-    if (dom && !isFreeMailDomain(dom)) {
+    if (dom && !isFreeMailDomain(dom) && !isBlockedSearchHost(dom)) {
       const candidate = `https://${dom}`;
       const probe = await fetchPage(candidate);
       if (probe !== null) {
@@ -914,7 +977,7 @@ async function processContact(
     return {
       mobile: null, email: null, name: null, ownerAttributed: false,
       source: "none", resolvedWebsite: null, siteFromEmail: false,
-      siteFromSearch: false,
+      siteFromSearch: false, websiteWasDirectory,
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
       addrState: null, addrCity: null,
@@ -1002,6 +1065,7 @@ async function processContact(
     resolvedWebsite,
     siteFromEmail,
     siteFromSearch,
+    websiteWasDirectory,
     industry,
     homepageText,
     pagesFetched,
@@ -1380,6 +1444,8 @@ async function processDeepCrawl(
 
   let host = "";
   try { host = new URL(base).host; } catch { return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false }; }
+  // Directory pages carry someone else's name, ABN and ad pixels. Never crawl them.
+  if (isBlockedSearchHost(host)) return { mobile: null, email: null, name: null, pagesFetched: 0, ms: Date.now() - start, signals: emptySignals(), aiCalled: false };
 
   let result: ExtractResult = { mobile: null, email: null, name: null, ownerAttributed: false, aboutTextForAi: null };
   let pagesFetched = 0;
@@ -1520,6 +1586,41 @@ Deno.serve(async (req) => {
       return Number(data ?? 0) >= 3;
     } catch (err: any) {
       console.error("[enrich-leads] dup-email check threw:", err?.message ?? err);
+      return false;
+    }
+  }
+
+  // Same-site reuse guard. A value scraped from one page and already sitting on
+  // two other leads that share this website host came off a shared page (a
+  // directory, a franchise head office, an agency), not this business. Never let
+  // it land on a third. Fails open (returns false) so an RPC hiccup never blocks.
+  function escapeLike(v: string): string {
+    return v.replace(/[\\%_]/g, (m) => "\\" + m);
+  }
+  async function isValueOnSameSite(
+    column: "dm_name" | "abn",
+    value: string,
+    website: string | null | undefined,
+    excludeId: string,
+  ): Promise<boolean> {
+    try {
+      const host = websiteHost(website);
+      const v = (value ?? "").trim();
+      if (!host || !v) return false;
+      let q = admin
+        .from("contacts")
+        .select("id", { count: "exact", head: true })
+        .ilike("website", `%${escapeLike(host)}%`)
+        .neq("id", excludeId);
+      q = column === "dm_name" ? q.ilike("dm_name", escapeLike(v)) : q.eq("abn", v);
+      const { count, error } = await q;
+      if (error) {
+        console.error(`[enrich-leads] same-site ${column} check failed:`, error.message);
+        return false;
+      }
+      return (count ?? 0) >= 2;
+    } catch (err: any) {
+      console.error(`[enrich-leads] same-site ${column} check threw:`, err?.message ?? err);
       return false;
     }
   }
@@ -1863,8 +1964,12 @@ Deno.serve(async (req) => {
           deep_crawl_attempted: true,
         };
         if (r.name && (!c.dm_name || c.dm_name === "")) {
-          update.dm_name = r.name;
-          d_names++;
+          if (await isValueOnSameSite("dm_name", r.name, c.website, c.id)) {
+            console.log(`[enrich-leads/deep] ${c.id}: "${r.name}" already on 2+ leads from this site, not written`);
+          } else {
+            update.dm_name = r.name;
+            d_names++;
+          }
         }
         if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
           if (sameAsOwnPhone(r.mobile, c.phone)) {
@@ -1899,7 +2004,7 @@ Deno.serve(async (req) => {
             d_gads++;
           }
           // ABN — only-if-empty, exactly 11 digits (validated in extractor).
-          if (sig.abn && (!c.abn || c.abn === "")) {
+          if (sig.abn && (!c.abn || c.abn === "") && !(await isValueOnSameSite("abn", sig.abn, c.website, c.id))) {
             update.abn = sig.abn;
             d_abn++;
           }
@@ -2051,10 +2156,15 @@ Deno.serve(async (req) => {
         dm_enrich_source: enrichSource,
       };
 
-      // If we resolved a site from email OR search, persist it to website.
-      if ((r.siteFromEmail || r.siteFromSearch) && r.resolvedWebsite && (!c.website || c.website === "")) {
+      // If we resolved a site from email OR search, persist it to website. A
+      // directory page stored as the website is replaced, or cleared when no
+      // real site turned up, so nothing downstream scrapes it again.
+      if ((r.siteFromEmail || r.siteFromSearch) && r.resolvedWebsite && (!c.website || c.website === "" || r.websiteWasDirectory)) {
         update.website = r.resolvedWebsite;
         if (r.siteFromSearch) websites_found++;
+        if (r.websiteWasDirectory) update.deep_crawl_attempted = false;
+      } else if (r.websiteWasDirectory) {
+        update.website = null;
       }
 
       if (r.mobile && (!c.dm_phone || c.dm_phone === "")) {
@@ -2079,8 +2189,13 @@ Deno.serve(async (req) => {
         }
       }
       if (r.name && (!c.dm_name || c.dm_name === "")) {
-        update.dm_name = r.name;
-        names_found++;
+        const siteForCheck = update.website ?? c.website;
+        if (await isValueOnSameSite("dm_name", r.name, siteForCheck, c.id)) {
+          console.log(`[enrich-leads] ${c.id}: "${r.name}" already on 2+ leads from this site, not written`);
+        } else {
+          update.dm_name = r.name;
+          names_found++;
+        }
       }
       if (r.addrState && (!c.state || String(c.state).trim() === "")) {
         update.state = r.addrState;
