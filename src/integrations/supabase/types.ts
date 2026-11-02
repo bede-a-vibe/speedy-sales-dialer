@@ -2828,6 +2828,57 @@ export type Database = {
           },
         ]
       }
+      lms_lessons_backup_20261031_ryder: {
+        Row: {
+          backed_up_at: string | null
+          body: string | null
+          component: string | null
+          course_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          published: boolean | null
+          resources: Json | null
+          section: string | null
+          sort: number | null
+          title: string | null
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       manager_one_on_ones: {
         Row: {
           action_items: string | null
