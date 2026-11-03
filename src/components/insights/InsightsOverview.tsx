@@ -6,6 +6,7 @@ import { DailyVolumeChart } from "@/components/reports/DailyVolumeChart";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
 import { ClientRevenueSummary } from "@/components/insights/ClientRevenueSummary";
 import { DialEconomicsCard } from "@/components/insights/DialEconomicsCard";
+import { InsightsSources } from "@/components/insights/InsightsSources";
 import type { ReportMetrics } from "@/lib/reportMetrics";
 import type { FunnelMetrics } from "@/lib/funnelMetrics";
 
@@ -19,7 +20,8 @@ interface Props {
 
 /**
  * Insights → Overview: a true at-a-glance summary.
- * Revenue + dial economics + one KPI strip + one funnel + one volume chart.
+ * Revenue + dial economics + one KPI strip + one funnel + one volume chart,
+ * then every lead source side by side at the bottom.
  * Deep dives live on the other tabs.
  */
 export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRepLabel }: Props) {
@@ -31,7 +33,7 @@ export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRe
 
       <ReportSection
         title="End-to-End Funnel"
-        description="Dial → conversation → booking → close for the selected range. Full breakdowns live on the Funnel tab."
+        description="Cold call: dial → conversation → booking → close for the selected range. Pick any lead source on the Funnel tab."
       >
         <EndToEndFunnel metrics={metrics} funnel={funnel} />
       </ReportSection>
@@ -58,6 +60,8 @@ export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRe
       >
         <SalesEfficiencyPanel metrics={metrics} />
       </ReportSection>
+
+      <InsightsSources dateFrom={dateFrom} dateTo={dateTo} />
     </div>
   );
 }
