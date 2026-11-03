@@ -153,12 +153,14 @@
   }
 }
 
-/* Route fade-in (PageTransition). Ends on transform: none so fixed-position children are unaffected. */
+/* Route fade-in (PageTransition). Opacity only, with no fill: this wraps the whole
+   app shell, and a transform animation (even one ending on none) makes this element
+   the containing block for every position: fixed child, so the sidebar and the
+   Dialpad panel scroll away with the page. */
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
 }
-.page-enter { animation: page-enter 0.18s ease-out both; }
+.page-enter { animation: page-enter 0.18s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .page-enter { animation: none; }
 }
