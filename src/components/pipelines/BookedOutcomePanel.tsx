@@ -54,6 +54,13 @@ interface BookedOutcomePanelProps {
   onSaveLinks?: (item: PipelineItemWithRelations, extras: OutcomeExtras) => Promise<void>;
 }
 
+/** Query roots whose data includes a booking's is_qualified verdict. */
+const QUALIFICATION_QUERY_ROOTS = new Set([
+  "pipeline-items", "booked-appointments-range", "rebook-queue", "source-funnel", "rep-meeting-stats",
+  "meetings-pending", "meetings-upcoming", "meetings-recent", "client-meetings", "close-tracking",
+  "my-sales-closes", "session-summary-booked", "call-library",
+]);
+
 export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOutcome, onSaveLinks }: BookedOutcomePanelProps) {
   const [reason, setReason] = useState<string>(item.outcome_reason ?? "");
   const qc = useQueryClient();
@@ -62,7 +69,9 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const saveQualified = async (q: boolean | null, why: string | null) => {
     const { error } = await supabase.from("pipeline_items").update({ is_qualified: q, dq_reason: q === false ? why : null } as any).eq("id", item.id);
     if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries();
+    // Targeted: only queries that read booking qualification. A bare
+    // invalidateQueries() refetched every active query in the app.
+    qc.invalidateQueries({ predicate: (q) => QUALIFICATION_QUERY_ROOTS.has(String(q.queryKey[0])) });
     toast.success(q == null ? "Qualification cleared" : q ? "Marked qualified" : "Marked not qualified");
   };
   // The Not-qualified reason doubles as the outcome reason when none is picked.

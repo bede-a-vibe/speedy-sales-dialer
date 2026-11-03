@@ -88,7 +88,10 @@ export function useGHLCalendars() {
       const res = await ghlGetCalendars() as { calendars?: Array<{ id: string; name: string }> };
       return (res.calendars ?? []).map((c) => ({ id: c.id, name: c.name }));
     },
-    staleTime: 5 * 60 * 1000,
+    // GHL calendars and pipelines change a few times a year; each fetch is a
+    // round trip through the ghl edge function to the GHL API.
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     retry: 1,
   });
 }
@@ -104,7 +107,10 @@ export function useGHLPipelines() {
         stages: (p.stages ?? []).map((s) => ({ id: s.id, name: s.name })),
       }));
     },
-    staleTime: 5 * 60 * 1000,
+    // GHL calendars and pipelines change a few times a year; each fetch is a
+    // round trip through the ghl edge function to the GHL API.
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     retry: 1,
   });
 }

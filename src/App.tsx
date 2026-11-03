@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FullPageLoading } from "@/components/FullPageLoading";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { createAppQueryClient } from "@/lib/queryClient";
 import AuthPage from "./pages/AuthPage";
@@ -16,13 +17,6 @@ const ProtectedApp = lazy(() => import("./components/ProtectedApp"));
 
 const queryClient = createAppQueryClient();
 
-function FullPageLoading() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-sm text-muted-foreground font-mono animate-pulse">Loading...</div>
-    </div>
-  );
-}
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem>

@@ -19,10 +19,33 @@
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <!-- Boot splash: painted by the HTML itself, before any JavaScript arrives,
+         so a slow network or a cold dev server never shows a blank white page.
+         React replaces it on first render. Colours match --background in index.css. -->
+    <style>
+      html { background: hsl(210 37% 97%); }
+      html.dark { background: hsl(215 46% 10%); }
+      .boot { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: hsl(212 16% 38%); }
+      html.dark .boot { color: hsl(209 21% 59%); }
+      .boot-ring { width: 28px; height: 28px; border-radius: 50%; border: 3px solid hsl(191 100% 47% / .2); border-top-color: hsl(191 100% 47%);
+        animation: boot-spin .8s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-ring { animation-duration: 2.4s; } }
+    </style>
+    <script>
+      // Match next-themes before React loads so dark-mode users don't get a light flash.
+      try {
+        var t = localStorage.getItem("theme");
+        if (t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
+    </script>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot" role="status" aria-live="polite"><div class="boot-ring"></div>Loading Speedy Dialer</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

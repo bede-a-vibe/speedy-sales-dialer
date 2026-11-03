@@ -36,9 +36,15 @@ const ZERO: EnrichmentCoverage = {
  *
  * Cached for 10 minutes — coverage changes slowly as enrichment data lands.
  */
-export function useEnrichmentCoverage() {
+/**
+ * Eleven exact counts over contacts. Only the Advanced Filters drawer shows
+ * them, so pass `enabled` from the drawer state: the dialer should not run
+ * eleven table scans on every load for a panel that starts closed.
+ */
+export function useEnrichmentCoverage(enabled = true) {
   return useQuery({
     queryKey: ["dialer-filter-enrichment-coverage"],
+    enabled,
     staleTime: 10 * 60 * 1000,
     queryFn: async (): Promise<EnrichmentCoverage> => {
       // Use a single PostgREST head request per column to get exact counts

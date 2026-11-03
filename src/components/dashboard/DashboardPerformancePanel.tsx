@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { BarChart3, CalendarCheck2, Clock3, PhoneCall, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,9 @@ function StatTile({
 
 export function DashboardPerformancePanel() {
   const { user } = useAuth();
-  const today = new Date().toISOString().split("T")[0];
+  // Local date, not UTC: toISOString() gave yesterday's date before 11am in
+  // Melbourne, so "Today" showed yesterday's numbers every morning.
+  const today = format(new Date(), "yyyy-MM-dd");
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(today, today);
   const { data: bookedItems = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(today, today);
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
-import { QuickBookDialog } from "@/components/QuickBookDialog";
+import { LazyQuickBookDialog } from "@/components/LazyMount";
 import { Button } from "@/components/ui/button";
 import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
@@ -204,7 +204,7 @@ export function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
-    <QuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
+    <LazyQuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
     </>
   );
 }

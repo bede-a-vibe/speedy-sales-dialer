@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReportSection } from "@/components/reports/ReportSection";
 import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
+import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
@@ -128,18 +129,7 @@ export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
     return m;
   }, [reps]);
 
-  const { data: contactAttempts = [] } = useQuery({
-    queryKey: ["contacts-attempt-counts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, call_attempt_count")
-        .gt("call_attempt_count", 0);
-      if (error) throw error;
-      return data ?? [];
-    },
-    staleTime: 60_000,
-  });
+  const { data: contactAttempts = [] } = useContactAttemptCounts();
 
   const metrics = useMemo(
     () => getReportMetrics({ callLogs, bookedItems: bookedAppointments, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),

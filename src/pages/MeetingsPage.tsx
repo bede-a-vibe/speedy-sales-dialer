@@ -187,7 +187,7 @@ function MeetingList({
 export function MeetingsPanel() {
   const { user } = useAuth();
   const isAdmin = useCanViewAdmin();
-  const { data: myGhlUserId } = useMyGhlUserId();
+  const { data: myGhlUserId, isFetched: myGhlUserIdFetched } = useMyGhlUserId();
 
   // Reps only ever see their own calendar. "Mine" is the default for everyone —
   // the queue is a personal to-do, not a report. Admins can switch to another rep,
@@ -201,8 +201,10 @@ export function MeetingsPanel() {
   const everyone = scope === "all";
   const selectedRep = reps.find((rep) => (rep.ghl_user_id ?? rep.rep_user_id) === scope);
 
+  // "Mine" waits for the rep's GHL id: querying before it resolves fetched all
+  // three lists with a null id, then again with the real one.
   const filters = mine
-    ? { ghlUserId: myGhlUserId ?? null, repUserId: user?.id ?? null }
+    ? { ghlUserId: myGhlUserId ?? null, repUserId: user?.id ?? null, enabled: myGhlUserIdFetched }
     : everyone
       ? {}
       : { ghlUserId: selectedRep?.ghl_user_id ?? null, repUserId: selectedRep?.rep_user_id ?? null };
