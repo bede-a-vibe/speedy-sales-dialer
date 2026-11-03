@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
   useDialpadCall,
   useDialpadCallStatus,
@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveDialTarget, type DialTargetContact } from "@/lib/dialTarget";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
+import type { DialpadCTIHandle } from "@/components/dialer/DialpadCTI";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -80,6 +81,15 @@ export interface UseDialerDialpadOptions {
   isSessionPaused: boolean;
   currentContact: Contact | null;
   selectedCallerId: string;
+  /**
+   * The embedded Dialpad CTI (the browser softphone), when the page mounts one.
+   * While it is signed in, the call is placed THROUGH it so the rep's audio
+   * stays in the browser, and the server is only asked to link the live call.
+   * Otherwise (not mounted, not signed in, coach view) the server places the
+   * call. Read at placement time, never a dependency, so a sign-in mid-lead
+   * can't place a second call.
+   */
+  ctiRef?: RefObject<DialpadCTIHandle | null> | null;
 }
 
 export function useDialerDialpad({
@@ -87,6 +97,7 @@ export function useDialerDialpad({
   isSessionPaused,
   currentContact,
   selectedCallerId,
+  ctiRef = null,
 }: UseDialerDialpadOptions) {
   // Dial the DECISION MAKER's direct number when we have one — the office/main
   // line is the fallback, not the default (reps kept reaching tradesmen on the
@@ -100,6 +111,11 @@ export function useDialerDialpad({
   // Resolved in ONE shared place (lib/dialTarget) that the contact card reads
   // too, so the number on screen can never drift from the number that rings.
   // Unverified scraped numbers are only dialled on switchboard main lines.
+  // The place-call effect below is the ONLY site that initiates a call for the
+  // current lead: through the CTI softphone when it is signed in, else via the
+  // server. Until 30 Oct 2026 the CTI also auto-dialled on its own with a
+  // different expression (dm_phone || phone), so unverified DM mobiles rang
+  // while the dialer reported the main number (487 calls, 17 Sep to 29 Oct).
   const dialTarget = resolveDialTarget(currentContact as DialTargetContact | null);
   const dialNumber = dialTarget.number;
   const dmDirect = dialTarget.isDmDirect ? dialTarget.number ?? undefined : undefined;
@@ -113,10 +129,18 @@ export function useDialerDialpad({
   // which let one lead's dial target linger on the next lead's card.
   const [placedForContactId, setPlacedForContactId] = useState<string | null>(null);
   const placedForContactRef = useRef<string | null>(null);
+  // Which channel placed the call for placedForContactRef's lead, while that
+  // call is in flight or live: the CTI softphone (the server only links it) or
+  // the server's initiate_call. Null once the call ends or the lead changes.
+  // Re-runs of the place effect are routine mid-call (caller-ID rotation
+  // landing, reconnect, resume, a DM number confirmed), and this is what stops
+  // a re-run starting a second call.
+  const placedViaRef = useRef<"cti" | "server" | null>(null);
   useEffect(() => {
     // New lead → the last placement no longer describes this card.
     if (currentContact?.id !== placedForContactRef.current) {
       placedForContactRef.current = currentContact?.id ?? null;
+      placedViaRef.current = null;
       setPlacedDialNumberState(null);
       setPlacedWasDmDirect(false);
       setPlacedForContactId(null);
@@ -212,6 +236,7 @@ export function useDialerDialpad({
 
   const markCallAsEnded = useCallback((nextState: string | null = "hangup") => {
     clearActiveDialRequest();
+    placedViaRef.current = null;
     setSyncTrackedDialpadCallId((current) => current || activeDialpadCallId || lastDialpadCallIdRef.current);
     setActiveDialpadCallId(null);
     setActiveDialpadCallState(nextState);
@@ -227,6 +252,7 @@ export function useDialerDialpad({
 
   const resetDialpadState = useCallback(() => {
     clearActiveDialRequest();
+    placedViaRef.current = null;
     setActiveDialpadCallId(null);
     setSyncTrackedDialpadCallId(null);
     setActiveDialpadCallState(null);
@@ -252,6 +278,19 @@ export function useDialerDialpad({
     const requestKey = `${currentContact.id}:${dialNumber}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
 
+    // Who placed (or is placing) THIS lead's call, if anyone. A re-run of this
+    // effect must never start a second call:
+    //  - CTI-placed and not ended → nothing to do. The call is in the softphone
+    //    and the resolution poller is linking it; resetting state here would
+    //    only orphan it.
+    //  - server-placed and not ended → stay on the server path even if the CTI
+    //    has signed in since: Dialpad answers a repeat initiate with the live
+    //    call, whereas a second postMessage can start a second call.
+    const inFlightVia = placedForContactRef.current === currentContact.id ? placedViaRef.current : null;
+    if (inFlightVia === "cti") return;
+    const cti = inFlightVia === "server" ? null : ctiRef?.current;
+    const ctiOwnsPlacement = Boolean(cti?.isAuthenticated());
+
     let cancelled = false;
     const isStaleAttempt = () => cancelled || activeDialRequestRef.current !== requestKey;
 
@@ -270,6 +309,39 @@ export function useDialerDialpad({
     setPlacedDialNumberState(dialNumber);
     setPlacedWasDmDirect(Boolean(dmDirect));
 
+    const releaseRequest = () => {
+      if (activeDialRequestRef.current === requestKey) {
+        clearActiveDialRequestLock(requestKey);
+        activeDialRequestRef.current = null;
+      }
+    };
+    const announcePlaced = () => {
+      toast.success(
+        dmDirect
+          ? `Calling the decision maker direct on ${dialNumber}`
+          : `Calling ${dialNumber} through Dialpad`,
+      );
+    };
+
+    // ── CTI-owned placement ──
+    // A signed-in CTI is the rep's softphone: hand it the SAME resolved number
+    // and let the resolution poller link the call Dialpad registers. Asking the
+    // server to initiate as well is what used to happen, and it either came
+    // back "currently on a call" or, when it won the race, rang the lead twice.
+    if (ctiOwnsPlacement && cti) {
+      placedViaRef.current = "cti";
+      cti.initiateCall(
+        dialNumber,
+        selectedCallerId || undefined,
+        JSON.stringify({ contact_id: currentContact.id, business_name: currentContact.business_name }),
+      );
+      setIsCallResolving(true);
+      setActiveDialpadCallState("connecting");
+      announcePlaced();
+      return releaseRequest;
+    }
+
+    placedViaRef.current = "server";
     const mutation = dialpadCallRef.current;
 
     const attemptDial = async (retriesLeft: number): Promise<void> => {
@@ -296,13 +368,11 @@ export function useDialerDialpad({
           return;
         }
 
-        toast.success(
-          response.message === "Existing Dialpad call is already active for this lead."
-            ? response.message
-            : dmDirect
-              ? `Calling the decision maker direct on ${dialNumber}`
-              : `Calling ${dialNumber} through Dialpad`,
-        );
+        if (response.message === "Existing Dialpad call is already active for this lead.") {
+          toast.success(response.message);
+        } else {
+          announcePlaced();
+        }
         if (response.tracking_warning) toast.warning("Call placed, but transcript tracking needs attention.");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
@@ -328,6 +398,7 @@ export function useDialerDialpad({
 
         clearActiveDialRequestLock(requestKey);
         activeDialRequestRef.current = null;
+        placedViaRef.current = null;
         setActiveDialpadCallId(null);
         setSyncTrackedDialpadCallId(null);
         setActiveDialpadCallState(null);
@@ -341,10 +412,7 @@ export function useDialerDialpad({
 
     return () => {
       cancelled = true;
-      if (activeDialRequestRef.current === requestKey) {
-        clearActiveDialRequestLock(requestKey);
-        activeDialRequestRef.current = null;
-      }
+      releaseRequest();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDialing, isOnline, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
@@ -378,7 +446,9 @@ export function useDialerDialpad({
           setIsRetryingUntrackedLiveCall(false);
           setHasTrackingRecoveryFailed(false);
           setNextAutoRetryAt(null);
-          toast.success("Active call linked to the dialer.");
+          // Linking is the normal path for a CTI-placed call (the hand-off
+          // toast already named the number); only announce it as a recovery.
+          if (placedViaRef.current !== "cti") toast.success("Active call linked to the dialer.");
           return;
         }
       } catch { /* keep retrying */ }
@@ -677,6 +747,9 @@ export function useDialerDialpad({
     }
     setCallStartedAt(null);
     clearActiveDialRequest();
+    // Whatever was live for this lead is being ended: nothing left to protect
+    // from a re-run, and a resume may dial the lead again (PR #53 semantics).
+    placedViaRef.current = null;
   }, [activeDialpadCallId, activeDialpadCallState, cancelDialpadCall, clearActiveDialRequest, currentContact, forceHangupCall, isCallTerminal, myDialpadSettings]);
 
   return {

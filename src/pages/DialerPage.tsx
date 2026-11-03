@@ -774,6 +774,10 @@ export default function DialerPage() {
     isSessionPaused: session.isSessionPaused,
     currentContact: session.currentContact,
     selectedCallerId: effectiveCallerId,
+    // The headless CTI at the bottom of the page is the rep's softphone. While
+    // it is signed in the hook dials through it (one resolver, one initiate)
+    // and the server only links the call. Coaches tour the dialer without one.
+    ctiRef: isCoach ? null : dialpadCTIRef,
   });
 
   // Why is the auto-dialer not placing a call? These mirror the guards in the
@@ -3912,6 +3916,11 @@ export default function DialerPage() {
           off-screen to an on-screen dialog-style panel WITHOUT unmounting, so
           the live call is never dropped.
 
+          Placement belongs to useDialerDialpad, which hands this iframe the
+          resolver's number through `dialpadCTIRef` (see `ctiRef` above). No
+          autoInitiateCall here: that second dial path used dm_phone || phone
+          and rang unverified DM mobiles the dialer said it wasn't calling.
+
           CRITICAL: never wrap this in `display: none` — hidden iframes can be
           suspended by the browser, killing the audio track. We use off-screen
           positioning + opacity:0 + pointer-events:none instead. */}
@@ -3948,8 +3957,7 @@ export default function DialerPage() {
             ref={dialpadCTIRef}
             clientId={dialpadCTIClientId}
             headless
-            phoneNumber={(session.currentContact?.dm_phone?.trim() || session.currentContact?.phone) ?? null}
-            autoInitiateCall={!isCoach && session.isDialing && !session.isSessionPaused && canDialCurrent}
+            phoneNumber={dialpad.dialNumber}
             outboundCallerId={effectiveCallerId || null}
             customData={session.currentContact ? JSON.stringify({
               contact_id: session.currentContact.id,
