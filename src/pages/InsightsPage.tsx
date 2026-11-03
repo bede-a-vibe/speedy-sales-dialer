@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,24 +15,26 @@ import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
 import { ClosingTracker } from "@/components/insights/ClosingTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
-import { LeadTrackerTab } from "@/components/analytics/LeadTrackerTab";
-import { InsightsSources } from "@/components/insights/InsightsSources";
-import { InsightsPaidAds } from "@/components/insights/InsightsPaidAds";
+import { InsightsFunnel, ALL_SOURCES } from "@/components/insights/InsightsFunnel";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "closing", "sources", "team", "talktime", "leads", "ads"] as const;
+const TABS = ["overview", "funnel", "closing", "team", "talktime"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
   overview: "Insights · Overview",
   funnel: "Insights · Funnel",
   closing: "Insights · Closing",
-  sources: "Insights · Sources",
   team: "Insights · Team",
   talktime: "Insights · Timing",
-  leads: "Insights · Leads",
-  ads: "Insights · Paid Ads",
+};
+
+/** Tabs that were folded into others on 3 Nov 2026. Old links land on the new home. */
+const LEGACY_TABS: Record<string, { tab: InsightsTab; source?: string }> = {
+  sources: { tab: "overview" },
+  leads: { tab: "overview" },
+  ads: { tab: "funnel", source: "ads" },
 };
 
 interface InsightsPageProps {
@@ -52,6 +54,23 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
     next.set("tab", value);
     setSearchParams(next, { replace: true });
   };
+
+  const source = searchParams.get("source") || ALL_SOURCES;
+  const handleSourceChange = (slug: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (slug === ALL_SOURCES) next.delete("source");
+    else next.set("source", slug);
+    setSearchParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    const legacy = urlTab ? LEGACY_TABS[urlTab] : undefined;
+    if (!legacy) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", legacy.tab);
+    if (legacy.source) next.set("source", legacy.source);
+    setSearchParams(next, { replace: true });
+  }, [urlTab, searchParams, setSearchParams]);
 
   // ── ONE shared filter set + ONE data fetch for the whole Insights section ──
   const today = new Date().toISOString().split("T")[0];
@@ -121,11 +140,8 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
             <TabsTrigger value="closing">Closing</TabsTrigger>
-            <TabsTrigger value="sources">Sources</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="talktime">Timing</TabsTrigger>
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="ads">Paid Ads</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -138,21 +154,27 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             />
           </TabsContent>
 
-          <TabsContent value="funnel" className="space-y-5">
-            <CallFunnelBody controlled={{ dateFrom, dateTo, selectedRepId }} />
-            <FunnelDeepDives
+          <TabsContent value="funnel">
+            <InsightsFunnel
               dateFrom={dateFrom}
               dateTo={dateTo}
-              metrics={metrics}
-              callLogs={callLogs}
-              activeRepId={activeRepId}
-              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
-              repNameMap={repNameMap}
+              source={source}
+              onSourceChange={handleSourceChange}
+              coldCallDetail={
+                <div className="space-y-5">
+                  <CallFunnelBody controlled={{ dateFrom, dateTo, selectedRepId }} />
+                  <FunnelDeepDives
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    metrics={metrics}
+                    callLogs={callLogs}
+                    activeRepId={activeRepId}
+                    selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+                    repNameMap={repNameMap}
+                  />
+                </div>
+              }
             />
-          </TabsContent>
-
-          <TabsContent value="sources">
-            <InsightsSources dateFrom={dateFrom} dateTo={dateTo} />
           </TabsContent>
 
           <TabsContent value="team">
@@ -189,13 +211,6 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             />
           </TabsContent>
 
-          <TabsContent value="leads">
-            <LeadTrackerTab />
-          </TabsContent>
-
-          <TabsContent value="ads">
-            <InsightsPaidAds dateFrom={dateFrom} dateTo={dateTo} />
-          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>

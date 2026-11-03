@@ -18,9 +18,9 @@ import {
   type FunnelBasis,
   type FunnelGroup,
   type MeetingStream,
-  type SourceFunnelRow,
 } from "@/hooks/useMeetings";
 import { cn } from "@/lib/utils";
+import { totalSourceRows } from "@/lib/sourceFunnelTotals";
 
 interface Props {
   dateFrom: string;
@@ -58,35 +58,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
     stream,
   });
 
-  const totals = useMemo(() => {
-    const sum = (key: keyof SourceFunnelRow) =>
-      rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
-    const showed = sum("showed");
-    const noshow = sum("noshow");
-    const cancelled = sum("cancelled");
-    const rescheduled = sum("rescheduled");
-    const resolved = showed + noshow + cancelled + rescheduled;
-    const won = sum("contacts_won");
-    const booked = sum("contacts_booked");
-    const shown = sum("contacts_showed");
-    return {
-      meetings: sum("meetings_booked"),
-      showed,
-      noshow,
-      cancelled,
-      rescheduled,
-      resolved,
-      pending: sum("pending"),
-      reschedules: sum("reschedules"),
-      upcoming: sum("upcoming"),
-      won,
-      mrr: sum("mrr"),
-      amount: sum("total_amount"),
-      showRate: resolved > 0 ? Math.round((1000 * showed) / resolved) / 10 : null,
-      closeFromShow: shown > 0 ? Math.round((1000 * won) / shown) / 10 : null,
-      closeFromBooked: booked > 0 ? Math.round((1000 * won) / booked) / 10 : null,
-    };
-  }, [rows]);
+  const totals = useMemo(() => totalSourceRows(rows), [rows]);
 
   const pendingShare =
     totals.meetings > 0 ? Math.round((100 * totals.pending) / totals.meetings) : 0;
@@ -117,8 +89,8 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
       ) : null}
 
       <ReportSection
-        title="Show rate & close rate by lead source"
-        description="Every booked meeting from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound). This is the only view spanning every channel — the Funnel and Custom Monitor count cold call only, so their totals are smaller and their show rate higher. Compare those against the Cold Call row here, not the Total."
+        title="Lead sources compared"
+        description="Show rate and close rate for every source side by side, from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound). The dial-level stats above cover cold call only, so compare them against the Cold Call row, not the Total. To drill into one source, pick it on the Funnel tab."
       >
         <div className="mb-4 flex flex-wrap items-center gap-4">
           <div className="space-y-1">
