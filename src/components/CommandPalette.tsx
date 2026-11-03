@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { useCanViewAdmin, useIsAdmin } from "@/hooks/useUserRole";
-import { QuickBookDialog } from "@/components/QuickBookDialog";
+import { LazyQuickBookDialog } from "@/components/LazyMount";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 
 type ContactHit = {
@@ -214,7 +214,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         </CommandList>
       </CommandDialog>
 
-      <QuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
+      <LazyQuickBookDialog open={quickBookOpen} onOpenChange={setQuickBookOpen} />
       <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} />
     </>
   );

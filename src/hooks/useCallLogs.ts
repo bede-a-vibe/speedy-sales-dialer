@@ -132,45 +132,6 @@ export function useWeeklyCallLogs() {
   });
 }
 
-/**
- * Dashboard data is realtime-first, with polling as a fallback if a subscription misses an event.
- */
-export function useCallLogs() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("call-logs-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "call_logs" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["call-logs"] });
-          queryClient.invalidateQueries({ queryKey: ["today-call-count"] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  return useQuery({
-    queryKey: ["call-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("call_logs")
-        .select("*, contacts(*)")
-        .order("created_at", { ascending: false })
-        .limit(CALL_LOGS_CACHE_LIMIT);
-      if (error) throw error;
-      return data;
-    },
-    refetchInterval: 15_000,
-  });
-}
-
 export function useTodayCallCount(userId?: string) {
   const today = new Date();
   const startOfDay = new Date(today);
@@ -192,40 +153,6 @@ export function useTodayCallCount(userId?: string) {
 
       if (error) throw error;
       return count ?? 0;
-    },
-    enabled: !!userId,
-    refetchInterval: 15_000,
-  });
-}
-
-/**
- * Today's call outcomes for one user — selects only `outcome` for today's rows.
- * Replaces pulling the full 500-row `call_logs` cache (with a contacts join) just
- * to count today's dispositions on the Dashboard.
- */
-export function useTodayOutcomeCounts(userId?: string) {
-  const today = new Date();
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(today);
-  endOfDay.setHours(23, 59, 59, 999);
-
-  return useQuery({
-    queryKey: ["today-outcome-counts", userId, startOfDay.toISOString().slice(0, 10)],
-    queryFn: async () => {
-      if (!userId) return { counts: {} as Record<string, number>, total: 0 };
-      const { data, error } = await supabase
-        .from("call_logs")
-        .select("outcome")
-        .eq("user_id", userId)
-        .gte("created_at", startOfDay.toISOString())
-        .lte("created_at", endOfDay.toISOString());
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
-        if (row.outcome) counts[row.outcome] = (counts[row.outcome] || 0) + 1;
-      }
-      return { counts, total: (data ?? []).length };
     },
     enabled: !!userId,
     refetchInterval: 15_000,
@@ -276,62 +203,60 @@ function localDateToUtcEnd(dateStr: string): string {
   return d.toISOString();
 }
 
+/**
+ * Columns the reports read. The text columns (dialpad_transcript,
+ * dialpad_summary, notes, exit_reason_notes) are ~95% of call_logs bytes and no
+ * report uses them, so they stay on the server. Contact detail and the notes
+ * panels use their own hooks with the full row.
+ */
+const RANGE_LOG_COLUMNS = [
+  "id", "contact_id", "user_id", "outcome", "follow_up_date", "created_at",
+  "dialpad_call_id", "transcript_synced_at", "dialpad_talk_time_seconds", "dialpad_total_duration_seconds",
+  "reached_connection", "reached_problem_awareness", "reached_solution_awareness", "reached_commitment",
+  "opener_used_id", "drop_off_reason",
+  "exit_reason_connection", "exit_reason_problem", "exit_reason_solution", "exit_reason_commitment", "exit_reason_booking",
+].join(", ");
+const RANGE_CONTACT_COLUMNS =
+  "contacts(business_name, industry, trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)";
+
 export function useCallLogsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["call-logs-range", from, to],
     queryFn: async () => {
-      const allRows: any[] = [];
-      let page = 0;
-
       const utcFrom = from ? localDateToUtcStart(from) : undefined;
       const utcTo = to ? localDateToUtcEnd(to) : undefined;
 
-      while (true) {
+      const pageQuery = (page: number, withCount: boolean) => {
         const rangeFrom = page * BATCH_SIZE;
-        const rangeTo = rangeFrom + BATCH_SIZE - 1;
-
         let query = supabase
           .from("call_logs")
-          .select(
-            "*, contacts(business_name, industry, trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
-          )
+          .select(`${RANGE_LOG_COLUMNS}, ${RANGE_CONTACT_COLUMNS}`, withCount ? { count: "exact" } : undefined)
+          // created_at alone is not unique: tie-break on id so offset pages never skip or repeat rows.
           .order("created_at", { ascending: false })
-          .range(rangeFrom, rangeTo);
-
+          .order("id", { ascending: false })
+          .range(rangeFrom, rangeFrom + BATCH_SIZE - 1);
         if (utcFrom) query = query.gte("created_at", utcFrom);
         if (utcTo) query = query.lte("created_at", utcTo);
+        return query;
+      };
 
-        const { data, error } = await query;
-        if (error) throw error;
-
-        const rows = data ?? [];
-        allRows.push(...rows);
-
-        if (rows.length < BATCH_SIZE) break;
-        page++;
+      // First page carries the total, then the rest are fetched in parallel
+      // rather than one round trip after another.
+      const first = await pageQuery(0, true);
+      if (first.error) throw first.error;
+      const rows: any[] = [...(first.data ?? [])];
+      const total = first.count ?? rows.length;
+      const pages = Math.ceil(total / BATCH_SIZE);
+      if (pages > 1) {
+        const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => pageQuery(i + 1, false)));
+        for (const r of rest) {
+          if (r.error) throw r.error;
+          rows.push(...(r.data ?? []));
+        }
       }
-
-      return allRows;
+      return rows;
     },
     enabled: true,
-    refetchInterval: 60_000,
-  });
-}
-
-export function useFollowUps() {
-  return useQuery({
-    queryKey: ["follow-ups"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("call_logs")
-        .select("*, contacts(*)")
-        .eq("outcome", "follow_up")
-        .not("follow_up_date", "is", null)
-        .order("follow_up_date", { ascending: true })
-        .limit(2000);
-      if (error) throw error;
-      return data;
-    },
     refetchInterval: 60_000,
   });
 }

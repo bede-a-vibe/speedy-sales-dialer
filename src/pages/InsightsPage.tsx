@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
+import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
 import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, filterFunnelLogs } from "@/lib/funnelMetrics";
@@ -83,18 +84,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
 
-  const { data: contactAttempts = [] } = useQuery({
-    queryKey: ["contacts-attempt-counts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, call_attempt_count")
-        .gt("call_attempt_count", 0);
-      if (error) throw error;
-      return data ?? [];
-    },
-    staleTime: 60_000,
-  });
+  const { data: contactAttempts = [] } = useContactAttemptCounts();
 
   const activeRepId = selectedRepId === ALL_REPS_VALUE ? undefined : selectedRepId;
   const selectedRepLabel =

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface RepProfile { user_id: string; name: string }
 
@@ -88,14 +89,17 @@ export function useSaveReview() {
 
 /** Number of manager reviews the signed-in rep hasn't opened yet. */
 export function useUnseenReviewCount() {
+  // The user id comes from the in-memory session. supabase.auth.getUser() is a
+  // network round trip to the auth server, and this runs on every page (sidebar).
+  const { user } = useAuth();
+  const userId = user?.id;
   return useQuery({
-    queryKey: ["unseen-reviews"],
+    queryKey: ["unseen-reviews", userId],
+    enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return 0;
       const { count } = await supabase.from("call_reviews").select("id", { count: "exact", head: true })
-        .eq("rep_user_id", auth.user.id).is("seen_at", null);
+        .eq("rep_user_id", userId!).is("seen_at", null);
       return count ?? 0;
     },
   });

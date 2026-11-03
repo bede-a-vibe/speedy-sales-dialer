@@ -39,7 +39,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
   const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(null);
 
   // Session timers
-  const [sessionTick, setSessionTick] = useState(() => Date.now());
   const [sessionPhaseStartedAt, setSessionPhaseStartedAt] = useState<number | null>(null);
   const [accumulatedDialingMs, setAccumulatedDialingMs] = useState(0);
   const [accumulatedPausedMs, setAccumulatedPausedMs] = useState(0);
@@ -82,10 +81,13 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     }
   }, [queue.contacts, currentIndex]);
 
-  const liveDialingMs = isDialing && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
-  const livePausedMs = isSessionPaused && sessionPhaseStartedAt ? Math.max(0, sessionTick - sessionPhaseStartedAt) : 0;
-  const totalDialingMs = accumulatedDialingMs + liveDialingMs;
-  const totalPausedMs = accumulatedPausedMs + livePausedMs;
+  // No per-second tick here: the live clock renders in components/dialer/SessionClock,
+  // which owns its own timer. These totals are exact as of this render.
+  const sessionTimes = { isDialing, isSessionPaused, sessionPhaseStartedAt, accumulatedDialingMs, accumulatedPausedMs };
+  const nowMs = Date.now();
+  const livePhaseMs = sessionPhaseStartedAt ? Math.max(0, nowMs - sessionPhaseStartedAt) : 0;
+  const totalDialingMs = accumulatedDialingMs + (isDialing ? livePhaseMs : 0);
+  const totalPausedMs = accumulatedPausedMs + (isSessionPaused ? livePhaseMs : 0);
 
   const resetLeadState = useCallback((assignedUserId?: string) => {
     setSelectedOutcome(null);
@@ -97,7 +99,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
   }, []);
 
   const resetSessionTimers = useCallback(() => {
-    setSessionTick(Date.now());
     setSessionPhaseStartedAt(null);
     setAccumulatedDialingMs(0);
     setAccumulatedPausedMs(0);
@@ -107,14 +108,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
   useEffect(() => {
     if (user?.id) setAssignedRepId((c) => c || user.id);
   }, [user?.id]);
-
-  // Session timer tick
-  useEffect(() => {
-    if (!isSessionActive) return;
-    setSessionTick(Date.now());
-    const id = window.setInterval(() => setSessionTick(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [isSessionActive]);
 
   // Prefetch buffer when approaching end
   useEffect(() => {
@@ -146,7 +139,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     setSessionOutcomes({});
     setShowSummary(false);
     setSessionStartedAtMs(now);
-    setSessionTick(now);
     setSessionPhaseStartedAt(now);
     setAccumulatedDialingMs(0);
     setAccumulatedPausedMs(0);
@@ -190,7 +182,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     if (beforePause) await beforePause();
     const now = Date.now();
     setAccumulatedDialingMs((c) => c + (sessionPhaseStartedAt ? Math.max(0, now - sessionPhaseStartedAt) : 0));
-    setSessionTick(now);
     setSessionPhaseStartedAt(now);
     setIsDialing(false);
     setIsSessionPaused(true);
@@ -201,7 +192,6 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     if (!isSessionPaused) return;
     const now = Date.now();
     setAccumulatedPausedMs((c) => c + (sessionPhaseStartedAt ? Math.max(0, now - sessionPhaseStartedAt) : 0));
-    setSessionTick(now);
     setSessionPhaseStartedAt(now);
     setIsSessionPaused(false);
     setIsDialing(true);
@@ -303,7 +293,7 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     callCount, skippedCount, sessionOutcomes,
     showSummary, setShowSummary, sessionStartedAtMs,
     // Timers
-    totalDialingMs, totalPausedMs, formatDuration,
+    totalDialingMs, totalPausedMs, sessionTimes, formatDuration,
     // Refs
     leadAdvanceInFlightRef,
     // Actions

@@ -13,7 +13,7 @@ import { LogOut, Search, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { CommandPalette } from "@/components/CommandPalette";
+import { LazyCommandPalette } from "@/components/LazyMount";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -100,7 +100,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
           </main>
         </div>
       </div>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <LazyCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </SidebarProvider>
   );
 }

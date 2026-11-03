@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useDialpadCall,
   useDialpadCallStatus,
@@ -148,9 +148,20 @@ export function useDialerDialpad({
   const dialpadCall = useDialpadCall();
   dialpadCallRef.current = dialpadCall;
   const { mutateAsync: fetchDialpadCallStatus, isPending: isDialpadCallStatusPending } = useDialpadCallStatus();
-  const cancelDialpadCall = useCancelDialpadCall();
-  const resolveDialpadCall = useResolveDialpadCall();
-  const forceHangupCall = useForceHangupCall();
+  // useMutation returns a new object every render (TanStack v5); only its
+  // mutateAsync is stable. Effects and callbacks must depend on mutateAsync,
+  // never the mutation object, or they tear down and restart on every render
+  // (this used to cancel each in-flight resolve_call and restart the link poll
+  // at attempt 0 forever, hammering the Dialpad API while a call was linking).
+  const { mutateAsync: cancelCall } = useCancelDialpadCall();
+  const { mutateAsync: resolveCall } = useResolveDialpadCall();
+  const { mutateAsync: forceHangup } = useForceHangupCall();
+  // Same shape callers already use (dialpad.cancelDialpadCall.mutateAsync), but stable.
+  const cancelDialpadCall = useMemo(() => ({ mutateAsync: cancelCall }), [cancelCall]);
+  // Latest contact/number for the link polls, so a contact field edit mid-call
+  // does not restart them either.
+  const resolveTargetRef = useRef({ contact: currentContact, dialNumber });
+  resolveTargetRef.current = { contact: currentContact, dialNumber };
   const linkDialpadCallLog = useLinkDialpadCallLog();
 
   const hasDialpadAssignment = Boolean(myDialpadSettings?.dialpad_user_id);
@@ -363,10 +374,12 @@ export function useDialerDialpad({
       try {
         setLastLinkAttemptAt(Date.now());
         setNextAutoRetryAt(null);
-        const result = await resolveDialpadCall.mutateAsync({
-          phone: dialNumber ?? currentContact.phone,
+        const target = resolveTargetRef.current;
+        if (!target.contact) return;
+        const result = await resolveCall({
+          phone: target.dialNumber ?? target.contact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          contact_id: currentContact.id,
+          contact_id: target.contact.id,
         });
         if (cancelled) return;
         if (result.dialpad_call_id) {
@@ -405,7 +418,9 @@ export function useDialerDialpad({
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeDialpadCallId, currentContact, isCallResolving, isOnline, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+  // Keyed on the contact id on purpose: the latest contact is read from resolveTargetRef.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDialpadCallId, currentContact?.id, isCallResolving, isOnline, myDialpadSettings?.dialpad_user_id, resolveCall]);
 
   // ── Background reconciliation for delayed live calls ──
   useEffect(() => {
@@ -432,10 +447,12 @@ export function useDialerDialpad({
       try {
         setLastLinkAttemptAt(Date.now());
         setNextAutoRetryAt(null);
-        const result = await resolveDialpadCall.mutateAsync({
-          phone: dialNumber ?? currentContact.phone,
+        const target = resolveTargetRef.current;
+        if (!target.contact) return;
+        const result = await resolveCall({
+          phone: target.dialNumber ?? target.contact.phone,
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
-          contact_id: currentContact.id,
+          contact_id: target.contact.id,
         });
 
         if (cancelled) return;
@@ -476,7 +493,9 @@ export function useDialerDialpad({
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeDialpadCallId, activeDialpadCallState, currentContact, isOnline, myDialpadSettings?.dialpad_user_id, resolveDialpadCall]);
+  // Keyed on the contact id on purpose: the latest contact is read from resolveTargetRef.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDialpadCallId, activeDialpadCallState, currentContact?.id, isOnline, myDialpadSettings?.dialpad_user_id, resolveCall]);
 
   // ── Realtime subscription for call state (with resilience) ──
   useEffect(() => {
@@ -620,7 +639,7 @@ export function useDialerDialpad({
 
     try {
       if (activeDialpadCallId) {
-        const result = await cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId });
+        const result = await cancelCall({ call_id: activeDialpadCallId });
         setActiveDialpadCallState(result.state ?? "ending");
         if (result.already_ended || result.terminal) {
           markCallAsEnded("hangup");
@@ -629,7 +648,7 @@ export function useDialerDialpad({
         }
         toast.success(result.message || "Call cancellation requested.");
       } else if (myDialpadSettings?.dialpad_user_id && dialNumber) {
-        await forceHangupCall.mutateAsync({
+        await forceHangup({
           dialpad_user_id: myDialpadSettings.dialpad_user_id,
           phone: dialNumber,
         });
@@ -649,7 +668,7 @@ export function useDialerDialpad({
     } finally {
       setIsEndingCall(false);
     }
-  }, [activeDialpadCallId, cancelDialpadCall, forceHangupCall, markCallAsEnded, myDialpadSettings, currentContact]);
+  }, [activeDialpadCallId, cancelCall, forceHangup, markCallAsEnded, myDialpadSettings, dialNumber]);
 
   const retryDialpadCallLink = useCallback(() => {
     if (!isOnline) {
@@ -668,16 +687,16 @@ export function useDialerDialpad({
 
   const fireAndForgetHangup = useCallback(() => {
     if (activeDialpadCallId && activeDialpadCallState !== "hangup") {
-      cancelDialpadCall.mutateAsync({ call_id: activeDialpadCallId }).catch(() => {});
+      cancelCall({ call_id: activeDialpadCallId }).catch(() => {});
     } else if (!activeDialpadCallId && !isCallTerminal && myDialpadSettings?.dialpad_user_id && dialNumber) {
-      forceHangupCall.mutateAsync({
+      forceHangup({
         dialpad_user_id: myDialpadSettings.dialpad_user_id,
         phone: dialNumber,
       }).catch(() => {});
     }
     setCallStartedAt(null);
     clearActiveDialRequest();
-  }, [activeDialpadCallId, activeDialpadCallState, cancelDialpadCall, clearActiveDialRequest, currentContact, forceHangupCall, isCallTerminal, myDialpadSettings]);
+  }, [activeDialpadCallId, activeDialpadCallState, cancelCall, clearActiveDialRequest, dialNumber, forceHangup, isCallTerminal, myDialpadSettings]);
 
   return {
     // Settings

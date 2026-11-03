@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { groupStatsByCategory, STAT_CATALOG_BY_ID, STAT_CATEGORY_LABEL, type StatCategory } from "@/lib/funnelStatsCatalog";
-import { getReportMetrics, type ReportCallLog, type ReportBookingItem, type ReportContact } from "@/lib/reportMetrics";
+import type { ReportCallLog, ReportBookingItem, ReportContact } from "@/lib/reportMetrics";
+import { dailyReportMetrics } from "@/lib/dailyReportMetrics";
 import type { BreakdownGroup } from "@/lib/funnelBreakdown";
 
 interface Props {
   callLogs: ReportCallLog[];
   bookedItems: ReportBookingItem[];
+  /** Unused: no charted stat reads contacts. Kept so callers need not change. */
   contacts?: ReportContact[];
   from: string;
   to: string;
@@ -45,7 +47,6 @@ const SERIES_COLORS = [
 export function MetricTrendChart({
   callLogs,
   bookedItems,
-  contacts,
   from,
   to,
   repUserId,
@@ -69,6 +70,23 @@ export function MetricTrendChart({
     [useBreakdown, breakdownGroups],
   );
 
+  // Per-day metrics, computed once per data change (not per metric pick), each
+  // over that day's rows only. Every charted stat reads date-filtered sections
+  // of ReportMetrics, so bucketing by day first gives identical numbers to
+  // running the full report per day, at roughly the cost of one full run.
+  const currentDaily = useMemo(
+    () => (useBreakdown ? [] : dailyReportMetrics(days, callLogs, bookedItems, repUserId)),
+    [useBreakdown, days, callLogs, bookedItems, repUserId],
+  );
+  const previousDaily = useMemo(
+    () => (!useBreakdown && compareMode && prevDays.length ? dailyReportMetrics(prevDays, callLogs, bookedItems, repUserId) : []),
+    [useBreakdown, compareMode, prevDays, callLogs, bookedItems, repUserId],
+  );
+  const breakdownDaily = useMemo(
+    () => topBreakdown.map((g) => ({ label: g.label, daily: dailyReportMetrics(days, g.callLogs, g.bookings, repUserId) })),
+    [topBreakdown, days, repUserId],
+  );
+
   const data = useMemo(() => {
     if (!stat) return [];
     return days.map((day, idx) => {
@@ -76,43 +94,14 @@ export function MetricTrendChart({
         date: day.slice(5), // MM-DD
       };
       if (useBreakdown) {
-        for (const g of topBreakdown) {
-          const m = getReportMetrics({
-            callLogs: g.callLogs,
-            bookedItems: g.bookings,
-            contacts,
-            from: day,
-            to: day,
-            repUserId,
-          });
-          point[g.label] = stat.raw(m);
-        }
+        for (const g of breakdownDaily) point[g.label] = stat.raw(g.daily[idx]);
       } else {
-        const dayMetrics = getReportMetrics({
-          callLogs,
-          bookedItems,
-          contacts,
-          from: day,
-          to: day,
-          repUserId,
-        });
-        point.current = stat.raw(dayMetrics);
-      }
-      if (!useBreakdown && compareMode && prevDays[idx]) {
-        const prevDay = prevDays[idx];
-        const prevMetrics = getReportMetrics({
-          callLogs,
-          bookedItems,
-          contacts,
-          from: prevDay,
-          to: prevDay,
-          repUserId,
-        });
-        point.previous = stat.raw(prevMetrics);
+        point.current = stat.raw(currentDaily[idx]);
+        if (compareMode && previousDaily[idx]) point.previous = stat.raw(previousDaily[idx]);
       }
       return point;
     });
-  }, [days, prevDays, stat, callLogs, bookedItems, contacts, repUserId, compareMode, useBreakdown, topBreakdown]);
+  }, [days, stat, useBreakdown, breakdownDaily, currentDaily, previousDaily, compareMode]);
 
   const grouped = groupStatsByCategory();
   const order: StatCategory[] = ["activity", "conversations", "outcomes", "bookings"];

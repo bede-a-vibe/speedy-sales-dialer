@@ -102,8 +102,9 @@ function revalidateInBackground() {
 export async function fetchGhlLocationId(): Promise<string | null> {
   const cached = getCachedGhlLocationId();
   if (cached) {
-    // Always revalidate once per session; refresh again if the cache is stale.
-    if (!revalidated || Date.now() - cachedFetchedAt > STALE_AFTER_MS) {
+    // A location ID essentially never changes: refresh only when the 24 h cache
+    // is stale, not on every page load (that was one GHL edge call per load).
+    if (Date.now() - cachedFetchedAt > STALE_AFTER_MS) {
       revalidated = true;
       void requestLocationId();
     }

@@ -77,6 +77,7 @@ import {
 import type { DqReason, DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
+import { RingCountdown, SessionActiveTime, SessionCallsPerHour, SessionPausedBadge } from "@/components/dialer/SessionClock";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
 import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
@@ -154,9 +155,6 @@ const DM_PHONE_FILTER_LABELS: Record<string, string> = {
   no: "Need DM capture",
 };
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
-import { generateFollowUpEmailDraft } from "@/lib/emailDraftGenerator";
-import { createEmailDraftSuggestion } from "@/lib/emailDraftSuggestions";
-import { saveStoredEmailDraftSuggestion } from "@/lib/emailDraftStore";
 
 
 const loadDialpadSyncPanel = () =>
@@ -500,7 +498,7 @@ export default function DialerPage() {
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
-  const enrichmentCoverage = useEnrichmentCoverage();
+  const enrichmentCoverage = useEnrichmentCoverage(filtersDrawerOpen);
 
   // Conversation funnel tracking (manual capture per call)
   const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
@@ -1836,6 +1834,14 @@ export default function DialerPage() {
               latestCallAt: new Date().toISOString(),
               latestNoteAt: null,
             };
+            // Loaded on demand: the draft helpers pull in zod (~50 KB) and only run
+            // after a call flagged "worth an email tonight".
+            const [{ generateFollowUpEmailDraft }, { createEmailDraftSuggestion }, { saveStoredEmailDraftSuggestion }] =
+              await Promise.all([
+                import("@/lib/emailDraftGenerator"),
+                import("@/lib/emailDraftSuggestions"),
+                import("@/lib/emailDraftStore"),
+              ]);
             const generated = await generateFollowUpEmailDraft({
               contactName: draftContext.contactName,
               businessName: draftContext.businessName,
@@ -2190,31 +2196,28 @@ export default function DialerPage() {
     setSimpleModeState(v);
     try { localStorage.setItem("speedy:dialer-mode", v ? "simple" : "full"); } catch { /* ignore */ }
   }, []);
-  const [ringingSeconds, setRingingSeconds] = useState<number | null>(null);
+  // When the current ring started. Set once per ring; the countdown badge ticks
+  // itself (RingCountdown) so the page doesn't re-render every second of ringing.
+  const [ringStartedAt, setRingStartedAt] = useState<number | null>(null);
   const autoNoAnswerFiredForRef = useRef<string | null>(null);
   const ringingNow = isRingingState(dialpad.activeDialpadCallState) && !!session.currentContact;
   const ringingContactId = session.currentContact?.id ?? null;
 
   useEffect(() => {
     if (!ringingNow || !autoNoAnswerEnabled || session.selectedOutcome || !ringingContactId) {
-      setRingingSeconds(null);
+      setRingStartedAt(null);
       return;
     }
-    const startedAt = Date.now();
-    setRingingSeconds(0);
-    const id = window.setInterval(() => {
-      const secs = Math.floor((Date.now() - startedAt) / 1000);
-      setRingingSeconds(secs);
-      if (secs >= AUTO_NO_ANSWER_SECONDS && autoNoAnswerFiredForRef.current !== ringingContactId) {
-        autoNoAnswerFiredForRef.current = ringingContactId;
-        window.clearInterval(id);
-        setRingingSeconds(null);
-        dialpad.fireAndForgetHangup();
-        toast.info("No answer after 3.5 rings — moving on.");
-        void logAndNext("no_answer");
-      }
-    }, 500);
-    return () => window.clearInterval(id);
+    setRingStartedAt(Date.now());
+    const id = window.setTimeout(() => {
+      if (autoNoAnswerFiredForRef.current === ringingContactId) return;
+      autoNoAnswerFiredForRef.current = ringingContactId;
+      setRingStartedAt(null);
+      dialpad.fireAndForgetHangup();
+      toast.info("No answer after 3.5 rings — moving on.");
+      void logAndNext("no_answer");
+    }, AUTO_NO_ANSWER_SECONDS * 1000);
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ringingNow, autoNoAnswerEnabled, session.selectedOutcome, ringingContactId]);
 
@@ -2592,7 +2595,7 @@ export default function DialerPage() {
                 <div className="flex items-center gap-1.5">
                   <Activity className={cn("h-3.5 w-3.5", session.isSessionPaused ? "text-amber-500" : "text-emerald-500 animate-pulse")} />
                   <span className="font-mono text-xs font-bold text-foreground tabular-nums">
-                    {session.formatDuration(session.totalDialingMs)}
+                    <SessionActiveTime times={session.sessionTimes} format={session.formatDuration} />
                   </span>
                   <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Active</span>
                 </div>
@@ -2601,25 +2604,13 @@ export default function DialerPage() {
                   <span className="font-bold">{session.callCount}</span>
                   <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">calls</span>
                 </span>
-                {session.totalDialingMs > 60000 && (
-                  <>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span className="font-mono text-xs text-foreground tabular-nums">
-                      <span className="font-bold">{Math.round((session.callCount / (session.totalDialingMs / 3600000)) * 10) / 10}</span>
-                      <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">/hr</span>
-                    </span>
-                  </>
-                )}
+                <SessionCallsPerHour times={session.sessionTimes} callCount={session.callCount} />
                 <span className="text-muted-foreground/40">·</span>
                 <span data-coach-step="queue-counter" className="font-mono text-xs text-foreground tabular-nums">
                   <span className="font-bold">{session.queue.isLoading ? "…" : queueLeadCount}</span>
                   <span className="ml-1 text-[10px] uppercase tracking-widest text-muted-foreground">in queue</span>
                 </span>
-                {session.isSessionPaused && (
-                  <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-[10px] uppercase tracking-widest">
-                    Paused {session.formatDuration(session.totalPausedMs)}
-                  </Badge>
-                )}
+                <SessionPausedBadge times={session.sessionTimes} format={session.formatDuration} />
                 {queueFocusLabel && (
                   <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-widest">
                     {queueFocusLabel}
@@ -2703,10 +2694,8 @@ export default function DialerPage() {
                 />
                 Auto-skip after 3.5 rings
               </label>
-              {ringingSeconds !== null && autoNoAnswerEnabled && (
-                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-foreground">
-                  Ringing · {Math.max(0, AUTO_NO_ANSWER_SECONDS - ringingSeconds)}s
-                </span>
+              {ringStartedAt !== null && autoNoAnswerEnabled && (
+                <RingCountdown startedAt={ringStartedAt} totalSeconds={AUTO_NO_ANSWER_SECONDS} />
               )}
 
               {/* Slim Daily Target inline */}

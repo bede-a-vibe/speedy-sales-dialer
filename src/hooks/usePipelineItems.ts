@@ -308,9 +308,8 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         );
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
-
-      if (error) throw error;
+      // Dialer rows and calendar-only rows don't depend on each other: fetch both at once.
+      const dialerPromise = query.order("created_at", { ascending: false });
 
       // Compare using local date representations for timezone correctness
       const toLocalDate = (iso: string) => {
@@ -325,10 +324,6 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
           !!scheduledDate && (!from || scheduledDate >= from) && (!to || scheduledDate <= to);
         return matchesCreatedRange || matchesScheduledRange;
       };
-
-      const items = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) =>
-        inRange(item.created_at, item.scheduled_for),
-      );
 
       // Cold-call meetings that only exist in the GHL calendar (no dialer row).
       // See mergeMeetingStreams.ts for why ads bookings are excluded.
@@ -347,8 +342,12 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
           `and(booked_at.gte.${fromIso},booked_at.lte.${toIso}),and(start_time.gte.${fromIso},start_time.lte.${toIso})`,
         );
       }
-      const { data: ghlData, error: ghlError } = await ghlQuery;
+      const [{ data, error }, { data: ghlData, error: ghlError }] = await Promise.all([dialerPromise, ghlQuery]);
+      if (error) throw error;
       if (ghlError) throw ghlError;
+      const items = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) =>
+        inRange(item.created_at, item.scheduled_for),
+      );
       const ghlRows = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
         (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
       );
@@ -357,12 +356,18 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const withFollowUps = async (merged: BookedAppointmentReportItem[]) => {
         const ids = [...new Set(merged.map((m) => m.contact_id))];
         const history: BookingHistoryRow[] = [];
-        for (let i = 0; i < ids.length; i += 200) {
-          const { data: hist, error: histError } = await supabase
-            .from("pipeline_items")
-            .select("id, contact_id, scheduled_for, appointment_outcome, resolved_bucket")
-            .eq("pipeline_type", "booked")
-            .in("contact_id", ids.slice(i, i + 200));
+        const batches: string[][] = [];
+        for (let i = 0; i < ids.length; i += 200) batches.push(ids.slice(i, i + 200));
+        const results = await Promise.all(
+          batches.map((batch) =>
+            supabase
+              .from("pipeline_items")
+              .select("id, contact_id, scheduled_for, appointment_outcome, resolved_bucket")
+              .eq("pipeline_type", "booked")
+              .in("contact_id", batch),
+          ),
+        );
+        for (const { data: hist, error: histError } of results) {
           if (histError) throw histError;
           history.push(...((hist ?? []) as BookingHistoryRow[]));
         }
@@ -376,7 +381,10 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       for (const r of ghlRows) {
         if (r.contact_id && r.booked_at) bookedAtByContact.set(r.contact_id, r.booked_at);
       }
-      const [callsRes, contactsRes] = await Promise.all([
+      // Verdicts live on dialer bookings, which may be outside the window; pull
+      // them for the GHL contacts so a calendar-only sitting inherits the lead's
+      // verdict. Independent of the other two lookups, so all three run at once.
+      const [callsRes, contactsRes, verdictRes] = await Promise.all([
         supabase.from("call_logs").select("contact_id, user_id, created_at").in("contact_id", ghlContactIds),
         supabase
           .from("contacts")
@@ -384,6 +392,12 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
             "id, industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count",
           )
           .in("id", ghlContactIds),
+        supabase
+          .from("pipeline_items")
+          .select("contact_id, is_qualified")
+          .eq("pipeline_type", "booked")
+          .in("contact_id", ghlContactIds)
+          .not("is_qualified", "is", null),
       ]);
       if (callsRes.error) throw callsRes.error;
       if (contactsRes.error) throw contactsRes.error;
@@ -393,14 +407,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         const { id, ...rest } = c;
         contactsById.set(id, rest);
       }
-      // Verdicts live on dialer bookings, which may be outside the window; pull
-      // them for the GHL contacts so a calendar-only sitting inherits the lead's verdict.
-      const { data: verdictRows, error: verdictError } = await supabase
-        .from("pipeline_items")
-        .select("contact_id, is_qualified")
-        .eq("pipeline_type", "booked")
-        .in("contact_id", ghlContactIds)
-        .not("is_qualified", "is", null);
+      const { data: verdictRows, error: verdictError } = verdictRes;
       if (verdictError) throw verdictError;
       const verdictCarriers = (verdictRows ?? []).map((r) => ({
         id: "", contact_id: r.contact_id, created_at: "", created_by: "", assigned_user_id: "", scheduled_for: null,
