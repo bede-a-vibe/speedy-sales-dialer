@@ -1122,6 +1122,123 @@ export type Database = {
           },
         ]
       }
+      contacts_dir_bleed_backup_20261102: {
+        Row: {
+          ab_n: number | null
+          abn: string | null
+          backed_up_at: string | null
+          bare: boolean | null
+          best_route_to_decision_maker: string | null
+          business_name: string | null
+          buying_signal_strength: string | null
+          clr_abn: boolean | null
+          clr_email: boolean | null
+          clr_fb: boolean | null
+          clr_gads: boolean | null
+          clr_name: boolean | null
+          clr_phone: boolean | null
+          clr_site: boolean | null
+          clr_years: boolean | null
+          deep_crawl_attempted: boolean | null
+          dm_email: string | null
+          dm_enrich_attempted: boolean | null
+          dm_enrich_source: string | null
+          dm_name: string | null
+          dm_phone: string | null
+          dm_phone_type: string | null
+          dm_role: string | null
+          em_n: number | null
+          gf_f: number | null
+          gf_g: number | null
+          has_facebook_ads: string | null
+          has_google_ads: string | null
+          host: string | null
+          id: string | null
+          is_dir: boolean | null
+          nm_n: number | null
+          ph_n: number | null
+          website: string | null
+          years_in_business: number | null
+          yi_n: number | null
+        }
+        Insert: {
+          ab_n?: number | null
+          abn?: string | null
+          backed_up_at?: string | null
+          bare?: boolean | null
+          best_route_to_decision_maker?: string | null
+          business_name?: string | null
+          buying_signal_strength?: string | null
+          clr_abn?: boolean | null
+          clr_email?: boolean | null
+          clr_fb?: boolean | null
+          clr_gads?: boolean | null
+          clr_name?: boolean | null
+          clr_phone?: boolean | null
+          clr_site?: boolean | null
+          clr_years?: boolean | null
+          deep_crawl_attempted?: boolean | null
+          dm_email?: string | null
+          dm_enrich_attempted?: boolean | null
+          dm_enrich_source?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          dm_role?: string | null
+          em_n?: number | null
+          gf_f?: number | null
+          gf_g?: number | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
+          host?: string | null
+          id?: string | null
+          is_dir?: boolean | null
+          nm_n?: number | null
+          ph_n?: number | null
+          website?: string | null
+          years_in_business?: number | null
+          yi_n?: number | null
+        }
+        Update: {
+          ab_n?: number | null
+          abn?: string | null
+          backed_up_at?: string | null
+          bare?: boolean | null
+          best_route_to_decision_maker?: string | null
+          business_name?: string | null
+          buying_signal_strength?: string | null
+          clr_abn?: boolean | null
+          clr_email?: boolean | null
+          clr_fb?: boolean | null
+          clr_gads?: boolean | null
+          clr_name?: boolean | null
+          clr_phone?: boolean | null
+          clr_site?: boolean | null
+          clr_years?: boolean | null
+          deep_crawl_attempted?: boolean | null
+          dm_email?: string | null
+          dm_enrich_attempted?: boolean | null
+          dm_enrich_source?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_type?: string | null
+          dm_role?: string | null
+          em_n?: number | null
+          gf_f?: number | null
+          gf_g?: number | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
+          host?: string | null
+          id?: string | null
+          is_dir?: boolean | null
+          nm_n?: number | null
+          ph_n?: number | null
+          website?: string | null
+          years_in_business?: number | null
+          yi_n?: number | null
+        }
+        Relationships: []
+      }
       deal_audit: {
         Row: {
           changed_at: string
