@@ -779,7 +779,7 @@ export default function ContactDetailPage() {
           </div>
 
           {/* RIGHT RAIL — key facts + capture + quick actions */}
-          <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+          <aside className="rail-fit space-y-6 lg:sticky lg:top-0 lg:self-start">
             {/* Contact details */}
             <Card>
               <CardHeader className="pb-3">
