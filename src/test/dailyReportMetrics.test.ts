@@ -51,6 +51,7 @@ function fixture() {
     monthly_recurring_value: r() < 0.3 ? Math.floor(r() * 4000) : null,
     reschedule_count: Math.floor(r() * 3),
     is_qualified: r() < 0.5 ? r() < 0.7 : null,
+    is_follow_up: r() < 0.1,
   }) as ReportBookingItem);
   return { logs, bookings };
 }

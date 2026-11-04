@@ -59,10 +59,11 @@ export function FunnelDeepDives({ dateFrom, dateTo, metrics, callLogs, activeRep
         collapsible
         defaultOpen={false}
       >
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <StatCard compact label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <StatCard compact label="Total Bookings Made" value={metrics.bookingsMade.totalBookingsMade} subtext="first meetings" />
           <StatCard compact label="Rebooked" value={metrics.bookingsMade.rebooked} />
           <StatCard compact label="New Bookings" value={metrics.bookingsMade.newBookings} />
+          <StatCard compact label="Second Meetings Booked" value={metrics.bookingsMade.secondMeetingsBooked} subtext="not in bookings made" />
           <StatCard compact label="Pick Ups to Booking %" value={`${metrics.bookingsMade.pickUpsToBookingRate}%`} subtext="bookings / pick ups" />
           <StatCard compact label="Same Day / Next Day %" value={`${metrics.bookingsMade.sameDayNextDayRate}%`} subtext="same/next day / bookings" />
         </div>

@@ -194,6 +194,7 @@ export interface BookingHistoryRow {
   appointment_outcome: string | null;
   /** From public.resolve_meeting_bucket() — the one rule for attendance. */
   resolved_bucket?: string | null;
+  created_at?: string | null;
 }
 
 /**
@@ -202,8 +203,11 @@ export interface BookingHistoryRow {
  * the same first meeting moved, so it is not a follow-up; the prior sitting
  * must actually have showed. `history` should include every booking for the
  * contacts in `items`, not just the ones in the reporting window.
+ *
+ * Also marks each lead's first booking ever, which needs the same full history:
+ * inside a window, a rebook whose original predates it would read as new.
  */
-export function markFollowUpMeetings<T extends BookingHistoryRow>(items: T[], history: BookingHistoryRow[]): (T & { is_follow_up: boolean })[] {
+export function markFollowUpMeetings<T extends BookingHistoryRow>(items: T[], history: BookingHistoryRow[]): (T & { is_follow_up: boolean; is_first_booking: boolean })[] {
   const showedDaysByContact = new Map<string, Set<string>>();
   const note = (row: BookingHistoryRow) => {
     // Note this now counts a disqualified meeting as a prior sitting, because
@@ -216,11 +220,18 @@ export function markFollowUpMeetings<T extends BookingHistoryRow>(items: T[], hi
   };
   history.forEach(note);
   items.forEach(note);
+  const firstBookedAt = new Map<string, string>();
+  for (const row of [...history, ...items]) {
+    if (!row.created_at) continue;
+    const earliest = firstBookedAt.get(row.contact_id);
+    if (!earliest || row.created_at < earliest) firstBookedAt.set(row.contact_id, row.created_at);
+  }
   return items.map((item) => {
-    if (!item.scheduled_for) return { ...item, is_follow_up: false };
+    const is_first_booking = !!item.created_at && item.created_at === firstBookedAt.get(item.contact_id);
+    if (!item.scheduled_for) return { ...item, is_follow_up: false, is_first_booking };
     const day = localDateKey(item.scheduled_for);
     const days = showedDaysByContact.get(item.contact_id);
     const hasEarlierShow = !!days && [...days].some((d) => d < day);
-    return { ...item, is_follow_up: hasEarlierShow };
+    return { ...item, is_follow_up: hasEarlierShow, is_first_booking };
   });
 }

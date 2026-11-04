@@ -15,6 +15,8 @@ export type ReportBookingItem = Pick<
   stream?: "dialer" | "ghl";
   /** The contact already showed at an earlier booking: a second meeting, not a reschedule. */
   is_follow_up?: boolean;
+  /** The lead's first booking ever, from full history. See markFollowUpMeetings. */
+  is_first_booking?: boolean;
   /** How the slot resolved, from public.resolve_meeting_bucket() in the database. */
   resolved_bucket?: string | null;
 };
@@ -214,6 +216,8 @@ export interface ReportMetrics {
     totalBookingsMade: number;
     rebooked: number;
     newBookings: number;
+    /** Meetings booked with a lead who already sat. Not counted in totalBookingsMade. */
+    secondMeetingsBooked: number;
     pickUpsToBookingRate: number;
     sameDayNextDayBookings: number;
     sameDayNextDayRate: number;
@@ -563,6 +567,9 @@ export function getReportMetrics({
   }
 
   const bookingsMadeInRange = bookingsForCreatedView.filter((item) => isInDateRange(item.created_at, from, to));
+  // A second meeting is not a booking made: the lead was already set and sat.
+  // Revenue below still reads bookingsMadeInRange, so deals closed at one count.
+  const firstMeetingBookings = bookingsMadeInRange.filter((item) => !item.is_follow_up);
   const setterAppointmentsInRange = setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
   const closerAppointmentsInRange = closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
 
@@ -589,7 +596,7 @@ export function getReportMetrics({
   ).length;
   // For the conversation→booking rate, scope BOTH sides to on/after launch
   // so we don't divide weeks of bookings by days of conversations.
-  const bookingsForConversationRate = bookingsMadeInRange.filter(
+  const bookingsForConversationRate = firstMeetingBookings.filter(
     (item) => toDateKey(item.created_at) >= launchDate,
   );
   const rangeStartsBeforeLaunch = !from || from < launchDate;
@@ -638,12 +645,13 @@ export function getReportMetrics({
       return b.setter.appointmentsScheduled - a.setter.appointmentsScheduled;
     });
 
-  const totalBookingsMade = bookingsMadeInRange.length;
-  const newBookings = bookingsMadeInRange.filter(
-    (item) => firstBookingIdByContact.get(item.contact_id) === item.id,
+  const totalBookingsMade = firstMeetingBookings.length;
+  const secondMeetingsBooked = bookingsMadeInRange.length - totalBookingsMade;
+  const newBookings = firstMeetingBookings.filter(
+    (item) => item.is_first_booking ?? firstBookingIdByContact.get(item.contact_id) === item.id,
   ).length;
   const rebooked = totalBookingsMade - newBookings;
-  const sameDayNextDayBookings = bookingsMadeInRange.filter(isSameOrNextDayBooking).length;
+  const sameDayNextDayBookings = firstMeetingBookings.filter(isSameOrNextDayBooking).length;
 
   const setterPerformance = buildAppointmentPerformance(setterAppointmentsInRange);
   const closerPerformance = buildAppointmentPerformance(closerAppointmentsInRange);
@@ -800,6 +808,7 @@ export function getReportMetrics({
       totalBookingsMade,
       rebooked,
       newBookings,
+      secondMeetingsBooked,
       pickUpsToBookingRate: toPercent(totalBookingsMade, pickUps),
       sameDayNextDayBookings,
       sameDayNextDayRate: toPercent(sameDayNextDayBookings, totalBookingsMade),
