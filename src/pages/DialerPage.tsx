@@ -3401,7 +3401,7 @@ export default function DialerPage() {
 
             </div>
 
-            <div className={cn("space-y-4", !simpleMode && "lg:col-span-2 lg:sticky lg:top-6 lg:self-start")}>
+            <div className={cn("space-y-4", !simpleMode && "rail-fit lg:col-span-2 lg:sticky lg:top-0 lg:self-start")}>
               {dialBlockedReason && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-100">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -3814,7 +3814,7 @@ export default function DialerPage() {
               )}
 
               {/* Log & Skip actions */}
-              <div data-coach-step="log-and-skip" className="space-y-2">
+              <div data-coach-step="log-and-skip" className={cn("space-y-2", !simpleMode && "lg:sticky lg:bottom-0 lg:z-10 lg:bg-background lg:pt-2")}>
                 <Button onClick={() => void logAndNext()} disabled={!canSubmit} className="w-full py-3 font-semibold">
                   {createCallLog.isPending || createPipelineItem.isPending
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />

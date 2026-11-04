@@ -345,7 +345,7 @@ function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         {/* rail */}
-        <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+        <aside className="rail-fit space-y-3 lg:sticky lg:top-0 lg:self-start">
           <div>
             <p className="text-base font-semibold">{course.title}</p>
             <div className="mt-1.5 flex items-center gap-2">

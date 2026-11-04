@@ -164,3 +164,18 @@
 @media (prefers-reduced-motion: reduce) {
   .page-enter { animation: none; }
 }
+
+/* A sticky side column that never outgrows the space under the app header (3.5rem)
+   and main's padding (1.5rem top and bottom). It scrolls on its own, so nothing at
+   the bottom of it is stranded off screen. The inline inset keeps focus rings from
+   being clipped by the overflow. Use with top-0: sticky offsets start inside main's
+   padding, so top-0 already sits 1.5rem under the header. */
+@media (min-width: 1024px) {
+  .rail-fit {
+    max-height: calc(100svh - 6.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    margin-inline: -0.25rem;
+    padding-inline: 0.25rem;
+  }
+}

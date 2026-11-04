@@ -103,7 +103,7 @@ export function ReportsToolbar({
   };
 
   return (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <div className="sticky -top-6 z-20 -mx-4 border-b border-border bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
