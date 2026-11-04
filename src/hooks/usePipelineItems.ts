@@ -362,7 +362,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
           batches.map((batch) =>
             supabase
               .from("pipeline_items")
-              .select("id, contact_id, scheduled_for, appointment_outcome, resolved_bucket")
+              .select("id, contact_id, created_at, scheduled_for, appointment_outcome, resolved_bucket")
               .eq("pipeline_type", "booked")
               .in("contact_id", batch),
           ),

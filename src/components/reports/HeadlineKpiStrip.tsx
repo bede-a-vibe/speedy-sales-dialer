@@ -38,8 +38,8 @@ export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
           compact
           label="Bookings Made"
           value={bookingsMade.totalBookingsMade}
-          subtext={bookingsMade.newBookings > 0 || bookingsMade.rebooked > 0
-            ? `${bookingsMade.newBookings} new · ${bookingsMade.rebooked} rebooked`
+          subtext={bookingsMade.newBookings > 0 || bookingsMade.rebooked > 0 || bookingsMade.secondMeetingsBooked > 0
+            ? `${bookingsMade.newBookings} new · ${bookingsMade.rebooked} rebooked${bookingsMade.secondMeetingsBooked > 0 ? ` · +${bookingsMade.secondMeetingsBooked} second meeting${bookingsMade.secondMeetingsBooked === 1 ? "" : "s"}` : ""}`
             : "by date booked"}
         />
         <StatCard
