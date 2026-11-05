@@ -4003,6 +4003,13 @@ export type Database = {
           normalized_phone: string
         }[]
       }
+      get_contact_attempt_counts: {
+        Args: never
+        Returns: {
+          call_attempt_count: number
+          contacts: number
+        }[]
+      }
       get_dial_hour_stats: {
         Args: { _from: string; _to: string; _user_id?: string }
         Returns: {
