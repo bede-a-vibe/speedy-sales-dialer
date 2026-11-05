@@ -3533,9 +3533,18 @@ export default function DialerPage() {
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
                   <div>
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      Assigned Sales Rep
+                      {session.selectedOutcome === "booked" ? "Closer — who runs the meeting" : "Assigned Sales Rep"}
                     </label>
-                    <Select value={session.assignedRepId} onValueChange={session.setAssignedRepId}>
+                    <Select
+                      value={session.assignedRepId}
+                      onValueChange={(value) => {
+                        session.setAssignedRepId(value);
+                        // Remember the chosen closer so the next booking defaults to them.
+                        if (session.selectedOutcome === "booked") {
+                          try { window.localStorage.setItem(DEFAULT_CLOSER_STORAGE_KEY, value); } catch { /* ignore */ }
+                        }
+                      }}
+                    >
                       <SelectTrigger className="w-full border-border bg-background">
                         <SelectValue placeholder="Choose a sales rep" />
                       </SelectTrigger>
