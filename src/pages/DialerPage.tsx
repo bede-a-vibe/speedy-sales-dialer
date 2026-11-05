@@ -378,6 +378,10 @@ function readStoredDialerFilters(): StoredDialerFilters | null {
 // GHL to manually book an appointment. Cleared once the lead is logged.
 const DIALER_ACTIVE_CALL_STORAGE_KEY = "dialer:active-call:v1";
 
+// Remembers the closer a setter last booked for, so the next booking defaults
+// to the same closer instead of silently defaulting to the setter themselves.
+const DEFAULT_CLOSER_STORAGE_KEY = "speedy:default-closer";
+
 type StoredActiveCall = {
   contactId?: string;
   selectedOutcome?: string | null;
