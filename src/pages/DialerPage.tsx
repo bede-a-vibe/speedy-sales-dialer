@@ -378,6 +378,10 @@ function readStoredDialerFilters(): StoredDialerFilters | null {
 // GHL to manually book an appointment. Cleared once the lead is logged.
 const DIALER_ACTIVE_CALL_STORAGE_KEY = "dialer:active-call:v1";
 
+// Remembers the closer a setter last booked for, so the next booking defaults
+// to the same closer instead of silently defaulting to the setter themselves.
+const DEFAULT_CLOSER_STORAGE_KEY = "speedy:default-closer";
+
 type StoredActiveCall = {
   contactId?: string;
   selectedOutcome?: string | null;
@@ -1418,6 +1422,19 @@ export default function DialerPage() {
     void loadDialpadSyncPanel();
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
+
+  // When booking, default the closer to the setter's usual choice (remembered
+  // on this device) instead of the setter themselves. Only primes while the
+  // picker still holds the default (the current user), never overrides a pick.
+  useEffect(() => {
+    if (session.selectedOutcome !== "booked") return;
+    if (!session.user?.id || session.assignedRepId !== session.user.id) return;
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem(DEFAULT_CLOSER_STORAGE_KEY); } catch { /* ignore */ }
+    if (stored && stored !== session.user.id && salesReps.some((rep) => rep.user_id === stored)) {
+      session.setAssignedRepId(stored);
+    }
+  }, [session.selectedOutcome, session.user?.id, session.assignedRepId, session.setAssignedRepId, salesReps]);
 
   // Reset the native call bar whenever the current contact changes or the
   // session goes inactive. The bar goes back to "dialing" as soon as we
@@ -3516,9 +3533,18 @@ export default function DialerPage() {
                 <div className="space-y-4 rounded-lg border border-border bg-card p-4">
                   <div>
                     <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
-                      Assigned Sales Rep
+                      {session.selectedOutcome === "booked" ? "Closer — who runs the meeting" : "Assigned Sales Rep"}
                     </label>
-                    <Select value={session.assignedRepId} onValueChange={session.setAssignedRepId}>
+                    <Select
+                      value={session.assignedRepId}
+                      onValueChange={(value) => {
+                        session.setAssignedRepId(value);
+                        // Remember the chosen closer so the next booking defaults to them.
+                        if (session.selectedOutcome === "booked") {
+                          try { window.localStorage.setItem(DEFAULT_CLOSER_STORAGE_KEY, value); } catch { /* ignore */ }
+                        }
+                      }}
+                    >
                       <SelectTrigger className="w-full border-border bg-background">
                         <SelectValue placeholder="Choose a sales rep" />
                       </SelectTrigger>
