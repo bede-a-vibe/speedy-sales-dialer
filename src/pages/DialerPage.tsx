@@ -1423,6 +1423,19 @@ export default function DialerPage() {
     void loadSessionSummaryDialog();
   }, [session.isSessionActive]);
 
+  // When booking, default the closer to the setter's usual choice (remembered
+  // on this device) instead of the setter themselves. Only primes while the
+  // picker still holds the default (the current user), never overrides a pick.
+  useEffect(() => {
+    if (session.selectedOutcome !== "booked") return;
+    if (!session.user?.id || session.assignedRepId !== session.user.id) return;
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem(DEFAULT_CLOSER_STORAGE_KEY); } catch { /* ignore */ }
+    if (stored && stored !== session.user.id && salesReps.some((rep) => rep.user_id === stored)) {
+      session.setAssignedRepId(stored);
+    }
+  }, [session.selectedOutcome, session.user?.id, session.assignedRepId, session.setAssignedRepId, salesReps]);
+
   // Reset the native call bar whenever the current contact changes or the
   // session goes inactive. The bar goes back to "dialing" as soon as we
   // auto-initiate the next call.
