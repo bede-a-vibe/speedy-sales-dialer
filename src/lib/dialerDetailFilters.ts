@@ -336,3 +336,52 @@ export function setTextMode(filters: DetailFilter[], field: string, mode: TextMo
 export function countInGroup(filters: DetailFilter[], group: DetailFieldGroup): number {
   return countDetailCriteria(filters.filter((f) => FIELD_INDEX.get(f.field)?.group === group));
 }
+
+// ── Old per-field dialer filters → captured-detail criteria ─────────────────
+
+/**
+ * Filters the dialer used to have as their own dropdowns under Advanced
+ * enrichment. They now live in Captured details, so saved smart lists and
+ * stored filters that still carry them are translated on load.
+ */
+export type LegacyDetailFilterFields = {
+  workType?: string;
+  buyingSignalStrength?: string;
+  hasGoogleAds?: string;
+  hasFacebookAds?: string;
+  hasDmPhone?: string;
+  hasExistingAgency?: string;
+  existingAgencyServices?: string[];
+};
+
+const TRI_VALUES = new Set(["yes", "no", "unknown"]);
+
+export function legacyToDetailFilters(legacy: LegacyDetailFilterFields | null | undefined): DetailFilter[] {
+  if (!legacy) return [];
+  const out: DetailFilter[] = [];
+  const pick = (field: string, v: string | undefined) => {
+    if (v && v !== "all") out.push({ field, op: "in", value: [v] });
+  };
+  pick("work_type", legacy.workType);
+  pick("buying_signal_strength", legacy.buyingSignalStrength);
+  // Older saved values like "Yes - Active" never matched a row; drop them.
+  if (legacy.hasGoogleAds && TRI_VALUES.has(legacy.hasGoogleAds)) pick("has_google_ads", legacy.hasGoogleAds);
+  if (legacy.hasFacebookAds && TRI_VALUES.has(legacy.hasFacebookAds)) pick("has_facebook_ads", legacy.hasFacebookAds);
+  if (legacy.hasDmPhone === "yes") out.push({ field: "dm_phone", op: "is_set" });
+  if (legacy.hasDmPhone === "no") out.push({ field: "dm_phone", op: "is_not_set" });
+  if (legacy.hasExistingAgency === "yes") out.push({ field: "has_existing_agency", op: "eq", value: true });
+  if (legacy.hasExistingAgency === "no") out.push({ field: "has_existing_agency", op: "eq", value: false });
+  if (legacy.existingAgencyServices && legacy.existingAgencyServices.length > 0) {
+    out.push({ field: "existing_agency_services", op: "in", value: legacy.existingAgencyServices });
+  }
+  return sanitizeDetailFilters(out);
+}
+
+/** Add criteria for fields/ops not already present (existing entries win). */
+export function mergeDetailFilters(base: DetailFilter[], extra: DetailFilter[]): DetailFilter[] {
+  const out = [...base];
+  for (const f of extra) {
+    if (!out.some((b) => b.field === f.field && b.op === f.op)) out.push(f);
+  }
+  return out;
+}

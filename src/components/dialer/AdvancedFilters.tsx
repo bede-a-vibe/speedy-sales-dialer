@@ -10,20 +10,16 @@ import { toast } from "sonner";
 import { useSmartLists } from "@/hooks/useSmartLists";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  WORK_TYPES,
   PROSPECT_TIERS,
-  BUYING_SIGNAL_OPTIONS,
   GBP_RATING_OPTIONS,
   REVIEW_COUNT_OPTIONS,
   PHONE_TYPE_OPTIONS,
-  DM_STATUS_OPTIONS,
   AUSTRALIAN_STATES,
-  AGENCY_SERVICES,
   LEAD_TYPES,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import type { DetailCoverage } from "@/hooks/useDetailCoverage";
-import { countDetailCriteria, type DetailFilter } from "@/lib/dialerDetailFilters";
+import { countDetailCriteria, type DetailFilter, type LegacyDetailFilterFields } from "@/lib/dialerDetailFilters";
 import { CapturedDetailsFilters } from "@/components/dialer/CapturedDetailsFilters";
 import { useDialerFilterOptions } from "@/hooks/useDialerFilterOptions";
 import { useMyDialerRestriction } from "@/hooks/useRepDialerRestriction";
@@ -36,7 +32,12 @@ export interface SalesRepOption {
 
 export type DialerFilterPreset = "all" | "hot_today" | "dm_direct" | "dm_capture" | "google_ads" | "high_review" | "landline_enrichment";
 
-export type DialerFilterSnapshot = {
+/**
+ * A saved smart list. Work type, buying signal, ad status, DM reachability and
+ * agency filters now live in detailFilters; lists saved before that still carry
+ * them as their own fields, and DialerPage translates them when applied.
+ */
+export type DialerFilterSnapshot = LegacyDetailFilterFields & {
   leadType: string;
   leadChannel: string;
   leadSource: string;
@@ -45,19 +46,12 @@ export type DialerFilterSnapshot = {
   states: string[];
   contactOwner: string;
   tradeTypes: string[];
-  workType: string;
   businessSize: string;
   prospectTier: string;
   minGbpRating: number | null;
   minReviewCount: number | null;
-  hasGoogleAds: string;
-  hasFacebookAds: string;
-  buyingSignalStrength: string;
   phoneType: string;
-  hasDmPhone: string;
   mobileGatekeeper?: string;
-  hasExistingAgency: string;
-  existingAgencyServices: string[];
   includeDisqualified: boolean;
   /** Captured-detail criteria (headcount, call intel, …). See src/lib/dialerDetailFilters.ts. */
   detailFilters?: DetailFilter[];
@@ -81,8 +75,6 @@ interface AdvancedFiltersProps {
   salesReps: SalesRepOption[];
   tradeTypes?: string[];
   setTradeTypes?: (v: string[]) => void;
-  workType: string;
-  setWorkType: (v: string) => void;
   businessSize: string;
   setBusinessSize: (v: string) => void;
   prospectTier: string;
@@ -91,22 +83,10 @@ interface AdvancedFiltersProps {
   setMinGbpRating: (v: number | null) => void;
   minReviewCount: number | null;
   setMinReviewCount: (v: number | null) => void;
-  hasGoogleAds: string;
-  setHasGoogleAds: (v: string) => void;
-  hasFacebookAds: string;
-  setHasFacebookAds: (v: string) => void;
-  buyingSignalStrength: string;
-  setBuyingSignalStrength: (v: string) => void;
   phoneType: string;
   setPhoneType: (v: string) => void;
-  hasDmPhone: string;
-  setHasDmPhone: (v: string) => void;
   mobileGatekeeper: string;
   setMobileGatekeeper: (v: string) => void;
-  hasExistingAgency: string;
-  setHasExistingAgency: (v: string) => void;
-  existingAgencyServices: string[];
-  setExistingAgencyServices: (v: string[]) => void;
   includeDisqualified: boolean;
   setIncludeDisqualified: (v: boolean) => void;
   detailFilters: DetailFilter[];
@@ -126,13 +106,6 @@ interface AdvancedFiltersProps {
   /** Applies a saved smart list to all dialer filter state. */
   onApplySmartList?: (filters: Partial<DialerFilterSnapshot>) => void;
 }
-
-// has_google_ads / has_facebook_ads hold 'yes' | 'no' | 'unknown'.
-const AD_STATUS_FILTER_OPTIONS = [
-  { value: "yes", label: "Yes" },
-  { value: "no", label: "No" },
-  { value: "unknown", label: "Unknown" },
-];
 
 const PHONE_TYPE_LABELS: Record<string, string> = {
   mobile: "Mobile",
@@ -174,19 +147,12 @@ export function AdvancedFilters({
   callRecency, setCallRecency,
   contactOwner, setContactOwner,
   salesReps,
-  workType, setWorkType,
   businessSize, setBusinessSize,
   prospectTier, setProspectTier,
   minGbpRating, setMinGbpRating,
   minReviewCount, setMinReviewCount,
-  hasGoogleAds, setHasGoogleAds,
-  hasFacebookAds, setHasFacebookAds,
-  buyingSignalStrength, setBuyingSignalStrength,
   phoneType, setPhoneType,
-  hasDmPhone, setHasDmPhone,
   mobileGatekeeper, setMobileGatekeeper,
-  hasExistingAgency, setHasExistingAgency,
-  existingAgencyServices, setExistingAgencyServices,
   includeDisqualified, setIncludeDisqualified,
   detailFilters, setDetailFilters,
   detailCoverage,
@@ -272,12 +238,7 @@ export function AdvancedFilters({
   };
 
   const capturedCount = countDetailCriteria(detailFilters) + (businessSize !== "all" ? 1 : 0);
-  const showBuyingSignal = cov.buying_signal_strength > 0;
-  const showWorkType = cov.work_type > 0;
-  const showGoogleAds = cov.has_google_ads_known > 0;
-  const showFacebookAds = cov.has_facebook_ads_known > 0;
   const showDmPhone = cov.dm_phone > 0;
-  const showExistingAgency = cov.has_existing_agency > 0;
 
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 space-y-4">
@@ -586,22 +547,6 @@ export function AdvancedFilters({
               <CoverageHint count={cov.prospect_tier} total={cov.total} />
             </div>
 
-            {showBuyingSignal ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Buying Signal</label>
-              <Select value={buyingSignalStrength} onValueChange={setBuyingSignalStrength} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="Any Signal" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any Signal</SelectItem>
-                  {BUYING_SIGNAL_OPTIONS.map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.buying_signal_strength} total={cov.total} />
-            </div> : null}
-
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">GBP Rating</label>
               <Select
@@ -642,38 +587,6 @@ export function AdvancedFilters({
               <CoverageHint count={cov.review_count} total={cov.total} />
             </div>
 
-            {showWorkType ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Work Type</label>
-              <Select value={workType} onValueChange={setWorkType} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="All Work Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Work Types</SelectItem>
-                  {WORK_TYPES.map((w) => (
-                    <SelectItem key={w} value={w}>{w}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.work_type} total={cov.total} />
-            </div> : null}
-
-            {showDmPhone ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">DM Reachability</label>
-              <Select value={hasDmPhone} onValueChange={setHasDmPhone} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="Any" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  {DM_STATUS_OPTIONS.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.dm_phone} total={cov.total} />
-            </div> : null}
-
             {showDmPhone ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Mobile → gatekeeper</label>
               <Select value={mobileGatekeeper} onValueChange={setMobileGatekeeper} disabled={disabled}>
@@ -688,80 +601,13 @@ export function AdvancedFilters({
               </Select>
             </div> : null}
 
-            {showGoogleAds ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Google Ads</label>
-              <Select value={hasGoogleAds} onValueChange={setHasGoogleAds} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="Any" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  {AD_STATUS_FILTER_OPTIONS.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.has_google_ads_known} total={cov.total} />
-            </div> : null}
-
-            {showFacebookAds ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Facebook Ads</label>
-              <Select value={hasFacebookAds} onValueChange={setHasFacebookAds} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="Any" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  {AD_STATUS_FILTER_OPTIONS.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.has_facebook_ads_known} total={cov.total} />
-            </div> : null}
           </div>
 
-          {/* === HIGH-INTENT / EXCLUSION FILTERS === */}
+          {/* === EXCLUSIONS === */}
           <div className="mt-4 space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Agency status & exclusions
+              Exclusions
             </p>
-            {showExistingAgency ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Existing Agency</label>
-                <Select value={hasExistingAgency} onValueChange={setHasExistingAgency} disabled={disabled}>
-                  <SelectTrigger className="h-8 border-border bg-card text-xs">
-                    <SelectValue placeholder="Any" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Any</SelectItem>
-                    <SelectItem value="yes">Has an agency (higher intent)</SelectItem>
-                    <SelectItem value="no">No agency</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] leading-tight text-muted-foreground">
-                  Businesses already paying an agency are actively investing in growth.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Agency Services</label>
-                <MultiSelect
-                  options={AGENCY_SERVICES.map((s) => s.label)}
-                  selected={AGENCY_SERVICES.filter((s) => existingAgencyServices.includes(s.value)).map((s) => s.label)}
-                  onChange={(labels) =>
-                    setExistingAgencyServices(
-                      AGENCY_SERVICES.filter((s) => labels.includes(s.label)).map((s) => s.value),
-                    )
-                  }
-                  placeholder="Any service"
-                  disabled={disabled}
-                />
-              </div>
-            </div>
-            ) : null}
-
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"

@@ -17,7 +17,6 @@ import { type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
 import { PowerHourTimer } from "@/components/dialer/PowerHourTimer";
 import { DialerShortcutsPopover } from "@/components/dialer/DialerShortcutsPopover";
-import { SalesToolkit } from "@/components/dialer/SalesToolkit";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
 import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { EMPTY_CONVERSATION_PROGRESS, withPitchedStageNote, type ConversationProgressState } from "@/components/dialer/ConversationProgressPanel";
@@ -78,7 +77,16 @@ import { TEAM_SIZE_BANDS, teamSizeBandOf, type DqReason, type DncReason } from "
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { useDetailCoverage } from "@/hooks/useDetailCoverage";
-import { countDetailCriteria, describeDetailFilter, sanitizeDetailFilters, type DetailFilter } from "@/lib/dialerDetailFilters";
+import {
+  countDetailCriteria,
+  describeDetailFilter,
+  getTextMode,
+  legacyToDetailFilters,
+  mergeDetailFilters,
+  sanitizeDetailFilters,
+  type DetailFilter,
+  type LegacyDetailFilterFields,
+} from "@/lib/dialerDetailFilters";
 import { RingCountdown, SessionActiveTime, SessionCallsPerHour, SessionPausedBadge } from "@/components/dialer/SessionClock";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
@@ -152,11 +160,6 @@ const PHONE_TYPE_SUMMARY_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
-const DM_PHONE_FILTER_LABELS: Record<string, string> = {
-  yes: "DM reachable",
-  no: "Need DM capture",
-};
-import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 
 
 const loadDialpadSyncPanel = () =>
@@ -339,21 +342,21 @@ function mergeFollowUpNotes(existingNotes: string, draft: string) {
 
 const DIALER_FILTERS_STORAGE_KEY = "dialer:advanced-filters:v1";
 
-type StoredDialerFilters = {
+/**
+ * Work type, buying signal, ad status and DM reachability used to be stored as
+ * their own fields (LegacyDetailFilterFields). They now live in detailFilters;
+ * old stored values are translated on load and no longer written.
+ */
+type StoredDialerFilters = LegacyDetailFilterFields & {
   industries?: string[];
   states?: string[];
   contactOwner?: string;
   tradeTypes?: string[];
-  workType?: string;
   businessSize?: string;
   prospectTier?: string;
   minGbpRating?: number | null;
   minReviewCount?: number | null;
-  hasGoogleAds?: string;
-  hasFacebookAds?: string;
-  buyingSignalStrength?: string;
   phoneType?: string;
-  hasDmPhone?: string;
   mobileGatekeeper?: string;
   showAdvancedFilters?: boolean;
   selectedPreset?: DialerFilterPreset;
@@ -364,12 +367,6 @@ type StoredDialerFilters = {
   /** Read back through sanitizeDetailFilters, never trusted as-is. */
   detailFilters?: unknown;
 };
-
-// has_google_ads / has_facebook_ads hold yes/no/unknown. Older saved filters used
-// labels like "Yes - Active" that never matched a row; treat those as "any".
-function normalizeAdFilter(value: string | undefined): string {
-  return value === "yes" || value === "no" || value === "unknown" ? value : "all";
-}
 
 function readStoredDialerFilters(): StoredDialerFilters | null {
   try {
@@ -529,16 +526,11 @@ export default function DialerPage() {
 
   // Advanced dialer filters
   const [tradeTypes, setTradeTypes] = useState<string[]>(() => storedFilters?.tradeTypes ?? []);
-  const [workType, setWorkType] = useState<string>(() => storedFilters?.workType ?? "all");
   const [businessSize, setBusinessSize] = useState<string>(() => storedFilters?.businessSize ?? "all");
   const [prospectTier, setProspectTier] = useState<string>(() => storedFilters?.prospectTier ?? "all");
   const [minGbpRating, setMinGbpRating] = useState<number | null>(() => storedFilters?.minGbpRating ?? null);
   const [minReviewCount, setMinReviewCount] = useState<number | null>(() => storedFilters?.minReviewCount ?? null);
-  const [hasGoogleAds, setHasGoogleAds] = useState<string>(() => normalizeAdFilter(storedFilters?.hasGoogleAds));
-  const [hasFacebookAds, setHasFacebookAds] = useState<string>(() => normalizeAdFilter(storedFilters?.hasFacebookAds));
-  const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
-  const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
   // Gatekeeper-flagged mobiles are their OWN queue: hidden from normal
   // dialling by default, opted into via "Only gatekeeper mobiles". Legacy
   // stored "all" was only ever the passive default — treat it as hidden.
@@ -546,8 +538,6 @@ export default function DialerPage() {
     const stored = storedFilters?.mobileGatekeeper;
     return stored && stored !== "all" ? stored : "hide";
   });
-  const [hasExistingAgency, setHasExistingAgency] = useState<string>("all");
-  const [existingAgencyServices, setExistingAgencyServices] = useState<string[]>([]);
   const [includeDisqualified, setIncludeDisqualified] = useState<boolean>(false);
   // Lead pool separation — default 'cold' so existing cold-calling flow is unchanged.
   const [leadType, setLeadType] = useState<string>(() => storedFilters?.leadType ?? "cold");
@@ -555,33 +545,34 @@ export default function DialerPage() {
   const [leadSource, setLeadSource] = useState<string>(() => storedFilters?.leadSource ?? "all");
   const [callRecency, setCallRecency] = useState<string>(() => storedFilters?.callRecency ?? "all");
   // Captured-detail criteria (headcount range, call intel…), sent as _detail_filters.
-  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>(() => sanitizeDetailFilters(storedFilters?.detailFilters));
+  // Older stored work type / buying signal / ad / DM filters are carried over as criteria.
+  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>(() =>
+    mergeDetailFilters(sanitizeDetailFilters(storedFilters?.detailFilters), legacyToDetailFilters(storedFilters)),
+  );
+  // DM reachability now comes from the "DM phone" captured-detail criterion.
+  const hasDmPhone = useMemo(() => {
+    const mode = getTextMode(detailFilters, "dm_phone").mode;
+    return mode === "is_set" ? "yes" : mode === "is_not_set" ? "no" : "all";
+  }, [detailFilters]);
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
     states,
     tradeTypes,
-    workType,
     businessSize,
     prospectTier,
     minGbpRating,
     minReviewCount,
-    hasGoogleAds,
-    hasFacebookAds,
-    buyingSignalStrength,
     phoneType,
-    hasDmPhone,
     mobileGatekeeper,
     contactOwner,
-    hasExistingAgency,
-    existingAgencyServices,
     includeDisqualified,
     leadType,
     leadChannel,
     leadSource,
     callRecency,
     detailFilters,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency, detailFilters]);
+  }), [industries, states, tradeTypes, businessSize, prospectTier, minGbpRating, minReviewCount, phoneType, mobileGatekeeper, contactOwner, includeDisqualified, leadType, leadChannel, leadSource, callRecency, detailFilters]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -589,40 +580,28 @@ export default function DialerPage() {
     if (states.length > 0) count++;
     if (contactOwner !== "all") count++;
     if (tradeTypes.length > 0) count++;
-    if (workType !== "all") count++;
     if (businessSize !== "all") count++;
     if (prospectTier !== "all") count++;
     if (minGbpRating && minGbpRating > 0) count++;
     if (minReviewCount && minReviewCount > 0) count++;
-    if (hasGoogleAds !== "all") count++;
-    if (hasFacebookAds !== "all") count++;
-    if (buyingSignalStrength !== "all") count++;
     if (phoneType !== "all") count++;
-    if (hasDmPhone !== "all") count++;
     if (mobileGatekeeper !== "hide") count++;
     count += countDetailCriteria(detailFilters);
     return count;
-  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, detailFilters]);
+  }, [industries, states, contactOwner, tradeTypes, businessSize, prospectTier, minGbpRating, minReviewCount, phoneType, mobileGatekeeper, detailFilters]);
 
   const resetAdvancedFilters = useCallback(() => {
     setIndustries([]);
     setStates([]);
     setContactOwner("all");
     setTradeTypes([]);
-    setWorkType("all");
     setBusinessSize("all");
     setProspectTier("all");
     setMinGbpRating(null);
     setMinReviewCount(null);
-    setHasGoogleAds("all");
-    setHasFacebookAds("all");
-    setBuyingSignalStrength("all");
     setPhoneType("all");
-    setHasDmPhone("all");
     // Gatekeeper-flagged mobiles stay their own queue even after a reset.
     setMobileGatekeeper("hide");
-    setHasExistingAgency("all");
-    setExistingAgencyServices([]);
     setIncludeDisqualified(false);
     setSelectedPreset("all");
     // Preserve the cold-calling default on reset.
@@ -642,22 +621,15 @@ export default function DialerPage() {
     states,
     contactOwner,
     tradeTypes,
-    workType,
     businessSize,
     prospectTier,
     minGbpRating,
     minReviewCount,
-    hasGoogleAds,
-    hasFacebookAds,
-    buyingSignalStrength,
     phoneType,
-    hasDmPhone,
     mobileGatekeeper,
-    hasExistingAgency,
-    existingAgencyServices,
     includeDisqualified,
     detailFilters,
-  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, hasExistingAgency, existingAgencyServices, includeDisqualified, detailFilters]);
+  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, businessSize, prospectTier, minGbpRating, minReviewCount, phoneType, mobileGatekeeper, includeDisqualified, detailFilters]);
 
   const applySmartList = useCallback((f: Partial<DialerFilterSnapshot>) => {
     if (f.leadType !== undefined) setLeadType(f.leadType);
@@ -668,23 +640,17 @@ export default function DialerPage() {
     if (f.states !== undefined) setStates(f.states);
     if (f.contactOwner !== undefined) setContactOwner(f.contactOwner);
     if (f.tradeTypes !== undefined) setTradeTypes(f.tradeTypes);
-    if (f.workType !== undefined) setWorkType(f.workType);
     if (f.businessSize !== undefined) setBusinessSize(f.businessSize);
     if (f.prospectTier !== undefined) setProspectTier(f.prospectTier);
     if (f.minGbpRating !== undefined) setMinGbpRating(f.minGbpRating);
     if (f.minReviewCount !== undefined) setMinReviewCount(f.minReviewCount);
-    if (f.hasGoogleAds !== undefined) setHasGoogleAds(normalizeAdFilter(f.hasGoogleAds));
-    if (f.hasFacebookAds !== undefined) setHasFacebookAds(normalizeAdFilter(f.hasFacebookAds));
-    if (f.buyingSignalStrength !== undefined) setBuyingSignalStrength(f.buyingSignalStrength);
     if (f.phoneType !== undefined) setPhoneType(f.phoneType);
-    if (f.hasDmPhone !== undefined) setHasDmPhone(f.hasDmPhone);
     if (f.mobileGatekeeper !== undefined) setMobileGatekeeper(f.mobileGatekeeper);
-    if (f.hasExistingAgency !== undefined) setHasExistingAgency(f.hasExistingAgency);
-    if (f.existingAgencyServices !== undefined) setExistingAgencyServices(f.existingAgencyServices);
     if (f.includeDisqualified !== undefined) setIncludeDisqualified(f.includeDisqualified);
     // A smart list defines the whole queue: one saved before captured details
     // existed clears them rather than leaving today's criteria narrowing it.
-    setDetailFilters(sanitizeDetailFilters(f.detailFilters ?? []));
+    // Its old work type / buying signal / ad / DM / agency fields become criteria.
+    setDetailFilters(mergeDetailFilters(sanitizeDetailFilters(f.detailFilters ?? []), legacyToDetailFilters(f)));
   }, []);
 
   useEffect(() => {
@@ -696,16 +662,11 @@ export default function DialerPage() {
           states,
           contactOwner,
           tradeTypes,
-          workType,
           businessSize,
           prospectTier,
           minGbpRating,
           minReviewCount,
-          hasGoogleAds,
-          hasFacebookAds,
-          buyingSignalStrength,
           phoneType,
-          hasDmPhone,
           mobileGatekeeper,
           showAdvancedFilters,
           selectedPreset,
@@ -724,16 +685,11 @@ export default function DialerPage() {
     states,
     contactOwner,
     tradeTypes,
-    workType,
     businessSize,
     prospectTier,
     minGbpRating,
     minReviewCount,
-    hasGoogleAds,
-    hasFacebookAds,
-    buyingSignalStrength,
     phoneType,
-    hasDmPhone,
     mobileGatekeeper,
     showAdvancedFilters,
     selectedPreset,
@@ -1148,14 +1104,9 @@ export default function DialerPage() {
             clear: () => setContactOwner("all"),
           }
         : null,
-      workType !== "all" ? { key: "workType", label: `Work: ${workType}`, clear: () => setWorkType("all") } : null,
       businessSize !== "all" ? { key: "businessSize", label: `Team: ${businessSize}`, clear: () => setBusinessSize("all") } : null,
       prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${prospectTier}`, clear: () => setProspectTier("all") } : null,
-      hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
-      hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
-      buyingSignalStrength !== "all" ? { key: "buyingSignalStrength", label: `Buying signal: ${buyingSignalStrength}`, clear: () => setBuyingSignalStrength("all") } : null,
       phoneType !== "all" ? { key: "phoneType", label: `Phone: ${PHONE_TYPE_SUMMARY_LABELS[phoneType] ?? phoneType}`, clear: () => setPhoneType("all") } : null,
-      hasDmPhone !== "all" ? { key: "hasDmPhone", label: `DM reachability: ${DM_PHONE_FILTER_LABELS[hasDmPhone] ?? hasDmPhone}`, clear: () => setHasDmPhone("all") } : null,
       mobileGatekeeper !== "hide" ? { key: "mobileGatekeeper", label: `Mobile gatekeeper: ${mobileGatekeeper === "only" ? "only these" : "included"}`, clear: () => setMobileGatekeeper("hide") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
       minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
@@ -1165,7 +1116,7 @@ export default function DialerPage() {
         clear: () => setDetailFilters((prev) => prev.filter((_, i) => i !== index)),
       })),
     ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
-    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, minGbpRating, minReviewCount, detailFilters],
+    [industries, states, tradeTypes, contactOwner, salesReps, businessSize, prospectTier, phoneType, mobileGatekeeper, minGbpRating, minReviewCount, detailFilters],
   );
 
   const startReadinessItems = useMemo(() => {
@@ -1208,11 +1159,6 @@ export default function DialerPage() {
     [startReadinessItems],
   );
 
-  const startReadinessSummary = useMemo(() => {
-    if (startReadinessOpenItems.length === 0) return "Ready to start dialing.";
-    if (startReadinessOpenItems.length === 1) return "1 item to fix before starting.";
-    return `${startReadinessOpenItems.length} items to fix before starting.`;
-  }, [startReadinessOpenItems.length]);
 
   const applyDialerPreset = useCallback((preset: DialerFilterPreset) => {
     setSelectedPreset(preset);
@@ -1231,7 +1177,7 @@ export default function DialerPage() {
     }
 
     if (preset === "dm_direct") {
-      setHasDmPhone("yes");
+      setDetailFilters([{ field: "dm_phone", op: "is_set" }]);
       toast.info("DM direct dials: showing contacts with a captured decision-maker phone.");
       return;
     }
@@ -2548,7 +2494,12 @@ export default function DialerPage() {
                 )}
                 {dialpad.hasDialpadAssignment && isOnline && startReadinessOpenItems.length > 0 && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-                    {startReadinessOpenItems.length} pre-flight item{startReadinessOpenItems.length === 1 ? "" : "s"} recommended — open <span className="font-medium">Filters &amp; tools → Setup</span> to review.
+                    <p className="font-medium">Recommended before you start</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {startReadinessOpenItems.map((item) => (
+                        <li key={item.label}>· {item.detail}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
                 {dialpad.myDialpadSettings && (
@@ -2597,7 +2548,7 @@ export default function DialerPage() {
                 className="relative gap-1.5"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                Filters &amp; tools
+                Filters
                 {activeFilterCount > 0 && (
                   <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                     {activeFilterCount}
@@ -2993,13 +2944,13 @@ export default function DialerPage() {
             </DialogContent>
           </Dialog>
 
-        {/* ── Filters & tools drawer — everything that used to clutter the pre-call view ── */}
+        {/* ── Filters drawer — queue filters, presets and smart lists, opened before a session ── */}
         <Sheet open={filtersDrawerOpen} onOpenChange={setFiltersDrawerOpen}>
           <SheetContent side="right" className="w-full overflow-y-auto p-6 sm:max-w-2xl">
             <SheetHeader className="border-b border-border pb-4 text-left">
-              <SheetTitle>Filters &amp; tools</SheetTitle>
+              <SheetTitle>Filters</SheetTitle>
               <SheetDescription>
-                Tune the queue, save presets and smart lists, run practice scenarios, and review pre-flight — every change flows into the same state as before and updates the &ldquo;leads ready&rdquo; count live.
+                Tune the queue and save presets and smart lists. Every change updates the &ldquo;leads ready&rdquo; count live.
               </SheetDescription>
             </SheetHeader>
 
@@ -3050,8 +3001,6 @@ export default function DialerPage() {
                   salesReps={salesReps}
                   tradeTypes={tradeTypes}
                   setTradeTypes={setTradeTypes}
-                  workType={workType}
-                  setWorkType={setWorkType}
                   businessSize={businessSize}
                   setBusinessSize={setBusinessSize}
                   prospectTier={prospectTier}
@@ -3060,22 +3009,10 @@ export default function DialerPage() {
                   setMinGbpRating={setMinGbpRating}
                   minReviewCount={minReviewCount}
                   setMinReviewCount={setMinReviewCount}
-                  hasGoogleAds={hasGoogleAds}
-                  setHasGoogleAds={setHasGoogleAds}
-                  hasFacebookAds={hasFacebookAds}
-                  setHasFacebookAds={setHasFacebookAds}
-                  buyingSignalStrength={buyingSignalStrength}
-                  setBuyingSignalStrength={setBuyingSignalStrength}
                   phoneType={phoneType}
                   setPhoneType={setPhoneType}
-                  hasDmPhone={hasDmPhone}
-                  setHasDmPhone={setHasDmPhone}
                   mobileGatekeeper={mobileGatekeeper}
                   setMobileGatekeeper={setMobileGatekeeper}
-                  hasExistingAgency={hasExistingAgency}
-                  setHasExistingAgency={setHasExistingAgency}
-                  existingAgencyServices={existingAgencyServices}
-                  setExistingAgencyServices={setExistingAgencyServices}
                   includeDisqualified={includeDisqualified}
                   setIncludeDisqualified={setIncludeDisqualified}
                   detailFilters={detailFilters}
@@ -3092,114 +3029,6 @@ export default function DialerPage() {
                 />
               </section>
 
-              <section>
-                <h3 className="mb-3 text-sm font-semibold text-foreground">Tools</h3>
-                <div className="space-y-3">
-                  {isCoach && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => { setScenarioOpen(true); setFiltersDrawerOpen(false); }}
-                    >
-                      <Sparkles className="h-4 w-4 text-amber-500" />
-                      Practice scenarios (coach mode)
-                    </Button>
-                  )}
-                  <SalesToolkit
-                    contactIndustry={null}
-                    businessName={null}
-                    city={null}
-                    state={null}
-                    attemptCount={0}
-                  />
-                </div>
-              </section>
-
-              <section>
-                <h3 className="mb-3 text-sm font-semibold text-foreground">Setup</h3>
-                <div className="space-y-3">
-                  <CollapsiblePanel
-                    title="Pre-flight"
-                    subtitle={`${startReadinessSummary} · Queue ${queueSupervisorSummary.label.toLowerCase()}`}
-                    badge={startReadinessOpenItems.length === 0 ? "Ready" : `${startReadinessOpenItems.length} to fix`}
-                    badgeVariant={startReadinessOpenItems.length === 0 ? "secondary" : "outline"}
-                    icon={startReadinessOpenItems.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
-                    defaultOpen={startReadinessOpenItems.length > 0}
-                  >
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Start readiness</p>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {startReadinessItems.map((item) => (
-                            <div
-                              key={item.label}
-                              className={cn(
-                                "rounded-md border px-3 py-2 text-xs",
-                                item.ready ? "border-emerald-500/20 bg-emerald-500/10" : "border-amber-500/20 bg-amber-500/10",
-                              )}
-                            >
-                              <div className="flex items-start gap-2">
-                                {item.label === "Network" ? (
-                                  item.ready ? <Wifi className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" /> : <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                                ) : item.ready ? (
-                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                                ) : (
-                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
-                                )}
-                                <div>
-                                  <p className="font-semibold text-foreground">{item.label}</p>
-                                  <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Queue health</p>
-                          <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest", queueSupervisorSummary.badgeClassName)}>
-                            {queueSupervisorSummary.label}
-                          </Badge>
-                        </div>
-                        <p className="mt-2 text-xs text-muted-foreground">{queueSupervisorSummary.detail}</p>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          {queueSupervisorSummary.checkpoints.map((item) => (
-                            <div key={item.label} className="rounded-md border border-border bg-background px-3 py-2">
-                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                              <p className="mt-1 font-mono text-sm text-foreground">{item.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    {startReadinessOpenItems.length > 0 && (
-                      <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-950 dark:text-amber-100">
-                        <p className="font-medium">Recommended before you start</p>
-                        <ul className="mt-2 space-y-1.5">
-                          {startReadinessOpenItems.map((item) => (
-                            <li key={item.label} className="flex items-start gap-2">
-                              <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-                              <span>{item.detail}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </CollapsiblePanel>
-
-                  <CollapsiblePanel title="Pipeline routing" subtitle="Where booked & follow-up outcomes will land in GHL">
-                    <TwoPipelineGuide
-                      currentView="dialer"
-                      calendarName={selectedGhlCalendar?.name ?? null}
-                      bookedPipelineName={selectedGhlPipeline?.name ?? null}
-                      bookedStageName={selectedGhlStage?.name ?? null}
-                      followUpPipelineName={defaultFollowUpPipeline?.name ?? "Default follow-up pipeline"}
-                      followUpStageName={defaultFollowUpStage?.name ?? "Default follow-up stage"}
-                    />
-                  </CollapsiblePanel>
-                </div>
-              </section>
             </div>
           </SheetContent>
         </Sheet>

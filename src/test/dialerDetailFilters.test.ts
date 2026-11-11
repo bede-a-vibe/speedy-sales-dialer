@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   DETAIL_FIELDS,
   KIND_OPS,
+  legacyToDetailFilters,
+  mergeDetailFilters,
   controlFor,
   controlOwns,
   getTextMode,
@@ -158,6 +160,37 @@ describe("per-field controls", () => {
     expect(controlOwns({ field: "need_identified", op: "not_in", value: ["x"] })).toBe(false);
     expect(controlOwns({ field: "key_quote", op: "contains", value: "x" })).toBe(true);
     expect(controlOwns({ field: "years_in_business", op: "eq", value: 3 })).toBe(false);
+  });
+});
+
+describe("old dialer filters", () => {
+  it("become captured-detail criteria", () => {
+    expect(
+      legacyToDetailFilters({
+        workType: "Mixed",
+        buyingSignalStrength: "all",
+        hasGoogleAds: "yes",
+        hasFacebookAds: "Yes - Active",
+        hasDmPhone: "no",
+        hasExistingAgency: "yes",
+        existingAgencyServices: ["seo"],
+      }),
+    ).toEqual([
+      { field: "work_type", op: "in", value: ["Mixed"] },
+      { field: "has_google_ads", op: "in", value: ["yes"] },
+      { field: "dm_phone", op: "is_not_set" },
+      { field: "has_existing_agency", op: "eq", value: true },
+      { field: "existing_agency_services", op: "in", value: ["seo"] },
+    ]);
+    expect(legacyToDetailFilters(null)).toEqual([]);
+  });
+
+  it("don't override a criterion already set on the same field", () => {
+    const base: DetailFilter[] = [{ field: "work_type", op: "in", value: ["Commercial Only"] }];
+    expect(mergeDetailFilters(base, legacyToDetailFilters({ workType: "Mixed", hasDmPhone: "yes" }))).toEqual([
+      { field: "work_type", op: "in", value: ["Commercial Only"] },
+      { field: "dm_phone", op: "is_set" },
+    ]);
   });
 });
 
