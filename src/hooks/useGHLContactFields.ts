@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ghlGetContact, ghlUpdateContactFields } from "@/lib/ghl";
 import { getAllGhlFieldDefs, type GhlFieldDef } from "@/lib/ghlFieldFolders";
@@ -46,6 +46,7 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
   const [statuses, setStatuses] = useState<Record<string, FieldSaveStatus>>({});
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const queryClient = useQueryClient();
 
   // Reset whenever the active contact changes.
   useEffect(() => {
@@ -108,6 +109,9 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
           update[def.supabaseColumn] = value === "" ? null : value;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await supabase.from("contacts").update(update as any).eq("id", contactId);
+          // The contact card (DM phone, gatekeeper, best time) reads these live.
+          void queryClient.invalidateQueries({ queryKey: ["live-contact", contactId] });
+          void queryClient.invalidateQueries({ queryKey: ["contact", contactId] });
         } catch (err) {
           // non-fatal — keep going to GHL
           console.warn("[GHL fields] Supabase mirror failed", key, err);
@@ -149,7 +153,7 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
         setLastSavedAt(Date.now());
       }
     },
-    [contactId, ghlContactId, fieldDefByKey],
+    [contactId, ghlContactId, fieldDefByKey, queryClient],
   );
 
   const setField = useCallback(

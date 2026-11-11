@@ -42,6 +42,8 @@ export interface GhlFieldDef {
   display?: "outcome" | "humanize" | "yesno";
   /** Worked out from the lead's latest booking rather than read from a contacts column. */
   derived?: DerivedBookingField;
+  /** One-tap picks shown under the input, for values reps type often mid-call. */
+  suggestions?: readonly string[];
 }
 
 /** Fields worked out from the latest booked meeting (pipeline_items). */
@@ -81,17 +83,17 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
     label: "02 Decision Maker",
     fields: [
       { key: "contact.decision_maker_name", ghlId: "wJZYqVWVftkCpRKpsh1E", label: "Decision Maker Name", supabaseColumn: "dm_name" },
-      { key: "contact.decision_maker_role", ghlId: "0w48jKmhINg67x1XHl9w", label: "Decision Maker Role", supabaseColumn: "dm_role", placeholder: "Owner, Director, Office Manager…" },
+      { key: "contact.decision_maker_role", ghlId: "0w48jKmhINg67x1XHl9w", label: "Decision Maker Role", supabaseColumn: "dm_role", placeholder: "Owner, Director, Office Manager…", suggestions: ["Owner", "Director", "General Manager", "Marketing Manager", "Operations Manager", "Office Manager", "Partner"] },
       { key: "contact.decision_maker_phone", ghlId: "6OndJoC6WKbN9Ffq4WRp", label: "Decision Maker Phone", supabaseColumn: "dm_phone" },
-      { key: "contact.decision_maker_phone_type", ghlId: "vacYRaSporHlSBHMjWhu", label: "Decision Maker Phone Type", supabaseColumn: "dm_phone_type", placeholder: "mobile / landline / unknown" },
+      { key: "contact.decision_maker_phone_type", ghlId: "vacYRaSporHlSBHMjWhu", label: "Decision Maker Phone Type", supabaseColumn: "dm_phone_type", placeholder: "mobile / landline / unknown", suggestions: ["mobile", "landline", "unknown"] },
       { key: "contact.decision_maker_email", ghlId: "eS6oYJUK2UMnXijxSdCZ", label: "Decision Maker Email", supabaseColumn: "dm_email" },
       { key: "contact.decision_maker_linkedin", ghlId: "EKgMkT1U5xu2aj6AoWzw", label: "Decision Maker LinkedIn", supabaseColumn: "dm_linkedin" },
       { key: "contact.authority_level", ghlId: "TAreuAl3hcsnzbtfL5sN", label: "Authority Level", supabaseColumn: "authority_level" },
       { key: "contact.job_role", ghlId: "4iC6cc6idsUkk0A1OxHp", label: "Job Role", supabaseColumn: "job_role" },
-      { key: "contact.best_route_to_decision_maker", ghlId: "9bpBi9hiziafLWKKA0DN", label: "Best Route To Decision Maker", supabaseColumn: "best_route_to_decision_maker" },
+      { key: "contact.best_route_to_decision_maker", ghlId: "9bpBi9hiziafLWKKA0DN", label: "Best Route To Decision Maker", supabaseColumn: "best_route_to_decision_maker", suggestions: ["Direct Line", "Mobile", "Email First", "LinkedIn", "Ask for by Name", "Callback Scheduled", "Gatekeeper Friendly"] },
       { key: "contact.preferred_contact_method", ghlId: "4DjpfGirGSrati3ff47I", label: "Preferred Contact Method", supabaseColumn: "preferred_contact_method" },
       { key: "contact.gatekeeper_name", ghlId: "lCSsKeALjcWqPnta12QT", label: "Gatekeeper Name", supabaseColumn: "gatekeeper_name" },
-      { key: "contact.gatekeeper_role", ghlId: "RA4QpfGGjhXLgjurypAY", label: "Gatekeeper Role", supabaseColumn: "gatekeeper_role" },
+      { key: "contact.gatekeeper_role", ghlId: "RA4QpfGGjhXLgjurypAY", label: "Gatekeeper Role", supabaseColumn: "gatekeeper_role", suggestions: ["Receptionist", "Admin", "Office staff", "Call answering service", "Supervisor"] },
       { key: "contact.mobile_reaches_gatekeeper", ghlId: "QCQs662OMOx8FCGlA4Nh", label: "Mobile Reaches Gatekeeper", supabaseColumn: "mobile_reaches_gatekeeper", readOnly: true, display: "yesno" },
       { key: "contact.gatekeeper_notes", ghlId: "R8wxTGh9n3EY3LDD6ape", label: "Gatekeeper Notes", ui: "textarea", fullWidth: true, supabaseColumn: "gatekeeper_notes" },
       { key: "contact.stakeholders_enterprise", ghlId: "1HuyARU6BQVcGX88GQfm", label: "Stakeholders (Enterprise)", ui: "textarea", fullWidth: true, supabaseColumn: "stakeholders" },
@@ -107,7 +109,7 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.next_followup_date", ghlId: "eCycdDk2CeGl8XBx8F9w", label: "Next Follow-Up Date", ui: "date", supabaseColumn: "next_followup_date" },
       { key: "contact.callback_date", ghlId: "1Nmk5uFEAg1gqgYkw7GQ", label: "Callback Date", ui: "date", supabaseColumn: "callback_date" },
       { key: "contact.revival_date", ghlId: "6kV1fSGyXtcxRnj96XYA", label: "Revival Date", ui: "date", supabaseColumn: "revival_date" },
-      { key: "contact.best_time_to_call", ghlId: "wnwsciJlfvJRXZzPTv6J", label: "Best Time To Call", supabaseColumn: "best_time_to_call" },
+      { key: "contact.best_time_to_call", ghlId: "wnwsciJlfvJRXZzPTv6J", label: "Best Time To Call", supabaseColumn: "best_time_to_call", suggestions: ["Morning", "Afternoon", "After Hours"] },
       { key: "contact.last_call_sentiment", ghlId: "ybcmHrjLXc8UN8H7jlcl", label: "Last Call Sentiment", supabaseColumn: "last_call_sentiment" },
       { key: "contact.voicemail_count", ghlId: "SxteSxcBgBFYxR0LwdTQ", label: "Voicemail Count", ui: "number", supabaseColumn: "voicemail_count" },
       { key: "contact.phone_type", ghlId: "UnqdUC0hddQ5KeYv8iNN", label: "Phone Type", supabaseColumn: "phone_type" },
@@ -218,6 +220,19 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
     ],
   },
 ];
+
+/**
+ * Additional Info fields the Intelligence panel's Marketing tab captures with
+ * its own yes/no/unsure buttons, so they show there instead of in the folder.
+ */
+export const MARKETING_TAB_FIELD_KEYS: ReadonlySet<string> = new Set([
+  "contact.runs_google_ads",
+  "contact.runs_facebook_ads",
+  "contact.has_seo",
+  "contact.has_existing_agency",
+  "contact.existing_agency",
+  "contact.existing_agency_services",
+]);
 
 export function getAllGhlFieldDefs(): GhlFieldDef[] {
   return GHL_FIELD_FOLDERS.flatMap((folder) => folder.fields);

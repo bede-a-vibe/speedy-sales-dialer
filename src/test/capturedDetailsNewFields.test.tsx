@@ -8,14 +8,14 @@ vi.mock("@/hooks/usePipelineItems", () => ({
 import { CapturedDetailsFilters } from "@/components/dialer/CapturedDetailsFilters";
 import type { DetailFilter } from "@/lib/dialerDetailFilters";
 
-describe("Captured details drawer: Lead & booking", () => {
+describe("Captured details drawer: restored fields", () => {
   it("shows the restored fields and sets the booked-date range", () => {
     const setDetailFilters = vi.fn();
     render(<CapturedDetailsFilters detailFilters={[]} setDetailFilters={setDetailFilters} />);
-    for (const label of ["Call disposition", "Setter name", "Assigned closer", "Meeting source", "Lifecycle stage", "Lead source channel"]) {
+    for (const label of ["Call Disposition", "Setter Name", "Assigned Closer", "Meeting Source", "Lifecycle Stage", "Lead Source Channel"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
-    fireEvent.change(screen.getByLabelText("Meeting booked date from"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("Meeting Booked Date from"), { target: { value: "2026-11-01" } });
     expect(setDetailFilters).toHaveBeenLastCalledWith([{ field: "meeting_booked_date", op: "gte", value: "2026-11-01" }] satisfies DetailFilter[]);
   });
 });
