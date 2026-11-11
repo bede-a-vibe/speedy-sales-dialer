@@ -767,8 +767,10 @@ export type Database = {
         Row: {
           abn: string | null
           abr_attempted: boolean
+          address1: string | null
           agency_satisfaction: string | null
           agreed_next_steps: string | null
+          annual_revenue: string | null
           appointment_status: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
@@ -790,11 +792,14 @@ export type Database = {
           client_follow_up_note: string | null
           competitive_intel: string | null
           contact_person: string | null
+          contact_type: string | null
           contract_lockin_status: string | null
+          country: string | null
           created_at: string
           current_marketing_channels: string | null
           current_monthly_ad_spend: string | null
           current_solution_satisfaction: string | null
+          date_of_birth: string | null
           deep_crawl_attempted: boolean
           disqualified: boolean
           disqualified_at: string | null
@@ -885,6 +890,7 @@ export type Database = {
           phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
+          postal_code: string | null
           preferred_contact_method: string | null
           problem_resonance: string | null
           proposal_format: string | null
@@ -896,6 +902,7 @@ export type Database = {
           revival_date: string | null
           segment: string | null
           segment_changed_at: string | null
+          seo_visibility: string | null
           service_area: string | null
           service_type: string[] | null
           social_media_presence: string | null
@@ -915,6 +922,7 @@ export type Database = {
           team_size_evidence: string | null
           team_size_set_at: string | null
           team_size_source: string | null
+          timezone: string | null
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
@@ -936,8 +944,10 @@ export type Database = {
         Insert: {
           abn?: string | null
           abr_attempted?: boolean
+          address1?: string | null
           agency_satisfaction?: string | null
           agreed_next_steps?: string | null
+          annual_revenue?: string | null
           appointment_status?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
@@ -959,11 +969,14 @@ export type Database = {
           client_follow_up_note?: string | null
           competitive_intel?: string | null
           contact_person?: string | null
+          contact_type?: string | null
           contract_lockin_status?: string | null
+          country?: string | null
           created_at?: string
           current_marketing_channels?: string | null
           current_monthly_ad_spend?: string | null
           current_solution_satisfaction?: string | null
+          date_of_birth?: string | null
           deep_crawl_attempted?: boolean
           disqualified?: boolean
           disqualified_at?: string | null
@@ -1054,6 +1067,7 @@ export type Database = {
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
+          postal_code?: string | null
           preferred_contact_method?: string | null
           problem_resonance?: string | null
           proposal_format?: string | null
@@ -1065,6 +1079,7 @@ export type Database = {
           revival_date?: string | null
           segment?: string | null
           segment_changed_at?: string | null
+          seo_visibility?: string | null
           service_area?: string | null
           service_type?: string[] | null
           social_media_presence?: string | null
@@ -1084,6 +1099,7 @@ export type Database = {
           team_size_evidence?: string | null
           team_size_set_at?: string | null
           team_size_source?: string | null
+          timezone?: string | null
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -1105,8 +1121,10 @@ export type Database = {
         Update: {
           abn?: string | null
           abr_attempted?: boolean
+          address1?: string | null
           agency_satisfaction?: string | null
           agreed_next_steps?: string | null
+          annual_revenue?: string | null
           appointment_status?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
@@ -1128,11 +1146,14 @@ export type Database = {
           client_follow_up_note?: string | null
           competitive_intel?: string | null
           contact_person?: string | null
+          contact_type?: string | null
           contract_lockin_status?: string | null
+          country?: string | null
           created_at?: string
           current_marketing_channels?: string | null
           current_monthly_ad_spend?: string | null
           current_solution_satisfaction?: string | null
+          date_of_birth?: string | null
           deep_crawl_attempted?: boolean
           disqualified?: boolean
           disqualified_at?: string | null
@@ -1223,6 +1244,7 @@ export type Database = {
           phone_e164?: string | null
           phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
           phone_type?: string | null
+          postal_code?: string | null
           preferred_contact_method?: string | null
           problem_resonance?: string | null
           proposal_format?: string | null
@@ -1234,6 +1256,7 @@ export type Database = {
           revival_date?: string | null
           segment?: string | null
           segment_changed_at?: string | null
+          seo_visibility?: string | null
           service_area?: string | null
           service_type?: string[] | null
           social_media_presence?: string | null
@@ -1253,6 +1276,7 @@ export type Database = {
           team_size_evidence?: string | null
           team_size_set_at?: string | null
           team_size_source?: string | null
+          timezone?: string | null
           trade_type?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -3046,6 +3070,41 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_name_push_queue: {
+        Row: {
+          attempts: number
+          contact_id: string
+          done_at: string | null
+          enqueued_at: string
+          last_error: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          contact_id: string
+          done_at?: string | null
+          enqueued_at?: string
+          last_error?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          contact_id?: string
+          done_at?: string | null
+          enqueued_at?: string
+          last_error?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ghl_name_push_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ghl_note_deletions: {
         Row: {
           attempt_count: number
@@ -3310,7 +3369,55 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_intel_source_weekly: {
+        Row: {
+          business_name: string | null
+          calls: number | null
+          contact_id: string
+          slice: number
+          transcripts: string
+        }
+        Insert: {
+          business_name?: string | null
+          calls?: number | null
+          contact_id: string
+          slice: number
+          transcripts: string
+        }
+        Update: {
+          business_name?: string | null
+          calls?: number | null
+          contact_id?: string
+          slice?: number
+          transcripts?: string
+        }
+        Relationships: []
+      }
       lead_intel_staging_20261111: {
+        Row: {
+          brief: string | null
+          classified_by: string | null
+          contact_id: string
+          created_at: string
+          data: Json
+        }
+        Insert: {
+          brief?: string | null
+          classified_by?: string | null
+          contact_id: string
+          created_at?: string
+          data?: Json
+        }
+        Update: {
+          brief?: string | null
+          classified_by?: string | null
+          contact_id?: string
+          created_at?: string
+          data?: Json
+        }
+        Relationships: []
+      }
+      lead_intel_staging_weekly: {
         Row: {
           brief: string | null
           classified_by: string | null
@@ -4053,13 +4160,21 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          billing_start_date: string | null
+          churn_date: string | null
+          churn_reason: string | null
+          client_deal_id: string | null
           closed_at: string | null
+          commitment_type: string | null
+          competing_agency: string | null
           completed_at: string | null
           contact_id: string
           created_at: string
           created_by: string
           deal_stage: string | null
+          deal_type: string | null
           deal_value: number | null
+          decision_makers_involved: number | null
           dq_reason: string | null
           expected_close_date: string | null
           follow_up_method: string
@@ -4069,6 +4184,7 @@ export type Database = {
           is_qualified: boolean | null
           meeting_ghl_opportunity_id: string | null
           meeting_ghl_stage_id: string | null
+          minimum_term_months: number | null
           monthly_recurring_value: number | null
           notes: string
           outcome_notes: string
@@ -4076,10 +4192,14 @@ export type Database = {
           outcome_recorded_at: string | null
           phone_recording_url: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          proposal_sent_date: string | null
+          proposed_mrr: number | null
           recording_url: string | null
           reschedule_count: number
           rescheduled_from_id: string | null
           scheduled_for: string | null
+          service_stream: string | null
+          setup_fee: number | null
           source_call_log_id: string | null
           status: Database["public"]["Enums"]["pipeline_status"]
           updated_at: string
@@ -4090,13 +4210,21 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          billing_start_date?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
           closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
           completed_at?: string | null
           contact_id: string
           created_at?: string
           created_by: string
           deal_stage?: string | null
+          deal_type?: string | null
           deal_value?: number | null
+          decision_makers_involved?: number | null
           dq_reason?: string | null
           expected_close_date?: string | null
           follow_up_method?: string
@@ -4106,6 +4234,7 @@ export type Database = {
           is_qualified?: boolean | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
@@ -4113,10 +4242,14 @@ export type Database = {
           outcome_recorded_at?: string | null
           phone_recording_url?: string | null
           pipeline_type: Database["public"]["Enums"]["pipeline_type"]
+          proposal_sent_date?: string | null
+          proposed_mrr?: number | null
           recording_url?: string | null
           reschedule_count?: number
           rescheduled_from_id?: string | null
           scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
           updated_at?: string
@@ -4126,13 +4259,21 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id?: string
+          billing_start_date?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
           closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
           completed_at?: string | null
           contact_id?: string
           created_at?: string
           created_by?: string
           deal_stage?: string | null
+          deal_type?: string | null
           deal_value?: number | null
+          decision_makers_involved?: number | null
           dq_reason?: string | null
           expected_close_date?: string | null
           follow_up_method?: string
@@ -4142,6 +4283,7 @@ export type Database = {
           is_qualified?: boolean | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
           monthly_recurring_value?: number | null
           notes?: string
           outcome_notes?: string
@@ -4149,10 +4291,14 @@ export type Database = {
           outcome_recorded_at?: string | null
           phone_recording_url?: string | null
           pipeline_type?: Database["public"]["Enums"]["pipeline_type"]
+          proposal_sent_date?: string | null
+          proposed_mrr?: number | null
           recording_url?: string | null
           reschedule_count?: number
           rescheduled_from_id?: string | null
           scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
           source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["pipeline_status"]
           updated_at?: string
@@ -4199,6 +4345,162 @@ export type Database = {
           id?: string | null
           new_assigned_user_id?: string | null
           old_assigned_user_id?: string | null
+        }
+        Relationships: []
+      }
+      pipeline_items_dupe_backup_20261111: {
+        Row: {
+          appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id: string | null
+          backed_up_at: string | null
+          billing_start_date: string | null
+          churn_date: string | null
+          churn_reason: string | null
+          client_deal_id: string | null
+          closed_at: string | null
+          commitment_type: string | null
+          competing_agency: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          deal_stage: string | null
+          deal_type: string | null
+          deal_value: number | null
+          decision_makers_involved: number | null
+          dq_reason: string | null
+          expected_close_date: string | null
+          follow_up_method: string | null
+          ghl_stage_synced_at: string | null
+          ghl_sync_error: string | null
+          id: string | null
+          is_qualified: boolean | null
+          meeting_ghl_opportunity_id: string | null
+          meeting_ghl_stage_id: string | null
+          minimum_term_months: number | null
+          monthly_recurring_value: number | null
+          notes: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
+          outcome_recorded_at: string | null
+          phone_recording_url: string | null
+          pipeline_type: Database["public"]["Enums"]["pipeline_type"] | null
+          proposal_sent_date: string | null
+          proposed_mrr: number | null
+          recording_url: string | null
+          reschedule_count: number | null
+          rescheduled_from_id: string | null
+          scheduled_for: string | null
+          service_stream: string | null
+          setup_fee: number | null
+          source_call_log_id: string | null
+          status: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at: string | null
+          why: string | null
+        }
+        Insert: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          backed_up_at?: string | null
+          billing_start_date?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          proposal_sent_date?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+          why?: string | null
+        }
+        Update: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          backed_up_at?: string | null
+          billing_start_date?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          proposal_sent_date?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+          why?: string | null
         }
         Relationships: []
       }
@@ -4712,6 +5014,7 @@ export type Database = {
         Args: { phone_number: string }
         Returns: string
       }
+      clean_person_name: { Args: { raw: string }; Returns: string }
       contact_channel: {
         Args: { _lead_channel: string; _lead_type: string }
         Returns: string
@@ -4721,8 +5024,10 @@ export type Database = {
         Returns: {
           abn: string | null
           abr_attempted: boolean
+          address1: string | null
           agency_satisfaction: string | null
           agreed_next_steps: string | null
+          annual_revenue: string | null
           appointment_status: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
@@ -4744,11 +5049,14 @@ export type Database = {
           client_follow_up_note: string | null
           competitive_intel: string | null
           contact_person: string | null
+          contact_type: string | null
           contract_lockin_status: string | null
+          country: string | null
           created_at: string
           current_marketing_channels: string | null
           current_monthly_ad_spend: string | null
           current_solution_satisfaction: string | null
+          date_of_birth: string | null
           deep_crawl_attempted: boolean
           disqualified: boolean
           disqualified_at: string | null
@@ -4839,6 +5147,7 @@ export type Database = {
           phone_e164: string | null
           phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
           phone_type: string | null
+          postal_code: string | null
           preferred_contact_method: string | null
           problem_resonance: string | null
           proposal_format: string | null
@@ -4850,6 +5159,7 @@ export type Database = {
           revival_date: string | null
           segment: string | null
           segment_changed_at: string | null
+          seo_visibility: string | null
           service_area: string | null
           service_type: string[] | null
           social_media_presence: string | null
@@ -4869,6 +5179,7 @@ export type Database = {
           team_size_evidence: string | null
           team_size_set_at: string | null
           team_size_source: string | null
+          timezone: string | null
           trade_type: string | null
           updated_at: string
           uploaded_by: string | null
