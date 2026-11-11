@@ -270,7 +270,7 @@ export function MarketingCapture({
               {
                 "contact.has_existing_agency": opt,
                 ...(opt !== "yes"
-                  ? { "contact.existing_agency_name": "", "contact.existing_agency_services": "" }
+                  ? { "contact.existing_agency_name": "", "contact.current_marketing_agency": "", "contact.existing_agency_services": "" }
                   : {}),
               },
             );
@@ -314,7 +314,8 @@ export function MarketingCapture({
                   persist(
                     { existing_agency_name: agencyName || null },
                     "agency name",
-                    { "contact.existing_agency_name": agencyName },
+                    // GHL has two agency-name fields on the same column; keep both in step.
+                    { "contact.existing_agency_name": agencyName, "contact.current_marketing_agency": agencyName },
                   )
                 }
                 placeholder="e.g. King Kong, WebFX"

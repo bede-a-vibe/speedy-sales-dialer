@@ -28,7 +28,12 @@ const MARKETING_TAB = "marketing";
 /** Folders the Marketing tab replaces. */
 const REPLACED_BY_MARKETING = new Set(["agency"]);
 /** Fields in other folders that Marketing already captures (same columns and GHL keys). */
-const FIELDS_IN_MARKETING = new Set(["contact.has_google_ads", "contact.has_facebookmeta_ads"]);
+const FIELDS_IN_MARKETING = new Set([
+  "contact.has_google_ads",
+  "contact.has_facebookmeta_ads",
+  // Same column (existing_agency_name) as Marketing's agency name, which writes both GHL keys.
+  "contact.current_marketing_agency",
+]);
 /** The Marketing tab goes right after this folder. */
 const MARKETING_AFTER = "digital";
 
@@ -225,8 +230,8 @@ function FolderTabContent({
  */
 export function ContactIntelligencePanel({ contactId, ghlContactId, contact, marketing }: ContactIntelligencePanelProps) {
   const hasMarketing = Boolean(marketing);
-  // With Marketing shown, drop what it already captures: the Agency folder and
-  // the ad flags in Digital. They stay in GHL_FIELD_FOLDERS for GHL syncing.
+  // With Marketing shown, drop what it already captures: the Agency folder, and
+  // the ad flags and agency name in Digital. They stay in GHL_FIELD_FOLDERS for GHL syncing.
   const folders = useMemo(
     () =>
       hasMarketing
