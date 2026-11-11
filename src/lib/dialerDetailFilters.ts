@@ -244,3 +244,14 @@ export function countDetailCriteria(filters: DetailFilter[]): number {
   }
   return n;
 }
+
+/** The single `eq` value for a field (used for the team-size band on Contacts). */
+export function getEq(filters: DetailFilter[], field: string): string | null {
+  const entry = filters.find((f) => f.field === field && f.op === "eq");
+  return entry?.value == null ? null : String(entry.value);
+}
+
+export function setEq(filters: DetailFilter[], field: string, value: string | null): DetailFilter[] {
+  const rest = filters.filter((f) => !(f.field === field && f.op === "eq"));
+  return value === null ? rest : [...rest, { field, op: "eq", value }];
+}

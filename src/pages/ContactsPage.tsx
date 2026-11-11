@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus, Copy, AlertTriangle, SlidersHorizontal, Activity } from "lucide-react";
+import { Search, Phone, Mail, Globe, MapPin, ChevronDown, ChevronUp, Pencil, Trash2, Download, CalendarClock, ArrowRight, Clock3, Plus, CalendarPlus, Copy, AlertTriangle, SlidersHorizontal, Activity, ListFilter, X } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
@@ -37,6 +37,9 @@ import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import type { PipelineItemWithRelations } from "@/hooks/usePipelineItems";
 import { ContactsTableSkeleton } from "@/components/skeletons/PageSkeletons";
+import { CapturedDetailsFilters } from "@/components/dialer/CapturedDetailsFilters";
+import { useDetailCoverage } from "@/hooks/useDetailCoverage";
+import { countDetailCriteria, describeDetailFilter, type DetailFilter } from "@/lib/dialerDetailFilters";
 
 const CONTACTS_PER_PAGE = 100;
 
@@ -772,6 +775,10 @@ export default function ContactsPage() {
   const [lifecycleFilter, setLifecycleFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [focusFilter, setFocusFilter] = useState<ContactFocusFilter>("all");
+  // Captured-detail criteria (team size, call intel), same field list as the dialer.
+  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailCoverage = useDetailCoverage(detailsOpen);
   const [sortBy, setSortBy] = useState<ContactsSortOption>("operational");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dataHealthMode, setDataHealthMode] = useState(false);
@@ -828,6 +835,7 @@ export default function ContactsPage() {
     page,
     pageSize: CONTACTS_PER_PAGE,
     sortBy,
+    detailFilters,
   });
 
   const allPageContacts = useMemo(() => {
@@ -949,7 +957,7 @@ export default function ContactsPage() {
   // Reset selection when filters or page change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, focusFilter, page]);
+  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, focusFilter, page, detailFilters]);
 
   const activeFilters = useMemo(() => ({
     industry: industryFilter,
@@ -960,7 +968,8 @@ export default function ContactsPage() {
     lifecycleStage: lifecycleFilter,
     ownerId: ownerFilter,
     search: debouncedSearch,
-  }), [industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, debouncedSearch]);
+    detailFilters,
+  }), [industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, debouncedSearch, detailFilters]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -1122,7 +1131,7 @@ export default function ContactsPage() {
   useEffect(() => {
     setPage(1);
     setExpandedId(null);
-  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy]);
+  }, [debouncedSearch, industryFilter, statusFilter, bucketFilter, stateFilter, appointmentOutcomeFilter, lifecycleFilter, ownerFilter, sortBy, detailFilters]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -1439,6 +1448,35 @@ export default function ContactsPage() {
             );
           })()}
 
+          <Popover open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="border-border h-9">
+                <ListFilter className="mr-1.5 h-3.5 w-3.5" />
+                Captured details
+                {countDetailCriteria(detailFilters) > 0 && (
+                  <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-mono text-primary-foreground">
+                    {countDetailCriteria(detailFilters)}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="max-h-[75vh] w-[min(92vw,760px)] overflow-y-auto" align="start">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">Captured details</p>
+                {detailFilters.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDetailFilters([])}>
+                    Clear all
+                  </Button>
+                )}
+              </div>
+              <CapturedDetailsFilters
+                detailFilters={detailFilters}
+                setDetailFilters={setDetailFilters}
+                coverage={detailCoverage.data}
+              />
+            </PopoverContent>
+          </Popover>
+
           <label className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs cursor-pointer h-9">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Data health</span>
@@ -1475,6 +1513,27 @@ export default function ContactsPage() {
             </Button>
           </div>
         </div>
+
+        {detailFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="Captured-detail filters">
+            {detailFilters.map((f, index) => (
+              <span
+                key={`${f.field}-${f.op}-${index}`}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] text-foreground"
+              >
+                {describeDetailFilter(f)}
+                <button
+                  type="button"
+                  onClick={() => setDetailFilters((prev) => prev.filter((_, i) => i !== index))}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove ${describeDetailFilter(f)}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Bulk action toolbar */}
         {selectedIds.size > 0 && (
