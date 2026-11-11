@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
+import { detailFiltersForRpc, type DetailFilter } from "@/lib/dialerDetailFilters";
 
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -73,6 +74,8 @@ export type DialerFilterOptions = {
   leadChannel?: string;
   leadSource?: string;
   callRecency?: string;
+  /** Captured-detail criteria; sent as _detail_filters. */
+  detailFilters?: DetailFilter[];
 };
 
 type RollingDialerQueueOptions = {
@@ -126,19 +129,12 @@ async function invokeDialerRpc<T>(fnName: string, params: Record<string, unknown
   return data as T;
 }
 
-async function claimDialerLeads({
-  sessionId,
-  claimSize,
-  filters,
-}: {
-  sessionId: string;
-  claimSize: number;
-  filters?: DialerFilterOptions;
-}) {
-  return invokeDialerRpc<ClaimDialerLeadsResponse>("claim_dialer_leads", {
-    _session_id: sessionId,
-    _claim_size: claimSize,
-    _lock_minutes: DIALER_LOCK_MINUTES,
+/**
+ * Filter params shared by claim_dialer_leads and get_dialer_queue_count, so the
+ * "leads ready" count and the claim always see the same filter set.
+ */
+export function dialerFilterParams(filters?: DialerFilterOptions) {
+  return {
     _industries: filters?.industries && filters.industries.length > 0 ? filters.industries : null,
     _states: filters?.states && filters.states.length > 0 ? filters.states : null,
     _trade_types: filters?.tradeTypes && filters.tradeTypes.length > 0 ? filters.tradeTypes : null,
@@ -164,6 +160,24 @@ async function claimDialerLeads({
     _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
     _lead_source: filters?.leadSource && filters.leadSource !== "all" ? filters.leadSource : null,
     _call_recency: filters?.callRecency && filters.callRecency !== "all" ? filters.callRecency : null,
+    _detail_filters: detailFiltersForRpc(filters?.detailFilters),
+  };
+}
+
+async function claimDialerLeads({
+  sessionId,
+  claimSize,
+  filters,
+}: {
+  sessionId: string;
+  claimSize: number;
+  filters?: DialerFilterOptions;
+}) {
+  return invokeDialerRpc<ClaimDialerLeadsResponse>("claim_dialer_leads", {
+    _session_id: sessionId,
+    _claim_size: claimSize,
+    _lock_minutes: DIALER_LOCK_MINUTES,
+    ...dialerFilterParams(filters),
   });
 }
 
@@ -203,31 +217,7 @@ async function getDialerQueueCount({
 }) {
   return invokeDialerRpc<number>("get_dialer_queue_count", {
     _session_id: sessionId,
-    _industries: filters?.industries && filters.industries.length > 0 ? filters.industries : null,
-    _states: filters?.states && filters.states.length > 0 ? filters.states : null,
-    _trade_types: filters?.tradeTypes && filters.tradeTypes.length > 0 ? filters.tradeTypes : null,
-    _work_type: filters?.workType && filters.workType !== "all" ? filters.workType : null,
-    _business_size: filters?.businessSize && filters.businessSize !== "all" ? filters.businessSize : null,
-    _prospect_tier: filters?.prospectTier && filters.prospectTier !== "all" ? filters.prospectTier : null,
-    _min_gbp_rating: filters?.minGbpRating && filters.minGbpRating > 0 ? filters.minGbpRating : null,
-    _min_review_count: filters?.minReviewCount && filters.minReviewCount > 0 ? filters.minReviewCount : null,
-    _has_google_ads: filters?.hasGoogleAds && filters.hasGoogleAds !== "all" ? filters.hasGoogleAds : null,
-    _has_facebook_ads: filters?.hasFacebookAds && filters.hasFacebookAds !== "all" ? filters.hasFacebookAds : null,
-    _buying_signal_strength: filters?.buyingSignalStrength && filters.buyingSignalStrength !== "all" ? filters.buyingSignalStrength : null,
-    _phone_type: filters?.phoneType && filters.phoneType !== "all" ? filters.phoneType : null,
-    _has_dm_phone: filters?.hasDmPhone === "yes" ? true : filters?.hasDmPhone === "no" ? false : null,
-    _mobile_gatekeeper: filters?.mobileGatekeeper && filters.mobileGatekeeper !== "all" ? filters.mobileGatekeeper : null,
-    _contact_owner: filters?.contactOwner && filters.contactOwner !== "all" ? (filters.contactOwner === "unassigned" ? "unassigned" : filters.contactOwner) : null,
-    _include_dnc: filters?.includeDnc ?? false,
-    _include_disqualified: filters?.includeDisqualified ?? false,
-    _dnc_reasons: filters?.dncReasons && filters.dncReasons.length > 0 ? filters.dncReasons : null,
-    _dq_reasons: filters?.dqReasons && filters.dqReasons.length > 0 ? filters.dqReasons : null,
-    _has_existing_agency: filters?.hasExistingAgency && filters.hasExistingAgency !== "all" ? filters.hasExistingAgency : null,
-    _existing_agency_services: filters?.existingAgencyServices && filters.existingAgencyServices.length > 0 ? filters.existingAgencyServices : null,
-    _lead_type: filters?.leadType && filters.leadType !== "all" ? filters.leadType : null,
-    _lead_channel: filters?.leadChannel && filters.leadChannel !== "all" ? filters.leadChannel : null,
-    _lead_source: filters?.leadSource && filters.leadSource !== "all" ? filters.leadSource : null,
-    _call_recency: filters?.callRecency && filters.callRecency !== "all" ? filters.callRecency : null,
+    ...dialerFilterParams(filters),
   });
 }
 

@@ -77,6 +77,8 @@ import {
 import { TEAM_SIZE_BANDS, teamSizeBandOf, type DqReason, type DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
+import { useDetailCoverage } from "@/hooks/useDetailCoverage";
+import { countDetailCriteria, describeDetailFilter, sanitizeDetailFilters, type DetailFilter } from "@/lib/dialerDetailFilters";
 import { RingCountdown, SessionActiveTime, SessionCallsPerHour, SessionPausedBadge } from "@/components/dialer/SessionClock";
 import { toast } from "sonner";
 import { useIsCoach } from "@/hooks/useUserRole";
@@ -359,7 +361,15 @@ type StoredDialerFilters = {
   leadChannel?: string;
   leadSource?: string;
   callRecency?: string;
+  /** Read back through sanitizeDetailFilters, never trusted as-is. */
+  detailFilters?: unknown;
 };
+
+// has_google_ads / has_facebook_ads hold yes/no/unknown. Older saved filters used
+// labels like "Yes - Active" that never matched a row; treat those as "any".
+function normalizeAdFilter(value: string | undefined): string {
+  return value === "yes" || value === "no" || value === "unknown" ? value : "all";
+}
 
 function readStoredDialerFilters(): StoredDialerFilters | null {
   try {
@@ -503,6 +513,7 @@ export default function DialerPage() {
 
   // One-shot coverage stats so the filter UI can warn about empty enrichment columns.
   const enrichmentCoverage = useEnrichmentCoverage(filtersDrawerOpen);
+  const detailCoverage = useDetailCoverage(filtersDrawerOpen);
 
   // Conversation funnel tracking (manual capture per call)
   const [conversationProgress, setConversationProgress] = useState<ConversationProgressState>(EMPTY_CONVERSATION_PROGRESS);
@@ -523,8 +534,8 @@ export default function DialerPage() {
   const [prospectTier, setProspectTier] = useState<string>(() => storedFilters?.prospectTier ?? "all");
   const [minGbpRating, setMinGbpRating] = useState<number | null>(() => storedFilters?.minGbpRating ?? null);
   const [minReviewCount, setMinReviewCount] = useState<number | null>(() => storedFilters?.minReviewCount ?? null);
-  const [hasGoogleAds, setHasGoogleAds] = useState<string>(() => storedFilters?.hasGoogleAds ?? "all");
-  const [hasFacebookAds, setHasFacebookAds] = useState<string>(() => storedFilters?.hasFacebookAds ?? "all");
+  const [hasGoogleAds, setHasGoogleAds] = useState<string>(() => normalizeAdFilter(storedFilters?.hasGoogleAds));
+  const [hasFacebookAds, setHasFacebookAds] = useState<string>(() => normalizeAdFilter(storedFilters?.hasFacebookAds));
   const [buyingSignalStrength, setBuyingSignalStrength] = useState<string>(() => storedFilters?.buyingSignalStrength ?? "all");
   const [phoneType, setPhoneType] = useState<string>(() => storedFilters?.phoneType ?? "all");
   const [hasDmPhone, setHasDmPhone] = useState<string>(() => storedFilters?.hasDmPhone ?? "all");
@@ -543,6 +554,8 @@ export default function DialerPage() {
   const [leadChannel, setLeadChannel] = useState<string>(() => storedFilters?.leadChannel ?? "all");
   const [leadSource, setLeadSource] = useState<string>(() => storedFilters?.leadSource ?? "all");
   const [callRecency, setCallRecency] = useState<string>(() => storedFilters?.callRecency ?? "all");
+  // Captured-detail criteria (headcount range, call intel…), sent as _detail_filters.
+  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>(() => sanitizeDetailFilters(storedFilters?.detailFilters));
 
   const advancedFilters = useMemo<DialerFilterOptions>(() => ({
     industries,
@@ -567,7 +580,8 @@ export default function DialerPage() {
     leadChannel,
     leadSource,
     callRecency,
-  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency]);
+    detailFilters,
+  }), [industries, states, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, contactOwner, hasExistingAgency, existingAgencyServices, includeDisqualified, leadType, leadChannel, leadSource, callRecency, detailFilters]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -586,8 +600,9 @@ export default function DialerPage() {
     if (phoneType !== "all") count++;
     if (hasDmPhone !== "all") count++;
     if (mobileGatekeeper !== "hide") count++;
+    count += countDetailCriteria(detailFilters);
     return count;
-  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper]);
+  }, [industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, detailFilters]);
 
   const resetAdvancedFilters = useCallback(() => {
     setIndustries([]);
@@ -615,6 +630,7 @@ export default function DialerPage() {
     setLeadChannel("all");
     setLeadSource("all");
     setCallRecency("all");
+    setDetailFilters([]);
   }, []);
 
   const currentFilterSnapshot: DialerFilterSnapshot = useMemo(() => ({
@@ -640,7 +656,8 @@ export default function DialerPage() {
     hasExistingAgency,
     existingAgencyServices,
     includeDisqualified,
-  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, hasExistingAgency, existingAgencyServices, includeDisqualified]);
+    detailFilters,
+  }), [leadType, leadChannel, leadSource, callRecency, industries, states, contactOwner, tradeTypes, workType, businessSize, prospectTier, minGbpRating, minReviewCount, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, hasExistingAgency, existingAgencyServices, includeDisqualified, detailFilters]);
 
   const applySmartList = useCallback((f: Partial<DialerFilterSnapshot>) => {
     if (f.leadType !== undefined) setLeadType(f.leadType);
@@ -656,8 +673,8 @@ export default function DialerPage() {
     if (f.prospectTier !== undefined) setProspectTier(f.prospectTier);
     if (f.minGbpRating !== undefined) setMinGbpRating(f.minGbpRating);
     if (f.minReviewCount !== undefined) setMinReviewCount(f.minReviewCount);
-    if (f.hasGoogleAds !== undefined) setHasGoogleAds(f.hasGoogleAds);
-    if (f.hasFacebookAds !== undefined) setHasFacebookAds(f.hasFacebookAds);
+    if (f.hasGoogleAds !== undefined) setHasGoogleAds(normalizeAdFilter(f.hasGoogleAds));
+    if (f.hasFacebookAds !== undefined) setHasFacebookAds(normalizeAdFilter(f.hasFacebookAds));
     if (f.buyingSignalStrength !== undefined) setBuyingSignalStrength(f.buyingSignalStrength);
     if (f.phoneType !== undefined) setPhoneType(f.phoneType);
     if (f.hasDmPhone !== undefined) setHasDmPhone(f.hasDmPhone);
@@ -665,6 +682,9 @@ export default function DialerPage() {
     if (f.hasExistingAgency !== undefined) setHasExistingAgency(f.hasExistingAgency);
     if (f.existingAgencyServices !== undefined) setExistingAgencyServices(f.existingAgencyServices);
     if (f.includeDisqualified !== undefined) setIncludeDisqualified(f.includeDisqualified);
+    // A smart list defines the whole queue: one saved before captured details
+    // existed clears them rather than leaving today's criteria narrowing it.
+    setDetailFilters(sanitizeDetailFilters(f.detailFilters ?? []));
   }, []);
 
   useEffect(() => {
@@ -693,6 +713,7 @@ export default function DialerPage() {
           leadChannel,
           leadSource,
           callRecency,
+          detailFilters,
         } satisfies StoredDialerFilters),
       );
     } catch {
@@ -720,6 +741,7 @@ export default function DialerPage() {
     leadChannel,
     leadSource,
     callRecency,
+    detailFilters,
   ]);
 
   const session = useDialerSession({ filters: advancedFilters });
@@ -1127,7 +1149,7 @@ export default function DialerPage() {
           }
         : null,
       workType !== "all" ? { key: "workType", label: `Work: ${workType}`, clear: () => setWorkType("all") } : null,
-      businessSize !== "all" ? { key: "businessSize", label: `Business: ${businessSize}`, clear: () => setBusinessSize("all") } : null,
+      businessSize !== "all" ? { key: "businessSize", label: `Team: ${businessSize}`, clear: () => setBusinessSize("all") } : null,
       prospectTier !== "all" ? { key: "prospectTier", label: `Tier: ${prospectTier}`, clear: () => setProspectTier("all") } : null,
       hasGoogleAds !== "all" ? { key: "hasGoogleAds", label: `Google Ads: ${hasGoogleAds}`, clear: () => setHasGoogleAds("all") } : null,
       hasFacebookAds !== "all" ? { key: "hasFacebookAds", label: `Facebook Ads: ${hasFacebookAds}`, clear: () => setHasFacebookAds("all") } : null,
@@ -1137,8 +1159,13 @@ export default function DialerPage() {
       mobileGatekeeper !== "hide" ? { key: "mobileGatekeeper", label: `Mobile gatekeeper: ${mobileGatekeeper === "only" ? "only these" : "included"}`, clear: () => setMobileGatekeeper("hide") } : null,
       minGbpRating ? { key: "minGbpRating", label: `Min GBP: ${GBP_RATING_OPTIONS.find((item) => item.value === minGbpRating)?.label ?? `${minGbpRating}+`}`, clear: () => setMinGbpRating(null) } : null,
       minReviewCount ? { key: "minReviewCount", label: `Min reviews: ${REVIEW_COUNT_OPTIONS.find((item) => item.value === minReviewCount)?.label ?? `${minReviewCount}+`}`, clear: () => setMinReviewCount(null) } : null,
+      ...detailFilters.map((f, index) => ({
+        key: `detail-${index}-${f.field}-${f.op}`,
+        label: describeDetailFilter(f),
+        clear: () => setDetailFilters((prev) => prev.filter((_, i) => i !== index)),
+      })),
     ].filter(Boolean) as { key: string; label: string; clear: () => void }[],
-    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, minGbpRating, minReviewCount],
+    [industries, states, tradeTypes, contactOwner, salesReps, workType, businessSize, prospectTier, hasGoogleAds, hasFacebookAds, buyingSignalStrength, phoneType, hasDmPhone, mobileGatekeeper, minGbpRating, minReviewCount, detailFilters],
   );
 
   const startReadinessItems = useMemo(() => {
@@ -3051,6 +3078,9 @@ export default function DialerPage() {
                   setExistingAgencyServices={setExistingAgencyServices}
                   includeDisqualified={includeDisqualified}
                   setIncludeDisqualified={setIncludeDisqualified}
+                  detailFilters={detailFilters}
+                  setDetailFilters={setDetailFilters}
+                  detailCoverage={detailCoverage.data}
                   selectedPreset={selectedPreset}
                   onPresetChange={applyDialerPreset}
                   onReset={resetAdvancedFilters}

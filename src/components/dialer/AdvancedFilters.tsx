@@ -11,9 +11,7 @@ import { useSmartLists } from "@/hooks/useSmartLists";
 import { useAuth } from "@/hooks/useAuth";
 import {
   WORK_TYPES,
-  BUSINESS_SIZES,
   PROSPECT_TIERS,
-  AD_STATUS_OPTIONS,
   BUYING_SIGNAL_OPTIONS,
   GBP_RATING_OPTIONS,
   REVIEW_COUNT_OPTIONS,
@@ -24,6 +22,9 @@ import {
   LEAD_TYPES,
 } from "@/data/constants";
 import type { EnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
+import type { DetailCoverage } from "@/hooks/useDetailCoverage";
+import { countDetailCriteria, type DetailFilter } from "@/lib/dialerDetailFilters";
+import { CapturedDetailsFilters } from "@/components/dialer/CapturedDetailsFilters";
 import { useDialerFilterOptions } from "@/hooks/useDialerFilterOptions";
 import { useMyDialerRestriction } from "@/hooks/useRepDialerRestriction";
 
@@ -58,6 +59,8 @@ export type DialerFilterSnapshot = {
   hasExistingAgency: string;
   existingAgencyServices: string[];
   includeDisqualified: boolean;
+  /** Captured-detail criteria (headcount, call intel, …). See src/lib/dialerDetailFilters.ts. */
+  detailFilters?: DetailFilter[];
 };
 
 interface AdvancedFiltersProps {
@@ -106,6 +109,10 @@ interface AdvancedFiltersProps {
   setExistingAgencyServices: (v: string[]) => void;
   includeDisqualified: boolean;
   setIncludeDisqualified: (v: boolean) => void;
+  detailFilters: DetailFilter[];
+  setDetailFilters: (v: DetailFilter[]) => void;
+  /** Per-field capture counts for the Captured details section. */
+  detailCoverage?: DetailCoverage;
   selectedPreset: DialerFilterPreset;
   onPresetChange: (preset: DialerFilterPreset) => void;
   onReset: () => void;
@@ -119,6 +126,13 @@ interface AdvancedFiltersProps {
   /** Applies a saved smart list to all dialer filter state. */
   onApplySmartList?: (filters: Partial<DialerFilterSnapshot>) => void;
 }
+
+// has_google_ads / has_facebook_ads hold 'yes' | 'no' | 'unknown'.
+const AD_STATUS_FILTER_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "unknown", label: "Unknown" },
+];
 
 const PHONE_TYPE_LABELS: Record<string, string> = {
   mobile: "Mobile",
@@ -174,6 +188,8 @@ export function AdvancedFilters({
   hasExistingAgency, setHasExistingAgency,
   existingAgencyServices, setExistingAgencyServices,
   includeDisqualified, setIncludeDisqualified,
+  detailFilters, setDetailFilters,
+  detailCoverage,
   selectedPreset, onPresetChange,
   onReset,
   disabled = false,
@@ -183,6 +199,8 @@ export function AdvancedFilters({
   onApplySmartList,
 }: AdvancedFiltersProps) {
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
+  // Opens by itself when something in it is already set, so a filter is never hidden.
+  const [capturedOpen, setCapturedOpen] = useState(() => detailFilters.length > 0 || businessSize !== "all");
   const [selectedSmartListId, setSelectedSmartListId] = useState<string>("");
   const { user } = useAuth();
   const { smartLists, createSmartList, deleteSmartList } = useSmartLists();
@@ -253,9 +271,9 @@ export function AdvancedFilters({
     }
   };
 
+  const capturedCount = countDetailCriteria(detailFilters) + (businessSize !== "all" ? 1 : 0);
   const showBuyingSignal = cov.buying_signal_strength > 0;
   const showWorkType = cov.work_type > 0;
-  const showBusinessSize = cov.business_size > 0;
   const showGoogleAds = cov.has_google_ads_known > 0;
   const showFacebookAds = cov.has_facebook_ads_known > 0;
   const showDmPhone = cov.dm_phone > 0;
@@ -500,6 +518,38 @@ export function AdvancedFilters({
         </div>
       </div>
 
+      {/* === CAPTURED DETAILS (team size, call intel) === */}
+      <Collapsible open={capturedOpen} onOpenChange={setCapturedOpen}>
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            className="h-8 w-full justify-between px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <span>
+              Captured details
+              {capturedCount > 0 ? (
+                <Badge variant="secondary" className="ml-2 text-[10px]">
+                  {capturedCount} set
+                </Badge>
+              ) : null}
+            </span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", capturedOpen && "rotate-180")} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <CapturedDetailsFilters
+            businessSize={businessSize}
+            setBusinessSize={setBusinessSize}
+            detailFilters={detailFilters}
+            setDetailFilters={setDetailFilters}
+            coverage={detailCoverage}
+            disabled={disabled}
+          />
+        </CollapsibleContent>
+      </Collapsible>
+
       {/* === ADVANCED ENRICHMENT FILTERS (collapsed by default) === */}
       <Collapsible open={enrichmentOpen} onOpenChange={setEnrichmentOpen}>
         <CollapsibleTrigger asChild>
@@ -608,22 +658,6 @@ export function AdvancedFilters({
               <CoverageHint count={cov.work_type} total={cov.total} />
             </div> : null}
 
-            {showBusinessSize ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Team Size</label>
-              <Select value={businessSize} onValueChange={setBusinessSize} disabled={disabled}>
-                <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="Any team size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any team size</SelectItem>
-                  {BUSINESS_SIZES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CoverageHint count={cov.business_size} total={cov.total} />
-            </div> : null}
-
             {showDmPhone ? <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">DM Reachability</label>
               <Select value={hasDmPhone} onValueChange={setHasDmPhone} disabled={disabled}>
@@ -662,8 +696,8 @@ export function AdvancedFilters({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
-                  {AD_STATUS_OPTIONS.map((a) => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  {AD_STATUS_FILTER_OPTIONS.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -678,8 +712,8 @@ export function AdvancedFilters({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
-                  {AD_STATUS_OPTIONS.map((a) => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  {AD_STATUS_FILTER_OPTIONS.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
