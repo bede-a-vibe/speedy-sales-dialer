@@ -4,10 +4,10 @@
  * keys), so the dialer and GHL read the same way and can be synced one to one.
  *
  * Order matters: folders and the fields inside them are in GHL's order (by
- * position, most important first: Decision Maker, General Info, Marketing,
+ * position, most important first: Contact (decision maker), General Info, Marketing,
  * Additional Info, Qualification, Appointments, Dialer Activity, Attribution,
- * Lead Routing). GHL's built-in General Info and Additional Info can't be moved,
- * which is why Marketing sits between them. Change the order in both places.
+ * Lead Routing). GHL's built-in Contact, General Info and Additional Info can't
+ * be moved, which is why Marketing sits between the last two. Change the order in both places.
  * public.ghl_field_map holds the same mapping for server-side sync.
  *
  * The panel carries both sides: every GHL field, and every field the dialer
@@ -67,8 +67,10 @@ export interface GhlFieldFolder {
 
 export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
   {
-    id: "decision_maker",
-    label: "Decision Maker",
+    // GHL's built-in Contact folder (VC2HuWOusiTjsQMerOjX). GHL also keeps name,
+    // phone and email there; the dialer shows those on the contact card instead.
+    id: "contact",
+    label: "Contact",
     fields: [
       { key: "contact.decision_maker_name", ghlId: "wJZYqVWVftkCpRKpsh1E", label: "Decision Maker Name", supabaseColumn: "dm_name" },
       { key: "contact.decision_maker_role", ghlId: "0w48jKmhINg67x1XHl9w", label: "Decision Maker Role", supabaseColumn: "dm_role", placeholder: "Owner, Director, Office Manager…", suggestions: ["Owner", "Director", "General Manager", "Marketing Manager", "Operations Manager", "Office Manager", "Partner"] },

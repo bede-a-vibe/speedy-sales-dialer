@@ -988,7 +988,7 @@ export default function ContactDetailPage() {
                   contactId={contact.id}
                   ghlContactId={contact.ghl_contact_id}
                   contact={contact as unknown as Record<string, unknown>}
-                defaultFolder={contact.dm_name ? "qualification" : "decision_maker"}
+                defaultFolder={contact.dm_name ? "qualification" : "contact"}
                   marketing={
                     <MarketingCapture
                       contactId={contact.id}

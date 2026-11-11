@@ -3215,7 +3215,7 @@ export default function DialerPage() {
                   }
                   contact={session.currentContact as unknown as Record<string, unknown>}
                   // Open on Decision Maker until one is captured: it is the first thing to get past the gatekeeper.
-                  defaultFolder={(session.currentContact as Record<string, unknown>).dm_name ? "qualification" : "decision_maker"}
+                  defaultFolder={(session.currentContact as Record<string, unknown>).dm_name ? "qualification" : "contact"}
                   marketing={
                     <MarketingCapture
                       contactId={session.currentContact.id}

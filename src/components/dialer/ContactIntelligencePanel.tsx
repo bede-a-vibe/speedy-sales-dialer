@@ -24,7 +24,7 @@ interface ContactIntelligencePanelProps {
    * it already captures (MARKETING_TAB_FIELD_KEYS: same columns and GHL fields).
    */
   marketing?: ReactNode;
-  /** Folder tab to open on (e.g. "decision_maker" before a DM is known). Defaults to Qualification. */
+  /** Folder tab to open on (e.g. "contact" before a DM is known). Defaults to Qualification. */
   defaultFolder?: string;
 }
 
