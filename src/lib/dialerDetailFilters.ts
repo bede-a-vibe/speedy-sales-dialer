@@ -180,8 +180,8 @@ const EXTRA_FIELDS: readonly { field: string; label: string; group: DetailFieldG
   { field: "business_size", label: "Team size band", group: "General Info" },
   { field: "has_existing_agency", label: "Has Existing Agency", group: MARKETING_GROUP },
   { field: "existing_agency_services", label: "Existing Agency Services", group: MARKETING_GROUP },
-  { field: "call_intel_source", label: "Call Intel Source", group: "03 Dialer Activity" },
-  { field: "team_size_source", label: "Team Size Source", group: "03 Dialer Activity" },
+  { field: "call_intel_source", label: "Call Intel Source", group: "Dialer Activity" },
+  { field: "team_size_source", label: "Team Size Source", group: "Dialer Activity" },
 ];
 
 /**

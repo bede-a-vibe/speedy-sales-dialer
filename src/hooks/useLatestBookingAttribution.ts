@@ -11,7 +11,7 @@ interface LatestBookingRow {
 
 /**
  * Setter, closer, source and set-by role of a lead's latest booked meeting:
- * the 05 Appointments attribution fields, worked out from pipeline_items so
+ * the Appointments attribution fields, worked out from pipeline_items so
  * they always match the meeting itself.
  */
 export function useLatestBookingAttribution(contactId: string | null): Partial<Record<DerivedBookingField, string>> {

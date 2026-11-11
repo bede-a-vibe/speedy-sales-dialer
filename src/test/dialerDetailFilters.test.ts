@@ -249,10 +249,10 @@ describe("one set of captured details: the filters mirror the Intelligence tab",
     }
   });
 
-  it("orders groups like the Intelligence tabs, the GHL Marketing folder after Additional Info", () => {
+  it("orders groups like the Intelligence tabs and GHL: most important first, Lead Routing last", () => {
     expect(DETAIL_GROUPS).toEqual([
-      "01 Lead Routing", "02 Decision Maker", "03 Dialer Activity", "04 Qualification", "05 Appointments",
-      "06 Attribution", "General Info", "Additional Info", "Marketing",
+      "Decision Maker", "General Info", "Marketing", "Additional Info", "Qualification", "Appointments",
+      "Dialer Activity", "Attribution", "Lead Routing",
     ]);
     expect(DETAIL_GROUPS).toEqual(GHL_FIELD_FOLDERS.map((f) => f.label));
     expect(DETAIL_FIELDS.every((f) => DETAIL_GROUPS.includes(f.group))).toBe(true);

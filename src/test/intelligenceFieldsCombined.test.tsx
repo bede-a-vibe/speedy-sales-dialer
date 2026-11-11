@@ -77,18 +77,18 @@ describe("Intelligence tab carries the dialer's fields and GHL's", () => {
         />
       </QueryClientProvider>,
     );
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /05 Appointments/ }), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Appointments/ }), { button: 0 });
     expect(await screen.findByText("Ben")).toBeTruthy();
     expect(screen.getByText("Bede")).toBeTruthy();
     expect(screen.getByText("Dialer call")).toBeTruthy();
     expect(screen.getByText("Setter")).toBeTruthy();
     expect(screen.getByText("12 Nov 2026")).toBeTruthy();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /03 Dialer Activity/ }), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Dialer Activity/ }), { button: 0 });
     const disposition = await screen.findByText("Follow Up");
     expect(disposition.closest("div")?.querySelector("input, textarea, button")).toBeNull();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /01 Lead Routing/ }), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Lead Routing/ }), { button: 0 });
     expect(await screen.findByText("Booked")).toBeTruthy();
   });
 
@@ -106,8 +106,10 @@ describe("Intelligence tab carries the dialer's fields and GHL's", () => {
     );
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent ?? "");
     expect(tabs.filter((t) => t.startsWith("Marketing"))).toHaveLength(1);
-    const additional = tabs.findIndex((t) => t.startsWith("Additional Info"));
-    expect(tabs[additional + 1]).toMatch(/^Marketing/);
+    // GHL's order: Marketing sits between the built-in General Info and Additional Info.
+    const general = tabs.findIndex((t) => t.startsWith("General Info"));
+    expect(tabs[general + 1]).toMatch(/^Marketing/);
+    expect(tabs[general + 2]).toMatch(/^Additional Info/);
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: /^Marketing/ }), { button: 0 });
     expect(await screen.findByText("Marketing capture")).toBeTruthy();
