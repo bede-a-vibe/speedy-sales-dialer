@@ -19,6 +19,13 @@ export type ReportBookingItem = Pick<
   is_first_booking?: boolean;
   /** How the slot resolved, from public.resolve_meeting_bucket() in the database. */
   resolved_bucket?: string | null;
+  /**
+   * A slot that was missed because the meeting moved (one row of
+   * public.meeting_reschedules, kind 'move'). It counts as "rescheduled" in the
+   * show-up buckets on the day it was missed, and nowhere else: it is not a
+   * booking, not an appointment scheduled and not a sitting.
+   */
+  is_reschedule_slot?: boolean;
 };
 
 export type ReportContact = Pick<
@@ -368,7 +375,10 @@ function firstCollection(item: ReportBookingItem) {
   return (item.deal_value ?? 0) + (item.monthly_recurring_value ?? 0);
 }
 
-function buildAppointmentPerformance(items: ReportBookingItem[]) {
+function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
+  // Missed slots of moved meetings only feed the four show-up buckets.
+  const slots = allItems.filter((item) => item.is_reschedule_slot);
+  const items = allItems.filter((item) => !item.is_reschedule_slot);
   const appointmentOutcomeCounts = createAppointmentOutcomeCounts();
 
   let cashCollected = 0;
@@ -402,7 +412,7 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   const showed = countBucket(items, "showed");
   const noShows = countBucket(items, "noshow");
   const cancelled = countBucket(items, "cancelled");
-  const rescheduled = countBucket(items, "rescheduled");
+  const rescheduled = countBucket(items, "rescheduled") + slots.length;
 
   // ---- Qualification. Only bookings with a verdict count on either side;
   // an unjudged booking is unknown, not unqualified. ----
@@ -443,11 +453,14 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
   // ---- Setting-side show-up is measured on FIRST meetings only. A follow-up (the lead
   // already sat on an earlier day) is the closer's slot, not the setter's, and is reported as
   // Second-Meeting Show-Up Rate. KEO 19 Oct 2026 was a decision call, not a setting call. ----
-  const firstMeetingResolved = resolved.filter((item) => !item.is_follow_up);
-  const followUpResolved = resolved.filter((item) => !!item.is_follow_up);
-  const rescheduledResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) > 0);
-  const firstTimeResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) === 0);
-  const multiRescheduledResolved = firstMeetingResolved.filter((item) => (item.reschedule_count ?? 0) >= 2);
+  // Every missed slot of a moved meeting is a resolved slot on its own day (Bede, 11 Nov 2026):
+  // a reschedule stays in the show-up denominator even after the new meeting happens.
+  const firstMeetingSittings = resolved.filter((item) => !item.is_follow_up);
+  const firstMeetingResolved = [...firstMeetingSittings, ...slots.filter((item) => !item.is_follow_up)];
+  const followUpResolved = [...resolved.filter((item) => !!item.is_follow_up), ...slots.filter((item) => !!item.is_follow_up)];
+  const rescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) > 0);
+  const firstTimeResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 0);
+  const multiRescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) >= 2);
   const uniqueLeadsShowed = new Set(items.filter(isShowed).map((item) => item.contact_id)).size;
   const uniqueLeadsSat = new Set(resolved.map((item) => item.contact_id)).size;
 
@@ -521,11 +534,12 @@ function buildAppointmentPerformance(items: ReportBookingItem[]) {
 
 export function getReportMetrics({
   callLogs,
-  bookedItems,
+  bookedItems: allBookedItems,
   from,
   to,
   repUserId,
   contacts,
+  rescheduleSlots: explicitSlots = [],
 }: {
   callLogs: ReportCallLog[];
   bookedItems: ReportBookingItem[];
@@ -533,7 +547,12 @@ export function getReportMetrics({
   to?: string;
   repUserId?: string;
   contacts?: ReportContact[];
+  /** Missed slots of moved meetings (useRescheduleSlotsByDateRange). Show-up buckets only. */
+  rescheduleSlots?: ReportBookingItem[];
 }): ReportMetrics {
+  // Slots may arrive separately or mixed into bookedItems (breakdowns filter one combined list).
+  const bookedItems = allBookedItems.filter((item) => !item.is_reschedule_slot);
+  const rescheduleSlots = [...explicitSlots, ...allBookedItems.filter((item) => item.is_reschedule_slot)];
   const filteredCallLogs = (repUserId ? callLogs.filter((log) => log.user_id === repUserId) : callLogs)
     .filter((log) => isInDateRange(log.created_at, from, to));
   const bookingsForCreatedView = repUserId
@@ -570,8 +589,17 @@ export function getReportMetrics({
   // A second meeting is not a booking made: the lead was already set and sat.
   // Revenue below still reads bookingsMadeInRange, so deals closed at one count.
   const firstMeetingBookings = bookingsMadeInRange.filter((item) => !item.is_follow_up);
-  const setterAppointmentsInRange = setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
-  const closerAppointmentsInRange = closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to));
+  const slotsInRange = rescheduleSlots
+    .filter((slot) => isInDateRange(slot.scheduled_for, from, to))
+    .map((slot) => ({ ...slot, is_reschedule_slot: true }));
+  const setterAppointmentsInRange = [
+    ...setterAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to)),
+    ...slotsInRange.filter((slot) => !repUserId || slot.created_by === repUserId),
+  ];
+  const closerAppointmentsInRange = [
+    ...closerAppointments.filter((item) => isInDateRange(item.scheduled_for, from, to)),
+    ...slotsInRange.filter((slot) => !repUserId || slot.assigned_user_id === repUserId),
+  ];
 
   const totalTalkTimeSeconds = filteredCallLogs.reduce((total, log) => total + getTalkTimeSeconds(log), 0);
   const pickUps = filteredCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
@@ -616,12 +644,17 @@ export function getReportMetrics({
       // "Bookings" column reflects bookings the rep MADE in the date range
       // (created_at), not appointments scheduled to happen in the range.
       // This matches the headline "Bookings Made" KPI and reflects setter activity.
-      const setterItems = bookedItems.filter(
-        (item) => item.created_by === repId && isInDateRange(item.created_at, from, to),
-      );
-      const closerItems = bookedItems.filter(
-        (item) => item.assigned_user_id === repId && isInDateRange(item.scheduled_for, from, to),
-      );
+      const setterItems = [
+        ...bookedItems.filter((item) => item.created_by === repId && isInDateRange(item.created_at, from, to)),
+        // Missed slots of the bookings this rep made in the range.
+        ...rescheduleSlots
+          .filter((slot) => slot.created_by === repId && isInDateRange(slot.created_at, from, to))
+          .map((slot) => ({ ...slot, is_reschedule_slot: true })),
+      ];
+      const closerItems = [
+        ...bookedItems.filter((item) => item.assigned_user_id === repId && isInDateRange(item.scheduled_for, from, to)),
+        ...slotsInRange.filter((slot) => slot.assigned_user_id === repId),
+      ];
       const repCallLogs = callLogs.filter((log) => log.user_id === repId && isInDateRange(log.created_at, from, to));
       const repPickUps = repCallLogs.filter((log) => ANSWERED_OUTCOMES.has(log.outcome)).length;
       const repTotalTalkTimeSeconds = repCallLogs.reduce((total, log) => total + getTalkTimeSeconds(log), 0);

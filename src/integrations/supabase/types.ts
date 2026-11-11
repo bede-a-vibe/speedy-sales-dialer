@@ -4160,6 +4160,59 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_reschedules: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          from_scheduled_for: string
+          id: string
+          kind: string
+          moved_at: string
+          moved_by: string | null
+          notes: string | null
+          pipeline_item_id: string
+          reason: string | null
+          source: string
+          to_scheduled_for: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          from_scheduled_for: string
+          id?: string
+          kind?: string
+          moved_at?: string
+          moved_by?: string | null
+          notes?: string | null
+          pipeline_item_id: string
+          reason?: string | null
+          source?: string
+          to_scheduled_for?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          from_scheduled_for?: string
+          id?: string
+          kind?: string
+          moved_at?: string
+          moved_by?: string | null
+          notes?: string | null
+          pipeline_item_id?: string
+          reason?: string | null
+          source?: string
+          to_scheduled_for?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_reschedules_pipeline_item_id_fkey"
+            columns: ["pipeline_item_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_audit: {
         Row: {
           changed_at: string

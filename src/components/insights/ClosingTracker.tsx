@@ -17,6 +17,8 @@ interface Props {
   dateFrom: string;
   dateTo: string;
   bookings: BookedAppointmentReportItem[];
+  /** Missed slots of moved meetings: counted as rescheduled on the day they were missed, never as bookings. */
+  rescheduleSlots?: BookedAppointmentReportItem[];
   activeRepId?: string;
   selectedRepLabel?: string;
 }
@@ -138,9 +140,17 @@ function emptyStats(): Stats {
 function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<string, number>): Stats {
   const s = emptyStats();
   for (const d of days) s.availableSlots += availableSlotsForDay(d);
-  const due = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
-  s.booked = items.filter((i) => i.created_at && days.has(dayKey(i.created_at))).length;
+  const dueAll = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
+  const due = dueAll.filter((i) => !i.is_reschedule_slot);
+  s.booked = items.filter((i) => !i.is_reschedule_slot && i.created_at && days.has(dayKey(i.created_at))).length;
   s.due = due.length;
+  // A missed slot of a moved meeting is a resolved slot that did not sit.
+  for (const slot of dueAll.filter((i) => i.is_reschedule_slot)) {
+    s.resolved += 1;
+    s.rescheduled += 1;
+    if (slot.is_follow_up) s.followResolved += 1;
+    else { s.firstResolved += 1; s.firstRescheduled += 1; }
+  }
 
   const slotKeys = new Map<string, number>();
   for (const i of due) {
@@ -353,12 +363,12 @@ function useMeetingMinutes(itemIds: string[]) {
   });
 }
 
-export function ClosingTracker({ dateFrom, dateTo, bookings, activeRepId, selectedRepLabel }: Props) {
-  const items = useMemo(
-    () => (activeRepId ? bookings.filter((b) => b.assigned_user_id === activeRepId) : bookings),
-    [bookings, activeRepId],
-  );
-  const itemIds = useMemo(() => items.map((i) => i.id), [items]);
+export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [], activeRepId, selectedRepLabel }: Props) {
+  const items = useMemo(() => {
+    const all = [...bookings, ...rescheduleSlots];
+    return activeRepId ? all.filter((b) => b.assigned_user_id === activeRepId) : all;
+  }, [bookings, rescheduleSlots, activeRepId]);
+  const itemIds = useMemo(() => items.filter((i) => !i.is_reschedule_slot).map((i) => i.id), [items]);
   const { data: minutesByItem = new Map<string, number>() } = useMeetingMinutes(itemIds);
   const columns = useMemo(() => buildColumns(dateFrom, dateTo), [dateFrom, dateTo]);
   const statsByColumn = useMemo(

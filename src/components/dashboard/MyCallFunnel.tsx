@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { format, startOfMonth, startOfWeek } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
-import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange } from "@/hooks/usePipelineItems";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel } from "@/lib/funnelMetrics";
 import { HeadlineKpiStrip } from "@/components/reports/HeadlineKpiStrip";
@@ -22,10 +22,11 @@ export function MyCallFunnel() {
   );
   const { data: callLogs = [], isLoading: callsLoading, isError: callsError } = useCallLogsByDateRange(from, to);
   const { data: bookedItems = [], isLoading: bookingsLoading, isError: bookingsError } = useBookedAppointmentsByDateRange(from, to);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(from, to);
 
   const metrics = useMemo(() => getReportMetrics({
-    callLogs, bookedItems, from, to, repUserId: user?.id,
-  }), [callLogs, bookedItems, from, to, user?.id]);
+    callLogs, bookedItems, rescheduleSlots, from, to, repUserId: user?.id,
+  }), [callLogs, bookedItems, rescheduleSlots, from, to, user?.id]);
   const funnel = useMemo(() => computeFunnel(
     callLogs.filter((log) => {
       const day = format(new Date(log.created_at), "yyyy-MM-dd");

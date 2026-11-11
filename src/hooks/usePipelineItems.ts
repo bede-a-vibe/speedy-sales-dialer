@@ -127,6 +127,8 @@ export interface BookedAppointmentReportItem {
    * for the same meetings.
    */
   resolved_bucket?: string | null;
+  /** A missed slot of a moved meeting (meeting_reschedules). Show-up buckets only; never a booking. */
+  is_reschedule_slot?: boolean;
   contacts?: {
     industry: string | null;
     state: string | null;
@@ -448,6 +450,93 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const mergedAll = mergeGhlOnlyMeetings([...items, ...verdictCarriers], ghlRows, bookers, contactsById);
       // Drop the verdict carriers again; they were only there to seed the verdict map.
       return withFollowUps(mergedAll.filter((m) => m.id !== ""));
+    },
+  });
+}
+
+/**
+ * Missed slots of moved meetings in a date range (public.meeting_reschedules,
+ * kind 'move'), shaped like booked items so getReportMetrics can count each one
+ * as "rescheduled" on the day it was missed. Entry errors (a dialer date typed
+ * differently from the GHL booking made on the same call) are logged but not
+ * counted. Pass the result to getReportMetrics({ rescheduleSlots }).
+ */
+export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ["reschedule-slots-range", from, to],
+    queryFn: async (): Promise<BookedAppointmentReportItem[]> => {
+      let query = supabase
+        .from("meeting_reschedules")
+        .select(
+          "id, from_scheduled_for, reason, kind, pipeline_items!inner(contact_id, created_at, created_by, assigned_user_id, pipeline_type, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count))",
+        )
+        .eq("kind", "move");
+      if (from && to) {
+        const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+        const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+        query = query.gte("from_scheduled_for", fromIso).lte("from_scheduled_for", toIso);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const toLocalDate = (iso: string) => {
+        const d = new Date(iso);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      type SlotRow = {
+        id: string;
+        from_scheduled_for: string;
+        reason: string | null;
+        pipeline_items: {
+          contact_id: string;
+          created_at: string;
+          created_by: string;
+          assigned_user_id: string;
+          pipeline_type: string;
+          contacts: BookedAppointmentReportItem["contacts"];
+        } | null;
+      };
+      const slots: BookedAppointmentReportItem[] = ((data ?? []) as unknown as SlotRow[])
+        .filter((r) => !!r.pipeline_items && r.pipeline_items.pipeline_type === "booked")
+        .filter((r) => {
+          const day = toLocalDate(r.from_scheduled_for);
+          return (!from || day >= from) && (!to || day <= to);
+        })
+        .map((r) => ({
+          id: `reschedule:${r.id}`,
+          contact_id: r.pipeline_items!.contact_id,
+          created_at: r.pipeline_items!.created_at,
+          created_by: r.pipeline_items!.created_by,
+          assigned_user_id: r.pipeline_items!.assigned_user_id,
+          scheduled_for: r.from_scheduled_for,
+          appointment_outcome: "rescheduled",
+          outcome_recorded_at: null,
+          status: "completed",
+          deal_value: null,
+          monthly_recurring_value: null,
+          reschedule_count: 0,
+          outcome_reason: r.reason,
+          is_qualified: null,
+          stream: "dialer",
+          resolved_bucket: "rescheduled",
+          is_reschedule_slot: true,
+          contacts: r.pipeline_items!.contacts,
+        }) as BookedAppointmentReportItem);
+      if (slots.length === 0) return slots;
+
+      // A slot with a lead who had already sat is a second-meeting slot.
+      const ids = [...new Set(slots.map((s) => s.contact_id))];
+      const history: BookingHistoryRow[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data: hist, error: histError } = await supabase
+          .from("pipeline_items")
+          .select("id, contact_id, created_at, scheduled_for, appointment_outcome, resolved_bucket")
+          .eq("pipeline_type", "booked")
+          .in("contact_id", ids.slice(i, i + 200));
+        if (histError) throw histError;
+        history.push(...((hist ?? []) as BookingHistoryRow[]));
+      }
+      return markFollowUpMeetings(slots, history);
     },
   });
 }
