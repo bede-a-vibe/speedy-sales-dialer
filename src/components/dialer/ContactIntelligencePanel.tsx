@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS, type GhlFieldDef, type GhlFieldFolder } from "@/lib/ghlFieldFolders";
+import { GHL_FIELD_FOLDERS, MARKETING_FOLDER_ID, MARKETING_TAB_FIELD_KEYS, type GhlFieldDef, type GhlFieldFolder } from "@/lib/ghlFieldFolders";
 import { useGHLFieldSchema, type GhlCustomFieldSchema } from "@/hooks/useGHLFieldSchema";
 import { useGHLContactFields, type FieldSaveStatus } from "@/hooks/useGHLContactFields";
 import { useLatestBookingAttribution } from "@/hooks/useLatestBookingAttribution";
@@ -19,22 +19,14 @@ interface ContactIntelligencePanelProps {
   /** Snapshot of the supabase contact row for hydration. */
   contact: Record<string, unknown>;
   /**
-   * The Marketing capture (ads, SEO, existing agency). When given, it shows as a
-   * "Marketing" tab after Digital and replaces the Agency folder, whose three
-   * fields it already captures (same columns and GHL keys).
+   * The Marketing capture (ads, SEO, existing agency). When given, it sits at the
+   * top of the Marketing folder's tab, and that tab's field grid skips the fields
+   * it already captures (MARKETING_TAB_FIELD_KEYS: same columns and GHL fields).
    */
   marketing?: ReactNode;
   /** Folder tab to open on (e.g. "decision_maker" before a DM is known). Defaults to Qualification. */
   defaultFolder?: string;
 }
-
-const MARKETING_TAB = "marketing";
-/** Folders the Marketing tab replaces. */
-const REPLACED_BY_MARKETING = new Set<string>();
-/** Additional Info fields the Marketing tab already captures, with yes/no/unsure buttons. */
-const FIELDS_IN_MARKETING = MARKETING_TAB_FIELD_KEYS;
-/** The Marketing tab goes right after this folder. */
-const MARKETING_AFTER = "additional";
 
 /**
  * Build the initial field values map by reading any mirrored Supabase columns
@@ -291,15 +283,15 @@ function FolderTabContent({
  */
 export function ContactIntelligencePanel({ contactId, ghlContactId, contact, marketing, defaultFolder }: ContactIntelligencePanelProps) {
   const hasMarketing = Boolean(marketing);
-  // With Marketing shown, drop what it already captures: the Agency folder, and
-  // the ad flags and agency name in Digital. They stay in GHL_FIELD_FOLDERS for GHL syncing.
+  // With the Marketing capture shown, the Marketing folder's grid drops what the
+  // capture already shows, so no field appears twice. They stay in
+  // GHL_FIELD_FOLDERS for GHL syncing and the fill counts.
   const folders = useMemo(
     () =>
       hasMarketing
-        ? GHL_FIELD_FOLDERS.filter((f) => !REPLACED_BY_MARKETING.has(f.id)).map((f) => ({
-            ...f,
-            fields: f.fields.filter((d) => !FIELDS_IN_MARKETING.has(d.key)),
-          }))
+        ? GHL_FIELD_FOLDERS.map((f) =>
+            f.id === MARKETING_FOLDER_ID ? { ...f, fields: f.fields.filter((d) => !MARKETING_TAB_FIELD_KEYS.has(d.key)) } : f,
+          )
         : GHL_FIELD_FOLDERS,
     [hasMarketing],
   );
@@ -324,15 +316,16 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
     return next;
   }, [fieldValues, attribution]);
 
+  // Counted over the whole folder, so the Marketing tab counts its capture's fields too.
   const fillCounts = useMemo(() => {
     const counts: Record<string, { filled: number; total: number }> = {};
-    for (const folder of folders) {
+    for (const folder of GHL_FIELD_FOLDERS) {
       const total = folder.fields.length;
       const filled = folder.fields.filter((f) => isFilled(values[f.key])).length;
       counts[folder.id] = { filled, total };
     }
     return counts;
-  }, [values, folders]);
+  }, [values]);
 
   const totalFilled = Object.values(fillCounts).reduce((acc, c) => acc + c.filled, 0);
   const totalFields = Object.values(fillCounts).reduce((acc, c) => acc + c.total, 0);
@@ -341,12 +334,6 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
   // Open on Qualification: it is what a rep fills in during the call.
   const defaultTab =
     folders.find((f) => f.id === defaultFolder)?.id ?? folders.find((f) => f.id === "qualification")?.id ?? folders[0]?.id ?? "qualification";
-  const marketingTrigger = marketing ? (
-    <TabsTrigger key={MARKETING_TAB} value={MARKETING_TAB} className="flex h-7 items-center gap-1.5 px-2 text-[11px]">
-      <Megaphone className="h-3 w-3" />
-      <span>Marketing</span>
-    </TabsTrigger>
-  ) : null;
 
   return (
     <div className="space-y-3">
@@ -373,12 +360,13 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/60 p-1">
           {folders.map((folder) => {
             const count = fillCounts[folder.id];
-            const trigger = (
+            return (
               <TabsTrigger
                 key={folder.id}
                 value={folder.id}
                 className="flex h-7 items-center gap-1.5 px-2 text-[11px]"
               >
+                {folder.id === MARKETING_FOLDER_ID ? <Megaphone className="h-3 w-3" /> : null}
                 <span>{folder.shortLabel ?? folder.label}</span>
                 <span
                   className={cn(
@@ -391,19 +379,12 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
                 </span>
               </TabsTrigger>
             );
-            return folder.id === MARKETING_AFTER && marketingTrigger ? [trigger, marketingTrigger] : trigger;
           })}
-          {marketingTrigger && !folders.some((f) => f.id === MARKETING_AFTER) ? marketingTrigger : null}
         </TabsList>
 
-        {marketing ? (
-          <TabsContent value={MARKETING_TAB} className="mt-3">
-            {marketing}
-          </TabsContent>
-        ) : null}
-
         {folders.map((folder) => (
-          <TabsContent key={folder.id} value={folder.id} className="mt-3">
+          <TabsContent key={folder.id} value={folder.id} className="mt-3 space-y-3">
+            {folder.id === MARKETING_FOLDER_ID && marketing ? marketing : null}
             {folder.description ? (
               <p className="mb-3 text-[11px] text-muted-foreground">{folder.description}</p>
             ) : null}

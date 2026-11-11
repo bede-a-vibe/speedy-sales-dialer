@@ -27,7 +27,7 @@ import {
   type DetailFilter,
 } from "@/lib/dialerDetailFilters";
 import { dialerFilterParams } from "@/hooks/useContacts";
-import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS } from "@/lib/ghlFieldFolders";
+import { GHL_FIELD_FOLDERS } from "@/lib/ghlFieldFolders";
 
 /** The newest migration that defines dialer_detail_fields() is the server whitelist. */
 function serverWhitelist(): Map<string, string> {
@@ -244,17 +244,29 @@ describe("one set of captured details: the filters mirror the Intelligence tab",
         if (!field) continue;
         const filter = byField.get(field);
         expect(filter, `${def.label} (${field})`).toBeTruthy();
-        expect(filter!.group).toBe(MARKETING_TAB_FIELD_KEYS.has(def.key) ? MARKETING_GROUP : folder.label);
+        expect(filter!.group).toBe(folder.label);
       }
     }
   });
 
-  it("orders groups like the Intelligence tabs, Marketing after Additional Info", () => {
+  it("orders groups like the Intelligence tabs, the GHL Marketing folder after Additional Info", () => {
     expect(DETAIL_GROUPS).toEqual([
       "01 Lead Routing", "02 Decision Maker", "03 Dialer Activity", "04 Qualification", "05 Appointments",
       "06 Attribution", "General Info", "Additional Info", "Marketing",
     ]);
+    expect(DETAIL_GROUPS).toEqual(GHL_FIELD_FOLDERS.map((f) => f.label));
     expect(DETAIL_FIELDS.every((f) => DETAIL_GROUPS.includes(f.group))).toBe(true);
+  });
+
+  it("files the marketing fields under Marketing and keeps their column names", () => {
+    const marketing = DETAIL_FIELDS.filter((f) => f.group === MARKETING_GROUP).map((f) => f.field);
+    expect(marketing).toEqual([
+      "has_google_ads", "has_facebook_ads", "has_seo", "seo_visibility", "existing_agency_name", "agency_satisfaction",
+      "existing_agency_notes", "current_monthly_ad_spend", "current_marketing_channels", "lead_source_dependency",
+      "social_media_presence", "facebook_ads_manager_id", "marketing_pain_points", "has_existing_agency", "existing_agency_services",
+    ]);
+    const additional = DETAIL_FIELDS.filter((f) => f.group === "Additional Info").map((f) => f.field);
+    expect(additional).toEqual(["gmb_link", "google_rating", "google_review_count", "nurture_last_email"]);
   });
 
   it("filters the booked date by a from/to range and drops bad dates", () => {
