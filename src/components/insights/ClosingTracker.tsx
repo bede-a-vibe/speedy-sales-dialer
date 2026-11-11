@@ -105,6 +105,16 @@ interface Stats {
   firstNoShow: number;
   firstCancelled: number;
   firstRescheduled: number;
+  /** First meetings that had been moved before, resolved on the day they finally happened. */
+  movedResolved: number;
+  movedShowed: number;
+  neverMovedResolved: number;
+  neverMovedShowed: number;
+  /** Missed first-meeting slots by who moved them. */
+  movedByProspect: number;
+  movedByUs: number;
+  /** Cancelled first meetings by cx_* reason. */
+  cxReasons: Record<string, number>;
   followResolved: number;
   doubleBooked: number;
   meetingMinutes: number;
@@ -131,7 +141,9 @@ interface Stats {
 function emptyStats(): Stats {
   return {
     availableSlots: 0, booked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
-    firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0, followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
+    firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
+    movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, cxReasons: {},
+    followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
     qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
@@ -148,8 +160,11 @@ function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<strin
   for (const slot of dueAll.filter((i) => i.is_reschedule_slot)) {
     s.resolved += 1;
     s.rescheduled += 1;
-    if (slot.is_follow_up) s.followResolved += 1;
-    else { s.firstResolved += 1; s.firstRescheduled += 1; }
+    if (slot.is_follow_up) { s.followResolved += 1; continue; }
+    s.firstResolved += 1;
+    s.firstRescheduled += 1;
+    if (slot.outcome_reason === "rs_prospect") s.movedByProspect += 1;
+    else if (slot.outcome_reason === "rs_us" || slot.outcome_reason === "rs_clash") s.movedByUs += 1;
   }
 
   const slotKeys = new Map<string, number>();
@@ -163,7 +178,19 @@ function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<strin
     }
     if (bucket === "showed") { s.showed += 1; if (first) s.showedFirst += 1; else s.showedFollow += 1; }
     if (bucket === "noshow") { s.noShow += 1; if (first) s.firstNoShow += 1; }
-    if (bucket === "cancelled") { s.cancelled += 1; if (first) s.firstCancelled += 1; }
+    if (bucket === "cancelled") {
+      s.cancelled += 1;
+      if (first) {
+        s.firstCancelled += 1;
+        const r = i.outcome_reason && /^cx_/.test(i.outcome_reason) ? i.outcome_reason : "unrecorded";
+        s.cxReasons[r] = (s.cxReasons[r] ?? 0) + 1;
+      }
+    }
+    if (first && RESOLVED.has(bucket)) {
+      const moved = (i.reschedule_count ?? 0) > 0;
+      if (moved) { s.movedResolved += 1; if (bucket === "showed") s.movedShowed += 1; }
+      else { s.neverMovedResolved += 1; if (bucket === "showed") s.neverMovedShowed += 1; }
+    }
     if (bucket === "rescheduled") { s.rescheduled += 1; if (first) s.firstRescheduled += 1; }
     if (i.scheduled_for) {
       const k = `${i.assigned_user_id}-${i.scheduled_for}`;
@@ -218,6 +245,15 @@ interface SectionDef {
 
 const pct = (n: number, d: number) => (d > 0 ? (100 * n) / d : null);
 
+const CX_LABEL: Record<string, string> = {
+  cx_not_interested: "No longer interested",
+  cx_timing: "Timing",
+  cx_competitor: "Went with someone else",
+  cx_price: "Price",
+  cx_other: "Other / no reason given",
+  unrecorded: "Unrecorded",
+};
+
 const OBJ_LABEL: Record<string, string> = {
   price_budget: "Price / budget",
   think_partner: "Needs to think / partner",
@@ -262,7 +298,21 @@ function buildSections(): SectionDef[] {
         { label: "Second-meeting show rate", fmt: "pct", value: (s) => pct(s.showedFollow, s.followResolved) },
         { label: "No-show %", fmt: "pct", hint: "first meetings", value: (s) => pct(s.firstNoShow, s.firstResolved) },
         { label: "Cancel %", fmt: "pct", hint: "first meetings", value: (s) => pct(s.firstCancelled, s.firstResolved) },
-        { label: "Reschedule %", fmt: "pct", hint: "first meetings", value: (s) => pct(s.firstRescheduled, s.firstResolved) },
+        { label: "Reschedule %", fmt: "pct", hint: "first meetings: missed slots of moved meetings", value: (s) => pct(s.firstRescheduled, s.firstResolved) },
+      ],
+    },
+    {
+      title: "Reschedules and cancellations",
+      rows: [
+        { label: "Reschedules", fmt: "n", hint: "missed first-meeting slots, on the day each was missed", value: (s) => s.firstRescheduled, emphasis: true },
+        { label: "  Prospect asked", fmt: "n", value: (s) => s.movedByProspect },
+        { label: "  We moved it / double-booked", fmt: "n", value: (s) => s.movedByUs },
+        { label: "  No reason recorded", fmt: "n", value: (s) => s.firstRescheduled - s.movedByProspect - s.movedByUs },
+        { label: "Moved by us %", fmt: "pct", hint: "÷ reschedules", value: (s) => pct(s.movedByUs, s.firstRescheduled) },
+        { label: "Show rate after a reschedule", fmt: "pct", hint: "moved first meetings that sat ÷ moved first meetings resolved, on the day they finally happened", value: (s) => pct(s.movedShowed, s.movedResolved), emphasis: true },
+        { label: "Show rate, never moved", fmt: "pct", hint: "first meetings never rescheduled", value: (s) => pct(s.neverMovedShowed, s.neverMovedResolved) },
+        { label: "Cancellations", fmt: "n", hint: "first meetings", value: (s) => s.firstCancelled, emphasis: true },
+        ...Object.entries(CX_LABEL).map<RowDef>(([k, label]) => ({ label: `  ${label}`, fmt: "n", value: (s) => s.cxReasons[k] ?? 0 })),
       ],
     },
     {

@@ -10,6 +10,8 @@ export type ReportBookingItem = Pick<
   "id" | "contact_id" | "created_at" | "created_by" | "assigned_user_id" | "scheduled_for" | "status" | "appointment_outcome" | "deal_value" | "reschedule_count"
 > & {
   monthly_recurring_value?: number | null;
+  /** Reason code on the outcome (ns_*, cx_*, rs_*, no-close reasons); on a missed slot, why it moved. */
+  outcome_reason?: string | null;
   /** Setter's qualification verdict on the booking; null = not judged yet. */
   is_qualified?: boolean | null;
   stream?: "dialer" | "ghl";
@@ -110,6 +112,19 @@ export interface AppointmentPerformanceMetrics {
   multiRescheduleShowUpRate: number;
   /** Show-up rate by how many times the slot was moved before it sat. */
   showUpByRescheduleCount: Array<{ reschedules: "0" | "1" | "2" | "3+"; sat: number; showed: number; noShows: number; showUpRate: number }>;
+  /** Show-up rate on first meetings moved exactly once. */
+  movedOnceShowUpRate: number;
+  // ---- Who moved it: the reason on each missed first-meeting slot (rs_*). ----
+  /** Missed first-meeting slots the prospect asked to move (rs_prospect). */
+  reschedulesByProspect: number;
+  /** Missed first-meeting slots we moved: our request or a clash / double booking (rs_us, rs_clash). */
+  reschedulesByUs: number;
+  /** Missed first-meeting slots with no reason recorded. */
+  reschedulesNoReason: number;
+  /** reschedulesByUs / missed first-meeting slots */
+  movedByUsRate: number;
+  /** Cancelled first-meeting slots by reason code (cx_*); "unrecorded" when blank. */
+  cancellationReasons: Record<string, number>;
   // ---- Sittings vs leads. `showed` counts sittings; a lead that met twice counts twice. ----
   /** Distinct contacts with at least one show in the window. */
   uniqueLeadsShowed: number;
@@ -461,6 +476,16 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
   const rescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) > 0);
   const firstTimeResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 0);
   const multiRescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) >= 2);
+  const movedOnceResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 1);
+  const firstMeetingSlots = slots.filter((item) => !item.is_follow_up);
+  const reschedulesByProspect = firstMeetingSlots.filter((item) => item.outcome_reason === "rs_prospect").length;
+  const reschedulesByUs = firstMeetingSlots.filter((item) => item.outcome_reason === "rs_us" || item.outcome_reason === "rs_clash").length;
+  const cancellationReasons: Record<string, number> = {};
+  for (const item of firstMeetingSittings) {
+    if (bucketOf(item) !== "cancelled") continue;
+    const reason = item.outcome_reason && /^cx_/.test(item.outcome_reason) ? item.outcome_reason : "unrecorded";
+    cancellationReasons[reason] = (cancellationReasons[reason] ?? 0) + 1;
+  }
   const uniqueLeadsShowed = new Set(items.filter(isShowed).map((item) => item.contact_id)).size;
   const uniqueLeadsSat = new Set(resolved.map((item) => item.contact_id)).size;
 
@@ -505,6 +530,12 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
       firstTimeShowUpRate: showUpOf(firstTimeResolved),
       multiRescheduleShowUpRate: showUpOf(multiRescheduledResolved),
       showUpByRescheduleCount,
+      movedOnceShowUpRate: showUpOf(movedOnceResolved),
+      reschedulesByProspect,
+      reschedulesByUs,
+      reschedulesNoReason: firstMeetingSlots.length - reschedulesByProspect - reschedulesByUs,
+      movedByUsRate: toPercent(reschedulesByUs, firstMeetingSlots.length),
+      cancellationReasons,
       uniqueLeadsShowed,
       uniqueLeadsSat,
       firstMeetingSat: firstMeetingResolved.length,
