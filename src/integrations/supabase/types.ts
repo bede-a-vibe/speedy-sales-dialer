@@ -3900,6 +3900,7 @@ export type Database = {
           _call_recency?: string
           _claim_size?: number
           _contact_owner?: string
+          _detail_filters?: Json
           _dnc_reasons?: string[]
           _dq_reasons?: string[]
           _existing_agency_services?: string[]
@@ -3933,6 +3934,7 @@ export type Database = {
           _call_recency?: string
           _claim_size?: number
           _contact_owner?: string
+          _detail_filters?: Json
           _dnc_reasons?: string[]
           _dq_reasons?: string[]
           _existing_agency_services?: string[]
@@ -4038,6 +4040,7 @@ export type Database = {
           redials: number
         }[]
       }
+      get_contact_detail_coverage: { Args: never; Returns: Json }
       get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count: {
         Args: {
@@ -4045,6 +4048,7 @@ export type Database = {
           _buying_signal_strength: string
           _call_recency: string
           _contact_owner: string
+          _detail_filters?: Json
           _dnc_reasons: string[]
           _dq_reasons: string[]
           _existing_agency_services: string[]
@@ -4076,6 +4080,7 @@ export type Database = {
           _buying_signal_strength?: string
           _call_recency?: string
           _contact_owner?: string
+          _detail_filters?: Json
           _dnc_reasons?: string[]
           _dq_reasons?: string[]
           _existing_agency_services?: string[]
