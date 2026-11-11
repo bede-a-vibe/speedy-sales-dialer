@@ -9,7 +9,7 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
-import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
@@ -117,10 +117,14 @@ export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
     compareMode ? previousFrom : dateFrom,
     dateTo,
   );
-  const { data: bookedAppointments = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(
+  const { data: bookedOnly = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(
     compareMode ? previousFrom : dateFrom,
     dateTo,
   );
+  // Missed slots of moved meetings ride along in the same list; getReportMetrics
+  // counts them only in the show-up buckets, and the breakdowns filter them with the rest.
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(compareMode ? previousFrom : dateFrom, dateTo);
+  const bookedAppointments = useMemo(() => [...bookedOnly, ...rescheduleSlots], [bookedOnly, rescheduleSlots]);
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
 
   const repNameMap = useMemo(() => {

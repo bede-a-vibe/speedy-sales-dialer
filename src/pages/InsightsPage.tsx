@@ -8,7 +8,7 @@ import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
-import { useBookedAppointmentsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { computeFunnel, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { InsightsOverview } from "@/components/insights/InsightsOverview";
@@ -82,6 +82,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
 
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(dateFrom, dateTo);
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
 
   const { data: contactAttempts = [] } = useContactAttemptCounts();
@@ -98,12 +99,12 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   );
 
   const metrics = useMemo(
-    () => getReportMetrics({ callLogs, bookedItems: bookings, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),
-    [activeRepId, bookings, callLogs, contactAttempts, dateFrom, dateTo],
+    () => getReportMetrics({ callLogs, bookedItems: bookings, rescheduleSlots, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),
+    [activeRepId, bookings, callLogs, contactAttempts, dateFrom, dateTo, rescheduleSlots],
   );
   const teamMetrics = useMemo(
-    () => getReportMetrics({ callLogs, bookedItems: bookings, from: dateFrom, to: dateTo }),
-    [bookings, callLogs, dateFrom, dateTo],
+    () => getReportMetrics({ callLogs, bookedItems: bookings, rescheduleSlots, from: dateFrom, to: dateTo }),
+    [bookings, callLogs, dateFrom, dateTo, rescheduleSlots],
   );
   const funnel = useMemo(() => {
     const filtered = filterFunnelLogs(callLogs as never, { from: dateFrom, to: dateTo, repUserId: activeRepId });
@@ -185,6 +186,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               dateFrom={dateFrom}
               dateTo={dateTo}
               bookings={bookings}
+              rescheduleSlots={rescheduleSlots}
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
             />

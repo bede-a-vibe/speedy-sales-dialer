@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
-import { useBookedAppointmentsByDateRange, useSalesReps, type BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps, type BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import { ANSWERED_OUTCOMES, type ReportCallLog } from "@/lib/reportMetrics";
 import { SETTER_PLAN, commissionFor, tierFor } from "@/lib/compPlan";
 import { cn } from "@/lib/utils";
@@ -47,12 +47,16 @@ interface Inputs {
   daysPerMonth: number;
 }
 
-function observe(repId: string, logs: ReportCallLog[], bookings: BookedAppointmentReportItem[]): Observed {
+function observe(repId: string, logs: ReportCallLog[], bookings: BookedAppointmentReportItem[], slots: BookedAppointmentReportItem[] = []): Observed {
   const mine = logs.filter((l) => l.user_id === repId);
   const days = new Set(mine.map((l) => dayKey(l.created_at)));
   const set = bookings.filter((b) => b.created_by === repId);
   const first = set.filter((b) => !b.is_follow_up);
-  const resolvedFirst = first.filter((b) => ["showed", "noshow", "cancelled", "rescheduled"].includes(b.resolved_bucket ?? ""));
+  // A missed slot of a moved meeting is a resolved first-meeting slot too (it never sat).
+  const resolvedFirst = [
+    ...first.filter((b) => ["showed", "noshow", "cancelled", "rescheduled"].includes(b.resolved_bucket ?? "")),
+    ...slots.filter((s) => s.created_by === repId && !s.is_follow_up),
+  ];
   const closes = set.filter((b) => b.appointment_outcome === "showed_closed");
   return {
     dials: mine.length,
@@ -252,15 +256,16 @@ export function EarningsProjection() {
   const from = useMemo(() => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10), [days]);
   const { data: logs = [], isLoading: logsLoading } = useCallLogsByDateRange(from, to);
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(from, to);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(from, to);
   const { data: reps = [] } = useSalesReps();
 
   const cards = useMemo(
     () =>
       reps
-        .map((r) => ({ id: r.user_id, name: r.display_name || r.email?.split("@")[0] || "Rep", observed: observe(r.user_id, logs as ReportCallLog[], bookings) }))
+        .map((r) => ({ id: r.user_id, name: r.display_name || r.email?.split("@")[0] || "Rep", observed: observe(r.user_id, logs as ReportCallLog[], bookings, rescheduleSlots) }))
         .filter((c) => c.observed.dials > 0)
         .sort((a, b) => b.observed.dials - a.observed.dials),
-    [reps, logs, bookings],
+    [reps, logs, bookings, rescheduleSlots],
   );
 
   return (

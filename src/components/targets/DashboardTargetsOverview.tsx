@@ -3,7 +3,7 @@ import { endOfWeek, format, startOfWeek } from "date-fns";
 import { ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
-import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange } from "@/hooks/usePipelineItems";
 import { usePerformanceTargets } from "@/hooks/usePerformanceTargets";
 import { TargetSection } from "@/components/targets/TargetSection";
 import { buildTargetProgressItems, deriveAllTargets, getPerformanceActualMetrics } from "@/lib/performanceTargets";
@@ -23,22 +23,24 @@ export function DashboardTargetsOverview() {
   const { data: weeklyCallLogs = [], isLoading: weeklyCallsLoading } = useCallLogsByDateRange(weekStart, weekEnd);
   const { data: dailyBookedAppointments = [], isLoading: dailyBookingsLoading } = useBookedAppointmentsByDateRange(today, today);
   const { data: weeklyBookedAppointments = [], isLoading: weeklyBookingsLoading } = useBookedAppointmentsByDateRange(weekStart, weekEnd);
+  // One fetch for the week; getReportMetrics keeps only the slots inside each range.
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(weekStart, weekEnd);
 
   const myDailyMetrics = useMemo(
-    () => getReportMetrics({ callLogs: dailyCallLogs, bookedItems: dailyBookedAppointments, from: today, to: today, repUserId: user?.id }),
-    [dailyBookedAppointments, dailyCallLogs, today, user?.id],
+    () => getReportMetrics({ callLogs: dailyCallLogs, bookedItems: dailyBookedAppointments, rescheduleSlots, from: today, to: today, repUserId: user?.id }),
+    [dailyBookedAppointments, dailyCallLogs, rescheduleSlots, today, user?.id],
   );
   const myWeeklyMetrics = useMemo(
-    () => getReportMetrics({ callLogs: weeklyCallLogs, bookedItems: weeklyBookedAppointments, from: weekStart, to: weekEnd, repUserId: user?.id }),
-    [user?.id, weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
+    () => getReportMetrics({ callLogs: weeklyCallLogs, bookedItems: weeklyBookedAppointments, rescheduleSlots, from: weekStart, to: weekEnd, repUserId: user?.id }),
+    [rescheduleSlots, user?.id, weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
   );
   const teamDailyMetrics = useMemo(
-    () => getReportMetrics({ callLogs: dailyCallLogs, bookedItems: dailyBookedAppointments, from: today, to: today }),
-    [dailyBookedAppointments, dailyCallLogs, today],
+    () => getReportMetrics({ callLogs: dailyCallLogs, bookedItems: dailyBookedAppointments, rescheduleSlots, from: today, to: today }),
+    [dailyBookedAppointments, dailyCallLogs, rescheduleSlots, today],
   );
   const teamWeeklyMetrics = useMemo(
-    () => getReportMetrics({ callLogs: weeklyCallLogs, bookedItems: weeklyBookedAppointments, from: weekStart, to: weekEnd }),
-    [weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
+    () => getReportMetrics({ callLogs: weeklyCallLogs, bookedItems: weeklyBookedAppointments, rescheduleSlots, from: weekStart, to: weekEnd }),
+    [rescheduleSlots, weekEnd, weekStart, weeklyBookedAppointments, weeklyCallLogs],
   );
 
   const derived = useMemo(() => deriveAllTargets(targets), [targets]);

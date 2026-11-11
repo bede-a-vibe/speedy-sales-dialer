@@ -5,7 +5,7 @@ import { BarChart3, CalendarCheck2, Clock3, PhoneCall, Target } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
-import { useBookedAppointmentsByDateRange } from "@/hooks/usePipelineItems";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange } from "@/hooks/usePipelineItems";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { PerformancePanelSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -35,17 +35,19 @@ export function DashboardPerformancePanel() {
   const today = format(new Date(), "yyyy-MM-dd");
   const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(today, today);
   const { data: bookedItems = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(today, today);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(today, today);
 
   const metrics = useMemo(
     () =>
       getReportMetrics({
         callLogs,
         bookedItems,
+        rescheduleSlots,
         from: today,
         to: today,
         repUserId: user?.id,
       }),
-    [bookedItems, callLogs, today, user?.id],
+    [bookedItems, callLogs, rescheduleSlots, today, user?.id],
   );
 
   const setter = metrics.appointmentPerformance.setter;
