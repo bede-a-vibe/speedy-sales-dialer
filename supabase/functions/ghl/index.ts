@@ -840,6 +840,98 @@ const CUTOVER_DND_SETTINGS = {
 } as const;
 
 /**
+ * Drain public.ghl_name_push_queue: give each queued GHL contact the decision
+ * maker's name as its own First/Last name (the dialer's contact_person).
+ *
+ * The queue is filled by a contacts trigger (migration
+ * 20261111160000_contact_name_from_dm.sql) whenever contact_person is set from
+ * dm_name. A GHL name is only overwritten when it is blank, the business name
+ * (how dialer-created contacts start out) or already this name. A real person
+ * who differs is left alone and the row is marked skipped_other_person.
+ * Company name is filled from the dialer only when GHL has none.
+ */
+async function drainGhlNamePushQueue(
+  apiKey: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 40,
+) {
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  const { data: rows, error } = await supabase
+    .from("ghl_name_push_queue")
+    .select("contact_id, attempts, contacts!inner(ghl_contact_id, contact_person, business_name)")
+    .eq("status", "pending")
+    .order("enqueued_at", { ascending: true })
+    .limit(batchSize);
+  if (error) throw new Error(`Failed to read name queue: ${error.message}`);
+
+  const counts = { processed: 0, updated: 0, already: 0, skipped_other_person: 0, failed: 0 };
+  const finish = async (contactId: string, status: string, extra: Record<string, unknown> = {}) => {
+    await supabase
+      .from("ghl_name_push_queue")
+      .update({ status, done_at: new Date().toISOString(), ...extra })
+      .eq("contact_id", contactId);
+  };
+
+  for (const row of (rows ?? []) as Array<Record<string, any>>) {
+    counts.processed++;
+    const contactId = String(row.contact_id);
+    const c = row.contacts ?? {};
+    const ghlId = String(c.ghl_contact_id ?? "");
+    const target = String(c.contact_person ?? "").trim();
+    if (!ghlId || !target) {
+      await finish(contactId, "skipped_no_target");
+      continue;
+    }
+    const parts = target.split(/\s+/);
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(" ");
+
+    try {
+      const got = await ghlFetch(`/contacts/${ghlId}`, apiKey);
+      const gc = (got?.contact ?? {}) as Record<string, unknown>;
+      const current = [gc.firstName, gc.lastName].filter(Boolean).join(" ");
+      const company = String(gc.companyName ?? "").trim();
+
+      if (norm(current) === norm(target)) {
+        counts.already++;
+        await finish(contactId, "done_already");
+        continue;
+      }
+      const replaceable =
+        norm(current) === "" ||
+        norm(current) === norm(c.business_name) ||
+        (company !== "" && norm(current) === norm(company));
+      if (!replaceable) {
+        counts.skipped_other_person++;
+        await finish(contactId, "skipped_other_person", { last_error: `GHL name: ${current}` });
+        continue;
+      }
+
+      const body: Record<string, unknown> = { firstName, lastName };
+      if (!company && c.business_name) body.companyName = c.business_name;
+      await ghlFetch(`/contacts/${ghlId}`, apiKey, { method: "PUT", body });
+      counts.updated++;
+      await finish(contactId, "done");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      counts.failed++;
+      const attempts = Number(row.attempts ?? 0) + 1;
+      await supabase
+        .from("ghl_name_push_queue")
+        .update({ attempts, last_error: message.slice(0, 500), status: attempts >= 3 ? "failed" : "pending" })
+        .eq("contact_id", contactId);
+      if (message.includes("GHL 429")) break; // rate limited: stop this run, the next one resumes
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  return counts;
+}
+
+/**
  * Push dialer field data UP to GHL for already-linked contacts.
  * Only ever PUTs customFields — never tags, never opportunities.
  * DND is only ever set for genuine opt-outs (contacts.is_dnc = true).
@@ -2292,6 +2384,7 @@ Deno.serve(async (req) => {
         "push_fields_to_ghl",
         "sync_ghl_appointments",
         "drain_contact_note_syncs",
+        "drain_ghl_name_push",
       ]);
       if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
@@ -2314,6 +2407,10 @@ Deno.serve(async (req) => {
       if (cronBody.action === "push_fields_to_ghl") {
         const pushResult = await pushFieldsToGhl(GHL_API_KEY, supabaseUrl, svcKey, 50, 0, true);
         return json(pushResult);
+      }
+      if (cronBody.action === "drain_ghl_name_push") {
+        const nameResult = await drainGhlNamePushQueue(GHL_API_KEY, supabaseUrl, svcKey, Number(cronBody.batchSize) || 40);
+        return json(nameResult);
       }
       if (cronBody.action === "drain_contact_note_syncs") {
         const drainResult = await drainContactNoteSyncs(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
@@ -2418,6 +2515,7 @@ Deno.serve(async (req) => {
       // non-admin can only ever push their own note.
       "drain_contact_note_syncs",
       "backfill_contact_note_syncs",
+      "drain_ghl_name_push",
     ]);
     if (privilegedActions.has(action) && !isAdmin) {
       return json({ error: "Forbidden: admin or coach role required" }, 403);
@@ -2450,6 +2548,13 @@ Deno.serve(async (req) => {
           Number(body.batchSize) || 50,
           Number(body.offset) || 0,
         );
+        break;
+      }
+
+      case "drain_ghl_name_push": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        result = await drainGhlNamePushQueue(GHL_API_KEY, supabaseUrl, svcKey, Number(body.batchSize) || 40);
         break;
       }
 
