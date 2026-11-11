@@ -16,6 +16,8 @@ import {
   getEq,
   getPicked,
   getRange,
+  getDateRange,
+  setDateRange,
   sanitizeDetailFilters,
   setEq,
   setPicked,
@@ -86,6 +88,7 @@ describe("sanitizeDetailFilters", () => {
           : op === "in" || op === "not_in" ? (def.kind === "int" ? [3] : ["x"])
           : def.kind === "int" ? 3
           : def.kind === "bool" ? true
+          : def.kind === "date" ? "2026-11-01"
           : "x";
         expect(sanitizeDetailFilters([{ field: def.field, op, value }])).toHaveLength(1);
       }
@@ -225,5 +228,43 @@ describe("chip labels", () => {
     expect(describeDetailFilter({ field: "team_size", op: "gte", value: 5 })).toBe("Headcount (incl. owner) at least 5");
     expect(describeDetailFilter({ field: "key_objection", op: "in", value: ["Too Busy"] })).toBe("Key objection: Too Busy");
     expect(describeDetailFilter({ field: "dm_phone", op: "is_set" })).toBe("DM phone is captured");
+  });
+});
+
+describe("fields restored to the Intelligence tab (PR #185)", () => {
+  it("are all filterable, in their groups", () => {
+    const byField = new Map(DETAIL_FIELDS.map((f) => [f.field, f]));
+    const expected: Record<string, string> = {
+      seo_visibility: "Marketing",
+      lifecycle_stage: "Lead & booking",
+      lifecycle_reason: "Lead & booking",
+      lead_type: "Lead & booking",
+      lead_channel: "Lead & booking",
+      last_outcome: "Lead & booking",
+      meeting_booked_date: "Lead & booking",
+      setter_name: "Lead & booking",
+      assigned_closer: "Lead & booking",
+      meeting_source: "Lead & booking",
+      meeting_set_by_role: "Lead & booking",
+      mobile_reaches_gatekeeper: "Decision maker & gatekeeper",
+    };
+    for (const [field, group] of Object.entries(expected)) expect(byField.get(field)?.group).toBe(group);
+  });
+
+  it("filters the booked date by a from/to range and drops bad dates", () => {
+    const def = DETAIL_FIELDS.find((f) => f.field === "meeting_booked_date")!;
+    expect(controlFor(def)).toBe("dates");
+    const next = setDateRange([], "meeting_booked_date", { from: "2026-11-01", to: "2026-11-30" });
+    expect(getDateRange(next, "meeting_booked_date")).toEqual({ from: "2026-11-01", to: "2026-11-30" });
+    expect(sanitizeDetailFilters([...next, { field: "meeting_booked_date", op: "gte", value: "next week" }])).toEqual(next);
+    expect(describeDetailFilter(next[0])).toBe("Meeting booked date from 2026-11-01");
+  });
+
+  it("lists reps as the setter and closer options", () => {
+    for (const field of ["setter_name", "assigned_closer"]) {
+      const def = DETAIL_FIELDS.find((f) => f.field === field)!;
+      expect(def.optionsFrom).toBe("reps");
+      expect(controlFor(def)).toBe("pick");
+    }
   });
 });

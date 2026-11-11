@@ -23,6 +23,8 @@ import {
   getEq,
   getPicked,
   getRange,
+  getDateRange,
+  setDateRange,
   opNeedsValue,
   opTakesList,
   opsForField,
@@ -35,6 +37,7 @@ import {
   type DetailFilterValue,
 } from "@/lib/dialerDetailFilters";
 import type { DetailCoverage } from "@/hooks/useDetailCoverage";
+import { useSalesReps } from "@/hooks/usePipelineItems";
 
 const HEADCOUNT_PRESETS: { label: string; min: number | null; max: number | null }[] = [
   { label: "1", min: 1, max: 1 },
@@ -305,6 +308,9 @@ function CriterionBuilder({
       const n = parseWholeNumber(text);
       value = n ?? undefined;
       valid = n !== null;
+    } else if (def.kind === "date") {
+      value = text.trim();
+      valid = /^\d{4}-\d{2}-\d{2}$/.test(value);
     } else if (def.kind === "bool") {
       value = text === "true";
       valid = text === "true" || text === "false";
@@ -396,6 +402,7 @@ function CriterionBuilder({
             <Input
               aria-label="Criterion value"
               className="h-8 text-xs"
+              type={def.kind === "date" ? "date" : undefined}
               inputMode={def.kind === "int" ? "numeric" : undefined}
               placeholder={def.kind === "int" ? "Number" : opTakesList(op) ? "Values, comma separated" : "Text"}
               value={text}
@@ -460,13 +467,9 @@ function FieldFilter({ def, detailFilters, setDetailFilters, coverage, disabled 
         {def.label} <CoverageCount field={def.field} coverage={coverage} />
       </label>
       {control === "pick" ? (
-        <MultiSelect
-          options={[...(def.options ?? [])]}
-          selected={getPicked(detailFilters, def.field)}
-          onChange={(values) => setDetailFilters(setPicked(detailFilters, def.field, values))}
-          placeholder="Any"
-          disabled={disabled}
-        />
+        <PickFilter def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
+      ) : control === "dates" ? (
+        <DateRangeInputs def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
       ) : control === "range" ? (
         <RangeInputs def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
       ) : control === "yesno" ? (
@@ -490,6 +493,53 @@ function FieldFilter({ def, detailFilters, setDetailFilters, coverage, disabled 
       ) : (
         <TextFieldFilter def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
       )}
+    </div>
+  );
+}
+
+/** Pick-list: the field's own options, or the sales reps' names for setter and closer. */
+function PickFilter({ def, detailFilters, setDetailFilters, disabled }: Omit<FieldFilterProps, "coverage">) {
+  const { data: reps = [] } = useSalesReps();
+  const options = useMemo(() => {
+    if (def.optionsFrom !== "reps") return [...(def.options ?? [])];
+    // Same name the server reads: display name, else the email's local part.
+    const names = reps.map((r) => r.display_name?.trim() || r.email?.split("@")[0] || "").filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  }, [def.optionsFrom, def.options, reps]);
+  return (
+    <MultiSelect
+      options={options}
+      selected={getPicked(detailFilters, def.field)}
+      onChange={(values) => setDetailFilters(setPicked(detailFilters, def.field, values))}
+      placeholder="Any"
+      disabled={disabled}
+    />
+  );
+}
+
+/** From/to dates, by Melbourne date. */
+function DateRangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omit<FieldFilterProps, "coverage">) {
+  const range = getDateRange(detailFilters, def.field);
+  const set = (from: string | null, to: string | null) => setDetailFilters(setDateRange(detailFilters, def.field, { from, to }));
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        type="date"
+        aria-label={`${def.label} from`}
+        className="h-8 text-xs"
+        value={range.from ?? ""}
+        onChange={(e) => set(e.target.value || null, range.to)}
+        disabled={disabled}
+      />
+      <span className="text-xs text-muted-foreground">to</span>
+      <Input
+        type="date"
+        aria-label={`${def.label} to`}
+        className="h-8 text-xs"
+        value={range.to ?? ""}
+        onChange={(e) => set(range.from, e.target.value || null)}
+        disabled={disabled}
+      />
     </div>
   );
 }

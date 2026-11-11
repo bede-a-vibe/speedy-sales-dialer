@@ -15,8 +15,9 @@ export type DetailFilterOp = "eq" | "in" | "not_in" | "gte" | "lte" | "contains"
 /**
  * text: case-insensitive. tri: yes/no/unknown columns. csv: comma-separated list.
  * int: whole numbers. bool: true/false. tags: text[] column.
+ * date: a timestamp compared by Melbourne date (YYYY-MM-DD).
  */
-export type DetailFieldKind = "text" | "tri" | "csv" | "int" | "bool" | "tags";
+export type DetailFieldKind = "text" | "tri" | "csv" | "int" | "bool" | "tags" | "date";
 
 export type DetailFilterValue = string | number | boolean | Array<string | number>;
 
@@ -27,13 +28,20 @@ export type DetailFilter = {
 };
 
 /** Mirrors the tabs and sections of the dialer's Capture details panel. */
-export type DetailFieldGroup = "Team & business" | "Qualification" | "Marketing" | "Call intel" | "Decision maker & gatekeeper";
+export type DetailFieldGroup =
+  | "Team & business"
+  | "Qualification"
+  | "Marketing"
+  | "Call intel"
+  | "Lead & booking"
+  | "Decision maker & gatekeeper";
 
 export const DETAIL_GROUPS: readonly DetailFieldGroup[] = [
   "Team & business",
   "Qualification",
   "Marketing",
   "Call intel",
+  "Lead & booking",
   "Decision maker & gatekeeper",
 ];
 
@@ -44,6 +52,8 @@ export type DetailFieldDef = {
   group: DetailFieldGroup;
   /** Known values, in display order. Fields with options get a pick-list filter. */
   options?: readonly string[];
+  /** Options filled at runtime: "reps" lists the sales reps' names. */
+  optionsFrom?: "reps";
 };
 
 /** Ops each kind supports. Mirrors dialer_detail_predicate() on the server. */
@@ -54,6 +64,7 @@ export const KIND_OPS: Record<DetailFieldKind, readonly DetailFilterOp[]> = {
   int: ["gte", "lte", "eq", "in", "not_in", "is_set", "is_not_set"],
   bool: ["eq", "is_set", "is_not_set"],
   tags: ["in", "eq", "contains", "is_set", "is_not_set"],
+  date: ["gte", "lte", "eq", "is_set", "is_not_set"],
 };
 
 export const OP_LABELS: Record<DetailFilterOp, string> = {
@@ -105,6 +116,7 @@ export const DETAIL_FIELDS: readonly DetailFieldDef[] = [
   { field: "agency_satisfaction", label: "Agency satisfaction", kind: "text", group: "Marketing", options: [...SATISFACTION, "No Agency"] },
   { field: "existing_agency_notes", label: "Agency notes", kind: "text", group: "Marketing" },
   { field: "marketing_pain_points", label: "Marketing pain points", kind: "text", group: "Marketing" },
+  { field: "seo_visibility", label: "SEO visibility", kind: "text", group: "Marketing" },
   // Call intel (AI Call Intelligence, Call Activity)
   { field: "last_call_sentiment", label: "Last call sentiment", kind: "text", group: "Call intel", options: ["positive", "neutral", "negative"] },
   { field: "problem_resonance", label: "Problem resonance", kind: "text", group: "Call intel", options: ["Strong - Pain Acknowledged", "Moderate - Some Interest", "Weak - Dismissive", "None - No Engagement"] },
@@ -117,6 +129,18 @@ export const DETAIL_FIELDS: readonly DetailFieldDef[] = [
   { field: "call_intel_summary", label: "AI call summary", kind: "text", group: "Call intel" },
   { field: "call_intel_source", label: "Call intel source", kind: "text", group: "Call intel", options: ["call_transcript"] },
   { field: "team_size_source", label: "Team size source", kind: "text", group: "Call intel", options: ["call_transcript", "rep"] },
+  // Lead & booking (01 Lead Routing, 03 Dialer Activity, 05 Appointments)
+  { field: "lifecycle_stage", label: "Lifecycle stage", kind: "text", group: "Lead & booking", options: ["New", "Attempting", "Connected", "Qualified", "Booked", "Won", "Lost"] },
+  { field: "lifecycle_reason", label: "Lifecycle reason", kind: "text", group: "Lead & booking" },
+  { field: "lead_type", label: "Lead type", kind: "text", group: "Lead & booking", options: ["Cold", "Warm", "Inbound", "Outbound"] },
+  { field: "lead_channel", label: "Lead source channel", kind: "text", group: "Lead & booking", options: ["Ads", "Meta ads", "Cold Call", "Cold Email", "Student", "Website", "Referral", "Partnership", "LinkedIn", "Booked session", "Legacy/Import", "Other"] },
+  // The server reads last_outcome with underscores as spaces, so these match.
+  { field: "last_outcome", label: "Call disposition", kind: "text", group: "Lead & booking", options: ["No answer", "Voicemail", "Not interested", "Gatekeeper", "Follow up", "Booked", "Disqualified", "DNC", "Wrong number"] },
+  { field: "meeting_booked_date", label: "Meeting booked date", kind: "date", group: "Lead & booking" },
+  { field: "setter_name", label: "Setter name", kind: "text", group: "Lead & booking", optionsFrom: "reps" },
+  { field: "assigned_closer", label: "Assigned closer", kind: "text", group: "Lead & booking", optionsFrom: "reps" },
+  { field: "meeting_source", label: "Meeting source", kind: "text", group: "Lead & booking", options: ["Dialer call", "GHL calendar"] },
+  { field: "meeting_set_by_role", label: "Meeting set by (role)", kind: "text", group: "Lead & booking", options: ["Setter", "Closer (self-booked)"] },
   // Decision maker & gatekeeper
   { field: "dm_name", label: "DM name", kind: "text", group: "Decision maker & gatekeeper" },
   { field: "dm_role", label: "DM role", kind: "text", group: "Decision maker & gatekeeper", options: ["Owner", "Director", "Partner", "Manager", "Former Owner"] },
@@ -128,6 +152,7 @@ export const DETAIL_FIELDS: readonly DetailFieldDef[] = [
   { field: "gatekeeper_role", label: "Gatekeeper role", kind: "text", group: "Decision maker & gatekeeper", options: ["Receptionist", "Admin", "Office staff", "Call answering service", "Supervisor", "Apprentice"] },
   { field: "gatekeeper_notes", label: "Gatekeeper notes", kind: "text", group: "Decision maker & gatekeeper" },
   { field: "best_route_to_decision_maker", label: "Best route to DM", kind: "text", group: "Decision maker & gatekeeper" },
+  { field: "mobile_reaches_gatekeeper", label: "Mobile reaches gatekeeper", kind: "bool", group: "Decision maker & gatekeeper" },
 ];
 
 const FIELD_INDEX = new Map(DETAIL_FIELDS.map((f) => [f.field, f]));
@@ -157,6 +182,9 @@ function cleanScalar(kind: DetailFieldKind, raw: unknown): string | number | boo
     if (raw === true || raw === "true") return true;
     if (raw === false || raw === "false") return false;
     return null;
+  }
+  if (kind === "date") {
+    return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) ? raw.trim() : null;
   }
   if (kind === "int") {
     const n = typeof raw === "number" ? raw : typeof raw === "string" && /^-?\d{1,9}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
@@ -215,8 +243,10 @@ function formatValue(v: DetailFilterValue | undefined) {
 
 /** Short label for a filter chip, e.g. "Headcount (incl. owner) at least 5". */
 export function describeDetailFilter(f: DetailFilter): string {
-  const label = FIELD_INDEX.get(f.field)?.label ?? f.field;
+  const def = FIELD_INDEX.get(f.field);
+  const label = def?.label ?? f.field;
   if (!opNeedsValue(f.op)) return `${label} ${OP_LABELS[f.op]}`;
+  if (def?.kind === "date" && (f.op === "gte" || f.op === "lte")) return `${label} ${f.op === "gte" ? "from" : "to"} ${formatValue(f.value)}`;
   if (f.op === "in" && Array.isArray(f.value) && f.value.length === 1) return `${label}: ${f.value[0]}`;
   if (f.op === "in") return `${label}: ${formatValue(f.value)}`;
   if (f.op === "eq") return `${label}: ${formatValue(f.value)}`;
@@ -235,6 +265,26 @@ export function getRange(filters: DetailFilter[], field: string): NumberRange {
     min: typeof min?.value === "number" ? min.value : null,
     max: typeof max?.value === "number" ? max.value : null,
   };
+}
+
+/** From/to dates (YYYY-MM-DD) for a date field's gte/lte entries. */
+export type DateRange = { from: string | null; to: string | null };
+
+export function getDateRange(filters: DetailFilter[], field: string): DateRange {
+  const from = filters.find((f) => f.field === field && f.op === "gte");
+  const to = filters.find((f) => f.field === field && f.op === "lte");
+  return {
+    from: typeof from?.value === "string" ? from.value : null,
+    to: typeof to?.value === "string" ? to.value : null,
+  };
+}
+
+export function setDateRange(filters: DetailFilter[], field: string, range: DateRange): DetailFilter[] {
+  const rest = filters.filter((f) => !(f.field === field && (f.op === "gte" || f.op === "lte")));
+  const next = [...rest];
+  if (range.from) next.push({ field, op: "gte", value: range.from });
+  if (range.to) next.push({ field, op: "lte", value: range.to });
+  return next;
 }
 
 /** Replace the gte/lte entries for a field. Other entries keep their order. */
@@ -287,19 +337,21 @@ export function setEq(filters: DetailFilter[], field: string, value: string | nu
 
 // ── Per-field controls in the Captured details panel ───────────────────────
 
-export type FieldControl = "pick" | "range" | "yesno" | "text";
+export type FieldControl = "pick" | "range" | "dates" | "yesno" | "text";
 
-/** Which control a field gets: pick-list, min/max, yes/no, or captured/contains. */
+/** Which control a field gets: pick-list, min/max, from/to dates, yes/no, or captured/contains. */
 export function controlFor(def: DetailFieldDef): FieldControl {
   if (def.kind === "int") return "range";
+  if (def.kind === "date") return "dates";
   if (def.kind === "bool") return "yesno";
-  if (def.options && def.options.length > 0) return "pick";
+  if ((def.options && def.options.length > 0) || def.optionsFrom) return "pick";
   return "text";
 }
 
 const CONTROL_OPS: Record<FieldControl, readonly DetailFilterOp[]> = {
   pick: ["in"],
   range: ["gte", "lte"],
+  dates: ["gte", "lte"],
   yesno: ["eq"],
   text: ["is_set", "is_not_set", "contains"],
 };
