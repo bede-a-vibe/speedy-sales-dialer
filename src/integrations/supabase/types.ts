@@ -774,6 +774,26 @@ export type Database = {
           budget_indication: string | null
           business_name: string
           business_size: string | null
+          agency_satisfaction: string | null
+          call_intel_at: string | null
+          call_intel_source: string | null
+          call_intel_summary: string | null
+          competitive_intel: string | null
+          contract_lockin_status: string | null
+          current_marketing_channels: string | null
+          current_monthly_ad_spend: string | null
+          current_solution_satisfaction: string | null
+          estimated_annual_revenue: string | null
+          gatekeeper_role: string | null
+          key_objection: string | null
+          lead_source_dependency: string | null
+          marketing_pain_points: string | null
+          need_identified: string | null
+          number_of_trucks_vans: number | null
+          objection_notes: string | null
+          preferred_contact_method: string | null
+          problem_resonance: string | null
+          service_area: string | null
           team_size: number | null
           team_size_evidence: string | null
           team_size_set_at: string | null
@@ -894,6 +914,26 @@ export type Database = {
           budget_indication?: string | null
           business_name: string
           business_size?: string | null
+          agency_satisfaction?: string | null
+          call_intel_at?: string | null
+          call_intel_source?: string | null
+          call_intel_summary?: string | null
+          competitive_intel?: string | null
+          contract_lockin_status?: string | null
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          estimated_annual_revenue?: string | null
+          gatekeeper_role?: string | null
+          key_objection?: string | null
+          lead_source_dependency?: string | null
+          marketing_pain_points?: string | null
+          need_identified?: string | null
+          number_of_trucks_vans?: number | null
+          objection_notes?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
+          service_area?: string | null
           team_size?: number | null
           team_size_evidence?: string | null
           team_size_set_at?: string | null
@@ -1014,6 +1054,26 @@ export type Database = {
           budget_indication?: string | null
           business_name?: string
           business_size?: string | null
+          agency_satisfaction?: string | null
+          call_intel_at?: string | null
+          call_intel_source?: string | null
+          call_intel_summary?: string | null
+          competitive_intel?: string | null
+          contract_lockin_status?: string | null
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          estimated_annual_revenue?: string | null
+          gatekeeper_role?: string | null
+          key_objection?: string | null
+          lead_source_dependency?: string | null
+          marketing_pain_points?: string | null
+          need_identified?: string | null
+          number_of_trucks_vans?: number | null
+          objection_notes?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
+          service_area?: string | null
           team_size?: number | null
           team_size_evidence?: string | null
           team_size_set_at?: string | null
