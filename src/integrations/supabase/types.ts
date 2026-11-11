@@ -5139,6 +5139,7 @@ export type Database = {
         Returns: number
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
+      is_team_member: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
       list_admin_user_ids: { Args: never; Returns: string[] }
       list_my_sessions: {
