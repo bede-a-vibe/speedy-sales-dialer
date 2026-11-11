@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
+import { OpportunityDetailsSection } from "@/components/pipelines/OpportunityDetailsSection";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -228,6 +229,8 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         ghlPipelineId={item.ghl_pipeline_id}
         ghlStageId={item.ghl_stage_id}
       />
+
+      <OpportunityDetailsSection itemId={item.id} ghlOpportunityId={item.ghl_opportunity_id ?? null} />
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Recordings</p>
