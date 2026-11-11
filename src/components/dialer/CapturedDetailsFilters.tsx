@@ -1,14 +1,23 @@
-import { useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { BUSINESS_SIZES } from "@/data/constants";
 import {
   DETAIL_FIELDS,
+  DETAIL_GROUPS,
   OP_LABELS,
+  controlFor,
+  controlOwns,
+  countInGroup,
+  getTextMode,
+  setTextMode,
+  type DetailFieldDef,
+  type TextMode,
   describeDetailFilter,
   getDetailField,
   getEq,
@@ -21,7 +30,6 @@ import {
   setEq,
   setPicked,
   setRange,
-  type DetailFieldGroup,
   type DetailFilter,
   type DetailFilterOp,
   type DetailFilterValue,
@@ -36,16 +44,14 @@ const HEADCOUNT_PRESETS: { label: string; min: number | null; max: number | null
   { label: "11+", min: 11, max: null },
 ];
 
-const GROUP_ORDER: DetailFieldGroup[] = ["Team", "Call intel", "Marketing", "Decision maker", "Other"];
-
-const QUICK_FIELDS = DETAIL_FIELDS.filter((f) => f.quick);
+/** Shown in the Team size block at the top, not in the field groups. */
+const TEAM_BLOCK_FIELDS = new Set(["business_size", "team_size"]);
 
 /** Filters the panel shows in its own controls; everything else is a listed criterion. */
 function isOwnedByPanel(f: DetailFilter, bandInDetails: boolean) {
   if (f.field === "team_size" && (f.op === "gte" || f.op === "lte")) return true;
-  if (bandInDetails && f.field === "business_size" && f.op === "eq") return true;
-  if (f.op === "in" && QUICK_FIELDS.some((q) => q.field === f.field)) return true;
-  return false;
+  if (f.field === "business_size") return bandInDetails && f.op === "eq";
+  return controlOwns(f);
 }
 
 function CoverageCount({ field, coverage }: { field: string; coverage?: DetailCoverage }) {
@@ -98,6 +104,15 @@ export function CapturedDetailsFilters({
 
   const setHeadcount = (min: number | null, max: number | null) =>
     setDetailFilters(setRange(detailFilters, "team_size", { min, max }));
+
+  // Fields with nothing captured are hidden until asked for, unless one is in use.
+  const [showEmpty, setShowEmpty] = useState(false);
+  const coverageKnown = coverage != null && coverage.total != null;
+  const groupFields = DETAIL_FIELDS.filter((f) => !TEAM_BLOCK_FIELDS.has(f.field));
+  const isEmpty = (f: DetailFieldDef) =>
+    coverageKnown && (coverage?.[f.field] ?? 0) === 0 && !detailFilters.some((d) => d.field === f.field);
+  const hiddenEmpty = groupFields.filter(isEmpty).length;
+  const visibleFields = showEmpty ? groupFields : groupFields.filter((f) => !isEmpty(f));
 
   return (
     <div className="space-y-4">
@@ -182,22 +197,40 @@ export function CapturedDetailsFilters({
         </div>
       </div>
 
-      {/* Common captured fields */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {QUICK_FIELDS.map((def) => (
-          <div key={def.field} className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              {def.label} <CoverageCount field={def.field} coverage={coverage} />
-            </label>
-            <MultiSelect
-              options={[...(def.options ?? [])]}
-              selected={getPicked(detailFilters, def.field)}
-              onChange={(values) => setDetailFilters(setPicked(detailFilters, def.field, values))}
-              placeholder="Any"
-              disabled={disabled}
-            />
-          </div>
-        ))}
+      {/* Every captured field, grouped like the Capture details tabs */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {hiddenEmpty > 0 && !showEmpty
+            ? `${hiddenEmpty} field${hiddenEmpty === 1 ? "" : "s"} with nothing captured yet are hidden.`
+            : "All captured-detail fields."}
+        </p>
+        {hiddenEmpty > 0 || showEmpty ? (
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowEmpty((v) => !v)}>
+            {showEmpty ? "Hide empty fields" : "Show empty fields"}
+          </Button>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        {DETAIL_GROUPS.map((group) => {
+          const fields = visibleFields.filter((f) => f.group === group);
+          if (fields.length === 0) return null;
+          return (
+            <FieldGroup key={group} title={group} setCount={countInGroup(detailFilters, group)}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {fields.map((def) => (
+                  <FieldFilter
+                    key={def.field}
+                    def={def}
+                    detailFilters={detailFilters}
+                    setDetailFilters={setDetailFilters}
+                    coverage={coverage}
+                    disabled={disabled}
+                  />
+                ))}
+              </div>
+            </FieldGroup>
+          );
+        })}
       </div>
 
       {/* Other criteria + builder */}
@@ -250,7 +283,7 @@ function CriterionBuilder({
   const def = field ? getDetailField(field) : undefined;
   const ops = field ? opsForField(field) : [];
   const grouped = useMemo(
-    () => GROUP_ORDER.map((g) => ({ group: g, fields: DETAIL_FIELDS.filter((f) => f.group === g) })).filter((g) => g.fields.length > 0),
+    () => DETAIL_GROUPS.map((g) => ({ group: g, fields: DETAIL_FIELDS.filter((f) => f.group === g) })).filter((g) => g.fields.length > 0),
     [],
   );
 
@@ -380,6 +413,166 @@ function CriterionBuilder({
         <Plus className="mr-1 h-3 w-3" />
         Add
       </Button>
+    </div>
+  );
+}
+
+function FieldGroup({ title, setCount, children }: { title: string; setCount: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border border-border/60">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted/30"
+        >
+          <span>
+            {title}
+            {setCount > 0 ? (
+              <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-normal text-primary">
+                {setCount} set
+              </span>
+            ) : null}
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-3 pt-1">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+interface FieldFilterProps {
+  def: DetailFieldDef;
+  detailFilters: DetailFilter[];
+  setDetailFilters: (v: DetailFilter[]) => void;
+  coverage?: DetailCoverage;
+  disabled: boolean;
+}
+
+/** One field's own filter: pick-list, min/max, yes/no, or captured/contains. */
+function FieldFilter({ def, detailFilters, setDetailFilters, coverage, disabled }: FieldFilterProps) {
+  const control = controlFor(def);
+  // Label on top, control pinned to the bottom, so a wrapped label never knocks a row out of line.
+  return (
+    <div className="flex flex-col justify-between gap-1">
+      <label className="text-xs font-medium text-muted-foreground">
+        {def.label} <CoverageCount field={def.field} coverage={coverage} />
+      </label>
+      {control === "pick" ? (
+        <MultiSelect
+          options={[...(def.options ?? [])]}
+          selected={getPicked(detailFilters, def.field)}
+          onChange={(values) => setDetailFilters(setPicked(detailFilters, def.field, values))}
+          placeholder="Any"
+          disabled={disabled}
+        />
+      ) : control === "range" ? (
+        <RangeInputs def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
+      ) : control === "yesno" ? (
+        <Select
+          value={(() => {
+            const v = detailFilters.find((f) => f.field === def.field && f.op === "eq")?.value;
+            return v === true || v === "true" ? "true" : v === false || v === "false" ? "false" : "any";
+          })()}
+          onValueChange={(v) => setDetailFilters(setEq(detailFilters, def.field, v === "any" ? null : v === "true"))}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8 border-border bg-card text-xs" aria-label={def.label}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any" className="text-xs">Any</SelectItem>
+            <SelectItem value="true" className="text-xs">Yes</SelectItem>
+            <SelectItem value="false" className="text-xs">No</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <TextFieldFilter def={def} detailFilters={detailFilters} setDetailFilters={setDetailFilters} disabled={disabled} />
+      )}
+    </div>
+  );
+}
+
+function RangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omit<FieldFilterProps, "coverage">) {
+  const range = getRange(detailFilters, def.field);
+  const set = (min: number | null, max: number | null) => setDetailFilters(setRange(detailFilters, def.field, { min, max }));
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        aria-label={`Minimum ${def.label}`}
+        inputMode="numeric"
+        placeholder="Min"
+        className="h-8 text-xs"
+        value={range.min ?? ""}
+        onChange={(e) => set(parseWholeNumber(e.target.value), range.max)}
+        disabled={disabled}
+      />
+      <span className="text-xs text-muted-foreground">to</span>
+      <Input
+        aria-label={`Maximum ${def.label}`}
+        inputMode="numeric"
+        placeholder="Max"
+        className="h-8 text-xs"
+        value={range.max ?? ""}
+        onChange={(e) => set(range.min, parseWholeNumber(e.target.value))}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+/** Free-text fields: any / captured / not captured / contains some text. */
+function TextFieldFilter({ def, detailFilters, setDetailFilters, disabled }: Omit<FieldFilterProps, "coverage">) {
+  const current = getTextMode(detailFilters, def.field);
+  // "Contains" with no text yet lives only here, so picking it doesn't snap back to Any.
+  const [draftContains, setDraftContains] = useState(false);
+  const [text, setText] = useState(current.text);
+  useEffect(() => {
+    setText(current.text);
+  }, [current.text]);
+  useEffect(() => {
+    if (current.mode !== "any") setDraftContains(false);
+  }, [current.mode]);
+  const mode: TextMode = current.mode === "any" && draftContains ? "contains" : current.mode;
+  const commit = () => setDetailFilters(setTextMode(detailFilters, def.field, "contains", text));
+
+  return (
+    <div className="flex gap-1">
+      <Select
+        value={mode}
+        onValueChange={(v) => {
+          const next = v as TextMode;
+          setDraftContains(next === "contains");
+          setDetailFilters(setTextMode(detailFilters, def.field, next === "contains" ? "any" : next));
+          if (next !== "contains") setText("");
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger className={cn("h-8 border-border bg-card text-xs", mode === "contains" ? "w-[110px] shrink-0" : "w-full")} aria-label={def.label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="any" className="text-xs">Any</SelectItem>
+          <SelectItem value="is_set" className="text-xs">Captured</SelectItem>
+          <SelectItem value="is_not_set" className="text-xs">Not captured</SelectItem>
+          <SelectItem value="contains" className="text-xs">Contains…</SelectItem>
+        </SelectContent>
+      </Select>
+      {mode === "contains" ? (
+        <Input
+          aria-label={`${def.label} contains`}
+          className="h-8 text-xs"
+          placeholder="Text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+          }}
+          disabled={disabled}
+        />
+      ) : null}
     </div>
   );
 }
