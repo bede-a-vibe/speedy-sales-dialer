@@ -169,6 +169,13 @@
       "when": 1791408646711,
       "tag": "0023_fathom_webhook_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794372008566,
+      "tag": "0024_harden_rls_team_scope",
+      "breakpoints": true
     }
   ]
 }

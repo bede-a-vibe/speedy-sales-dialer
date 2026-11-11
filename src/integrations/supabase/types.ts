@@ -767,74 +767,34 @@ export type Database = {
         Row: {
           abn: string | null
           abr_attempted: boolean
+          agency_satisfaction: string | null
           agreed_next_steps: string | null
+          appointment_status: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
           best_time_to_call: string | null
+          booking_tier: string | null
+          brand: string | null
           budget_indication: string | null
           business_name: string
           business_size: string | null
-          booking_tier: string | null
-          brand: string | null
-          callback_date: string | null
-          facebook_ads_manager_id: string | null
-          import_batch: string | null
-          job_role: string | null
-          last_appointment_calendar: string | null
-          lead_status: string | null
-          monthly_retainer_value: number | null
-          noshow_count: number | null
-          nurture_last_email: number | null
-          proposal_format: string | null
-          rep_coaching_notes: string | null
-          revival_date: string | null
-          segment: string | null
-          segment_changed_at: string | null
-          service_type: string[] | null
-          social_media_presence: string | null
-          stakeholders: string | null
-          student_email: string | null
-          student_first_name: string | null
-          student_last_name: string | null
-          student_outreach_email: string | null
-          student_purchased_from_list: string | null
-          utm_ad_name: string | null
-          utm_ad_set: string | null
-          vertical: string | null
-          website_quality: string | null
-          appointment_status: string | null
-          agency_satisfaction: string | null
-          call_intel_at: string | null
-          call_intel_source: string | null
-          call_intel_summary: string | null
-          competitive_intel: string | null
-          contract_lockin_status: string | null
-          current_marketing_channels: string | null
-          current_monthly_ad_spend: string | null
-          current_solution_satisfaction: string | null
-          estimated_annual_revenue: string | null
-          gatekeeper_role: string | null
-          key_objection: string | null
-          lead_source_dependency: string | null
-          marketing_pain_points: string | null
-          need_identified: string | null
-          number_of_trucks_vans: number | null
-          objection_notes: string | null
-          preferred_contact_method: string | null
-          problem_resonance: string | null
-          service_area: string | null
-          team_size: number | null
-          team_size_evidence: string | null
-          team_size_set_at: string | null
-          team_size_source: string | null
           buying_signal_strength: string | null
           buying_timeline: string | null
           call_attempt_count: number
+          call_intel_at: string | null
+          call_intel_source: string | null
+          call_intel_summary: string | null
+          callback_date: string | null
           city: string | null
           client_follow_up_date: string | null
           client_follow_up_note: string | null
+          competitive_intel: string | null
           contact_person: string | null
+          contract_lockin_status: string | null
           created_at: string
+          current_marketing_channels: string | null
+          current_monthly_ad_spend: string | null
+          current_solution_satisfaction: string | null
           deep_crawl_attempted: boolean
           disqualified: boolean
           disqualified_at: string | null
@@ -859,13 +819,16 @@ export type Database = {
           eod_email_flagged_at: string | null
           eod_email_flagged_by: string | null
           eod_email_sent_at: string | null
+          estimated_annual_revenue: string | null
           existing_agency_name: string | null
           existing_agency_notes: string | null
           existing_agency_services: string[]
+          facebook_ads_manager_id: string | null
           fbclid: string | null
           follow_up_note: string | null
           gatekeeper_name: string | null
           gatekeeper_notes: string | null
+          gatekeeper_role: string | null
           gbp_rating: number | null
           gbraid: string | null
           gclid: string | null
@@ -881,9 +844,523 @@ export type Database = {
           has_google_ads: string | null
           has_seo: string | null
           id: string
+          import_batch: string | null
           industry: string
           is_archived: boolean
           is_dnc: boolean
+          job_role: string | null
+          key_objection: string | null
+          key_quote: string | null
+          landing_page_url: string | null
+          last_appointment_calendar: string | null
+          last_call_sentiment: string | null
+          last_called_at: string | null
+          last_outcome: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at: string | null
+          latest_appointment_scheduled_for: string | null
+          lead_channel: string | null
+          lead_ref: string | null
+          lead_source: string | null
+          lead_source_dependency: string | null
+          lead_status: string | null
+          lead_type: string
+          lifecycle_reason: string | null
+          lifecycle_stage: string
+          marketing_pain_points: string | null
+          meeting_booked_date: string | null
+          merged_into_contact_id: string | null
+          mobile_reaches_gatekeeper: boolean
+          monthly_retainer_value: number | null
+          need_identified: string | null
+          next_followup_date: string | null
+          noshow_count: number | null
+          number_of_trucks_vans: number | null
+          nurture_last_email: number | null
+          objection_notes: string | null
+          owner_id: string | null
+          phone: string
+          phone_e164: string | null
+          phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type: string | null
+          preferred_contact_method: string | null
+          problem_resonance: string | null
+          proposal_format: string | null
+          prospect_tier: string | null
+          qualified: boolean
+          qualified_at: string | null
+          rep_coaching_notes: string | null
+          review_count: number | null
+          revival_date: string | null
+          segment: string | null
+          segment_changed_at: string | null
+          service_area: string | null
+          service_type: string[] | null
+          social_media_presence: string | null
+          stakeholders: string | null
+          state: string | null
+          state_backfill_at: string | null
+          state_backfill_attempted: boolean
+          state_backfill_result: string | null
+          status: string
+          student_email: string | null
+          student_first_name: string | null
+          student_last_name: string | null
+          student_outreach_email: string | null
+          student_purchased_from_list: string | null
+          tags: string[]
+          team_size: number | null
+          team_size_evidence: string | null
+          team_size_set_at: string | null
+          team_size_source: string | null
+          trade_type: string | null
+          updated_at: string
+          uploaded_by: string | null
+          utm_ad_name: string | null
+          utm_ad_set: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          vertical: string | null
+          voicemail_count: number
+          wbraid: string | null
+          website: string | null
+          website_quality: string | null
+          work_type: string | null
+          years_in_business: number | null
+        }
+        Insert: {
+          abn?: string | null
+          abr_attempted?: boolean
+          agency_satisfaction?: string | null
+          agreed_next_steps?: string | null
+          appointment_status?: string | null
+          authority_level?: string | null
+          best_route_to_decision_maker?: string | null
+          best_time_to_call?: string | null
+          booking_tier?: string | null
+          brand?: string | null
+          budget_indication?: string | null
+          business_name: string
+          business_size?: string | null
+          buying_signal_strength?: string | null
+          buying_timeline?: string | null
+          call_attempt_count?: number
+          call_intel_at?: string | null
+          call_intel_source?: string | null
+          call_intel_summary?: string | null
+          callback_date?: string | null
+          city?: string | null
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
+          competitive_intel?: string | null
+          contact_person?: string | null
+          contract_lockin_status?: string | null
+          created_at?: string
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          deep_crawl_attempted?: boolean
+          disqualified?: boolean
+          disqualified_at?: string | null
+          disqualified_notes?: string | null
+          disqualified_reason?: string | null
+          dm_email?: string | null
+          dm_enrich_attempted?: boolean
+          dm_enrich_source?: string | null
+          dm_enriched_at?: string | null
+          dm_linkedin?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_blocklist?: string[]
+          dm_phone_type?: string | null
+          dm_phone_verified?: boolean
+          dm_phone_verified_at?: string | null
+          dm_role?: string | null
+          dnc_notes?: string | null
+          dnc_reason?: string | null
+          dnc_recorded_at?: string | null
+          email?: string | null
+          eod_email_flagged_at?: string | null
+          eod_email_flagged_by?: string | null
+          eod_email_sent_at?: string | null
+          estimated_annual_revenue?: string | null
+          existing_agency_name?: string | null
+          existing_agency_notes?: string | null
+          existing_agency_services?: string[]
+          facebook_ads_manager_id?: string | null
+          fbclid?: string | null
+          follow_up_note?: string | null
+          gatekeeper_name?: string | null
+          gatekeeper_notes?: string | null
+          gatekeeper_role?: string | null
+          gbp_rating?: number | null
+          gbraid?: string | null
+          gclid?: string | null
+          ghl_contact_id?: string | null
+          ghl_contact_id_legacy?: string | null
+          gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
+          google_rating?: number | null
+          google_review_count?: number | null
+          has_existing_agency?: boolean | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
+          has_seo?: string | null
+          id?: string
+          import_batch?: string | null
+          industry: string
+          is_archived?: boolean
+          is_dnc?: boolean
+          job_role?: string | null
+          key_objection?: string | null
+          key_quote?: string | null
+          landing_page_url?: string | null
+          last_appointment_calendar?: string | null
+          last_call_sentiment?: string | null
+          last_called_at?: string | null
+          last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at?: string | null
+          latest_appointment_scheduled_for?: string | null
+          lead_channel?: string | null
+          lead_ref?: string | null
+          lead_source?: string | null
+          lead_source_dependency?: string | null
+          lead_status?: string | null
+          lead_type?: string
+          lifecycle_reason?: string | null
+          lifecycle_stage?: string
+          marketing_pain_points?: string | null
+          meeting_booked_date?: string | null
+          merged_into_contact_id?: string | null
+          mobile_reaches_gatekeeper?: boolean
+          monthly_retainer_value?: number | null
+          need_identified?: string | null
+          next_followup_date?: string | null
+          noshow_count?: number | null
+          number_of_trucks_vans?: number | null
+          nurture_last_email?: number | null
+          objection_notes?: string | null
+          owner_id?: string | null
+          phone: string
+          phone_e164?: string | null
+          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
+          proposal_format?: string | null
+          prospect_tier?: string | null
+          qualified?: boolean
+          qualified_at?: string | null
+          rep_coaching_notes?: string | null
+          review_count?: number | null
+          revival_date?: string | null
+          segment?: string | null
+          segment_changed_at?: string | null
+          service_area?: string | null
+          service_type?: string[] | null
+          social_media_presence?: string | null
+          stakeholders?: string | null
+          state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
+          status?: string
+          student_email?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
+          student_outreach_email?: string | null
+          student_purchased_from_list?: string | null
+          tags?: string[]
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
+          trade_type?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          utm_ad_name?: string | null
+          utm_ad_set?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          vertical?: string | null
+          voicemail_count?: number
+          wbraid?: string | null
+          website?: string | null
+          website_quality?: string | null
+          work_type?: string | null
+          years_in_business?: number | null
+        }
+        Update: {
+          abn?: string | null
+          abr_attempted?: boolean
+          agency_satisfaction?: string | null
+          agreed_next_steps?: string | null
+          appointment_status?: string | null
+          authority_level?: string | null
+          best_route_to_decision_maker?: string | null
+          best_time_to_call?: string | null
+          booking_tier?: string | null
+          brand?: string | null
+          budget_indication?: string | null
+          business_name?: string
+          business_size?: string | null
+          buying_signal_strength?: string | null
+          buying_timeline?: string | null
+          call_attempt_count?: number
+          call_intel_at?: string | null
+          call_intel_source?: string | null
+          call_intel_summary?: string | null
+          callback_date?: string | null
+          city?: string | null
+          client_follow_up_date?: string | null
+          client_follow_up_note?: string | null
+          competitive_intel?: string | null
+          contact_person?: string | null
+          contract_lockin_status?: string | null
+          created_at?: string
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          deep_crawl_attempted?: boolean
+          disqualified?: boolean
+          disqualified_at?: string | null
+          disqualified_notes?: string | null
+          disqualified_reason?: string | null
+          dm_email?: string | null
+          dm_enrich_attempted?: boolean
+          dm_enrich_source?: string | null
+          dm_enriched_at?: string | null
+          dm_linkedin?: string | null
+          dm_name?: string | null
+          dm_phone?: string | null
+          dm_phone_blocklist?: string[]
+          dm_phone_type?: string | null
+          dm_phone_verified?: boolean
+          dm_phone_verified_at?: string | null
+          dm_role?: string | null
+          dnc_notes?: string | null
+          dnc_reason?: string | null
+          dnc_recorded_at?: string | null
+          email?: string | null
+          eod_email_flagged_at?: string | null
+          eod_email_flagged_by?: string | null
+          eod_email_sent_at?: string | null
+          estimated_annual_revenue?: string | null
+          existing_agency_name?: string | null
+          existing_agency_notes?: string | null
+          existing_agency_services?: string[]
+          facebook_ads_manager_id?: string | null
+          fbclid?: string | null
+          follow_up_note?: string | null
+          gatekeeper_name?: string | null
+          gatekeeper_notes?: string | null
+          gatekeeper_role?: string | null
+          gbp_rating?: number | null
+          gbraid?: string | null
+          gclid?: string | null
+          ghl_contact_id?: string | null
+          ghl_contact_id_legacy?: string | null
+          gmb_link?: string | null
+          gmb_lookup_at?: string | null
+          gmb_lookup_attempted?: boolean
+          google_rating?: number | null
+          google_review_count?: number | null
+          has_existing_agency?: boolean | null
+          has_facebook_ads?: string | null
+          has_google_ads?: string | null
+          has_seo?: string | null
+          id?: string
+          import_batch?: string | null
+          industry?: string
+          is_archived?: boolean
+          is_dnc?: boolean
+          job_role?: string | null
+          key_objection?: string | null
+          key_quote?: string | null
+          landing_page_url?: string | null
+          last_appointment_calendar?: string | null
+          last_call_sentiment?: string | null
+          last_called_at?: string | null
+          last_outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at?: string | null
+          latest_appointment_scheduled_for?: string | null
+          lead_channel?: string | null
+          lead_ref?: string | null
+          lead_source?: string | null
+          lead_source_dependency?: string | null
+          lead_status?: string | null
+          lead_type?: string
+          lifecycle_reason?: string | null
+          lifecycle_stage?: string
+          marketing_pain_points?: string | null
+          meeting_booked_date?: string | null
+          merged_into_contact_id?: string | null
+          mobile_reaches_gatekeeper?: boolean
+          monthly_retainer_value?: number | null
+          need_identified?: string | null
+          next_followup_date?: string | null
+          noshow_count?: number | null
+          number_of_trucks_vans?: number | null
+          nurture_last_email?: number | null
+          objection_notes?: string | null
+          owner_id?: string | null
+          phone?: string
+          phone_e164?: string | null
+          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
+          proposal_format?: string | null
+          prospect_tier?: string | null
+          qualified?: boolean
+          qualified_at?: string | null
+          rep_coaching_notes?: string | null
+          review_count?: number | null
+          revival_date?: string | null
+          segment?: string | null
+          segment_changed_at?: string | null
+          service_area?: string | null
+          service_type?: string[] | null
+          social_media_presence?: string | null
+          stakeholders?: string | null
+          state?: string | null
+          state_backfill_at?: string | null
+          state_backfill_attempted?: boolean
+          state_backfill_result?: string | null
+          status?: string
+          student_email?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
+          student_outreach_email?: string | null
+          student_purchased_from_list?: string | null
+          tags?: string[]
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
+          trade_type?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          utm_ad_name?: string | null
+          utm_ad_set?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          vertical?: string | null
+          voicemail_count?: number
+          wbraid?: string | null
+          website?: string | null
+          website_quality?: string | null
+          work_type?: string | null
+          years_in_business?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_merged_into_contact_id_fkey"
+            columns: ["merged_into_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts_backup_20261111_intel: {
+        Row: {
+          abn: string | null
+          abr_attempted: boolean | null
+          agency_satisfaction: string | null
+          agreed_next_steps: string | null
+          authority_level: string | null
+          best_route_to_decision_maker: string | null
+          best_time_to_call: string | null
+          budget_indication: string | null
+          business_name: string | null
+          business_size: string | null
+          buying_signal_strength: string | null
+          buying_timeline: string | null
+          call_attempt_count: number | null
+          call_intel_at: string | null
+          call_intel_source: string | null
+          call_intel_summary: string | null
+          city: string | null
+          client_follow_up_date: string | null
+          client_follow_up_note: string | null
+          competitive_intel: string | null
+          contact_person: string | null
+          contract_lockin_status: string | null
+          created_at: string | null
+          current_marketing_channels: string | null
+          current_monthly_ad_spend: string | null
+          current_solution_satisfaction: string | null
+          deep_crawl_attempted: boolean | null
+          disqualified: boolean | null
+          disqualified_at: string | null
+          disqualified_notes: string | null
+          disqualified_reason: string | null
+          dm_email: string | null
+          dm_enrich_attempted: boolean | null
+          dm_enrich_source: string | null
+          dm_enriched_at: string | null
+          dm_linkedin: string | null
+          dm_name: string | null
+          dm_phone: string | null
+          dm_phone_blocklist: string[] | null
+          dm_phone_type: string | null
+          dm_phone_verified: boolean | null
+          dm_phone_verified_at: string | null
+          dm_role: string | null
+          dnc_notes: string | null
+          dnc_reason: string | null
+          dnc_recorded_at: string | null
+          email: string | null
+          eod_email_flagged_at: string | null
+          eod_email_flagged_by: string | null
+          eod_email_sent_at: string | null
+          estimated_annual_revenue: string | null
+          existing_agency_name: string | null
+          existing_agency_notes: string | null
+          existing_agency_services: string[] | null
+          fbclid: string | null
+          follow_up_note: string | null
+          gatekeeper_name: string | null
+          gatekeeper_notes: string | null
+          gatekeeper_role: string | null
+          gbp_rating: number | null
+          gbraid: string | null
+          gclid: string | null
+          ghl_contact_id: string | null
+          ghl_contact_id_legacy: string | null
+          gmb_link: string | null
+          gmb_lookup_at: string | null
+          gmb_lookup_attempted: boolean | null
+          google_rating: number | null
+          google_review_count: number | null
+          has_existing_agency: boolean | null
+          has_facebook_ads: string | null
+          has_google_ads: string | null
+          has_seo: string | null
+          id: string | null
+          industry: string | null
+          is_archived: boolean | null
+          is_dnc: boolean | null
+          key_objection: string | null
           key_quote: string | null
           landing_page_url: string | null
           last_call_sentiment: string | null
@@ -897,37 +1374,51 @@ export type Database = {
           lead_channel: string | null
           lead_ref: string | null
           lead_source: string | null
-          lead_type: string
+          lead_source_dependency: string | null
+          lead_type: string | null
           lifecycle_reason: string | null
-          lifecycle_stage: string
+          lifecycle_stage: string | null
+          marketing_pain_points: string | null
           meeting_booked_date: string | null
           merged_into_contact_id: string | null
-          mobile_reaches_gatekeeper: boolean
+          mobile_reaches_gatekeeper: boolean | null
+          need_identified: string | null
           next_followup_date: string | null
+          number_of_trucks_vans: number | null
+          objection_notes: string | null
           owner_id: string | null
-          phone: string
+          phone: string | null
           phone_e164: string | null
-          phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
+          phone_number_quality:
+            | Database["public"]["Enums"]["phone_number_quality"]
+            | null
           phone_type: string | null
+          preferred_contact_method: string | null
+          problem_resonance: string | null
           prospect_tier: string | null
-          qualified: boolean
+          qualified: boolean | null
           qualified_at: string | null
           review_count: number | null
+          service_area: string | null
           state: string | null
           state_backfill_at: string | null
-          state_backfill_attempted: boolean
+          state_backfill_attempted: boolean | null
           state_backfill_result: string | null
-          status: string
-          tags: string[]
+          status: string | null
+          tags: string[] | null
+          team_size: number | null
+          team_size_evidence: string | null
+          team_size_set_at: string | null
+          team_size_source: string | null
           trade_type: string | null
-          updated_at: string
+          updated_at: string | null
           uploaded_by: string | null
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
-          voicemail_count: number
+          voicemail_count: number | null
           wbraid: string | null
           website: string | null
           work_type: string | null
@@ -935,90 +1426,46 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
-          abr_attempted?: boolean
+          abr_attempted?: boolean | null
+          agency_satisfaction?: string | null
           agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
           best_time_to_call?: string | null
           budget_indication?: string | null
-          business_name: string
+          business_name?: string | null
           business_size?: string | null
-          booking_tier?: string | null
-          brand?: string | null
-          callback_date?: string | null
-          facebook_ads_manager_id?: string | null
-          import_batch?: string | null
-          job_role?: string | null
-          last_appointment_calendar?: string | null
-          lead_status?: string | null
-          monthly_retainer_value?: number | null
-          noshow_count?: number | null
-          nurture_last_email?: number | null
-          proposal_format?: string | null
-          rep_coaching_notes?: string | null
-          revival_date?: string | null
-          segment?: string | null
-          segment_changed_at?: string | null
-          service_type?: string[] | null
-          social_media_presence?: string | null
-          stakeholders?: string | null
-          student_email?: string | null
-          student_first_name?: string | null
-          student_last_name?: string | null
-          student_outreach_email?: string | null
-          student_purchased_from_list?: string | null
-          utm_ad_name?: string | null
-          utm_ad_set?: string | null
-          vertical?: string | null
-          website_quality?: string | null
-          appointment_status?: string | null
-          agency_satisfaction?: string | null
+          buying_signal_strength?: string | null
+          buying_timeline?: string | null
+          call_attempt_count?: number | null
           call_intel_at?: string | null
           call_intel_source?: string | null
           call_intel_summary?: string | null
-          competitive_intel?: string | null
-          contract_lockin_status?: string | null
-          current_marketing_channels?: string | null
-          current_monthly_ad_spend?: string | null
-          current_solution_satisfaction?: string | null
-          estimated_annual_revenue?: string | null
-          gatekeeper_role?: string | null
-          key_objection?: string | null
-          lead_source_dependency?: string | null
-          marketing_pain_points?: string | null
-          need_identified?: string | null
-          number_of_trucks_vans?: number | null
-          objection_notes?: string | null
-          preferred_contact_method?: string | null
-          problem_resonance?: string | null
-          service_area?: string | null
-          team_size?: number | null
-          team_size_evidence?: string | null
-          team_size_set_at?: string | null
-          team_size_source?: string | null
-          buying_signal_strength?: string | null
-          buying_timeline?: string | null
-          call_attempt_count?: number
           city?: string | null
           client_follow_up_date?: string | null
           client_follow_up_note?: string | null
+          competitive_intel?: string | null
           contact_person?: string | null
-          created_at?: string
-          deep_crawl_attempted?: boolean
-          disqualified?: boolean
+          contract_lockin_status?: string | null
+          created_at?: string | null
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          deep_crawl_attempted?: boolean | null
+          disqualified?: boolean | null
           disqualified_at?: string | null
           disqualified_notes?: string | null
           disqualified_reason?: string | null
           dm_email?: string | null
-          dm_enrich_attempted?: boolean
+          dm_enrich_attempted?: boolean | null
           dm_enrich_source?: string | null
           dm_enriched_at?: string | null
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
-          dm_phone_blocklist?: string[]
+          dm_phone_blocklist?: string[] | null
           dm_phone_type?: string | null
-          dm_phone_verified?: boolean
+          dm_phone_verified?: boolean | null
           dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
@@ -1028,13 +1475,15 @@ export type Database = {
           eod_email_flagged_at?: string | null
           eod_email_flagged_by?: string | null
           eod_email_sent_at?: string | null
+          estimated_annual_revenue?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
-          existing_agency_services?: string[]
+          existing_agency_services?: string[] | null
           fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
+          gatekeeper_role?: string | null
           gbp_rating?: number | null
           gbraid?: string | null
           gclid?: string | null
@@ -1042,17 +1491,18 @@ export type Database = {
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
           gmb_lookup_at?: string | null
-          gmb_lookup_attempted?: boolean
+          gmb_lookup_attempted?: boolean | null
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
           has_facebook_ads?: string | null
           has_google_ads?: string | null
           has_seo?: string | null
-          id?: string
-          industry: string
-          is_archived?: boolean
-          is_dnc?: boolean
+          id?: string | null
+          industry?: string | null
+          is_archived?: boolean | null
+          is_dnc?: boolean | null
+          key_objection?: string | null
           key_quote?: string | null
           landing_page_url?: string | null
           last_call_sentiment?: string | null
@@ -1066,37 +1516,51 @@ export type Database = {
           lead_channel?: string | null
           lead_ref?: string | null
           lead_source?: string | null
-          lead_type?: string
+          lead_source_dependency?: string | null
+          lead_type?: string | null
           lifecycle_reason?: string | null
-          lifecycle_stage?: string
+          lifecycle_stage?: string | null
+          marketing_pain_points?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
-          mobile_reaches_gatekeeper?: boolean
+          mobile_reaches_gatekeeper?: boolean | null
+          need_identified?: string | null
           next_followup_date?: string | null
+          number_of_trucks_vans?: number | null
+          objection_notes?: string | null
           owner_id?: string | null
-          phone: string
+          phone?: string | null
           phone_e164?: string | null
-          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_number_quality?:
+            | Database["public"]["Enums"]["phone_number_quality"]
+            | null
           phone_type?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
           prospect_tier?: string | null
-          qualified?: boolean
+          qualified?: boolean | null
           qualified_at?: string | null
           review_count?: number | null
+          service_area?: string | null
           state?: string | null
           state_backfill_at?: string | null
-          state_backfill_attempted?: boolean
+          state_backfill_attempted?: boolean | null
           state_backfill_result?: string | null
-          status?: string
-          tags?: string[]
+          status?: string | null
+          tags?: string[] | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
           trade_type?: string | null
-          updated_at?: string
+          updated_at?: string | null
           uploaded_by?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          voicemail_count?: number
+          voicemail_count?: number | null
           wbraid?: string | null
           website?: string | null
           work_type?: string | null
@@ -1104,90 +1568,46 @@ export type Database = {
         }
         Update: {
           abn?: string | null
-          abr_attempted?: boolean
+          abr_attempted?: boolean | null
+          agency_satisfaction?: string | null
           agreed_next_steps?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
           best_time_to_call?: string | null
           budget_indication?: string | null
-          business_name?: string
+          business_name?: string | null
           business_size?: string | null
-          booking_tier?: string | null
-          brand?: string | null
-          callback_date?: string | null
-          facebook_ads_manager_id?: string | null
-          import_batch?: string | null
-          job_role?: string | null
-          last_appointment_calendar?: string | null
-          lead_status?: string | null
-          monthly_retainer_value?: number | null
-          noshow_count?: number | null
-          nurture_last_email?: number | null
-          proposal_format?: string | null
-          rep_coaching_notes?: string | null
-          revival_date?: string | null
-          segment?: string | null
-          segment_changed_at?: string | null
-          service_type?: string[] | null
-          social_media_presence?: string | null
-          stakeholders?: string | null
-          student_email?: string | null
-          student_first_name?: string | null
-          student_last_name?: string | null
-          student_outreach_email?: string | null
-          student_purchased_from_list?: string | null
-          utm_ad_name?: string | null
-          utm_ad_set?: string | null
-          vertical?: string | null
-          website_quality?: string | null
-          appointment_status?: string | null
-          agency_satisfaction?: string | null
+          buying_signal_strength?: string | null
+          buying_timeline?: string | null
+          call_attempt_count?: number | null
           call_intel_at?: string | null
           call_intel_source?: string | null
           call_intel_summary?: string | null
-          competitive_intel?: string | null
-          contract_lockin_status?: string | null
-          current_marketing_channels?: string | null
-          current_monthly_ad_spend?: string | null
-          current_solution_satisfaction?: string | null
-          estimated_annual_revenue?: string | null
-          gatekeeper_role?: string | null
-          key_objection?: string | null
-          lead_source_dependency?: string | null
-          marketing_pain_points?: string | null
-          need_identified?: string | null
-          number_of_trucks_vans?: number | null
-          objection_notes?: string | null
-          preferred_contact_method?: string | null
-          problem_resonance?: string | null
-          service_area?: string | null
-          team_size?: number | null
-          team_size_evidence?: string | null
-          team_size_set_at?: string | null
-          team_size_source?: string | null
-          buying_signal_strength?: string | null
-          buying_timeline?: string | null
-          call_attempt_count?: number
           city?: string | null
           client_follow_up_date?: string | null
           client_follow_up_note?: string | null
+          competitive_intel?: string | null
           contact_person?: string | null
-          created_at?: string
-          deep_crawl_attempted?: boolean
-          disqualified?: boolean
+          contract_lockin_status?: string | null
+          created_at?: string | null
+          current_marketing_channels?: string | null
+          current_monthly_ad_spend?: string | null
+          current_solution_satisfaction?: string | null
+          deep_crawl_attempted?: boolean | null
+          disqualified?: boolean | null
           disqualified_at?: string | null
           disqualified_notes?: string | null
           disqualified_reason?: string | null
           dm_email?: string | null
-          dm_enrich_attempted?: boolean
+          dm_enrich_attempted?: boolean | null
           dm_enrich_source?: string | null
           dm_enriched_at?: string | null
           dm_linkedin?: string | null
           dm_name?: string | null
           dm_phone?: string | null
-          dm_phone_blocklist?: string[]
+          dm_phone_blocklist?: string[] | null
           dm_phone_type?: string | null
-          dm_phone_verified?: boolean
+          dm_phone_verified?: boolean | null
           dm_phone_verified_at?: string | null
           dm_role?: string | null
           dnc_notes?: string | null
@@ -1197,13 +1617,15 @@ export type Database = {
           eod_email_flagged_at?: string | null
           eod_email_flagged_by?: string | null
           eod_email_sent_at?: string | null
+          estimated_annual_revenue?: string | null
           existing_agency_name?: string | null
           existing_agency_notes?: string | null
-          existing_agency_services?: string[]
+          existing_agency_services?: string[] | null
           fbclid?: string | null
           follow_up_note?: string | null
           gatekeeper_name?: string | null
           gatekeeper_notes?: string | null
+          gatekeeper_role?: string | null
           gbp_rating?: number | null
           gbraid?: string | null
           gclid?: string | null
@@ -1211,17 +1633,18 @@ export type Database = {
           ghl_contact_id_legacy?: string | null
           gmb_link?: string | null
           gmb_lookup_at?: string | null
-          gmb_lookup_attempted?: boolean
+          gmb_lookup_attempted?: boolean | null
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
           has_facebook_ads?: string | null
           has_google_ads?: string | null
           has_seo?: string | null
-          id?: string
-          industry?: string
-          is_archived?: boolean
-          is_dnc?: boolean
+          id?: string | null
+          industry?: string | null
+          is_archived?: boolean | null
+          is_dnc?: boolean | null
+          key_objection?: string | null
           key_quote?: string | null
           landing_page_url?: string | null
           last_call_sentiment?: string | null
@@ -1235,51 +1658,75 @@ export type Database = {
           lead_channel?: string | null
           lead_ref?: string | null
           lead_source?: string | null
-          lead_type?: string
+          lead_source_dependency?: string | null
+          lead_type?: string | null
           lifecycle_reason?: string | null
-          lifecycle_stage?: string
+          lifecycle_stage?: string | null
+          marketing_pain_points?: string | null
           meeting_booked_date?: string | null
           merged_into_contact_id?: string | null
-          mobile_reaches_gatekeeper?: boolean
+          mobile_reaches_gatekeeper?: boolean | null
+          need_identified?: string | null
           next_followup_date?: string | null
+          number_of_trucks_vans?: number | null
+          objection_notes?: string | null
           owner_id?: string | null
-          phone?: string
+          phone?: string | null
           phone_e164?: string | null
-          phone_number_quality?: Database["public"]["Enums"]["phone_number_quality"]
+          phone_number_quality?:
+            | Database["public"]["Enums"]["phone_number_quality"]
+            | null
           phone_type?: string | null
+          preferred_contact_method?: string | null
+          problem_resonance?: string | null
           prospect_tier?: string | null
-          qualified?: boolean
+          qualified?: boolean | null
           qualified_at?: string | null
           review_count?: number | null
+          service_area?: string | null
           state?: string | null
           state_backfill_at?: string | null
-          state_backfill_attempted?: boolean
+          state_backfill_attempted?: boolean | null
           state_backfill_result?: string | null
-          status?: string
-          tags?: string[]
+          status?: string | null
+          tags?: string[] | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
           trade_type?: string | null
-          updated_at?: string
+          updated_at?: string | null
           uploaded_by?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          voicemail_count?: number
+          voicemail_count?: number | null
           wbraid?: string | null
           website?: string | null
           work_type?: string | null
           years_in_business?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_merged_into_contact_id_fkey"
-            columns: ["merged_into_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      contacts_bss_none_reset_20261111: {
+        Row: {
+          id: string | null
+          reset_at: string | null
+          value_before_reset: string | null
+        }
+        Insert: {
+          id?: string | null
+          reset_at?: string | null
+          value_before_reset?: string | null
+        }
+        Update: {
+          id?: string | null
+          reset_at?: string | null
+          value_before_reset?: string | null
+        }
+        Relationships: []
       }
       contacts_dir_bleed_backup_20261102: {
         Row: {
@@ -2524,6 +2971,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_field_map: {
+        Row: {
+          dialer_column: string | null
+          dialer_table: string | null
+          ghl_data_type: string
+          ghl_field_key: string
+          ghl_folder: string
+          ghl_label: string
+          notes: string | null
+          status: string
+        }
+        Insert: {
+          dialer_column?: string | null
+          dialer_table?: string | null
+          ghl_data_type: string
+          ghl_field_key: string
+          ghl_folder: string
+          ghl_label: string
+          notes?: string | null
+          status?: string
+        }
+        Update: {
+          dialer_column?: string | null
+          dialer_table?: string | null
+          ghl_data_type?: string
+          ghl_field_key?: string
+          ghl_folder?: string
+          ghl_label?: string
+          notes?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       ghl_import_exclude: {
         Row: {
           ghl_id: string
@@ -2803,6 +3283,54 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      lead_intel_source_20261111: {
+        Row: {
+          business_name: string | null
+          calls: number | null
+          contact_id: string
+          slice: number
+          transcripts: string
+        }
+        Insert: {
+          business_name?: string | null
+          calls?: number | null
+          contact_id: string
+          slice: number
+          transcripts: string
+        }
+        Update: {
+          business_name?: string | null
+          calls?: number | null
+          contact_id?: string
+          slice?: number
+          transcripts?: string
+        }
+        Relationships: []
+      }
+      lead_intel_staging_20261111: {
+        Row: {
+          brief: string | null
+          classified_by: string | null
+          contact_id: string
+          created_at: string
+          data: Json
+        }
+        Insert: {
+          brief?: string | null
+          classified_by?: string | null
+          contact_id: string
+          created_at?: string
+          data?: Json
+        }
+        Update: {
+          brief?: string | null
+          classified_by?: string | null
+          contact_id?: string
+          created_at?: string
+          data?: Json
         }
         Relationships: []
       }
@@ -3653,6 +4181,27 @@ export type Database = {
           },
         ]
       }
+      pipeline_items_closer_backup_20261111: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          new_assigned_user_id: string | null
+          old_assigned_user_id: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          new_assigned_user_id?: string | null
+          old_assigned_user_id?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          new_assigned_user_id?: string | null
+          old_assigned_user_id?: string | null
+        }
+        Relationships: []
+      }
       playbook_locks: {
         Row: {
           created_at: string
@@ -3887,6 +4436,57 @@ export type Database = {
         }
         Relationships: []
       }
+      team_size_snippets_20261111: {
+        Row: {
+          business_name: string | null
+          contact_id: string
+          slice: number
+          snippet: string
+        }
+        Insert: {
+          business_name?: string | null
+          contact_id: string
+          slice: number
+          snippet: string
+        }
+        Update: {
+          business_name?: string | null
+          contact_id?: string
+          slice?: number
+          snippet?: string
+        }
+        Relationships: []
+      }
+      team_size_staging_20261111: {
+        Row: {
+          band: string
+          classified_by: string | null
+          confidence: string | null
+          contact_id: string
+          created_at: string
+          evidence: string | null
+          team_size: number | null
+        }
+        Insert: {
+          band: string
+          classified_by?: string | null
+          confidence?: string | null
+          contact_id: string
+          created_at?: string
+          evidence?: string | null
+          team_size?: number | null
+        }
+        Update: {
+          band?: string
+          classified_by?: string | null
+          confidence?: string | null
+          contact_id?: string
+          created_at?: string
+          evidence?: string | null
+          team_size?: number | null
+        }
+        Relationships: []
+      }
       training_progress: {
         Row: {
           completed_at: string
@@ -4116,6 +4716,184 @@ export type Database = {
         Args: { _lead_channel: string; _lead_type: string }
         Returns: string
       }
+      contacts_matching_details: {
+        Args: { _detail_filters: Json }
+        Returns: {
+          abn: string | null
+          abr_attempted: boolean
+          agency_satisfaction: string | null
+          agreed_next_steps: string | null
+          appointment_status: string | null
+          authority_level: string | null
+          best_route_to_decision_maker: string | null
+          best_time_to_call: string | null
+          booking_tier: string | null
+          brand: string | null
+          budget_indication: string | null
+          business_name: string
+          business_size: string | null
+          buying_signal_strength: string | null
+          buying_timeline: string | null
+          call_attempt_count: number
+          call_intel_at: string | null
+          call_intel_source: string | null
+          call_intel_summary: string | null
+          callback_date: string | null
+          city: string | null
+          client_follow_up_date: string | null
+          client_follow_up_note: string | null
+          competitive_intel: string | null
+          contact_person: string | null
+          contract_lockin_status: string | null
+          created_at: string
+          current_marketing_channels: string | null
+          current_monthly_ad_spend: string | null
+          current_solution_satisfaction: string | null
+          deep_crawl_attempted: boolean
+          disqualified: boolean
+          disqualified_at: string | null
+          disqualified_notes: string | null
+          disqualified_reason: string | null
+          dm_email: string | null
+          dm_enrich_attempted: boolean
+          dm_enrich_source: string | null
+          dm_enriched_at: string | null
+          dm_linkedin: string | null
+          dm_name: string | null
+          dm_phone: string | null
+          dm_phone_blocklist: string[]
+          dm_phone_type: string | null
+          dm_phone_verified: boolean
+          dm_phone_verified_at: string | null
+          dm_role: string | null
+          dnc_notes: string | null
+          dnc_reason: string | null
+          dnc_recorded_at: string | null
+          email: string | null
+          eod_email_flagged_at: string | null
+          eod_email_flagged_by: string | null
+          eod_email_sent_at: string | null
+          estimated_annual_revenue: string | null
+          existing_agency_name: string | null
+          existing_agency_notes: string | null
+          existing_agency_services: string[]
+          facebook_ads_manager_id: string | null
+          fbclid: string | null
+          follow_up_note: string | null
+          gatekeeper_name: string | null
+          gatekeeper_notes: string | null
+          gatekeeper_role: string | null
+          gbp_rating: number | null
+          gbraid: string | null
+          gclid: string | null
+          ghl_contact_id: string | null
+          ghl_contact_id_legacy: string | null
+          gmb_link: string | null
+          gmb_lookup_at: string | null
+          gmb_lookup_attempted: boolean
+          google_rating: number | null
+          google_review_count: number | null
+          has_existing_agency: boolean | null
+          has_facebook_ads: string | null
+          has_google_ads: string | null
+          has_seo: string | null
+          id: string
+          import_batch: string | null
+          industry: string
+          is_archived: boolean
+          is_dnc: boolean
+          job_role: string | null
+          key_objection: string | null
+          key_quote: string | null
+          landing_page_url: string | null
+          last_appointment_calendar: string | null
+          last_call_sentiment: string | null
+          last_called_at: string | null
+          last_outcome: Database["public"]["Enums"]["call_outcome"] | null
+          latest_appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          latest_appointment_recorded_at: string | null
+          latest_appointment_scheduled_for: string | null
+          lead_channel: string | null
+          lead_ref: string | null
+          lead_source: string | null
+          lead_source_dependency: string | null
+          lead_status: string | null
+          lead_type: string
+          lifecycle_reason: string | null
+          lifecycle_stage: string
+          marketing_pain_points: string | null
+          meeting_booked_date: string | null
+          merged_into_contact_id: string | null
+          mobile_reaches_gatekeeper: boolean
+          monthly_retainer_value: number | null
+          need_identified: string | null
+          next_followup_date: string | null
+          noshow_count: number | null
+          number_of_trucks_vans: number | null
+          nurture_last_email: number | null
+          objection_notes: string | null
+          owner_id: string | null
+          phone: string
+          phone_e164: string | null
+          phone_number_quality: Database["public"]["Enums"]["phone_number_quality"]
+          phone_type: string | null
+          preferred_contact_method: string | null
+          problem_resonance: string | null
+          proposal_format: string | null
+          prospect_tier: string | null
+          qualified: boolean
+          qualified_at: string | null
+          rep_coaching_notes: string | null
+          review_count: number | null
+          revival_date: string | null
+          segment: string | null
+          segment_changed_at: string | null
+          service_area: string | null
+          service_type: string[] | null
+          social_media_presence: string | null
+          stakeholders: string | null
+          state: string | null
+          state_backfill_at: string | null
+          state_backfill_attempted: boolean
+          state_backfill_result: string | null
+          status: string
+          student_email: string | null
+          student_first_name: string | null
+          student_last_name: string | null
+          student_outreach_email: string | null
+          student_purchased_from_list: string | null
+          tags: string[]
+          team_size: number | null
+          team_size_evidence: string | null
+          team_size_set_at: string | null
+          team_size_source: string | null
+          trade_type: string | null
+          updated_at: string
+          uploaded_by: string | null
+          utm_ad_name: string | null
+          utm_ad_set: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          vertical: string | null
+          voicemail_count: number
+          wbraid: string | null
+          website: string | null
+          website_quality: string | null
+          work_type: string | null
+          years_in_business: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "contacts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       count_contacts_with_dm_email: {
         Args: { _email: string; _exclude_id: string }
         Returns: number
@@ -4125,6 +4903,20 @@ export type Database = {
         Returns: number
       }
       count_state_backfill_pending: { Args: never; Returns: number }
+      dialer_detail_fields: {
+        Args: never
+        Returns: {
+          field: string
+          kind: string
+        }[]
+      }
+      dialer_detail_filter_ids: { Args: { _filters: Json }; Returns: string[] }
+      dialer_detail_predicate: { Args: { _filter: Json }; Returns: string }
+      dialer_detail_reject: {
+        Args: { _field: string; _op: string }
+        Returns: string
+      }
+      dialer_detail_where: { Args: { _filters: Json }; Returns: string }
       dialpad_backfill_window: {
         Args: { cap?: number; since_ms: number; until_ms: number }
         Returns: number
@@ -4171,6 +4963,7 @@ export type Database = {
           contacts: number
         }[]
       }
+      get_contact_detail_coverage: { Args: never; Returns: Json }
       get_dial_hour_stats: {
         Args: { _from: string; _to: string; _user_id?: string }
         Returns: {
@@ -4187,7 +4980,6 @@ export type Database = {
           redials: number
         }[]
       }
-      get_contact_detail_coverage: { Args: never; Returns: Json }
       get_dialer_filter_options: { Args: never; Returns: Json }
       get_dialer_queue_count: {
         Args: {
@@ -4312,6 +5104,10 @@ export type Database = {
           upcoming: number
         }[]
       }
+      ghl_event_closer: {
+        Args: { _contact_id: string; _scheduled_for: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4343,6 +5139,7 @@ export type Database = {
         Returns: number
       }
       is_admin_or_coach: { Args: { _user_id: string }; Returns: boolean }
+      is_team_member: { Args: { _user_id: string }; Returns: boolean }
       lifecycle_rank: { Args: { stage: string }; Returns: number }
       list_admin_user_ids: { Args: never; Returns: string[] }
       list_my_sessions: {
