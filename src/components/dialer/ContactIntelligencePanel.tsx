@@ -144,7 +144,9 @@ function FieldRow({ def, schema, value, status, onChange }: FieldRowProps) {
             <SelectItem value="__unset__" className="text-xs text-muted-foreground">
               — Clear —
             </SelectItem>
-            {picklist.map((opt) => (
+            {/* A value saved from the dialer (or an older GHL option) still shows when it
+                is not in GHL's current picklist, instead of rendering blank. */}
+            {(stringValue && !picklist.includes(stringValue) ? [stringValue, ...picklist] : picklist).map((opt) => (
               <SelectItem key={opt} value={opt}>
                 {opt}
               </SelectItem>
