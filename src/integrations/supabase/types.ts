@@ -769,6 +769,7 @@ export type Database = {
           abr_attempted: boolean
           agency_satisfaction: string | null
           agreed_next_steps: string | null
+          annual_revenue: string | null
           appointment_status: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null
@@ -938,6 +939,7 @@ export type Database = {
           abr_attempted?: boolean
           agency_satisfaction?: string | null
           agreed_next_steps?: string | null
+          annual_revenue?: string | null
           appointment_status?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
@@ -1107,6 +1109,7 @@ export type Database = {
           abr_attempted?: boolean
           agency_satisfaction?: string | null
           agreed_next_steps?: string | null
+          annual_revenue?: string | null
           appointment_status?: string | null
           authority_level?: string | null
           best_route_to_decision_maker?: string | null
@@ -4723,6 +4726,7 @@ export type Database = {
           abr_attempted: boolean
           agency_satisfaction: string | null
           agreed_next_steps: string | null
+          annual_revenue: string | null
           appointment_status: string | null
           authority_level: string | null
           best_route_to_decision_maker: string | null

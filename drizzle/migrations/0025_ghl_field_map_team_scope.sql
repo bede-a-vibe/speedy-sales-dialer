@@ -1,0 +1,1 @@
+ALTER POLICY "Authenticated users can view ghl field map" ON public.ghl_field_map USING (public.is_team_member(auth.uid()));
