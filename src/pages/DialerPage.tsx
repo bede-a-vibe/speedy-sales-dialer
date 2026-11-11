@@ -7,6 +7,7 @@ import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
 import { QuickBookRecoveryButton } from "@/components/dialer/QuickBookRecoveryButton";
 import { RecentCallWarning } from "@/components/dialer/RecentCallWarning";
+import { LastConversationCard } from "@/components/dialer/LastConversationCard";
 import { useLiveContact } from "@/hooks/useLiveContact";
 import { AddServiceButton } from "@/components/clients/AddServiceButton";
 
@@ -3179,6 +3180,9 @@ export default function DialerPage() {
                 }
               />
               </div>
+
+              {/* Who last spoke to this lead, when, and what was said. Hidden until there has been a conversation. */}
+              <LastConversationCard key={`last-convo-${session.currentContact.id}`} contactId={session.currentContact.id} />
 
               {session.isSessionPaused && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
