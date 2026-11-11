@@ -910,7 +910,8 @@ async function drainGhlNamePushQueue(
         continue;
       }
 
-      const body: Record<string, unknown> = { firstName, lastName };
+      // GHL ignores lastName "" and keeps the old business-name surname; null clears it.
+      const body: Record<string, unknown> = { firstName, lastName: lastName || null };
       if (!company && c.business_name) body.companyName = c.business_name;
       await ghlFetch(`/contacts/${ghlId}`, apiKey, { method: "PUT", body });
       counts.updated++;
