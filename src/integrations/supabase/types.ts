@@ -3936,6 +3936,59 @@ export type Database = {
           },
         ]
       }
+      meeting_reschedules: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          from_scheduled_for: string
+          id: string
+          kind: string
+          moved_at: string
+          moved_by: string | null
+          notes: string | null
+          pipeline_item_id: string
+          reason: string | null
+          source: string
+          to_scheduled_for: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          from_scheduled_for: string
+          id?: string
+          kind?: string
+          moved_at?: string
+          moved_by?: string | null
+          notes?: string | null
+          pipeline_item_id: string
+          reason?: string | null
+          source?: string
+          to_scheduled_for?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          from_scheduled_for?: string
+          id?: string
+          kind?: string
+          moved_at?: string
+          moved_by?: string | null
+          notes?: string | null
+          pipeline_item_id?: string
+          reason?: string | null
+          source?: string
+          to_scheduled_for?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_reschedules_pipeline_item_id_fkey"
+            columns: ["pipeline_item_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       no_show_revival_backup_20260804: {
         Row: {
           backed_up_at: string | null
@@ -4159,59 +4212,6 @@ export type Database = {
           seen?: number
         }
         Relationships: []
-      }
-      meeting_reschedules: {
-        Row: {
-          contact_id: string | null
-          created_at: string
-          from_scheduled_for: string
-          id: string
-          kind: string
-          moved_at: string
-          moved_by: string | null
-          notes: string | null
-          pipeline_item_id: string
-          reason: string | null
-          source: string
-          to_scheduled_for: string | null
-        }
-        Insert: {
-          contact_id?: string | null
-          created_at?: string
-          from_scheduled_for: string
-          id?: string
-          kind?: string
-          moved_at?: string
-          moved_by?: string | null
-          notes?: string | null
-          pipeline_item_id: string
-          reason?: string | null
-          source?: string
-          to_scheduled_for?: string | null
-        }
-        Update: {
-          contact_id?: string | null
-          created_at?: string
-          from_scheduled_for?: string
-          id?: string
-          kind?: string
-          moved_at?: string
-          moved_by?: string | null
-          notes?: string | null
-          pipeline_item_id?: string
-          reason?: string | null
-          source?: string
-          to_scheduled_for?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meeting_reschedules_pipeline_item_id_fkey"
-            columns: ["pipeline_item_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_items"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       pipeline_audit: {
         Row: {
@@ -4995,6 +4995,49 @@ export type Database = {
         }
         Relationships: []
       }
+      v_reschedule_slots: {
+        Row: {
+          assigned_user_id: string | null
+          booked_at: string | null
+          business_name: string | null
+          channel: string | null
+          contact_id: string | null
+          contact_person: string | null
+          dialer_dispositioned: boolean | null
+          first_deal_at: string | null
+          ghl_user_id: string | null
+          id: string | null
+          is_linked: boolean | null
+          led_to_deal: boolean | null
+          lifecycle_stage: string | null
+          meeting_link: string | null
+          meeting_type: string | null
+          mrr: number | null
+          original_start_time: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
+          owner_id: string | null
+          phone: string | null
+          rep_name: string | null
+          rep_user_id: string | null
+          reschedule_count: number | null
+          resolved_outcome: string | null
+          source: string | null
+          start_time: string | null
+          stream: string | null
+          title: string | null
+          total_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_team_members: {
         Row: {
           dialer_user_id: string | null
@@ -5636,6 +5679,10 @@ export type Database = {
         Returns: number
       }
       relink_ghl_appointments: { Args: never; Returns: Json }
+      reschedule_kind: {
+        Args: { _pipeline_item_id: string; _to: string }
+        Returns: string
+      }
       resolve_meeting_bucket: {
         Args: {
           _outcome: Database["public"]["Enums"]["appointment_outcome"]
