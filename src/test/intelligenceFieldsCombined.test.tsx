@@ -91,4 +91,18 @@ describe("Intelligence tab carries the dialer's fields and GHL's", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: /01 Lead Routing/ }), { button: 0 });
     expect(await screen.findByText("Booked")).toBeTruthy();
   });
+
+  it("is the one place to capture the decision maker: opens there, with one-tap picks", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ContactIntelligencePanel contactId="c-2" ghlContactId={null} contact={{}} defaultFolder="decision_maker" />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Decision Maker Name")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Owner" }));
+    expect((screen.getByDisplayValue("Owner") as HTMLInputElement).value).toBe("Owner");
+    fireEvent.click(screen.getByRole("button", { name: "Ask for by Name" }));
+    expect(screen.getByDisplayValue("Ask for by Name")).toBeTruthy();
+  });
 });

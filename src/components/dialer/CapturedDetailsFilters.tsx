@@ -67,6 +67,12 @@ function CoverageCount({ field, coverage }: { field: string; coverage?: DetailCo
   );
 }
 
+function parseDecimal(raw: string): number | null {
+  const t = raw.trim();
+  if (!/^\d{1,6}(\.\d{1,4})?$/.test(t)) return null;
+  return Number(t);
+}
+
 function parseWholeNumber(raw: string): number | null {
   const t = raw.trim();
   if (!/^\d{1,6}$/.test(t)) return null;
@@ -304,8 +310,8 @@ function CriterionBuilder({
       const list = def.options ? picked : text.split(",").map((s) => s.trim()).filter(Boolean);
       value = def.kind === "int" ? list.map((s) => parseWholeNumber(s)).filter((n): n is number => n !== null) : list;
       valid = (value as unknown[]).length > 0;
-    } else if (def.kind === "int") {
-      const n = parseWholeNumber(text);
+    } else if (def.kind === "int" || def.kind === "num") {
+      const n = def.kind === "num" ? parseDecimal(text) : parseWholeNumber(text);
       value = n ?? undefined;
       valid = n !== null;
     } else if (def.kind === "date") {
@@ -547,6 +553,7 @@ function DateRangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omi
 function RangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omit<FieldFilterProps, "coverage">) {
   const range = getRange(detailFilters, def.field);
   const set = (min: number | null, max: number | null) => setDetailFilters(setRange(detailFilters, def.field, { min, max }));
+  const parse = def.kind === "num" ? parseDecimal : parseWholeNumber;
   return (
     <div className="flex items-center gap-1">
       <Input
@@ -555,7 +562,7 @@ function RangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omit<Fi
         placeholder="Min"
         className="h-8 text-xs"
         value={range.min ?? ""}
-        onChange={(e) => set(parseWholeNumber(e.target.value), range.max)}
+        onChange={(e) => set(parse(e.target.value), range.max)}
         disabled={disabled}
       />
       <span className="text-xs text-muted-foreground">to</span>
@@ -565,7 +572,7 @@ function RangeInputs({ def, detailFilters, setDetailFilters, disabled }: Omit<Fi
         placeholder="Max"
         className="h-8 text-xs"
         value={range.max ?? ""}
-        onChange={(e) => set(range.min, parseWholeNumber(e.target.value))}
+        onChange={(e) => set(range.min, parse(e.target.value))}
         disabled={disabled}
       />
     </div>

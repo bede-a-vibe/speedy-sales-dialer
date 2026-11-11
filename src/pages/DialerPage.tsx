@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_NO_ANSWER_SECONDS, isRingingState } from "@/lib/kpiStandards";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, Brain, Maximize2, Minimize2, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Maximize2, Minimize2, CalendarIcon, CheckCircle2, ExternalLink, Globe, Headphones, Loader2, Mail, MapPin, MoreHorizontal, Pause, Phone, PhoneCall, PhoneOff, Play, Radio, RotateCcw, SkipForward, SlidersHorizontal, TimerReset, UserCheck, UserRound, Wifi, WifiOff } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ContactCard } from "@/components/ContactCard";
 import { DailyTarget } from "@/components/DailyTarget";
@@ -12,7 +12,6 @@ import { useLiveContact } from "@/hooks/useLiveContact";
 import { AddServiceButton } from "@/components/clients/AddServiceButton";
 
 import { AdvancedFilters, type DialerFilterPreset, type DialerFilterSnapshot } from "@/components/dialer/AdvancedFilters";
-import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { DialpadCTI, type DialpadCTIHandle, type CallRingingPayload } from "@/components/dialer/DialpadCTI";
 import { type NativeCallState } from "@/components/dialer/NativeCallBar";
 import { ContactNotesPanel } from "@/components/dialer/ContactNotesPanel";
@@ -36,7 +35,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
@@ -3191,12 +3189,12 @@ export default function DialerPage() {
               )}
 
               {/* Consolidated capture — collapsed by default (fast for no-answer flow),
-                  auto-expands when call actually connects. Two tabs: DM · Intelligence.
-                  Marketing (ads, SEO, existing agency) is a tab inside Intelligence. */}
+                  auto-expands when call actually connects. One panel, laid out like
+                  GHL's folders: Decision Maker, Qualification, Marketing and the rest. */}
               <div data-coach-step="decision-maker-capture">
               <CollapsiblePanel
                 title="Capture details"
-                subtitle={captureOpen ? "Decision Maker · Intelligence" : "Open when the call connects"}
+                subtitle={captureOpen ? "Decision maker, qualification, marketing and more" : "Open when the call connects"}
                 icon={<UserCheck className="h-4 w-4" />}
                 badge={
                   (session.currentContact as any).dm_name
@@ -3208,74 +3206,31 @@ export default function DialerPage() {
                 open={captureOpen}
                 onOpenChange={setCaptureOpen}
               >
-                <Tabs defaultValue="dm" className="w-full">
-                  <TabsList className="w-full justify-start bg-transparent p-0 gap-1">
-                    <TabsTrigger value="dm" className="gap-1.5 data-[state=active]:bg-muted">
-                      <UserCheck className="h-3.5 w-3.5" />
-                      Decision Maker
-                      {(session.currentContact as any).dm_name && (
-                        <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[9px]">captured</Badge>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value="intel" className="gap-1.5 data-[state=active]:bg-muted">
-                      <Brain className="h-3.5 w-3.5" />
-                      Intelligence
-                      <Badge
-                        variant={(session.currentContact as Record<string, unknown>).ghl_contact_id ? "secondary" : "outline"}
-                        className="ml-1 h-4 px-1.5 text-[9px]"
-                      >
-                        {(session.currentContact as Record<string, unknown>).ghl_contact_id ? "GHL" : "local"}
-                      </Badge>
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="dm" className="pt-3 mt-0">
-                    <DecisionMakerCapture
+                <ContactIntelligencePanel
+                  key={session.currentContact.id}
+                  contactId={session.currentContact.id}
+                  ghlContactId={
+                    ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
+                    ?? ghlLink.getCachedGHLId(session.currentContact.id)
+                  }
+                  contact={session.currentContact as unknown as Record<string, unknown>}
+                  // Open on Decision Maker until one is captured: it is the first thing to get past the gatekeeper.
+                  defaultFolder={(session.currentContact as Record<string, unknown>).dm_name ? "qualification" : "decision_maker"}
+                  marketing={
+                    <MarketingCapture
                       contactId={session.currentContact.id}
-                      businessName={session.currentContact.business_name || ""}
-                      ghlContactId={(session.currentContact as any).ghl_contact_id || ghlLink.getCachedGHLId(session.currentContact.id)}
-                      existingDmName={(session.currentContact as any).dm_name}
-                      existingDmTitle={(session.currentContact as any).dm_title}
-                      existingDmPhone={(session.currentContact as any).dm_phone}
-                      existingDmPhoneType={(session.currentContact as any).dm_phone_type}
-                      existingDmEmail={(session.currentContact as any).dm_email}
-                      existingDmLinkedin={(session.currentContact as any).dm_linkedin}
-                      existingGatekeeperName={(session.currentContact as any).gatekeeper_name}
-                      existingGatekeeperNotes={(session.currentContact as any).gatekeeper_notes}
-                      existingBestRouteToDecisionMaker={
-                        (session.currentContact as any).best_route_to_decision_maker
-                        ?? (session.currentContact as any).best_route_to_dm
-                      }
-                      existingBestTimeToCall={(session.currentContact as any).best_time_to_call}
+                      ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
+                      hasGoogleAds={(session.currentContact as Record<string, unknown>).has_google_ads as string | null}
+                      hasFacebookAds={(session.currentContact as Record<string, unknown>).has_facebook_ads as string | null}
+                      hasSeo={(session.currentContact as Record<string, unknown>).has_seo as string | null}
+                      hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
+                      existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
+                      existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
+                      existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
+                      deepCrawlAttempted={(session.currentContact as Record<string, unknown>).deep_crawl_attempted as boolean | null}
                     />
-                  </TabsContent>
-
-                  <TabsContent value="intel" className="pt-3 mt-0 space-y-3">
-                    <ContactIntelligencePanel
-                      contactId={session.currentContact.id}
-                      ghlContactId={
-                        ((session.currentContact as Record<string, unknown>).ghl_contact_id as string | null | undefined)
-                        ?? ghlLink.getCachedGHLId(session.currentContact.id)
-                      }
-                      contact={session.currentContact as unknown as Record<string, unknown>}
-                      marketing={
-                        <MarketingCapture
-                          contactId={session.currentContact.id}
-                          ghlContactId={(session.currentContact as Record<string, unknown>).ghl_contact_id as string | null}
-                          hasGoogleAds={(session.currentContact as Record<string, unknown>).has_google_ads as string | null}
-                          hasFacebookAds={(session.currentContact as Record<string, unknown>).has_facebook_ads as string | null}
-                          hasSeo={(session.currentContact as Record<string, unknown>).has_seo as string | null}
-                          hasExistingAgency={(session.currentContact as Record<string, unknown>).has_existing_agency as boolean | null}
-                          existingAgencyName={(session.currentContact as Record<string, unknown>).existing_agency_name as string | null}
-                          existingAgencyServices={((session.currentContact as Record<string, unknown>).existing_agency_services as string[]) ?? []}
-                          existingAgencyNotes={(session.currentContact as Record<string, unknown>).existing_agency_notes as string | null}
-                          deepCrawlAttempted={(session.currentContact as Record<string, unknown>).deep_crawl_attempted as boolean | null}
-                        />
-                      }
-                    />
-                  </TabsContent>
-
-                </Tabs>
+                  }
+                />
               </CollapsiblePanel>
               </div>
 

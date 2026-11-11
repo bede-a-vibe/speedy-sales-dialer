@@ -10,14 +10,16 @@
  * below and one row to dialer_detail_fields() on the server, with the same kind.
  */
 
+import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS } from "@/lib/ghlFieldFolders";
+
 export type DetailFilterOp = "eq" | "in" | "not_in" | "gte" | "lte" | "contains" | "is_set" | "is_not_set";
 
 /**
  * text: case-insensitive. tri: yes/no/unknown columns. csv: comma-separated list.
  * int: whole numbers. bool: true/false. tags: text[] column.
- * date: a timestamp compared by Melbourne date (YYYY-MM-DD).
+ * date: a timestamp compared by Melbourne date (YYYY-MM-DD). num: decimals (ratings, dollars).
  */
-export type DetailFieldKind = "text" | "tri" | "csv" | "int" | "bool" | "tags" | "date";
+export type DetailFieldKind = "text" | "tri" | "csv" | "int" | "num" | "bool" | "tags" | "date";
 
 export type DetailFilterValue = string | number | boolean | Array<string | number>;
 
@@ -27,23 +29,14 @@ export type DetailFilter = {
   value?: DetailFilterValue;
 };
 
-/** Mirrors the tabs and sections of the dialer's Capture details panel. */
-export type DetailFieldGroup =
-  | "Team & business"
-  | "Qualification"
-  | "Marketing"
-  | "Call intel"
-  | "Lead & booking"
-  | "Decision maker & gatekeeper";
+/** The Intelligence tab's folders, with Marketing after Additional Info, as it shows there. */
+export type DetailFieldGroup = string;
 
-export const DETAIL_GROUPS: readonly DetailFieldGroup[] = [
-  "Team & business",
-  "Qualification",
-  "Marketing",
-  "Call intel",
-  "Lead & booking",
-  "Decision maker & gatekeeper",
-];
+export const MARKETING_GROUP = "Marketing";
+
+export const DETAIL_GROUPS: readonly DetailFieldGroup[] = GHL_FIELD_FOLDERS.flatMap((f) =>
+  f.id === "additional" ? [f.label, MARKETING_GROUP] : [f.label],
+);
 
 export type DetailFieldDef = {
   field: string;
@@ -62,6 +55,7 @@ export const KIND_OPS: Record<DetailFieldKind, readonly DetailFilterOp[]> = {
   tri: ["eq", "in", "not_in", "is_set", "is_not_set"],
   csv: ["in", "eq", "contains", "is_set", "is_not_set"],
   int: ["gte", "lte", "eq", "in", "not_in", "is_set", "is_not_set"],
+  num: ["gte", "lte", "is_set", "is_not_set"],
   bool: ["eq", "is_set", "is_not_set"],
   tags: ["in", "eq", "contains", "is_set", "is_not_set"],
   date: ["gte", "lte", "eq", "is_set", "is_not_set"],
@@ -81,79 +75,147 @@ export const OP_LABELS: Record<DetailFilterOp, string> = {
 const TRI_OPTIONS = ["yes", "no", "unknown"] as const;
 const SATISFACTION = ["Very Happy", "Satisfied", "Neutral", "Frustrated", "Very Unhappy"] as const;
 
-// One line per filterable column: every field in the dialer's Capture details
-// panel. Keep in step with dialer_detail_fields() on the server.
-export const DETAIL_FIELDS: readonly DetailFieldDef[] = [
-  // Team & business (Business Profile)
-  { field: "business_size", label: "Team size band", kind: "text", group: "Team & business", options: ["One-man band (1-2)", "Team (3+)"] },
-  { field: "team_size", label: "Headcount (incl. owner)", kind: "int", group: "Team & business" },
-  { field: "number_of_trucks_vans", label: "Trucks / vans", kind: "int", group: "Team & business" },
-  { field: "years_in_business", label: "Years in business", kind: "int", group: "Team & business" },
-  { field: "work_type", label: "Work type", kind: "text", group: "Team & business", options: ["Residential Only", "Mostly Residential", "Mixed", "Mostly Commercial", "Commercial Only"] },
-  { field: "estimated_annual_revenue", label: "Annual revenue", kind: "text", group: "Team & business", options: ["<$500K", "$500K-$1M", "$1M-$2M", "$2M-$5M", "$5M+"] },
-  { field: "service_area", label: "Service area", kind: "text", group: "Team & business" },
-  { field: "abn", label: "ABN", kind: "text", group: "Team & business" },
-  { field: "website", label: "Website", kind: "text", group: "Team & business" },
-  // Qualification & buying signals
-  { field: "buying_signal_strength", label: "Buying signal", kind: "text", group: "Qualification", options: ["Strong", "Moderate", "Weak", "High", "Medium", "Low"] },
-  { field: "need_identified", label: "Need identified", kind: "text", group: "Qualification", options: ["Strong Need", "Moderate Need", "Low Need", "No Need"] },
-  { field: "authority_level", label: "Authority level", kind: "text", group: "Qualification", options: ["Decision Maker", "Influencer", "Gatekeeper"] },
-  { field: "buying_timeline", label: "Buying timeline", kind: "text", group: "Qualification", options: ["Immediate", "Next week", "Next 30 days", "Next quarter", "Next 6 months", "Next year", "Unknown"] },
-  { field: "budget_indication", label: "Budget indication", kind: "text", group: "Qualification" },
-  { field: "key_objection", label: "Key objection", kind: "text", group: "Qualification", options: ["Happy with Current", "No Budget", "Bad Timing", "Need to Think", "Bad Experience", "Too Busy", "Not the DM", "No Objection", "Other"] },
-  { field: "current_solution_satisfaction", label: "Happy with current solution", kind: "text", group: "Qualification", options: [...SATISFACTION, "No Solution"] },
-  { field: "contract_lockin_status", label: "Contract / lock-in", kind: "text", group: "Qualification" },
-  // Marketing (Digital Presence, Agency & Competition, Marketing tab)
-  { field: "current_monthly_ad_spend", label: "Monthly ad spend", kind: "text", group: "Marketing", options: ["None", "<$500", "$500-$1K", "$1K-$2K", "$2K-$5K", "$5K-$10K", "$10K+"] },
-  { field: "current_marketing_channels", label: "Marketing channels", kind: "csv", group: "Marketing", options: ["Word of Mouth", "Website", "Google Business", "Google Ads", "Facebook/Meta Ads", "Social Media", "SEO", "Print/Flyers"] },
-  { field: "lead_source_dependency", label: "Lead source dependency", kind: "text", group: "Marketing", options: ["Highly Dependent on Referrals", "Mostly Referrals", "Mixed", "Mostly Digital"] },
-  { field: "has_google_ads", label: "Running Google Ads", kind: "tri", group: "Marketing", options: TRI_OPTIONS },
-  { field: "has_facebook_ads", label: "Running Meta Ads", kind: "tri", group: "Marketing", options: TRI_OPTIONS },
-  { field: "has_seo", label: "Doing SEO", kind: "tri", group: "Marketing", options: TRI_OPTIONS },
-  { field: "has_existing_agency", label: "Has an agency", kind: "bool", group: "Marketing" },
-  { field: "existing_agency_name", label: "Agency name", kind: "text", group: "Marketing" },
-  { field: "existing_agency_services", label: "Agency services", kind: "tags", group: "Marketing", options: ["seo", "google_ads", "meta_ads", "website", "other"] },
-  { field: "agency_satisfaction", label: "Agency satisfaction", kind: "text", group: "Marketing", options: [...SATISFACTION, "No Agency"] },
-  { field: "existing_agency_notes", label: "Agency notes", kind: "text", group: "Marketing" },
-  { field: "marketing_pain_points", label: "Marketing pain points", kind: "text", group: "Marketing" },
-  { field: "seo_visibility", label: "SEO visibility", kind: "text", group: "Marketing" },
-  // Call intel (AI Call Intelligence, Call Activity)
-  { field: "last_call_sentiment", label: "Last call sentiment", kind: "text", group: "Call intel", options: ["positive", "neutral", "negative"] },
-  { field: "problem_resonance", label: "Problem resonance", kind: "text", group: "Call intel", options: ["Strong - Pain Acknowledged", "Moderate - Some Interest", "Weak - Dismissive", "None - No Engagement"] },
-  { field: "preferred_contact_method", label: "Preferred contact", kind: "text", group: "Call intel", options: ["Phone", "SMS", "Email", "In Person"] },
-  { field: "best_time_to_call", label: "Best time to call", kind: "text", group: "Call intel", options: ["Morning", "Afternoon", "After Hours"] },
-  { field: "key_quote", label: "Key quote", kind: "text", group: "Call intel" },
-  { field: "agreed_next_steps", label: "Agreed next steps", kind: "text", group: "Call intel" },
-  { field: "objection_notes", label: "Objection notes", kind: "text", group: "Call intel" },
-  { field: "competitive_intel", label: "Competitive intel", kind: "text", group: "Call intel" },
-  { field: "call_intel_summary", label: "AI call summary", kind: "text", group: "Call intel" },
-  { field: "call_intel_source", label: "Call intel source", kind: "text", group: "Call intel", options: ["call_transcript"] },
-  { field: "team_size_source", label: "Team size source", kind: "text", group: "Call intel", options: ["call_transcript", "rep"] },
-  // Lead & booking (01 Lead Routing, 03 Dialer Activity, 05 Appointments)
-  { field: "lifecycle_stage", label: "Lifecycle stage", kind: "text", group: "Lead & booking", options: ["New", "Attempting", "Connected", "Qualified", "Booked", "Won", "Lost"] },
-  { field: "lifecycle_reason", label: "Lifecycle reason", kind: "text", group: "Lead & booking" },
-  { field: "lead_type", label: "Lead type", kind: "text", group: "Lead & booking", options: ["Cold", "Warm", "Inbound", "Outbound"] },
-  { field: "lead_channel", label: "Lead source channel", kind: "text", group: "Lead & booking", options: ["Ads", "Meta ads", "Cold Call", "Cold Email", "Student", "Website", "Referral", "Partnership", "LinkedIn", "Booked session", "Legacy/Import", "Other"] },
-  // The server reads last_outcome with underscores as spaces, so these match.
-  { field: "last_outcome", label: "Call disposition", kind: "text", group: "Lead & booking", options: ["No answer", "Voicemail", "Not interested", "Gatekeeper", "Follow up", "Booked", "Disqualified", "DNC", "Wrong number"] },
-  { field: "meeting_booked_date", label: "Meeting booked date", kind: "date", group: "Lead & booking" },
-  { field: "setter_name", label: "Setter name", kind: "text", group: "Lead & booking", optionsFrom: "reps" },
-  { field: "assigned_closer", label: "Assigned closer", kind: "text", group: "Lead & booking", optionsFrom: "reps" },
-  { field: "meeting_source", label: "Meeting source", kind: "text", group: "Lead & booking", options: ["Dialer call", "GHL calendar"] },
-  { field: "meeting_set_by_role", label: "Meeting set by (role)", kind: "text", group: "Lead & booking", options: ["Setter", "Closer (self-booked)"] },
-  // Decision maker & gatekeeper
-  { field: "dm_name", label: "DM name", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "dm_role", label: "DM role", kind: "text", group: "Decision maker & gatekeeper", options: ["Owner", "Director", "Partner", "Manager", "Former Owner"] },
-  { field: "dm_phone", label: "DM phone", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "dm_phone_type", label: "DM phone type", kind: "text", group: "Decision maker & gatekeeper", options: ["mobile", "landline", "unknown"] },
-  { field: "dm_email", label: "DM email", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "dm_linkedin", label: "DM LinkedIn", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "gatekeeper_name", label: "Gatekeeper name", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "gatekeeper_role", label: "Gatekeeper role", kind: "text", group: "Decision maker & gatekeeper", options: ["Receptionist", "Admin", "Office staff", "Call answering service", "Supervisor", "Apprentice"] },
-  { field: "gatekeeper_notes", label: "Gatekeeper notes", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "best_route_to_decision_maker", label: "Best route to DM", kind: "text", group: "Decision maker & gatekeeper" },
-  { field: "mobile_reaches_gatekeeper", label: "Mobile reaches gatekeeper", kind: "bool", group: "Decision maker & gatekeeper" },
+/**
+ * How each column filters: its kind (must match dialer_detail_fields() on the
+ * server) and, for pick-lists, its known values. Columns not listed filter as
+ * free text. Labels and groups come from the Intelligence tab itself.
+ */
+const FILTER_META: Record<string, { kind: DetailFieldKind; label?: string; options?: readonly string[]; optionsFrom?: "reps" }> = {
+  business_size: { label: "Team size band", kind: "text", options: ["One-man band (1-2)", "Team (3+)"] },
+  team_size: { label: "Headcount (incl. owner)", kind: "int" },
+  number_of_trucks_vans: { kind: "int" },
+  years_in_business: { kind: "int" },
+  work_type: { kind: "text", options: ["Residential Only", "Mostly Residential", "Mixed", "Mostly Commercial", "Commercial Only"] },
+  estimated_annual_revenue: { kind: "text", options: ["<$500K", "$500K-$1M", "$1M-$2M", "$2M-$5M", "$5M+"] },
+  service_area: { kind: "text" },
+  abn: { kind: "text" },
+  website: { kind: "text" },
+  buying_signal_strength: { kind: "text", options: ["Strong", "Moderate", "Weak", "High", "Medium", "Low"] },
+  need_identified: { kind: "text", options: ["Strong Need", "Moderate Need", "Low Need", "No Need"] },
+  authority_level: { kind: "text", options: ["Decision Maker", "Influencer", "Gatekeeper"] },
+  buying_timeline: { kind: "text", options: ["Immediate", "Next week", "Next 30 days", "Next quarter", "Next 6 months", "Next year", "Unknown"] },
+  budget_indication: { kind: "text" },
+  key_objection: { kind: "text", options: ["Happy with Current", "No Budget", "Bad Timing", "Need to Think", "Bad Experience", "Too Busy", "Not the DM", "No Objection", "Other"] },
+  current_solution_satisfaction: { kind: "text", options: [...SATISFACTION, "No Solution"] },
+  contract_lockin_status: { kind: "text" },
+  current_monthly_ad_spend: { kind: "text", options: ["None", "<$500", "$500-$1K", "$1K-$2K", "$2K-$5K", "$5K-$10K", "$10K+"] },
+  current_marketing_channels: { kind: "csv", options: ["Word of Mouth", "Website", "Google Business", "Google Ads", "Facebook/Meta Ads", "Social Media", "SEO", "Print/Flyers"] },
+  lead_source_dependency: { kind: "text", options: ["Highly Dependent on Referrals", "Mostly Referrals", "Mixed", "Mostly Digital"] },
+  has_google_ads: { kind: "tri", options: TRI_OPTIONS },
+  has_facebook_ads: { kind: "tri", options: TRI_OPTIONS },
+  has_seo: { kind: "tri", options: TRI_OPTIONS },
+  has_existing_agency: { kind: "bool" },
+  existing_agency_name: { kind: "text" },
+  existing_agency_services: { kind: "tags", options: ["seo", "google_ads", "meta_ads", "website", "other"] },
+  agency_satisfaction: { kind: "text", options: [...SATISFACTION, "No Agency"] },
+  existing_agency_notes: { kind: "text" },
+  marketing_pain_points: { kind: "text" },
+  seo_visibility: { kind: "text" },
+  last_call_sentiment: { kind: "text", options: ["positive", "neutral", "negative"] },
+  problem_resonance: { kind: "text", options: ["Strong - Pain Acknowledged", "Moderate - Some Interest", "Weak - Dismissive", "None - No Engagement"] },
+  preferred_contact_method: { kind: "text", options: ["Phone", "SMS", "Email", "In Person"] },
+  best_time_to_call: { kind: "text", options: ["Morning", "Afternoon", "After Hours"] },
+  key_quote: { kind: "text" },
+  agreed_next_steps: { kind: "text" },
+  objection_notes: { kind: "text" },
+  competitive_intel: { kind: "text" },
+  call_intel_summary: { kind: "text" },
+  call_intel_source: { kind: "text", options: ["call_transcript"] },
+  team_size_source: { kind: "text", options: ["call_transcript", "rep"] },
+  lifecycle_stage: { kind: "text", options: ["New", "Attempting", "Connected", "Qualified", "Booked", "Won", "Lost"] },
+  lifecycle_reason: { kind: "text" },
+  lead_type: { kind: "text", options: ["Cold", "Warm", "Inbound", "Outbound"] },
+  lead_channel: { kind: "text", options: ["Ads", "Meta ads", "Cold Call", "Cold Email", "Student", "Website", "Referral", "Partnership", "LinkedIn", "Booked session", "Legacy/Import", "Other"] },
+  last_outcome: { kind: "text", options: ["No answer", "Voicemail", "Not interested", "Gatekeeper", "Follow up", "Booked", "Disqualified", "DNC", "Wrong number"] },
+  meeting_booked_date: { kind: "date" },
+  setter_name: { kind: "text", optionsFrom: "reps" },
+  assigned_closer: { kind: "text", optionsFrom: "reps" },
+  meeting_source: { kind: "text", options: ["Dialer call", "GHL calendar"] },
+  meeting_set_by_role: { kind: "text", options: ["Setter", "Closer (self-booked)"] },
+  dm_name: { kind: "text" },
+  dm_role: { kind: "text", options: ["Owner", "Director", "Partner", "Manager", "Former Owner"] },
+  dm_phone: { kind: "text" },
+  dm_phone_type: { kind: "text", options: ["mobile", "landline", "unknown"] },
+  dm_email: { kind: "text" },
+  dm_linkedin: { kind: "text" },
+  gatekeeper_name: { kind: "text" },
+  gatekeeper_role: { kind: "text", options: ["Receptionist", "Admin", "Office staff", "Call answering service", "Supervisor", "Apprentice"] },
+  gatekeeper_notes: { kind: "text" },
+  best_route_to_decision_maker: { kind: "text" },
+  mobile_reaches_gatekeeper: { kind: "bool" },
+  call_attempt_count: { kind: "int" },
+  voicemail_count: { kind: "int" },
+  noshow_count: { kind: "int" },
+  google_review_count: { kind: "int" },
+  nurture_last_email: { kind: "int" },
+  google_rating: { kind: "num" },
+  monthly_retainer_value: { kind: "num" },
+  segment_changed_at: { kind: "date" },
+  last_called_at: { kind: "date" },
+  next_followup_date: { kind: "date" },
+  callback_date: { kind: "date" },
+  revival_date: { kind: "date" },
+  latest_appointment_scheduled_for: { kind: "date" },
+  lead_status: { kind: "text", options: ["New", "Attempting", "Connected", "No Answer", "Voicemail", "Gatekeeper", "Callback Set", "Not Interested", "DNC", "Disqualified", "Booked", "Parked"] },
+  brand: { kind: "text", options: ["Odin Digital", "Veritas Digital"] },
+  segment: { kind: "text", options: ["SMB", "Mid-Market", "Enterprise"] },
+  booking_tier: { kind: "text", options: ["T0", "T1", "T2", "Not Applicable - Non-Ads"] },
+  disqualified_reason: { kind: "text", options: ["not_looking_to_grow", "financially_not_qualified"] },
+  dnc_reason: { kind: "text", options: ["requested_removal", "wrong_number_repeat", "abusive_or_hostile", "other"] },
+  phone_type: { kind: "text", options: ["mobile", "landline", "business_line", "unknown"] },
+  phone_number_quality: { kind: "text", options: ["confirmed", "unconfirmed", "suspect"] },
+  proposal_format: { kind: "text", options: ["Loom / Video", "PDF Document", "Live Presentation", "Verbal / Call Only"] },
+  appointment_status: { kind: "text", options: ["Not Booked", "Unconfirmed", "Confirmed", "Showed", "No Show", "Cancelled", "Invalid"] },
+  vertical: { kind: "text", options: ["Trades & Home Services", "Healthcare & Allied Health", "Professional Services", "Retail & Ecommerce", "Hospitality & Venues", "Property & Real Estate", "Other"] },
+  prospect_tier: { kind: "text", options: ["Tier 1 - Hot", "Tier 2 - Warm", "Tier 3 - Nurture", "Tier 4 - Long Shot", "Tier 5 - New / No Reviews"] },
+};
+
+/**
+ * Captured columns the Intelligence tab doesn't list as their own field: the
+ * team-size band (the drawer's Team size block), the Marketing tab's own
+ * agency answers, and where the call intel came from.
+ */
+const EXTRA_FIELDS: readonly { field: string; label: string; group: DetailFieldGroup }[] = [
+  { field: "business_size", label: "Team size band", group: "General Info" },
+  { field: "has_existing_agency", label: "Has Existing Agency", group: MARKETING_GROUP },
+  { field: "existing_agency_services", label: "Existing Agency Services", group: MARKETING_GROUP },
+  { field: "existing_agency_notes", label: "Existing Agency Notes", group: MARKETING_GROUP },
+  { field: "call_intel_source", label: "Call Intel Source", group: "03 Dialer Activity" },
+  { field: "team_size_source", label: "Team Size Source", group: "03 Dialer Activity" },
 ];
+
+/**
+ * Every filterable field: each Intelligence-tab field the dialer stores (or
+ * works out from the latest booking), in the tab's folders and order, plus
+ * EXTRA_FIELDS. Adding a field to the Intelligence tab makes it filterable
+ * here; the server needs the same column in dialer_detail_fields().
+ */
+export const DETAIL_FIELDS: readonly DetailFieldDef[] = (() => {
+  const out: DetailFieldDef[] = [];
+  const seen = new Set<string>();
+  const push = (field: string, label: string, group: DetailFieldGroup) => {
+    if (seen.has(field)) return;
+    seen.add(field);
+    const meta = FILTER_META[field];
+    out.push({
+      field,
+      label: meta?.label ?? label,
+      kind: meta?.kind ?? "text",
+      group,
+      ...(meta?.options ? { options: meta.options } : {}),
+      ...(meta?.optionsFrom ? { optionsFrom: meta.optionsFrom } : {}),
+    });
+  };
+  for (const folder of GHL_FIELD_FOLDERS) {
+    for (const def of folder.fields) {
+      const field = def.supabaseColumn ?? def.derived;
+      if (!field) continue;
+      push(field, def.label, MARKETING_TAB_FIELD_KEYS.has(def.key) ? MARKETING_GROUP : folder.label);
+    }
+  }
+  for (const extra of EXTRA_FIELDS) push(extra.field, extra.label, extra.group);
+  return out;
+})();
 
 const FIELD_INDEX = new Map(DETAIL_FIELDS.map((f) => [f.field, f]));
 
@@ -185,6 +247,10 @@ function cleanScalar(kind: DetailFieldKind, raw: unknown): string | number | boo
   }
   if (kind === "date") {
     return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) ? raw.trim() : null;
+  }
+  if (kind === "num") {
+    const n = typeof raw === "number" ? raw : typeof raw === "string" && /^-?\d{1,9}(\.\d{1,4})?$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
+    return Number.isFinite(n) ? n : null;
   }
   if (kind === "int") {
     const n = typeof raw === "number" ? raw : typeof raw === "string" && /^-?\d{1,9}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
@@ -341,7 +407,7 @@ export type FieldControl = "pick" | "range" | "dates" | "yesno" | "text";
 
 /** Which control a field gets: pick-list, min/max, from/to dates, yes/no, or captured/contains. */
 export function controlFor(def: DetailFieldDef): FieldControl {
-  if (def.kind === "int") return "range";
+  if (def.kind === "int" || def.kind === "num") return "range";
   if (def.kind === "date") return "dates";
   if (def.kind === "bool") return "yesno";
   if ((def.options && def.options.length > 0) || def.optionsFrom) return "pick";

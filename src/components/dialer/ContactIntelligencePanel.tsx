@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GHL_FIELD_FOLDERS, type GhlFieldDef, type GhlFieldFolder } from "@/lib/ghlFieldFolders";
+import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS, type GhlFieldDef, type GhlFieldFolder } from "@/lib/ghlFieldFolders";
 import { useGHLFieldSchema, type GhlCustomFieldSchema } from "@/hooks/useGHLFieldSchema";
 import { useGHLContactFields, type FieldSaveStatus } from "@/hooks/useGHLContactFields";
 import { useLatestBookingAttribution } from "@/hooks/useLatestBookingAttribution";
@@ -24,20 +24,15 @@ interface ContactIntelligencePanelProps {
    * fields it already captures (same columns and GHL keys).
    */
   marketing?: ReactNode;
+  /** Folder tab to open on (e.g. "decision_maker" before a DM is known). Defaults to Qualification. */
+  defaultFolder?: string;
 }
 
 const MARKETING_TAB = "marketing";
 /** Folders the Marketing tab replaces. */
 const REPLACED_BY_MARKETING = new Set<string>();
 /** Additional Info fields the Marketing tab already captures, with yes/no/unsure buttons. */
-const FIELDS_IN_MARKETING = new Set([
-  "contact.runs_google_ads",
-  "contact.runs_facebook_ads",
-  "contact.has_seo",
-  "contact.has_existing_agency",
-  "contact.existing_agency",
-  "contact.existing_agency_services",
-]);
+const FIELDS_IN_MARKETING = MARKETING_TAB_FIELD_KEYS;
 /** The Marketing tab goes right after this folder. */
 const MARKETING_AFTER = "additional";
 
@@ -238,6 +233,25 @@ function FieldRow({ def, schema, value, status, onChange }: FieldRowProps) {
         <StatusPill status={status} />
       </div>
       {renderControl()}
+      {def.suggestions && !def.readOnly ? (
+        <div className="flex flex-wrap gap-1">
+          {def.suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange(stringValue === s ? "" : s)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] transition-colors",
+                stringValue === s
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -275,7 +289,7 @@ function FolderTabContent({
  * Live GHL custom-fields panel for the active call. Renders one tab per
  * GHL folder, debounces saves to Supabase + GHL, and shows per-field status.
  */
-export function ContactIntelligencePanel({ contactId, ghlContactId, contact, marketing }: ContactIntelligencePanelProps) {
+export function ContactIntelligencePanel({ contactId, ghlContactId, contact, marketing, defaultFolder }: ContactIntelligencePanelProps) {
   const hasMarketing = Boolean(marketing);
   // With Marketing shown, drop what it already captures: the Agency folder, and
   // the ad flags and agency name in Digital. They stay in GHL_FIELD_FOLDERS for GHL syncing.
@@ -325,7 +339,8 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
   const hasError = Object.values(statuses).some((s) => s === "error");
 
   // Open on Qualification: it is what a rep fills in during the call.
-  const defaultTab = folders.find((f) => f.id === "qualification")?.id ?? folders[0]?.id ?? "qualification";
+  const defaultTab =
+    folders.find((f) => f.id === defaultFolder)?.id ?? folders.find((f) => f.id === "qualification")?.id ?? folders[0]?.id ?? "qualification";
   const marketingTrigger = marketing ? (
     <TabsTrigger key={MARKETING_TAB} value={MARKETING_TAB} className="flex h-7 items-center gap-1.5 px-2 text-[11px]">
       <Megaphone className="h-3 w-3" />

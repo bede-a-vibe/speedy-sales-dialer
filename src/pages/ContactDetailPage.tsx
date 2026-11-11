@@ -10,10 +10,9 @@ import {
 import { AppLayout } from "@/components/AppLayout";
 import { EmailDraftSuggestionCard } from "@/components/email/EmailDraftSuggestionCard";
 import { ManualTranscriptUpload } from "@/components/contacts/ManualTranscriptUpload";
-import { DecisionMakerCapture } from "@/components/dialer/DecisionMakerCapture";
 import { MarketingCapture } from "@/components/dialer/MarketingCapture";
 import { ContactIntelligencePanel } from "@/components/dialer/ContactIntelligencePanel";
-import { Brain, UserPlus } from "lucide-react";
+import { Brain } from "lucide-react";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { Plus } from "lucide-react";
 import { AddServiceButton } from "@/components/clients/AddServiceButton";
@@ -66,7 +65,6 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -978,61 +976,35 @@ export default function ContactDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Consolidated capture card — DM and Intel (Marketing lives inside Intel) */}
+            {/* One capture card, laid out like GHL's folders (Decision Maker, Qualification, Marketing…) */}
             <Card>
-              <Tabs defaultValue="dm">
-                <CardHeader className="pb-2">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="dm" className="text-xs">
-                      <UserPlus className="mr-1.5 h-3.5 w-3.5" /> DM
-                    </TabsTrigger>
-                    <TabsTrigger value="intel" className="text-xs">
-                      <Brain className="mr-1.5 h-3.5 w-3.5" /> Intel
-                    </TabsTrigger>
-                  </TabsList>
-                </CardHeader>
-                <CardContent>
-                  <TabsContent value="dm" className="mt-0">
-                    <DecisionMakerCapture
-                      contactId={contact.id}
-                      businessName={contact.business_name || ""}
-                      ghlContactId={contact.ghl_contact_id}
-                      existingDmName={contact.dm_name}
-                      existingDmTitle={(contact as unknown as { dm_role?: string | null }).dm_role ?? null}
-                      existingDmPhone={contact.dm_phone}
-                      existingDmPhoneType={contact.dm_phone_type}
-                      existingDmEmail={contact.dm_email}
-                      existingDmLinkedin={(contact as unknown as { dm_linkedin?: string | null }).dm_linkedin ?? null}
-                      existingGatekeeperName={contact.gatekeeper_name}
-                      existingGatekeeperNotes={(contact as unknown as { gatekeeper_notes?: string | null }).gatekeeper_notes ?? null}
-                      existingBestRouteToDecisionMaker={contact.best_route_to_decision_maker}
-                      existingBestTimeToCall={contact.best_time_to_call}
-                      onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact", id] })}
-                    />
-                  </TabsContent>
-                  <TabsContent value="intel" className="mt-0">
-                    <ContactIntelligencePanel
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-1.5 text-sm">
+                  <Brain className="h-3.5 w-3.5" /> Captured details
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactIntelligencePanel
+                  contactId={contact.id}
+                  ghlContactId={contact.ghl_contact_id}
+                  contact={contact as unknown as Record<string, unknown>}
+                defaultFolder={contact.dm_name ? "qualification" : "decision_maker"}
+                  marketing={
+                    <MarketingCapture
                       contactId={contact.id}
                       ghlContactId={contact.ghl_contact_id}
-                      contact={contact as unknown as Record<string, unknown>}
-                      marketing={
-                        <MarketingCapture
-                          contactId={contact.id}
-                          ghlContactId={contact.ghl_contact_id}
-                          hasGoogleAds={(contact as unknown as { has_google_ads?: string | null }).has_google_ads ?? null}
-                          hasFacebookAds={(contact as unknown as { has_facebook_ads?: string | null }).has_facebook_ads ?? null}
-                          hasSeo={(contact as unknown as { has_seo?: string | null }).has_seo ?? null}
-                          hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
-                          existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
-                          existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
-                          existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
-                          deepCrawlAttempted={(contact as unknown as { deep_crawl_attempted?: boolean | null }).deep_crawl_attempted ?? null}
-                        />
-                      }
+                      hasGoogleAds={(contact as unknown as { has_google_ads?: string | null }).has_google_ads ?? null}
+                      hasFacebookAds={(contact as unknown as { has_facebook_ads?: string | null }).has_facebook_ads ?? null}
+                      hasSeo={(contact as unknown as { has_seo?: string | null }).has_seo ?? null}
+                      hasExistingAgency={(contact as unknown as { has_existing_agency?: boolean | null }).has_existing_agency ?? null}
+                      existingAgencyName={(contact as unknown as { existing_agency_name?: string | null }).existing_agency_name ?? null}
+                      existingAgencyServices={((contact as unknown as { existing_agency_services?: string[] }).existing_agency_services) ?? []}
+                      existingAgencyNotes={(contact as unknown as { existing_agency_notes?: string | null }).existing_agency_notes ?? null}
+                      deepCrawlAttempted={(contact as unknown as { deep_crawl_attempted?: boolean | null }).deep_crawl_attempted ?? null}
                     />
-                  </TabsContent>
-                </CardContent>
-              </Tabs>
+                  }
+                />
+              </CardContent>
             </Card>
 
             {/* Quick status update */}

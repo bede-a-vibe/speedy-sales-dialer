@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DETAIL_FIELDS,
+  DETAIL_GROUPS,
+  MARKETING_GROUP,
   KIND_OPS,
   legacyToDetailFilters,
   mergeDetailFilters,
@@ -25,6 +27,7 @@ import {
   type DetailFilter,
 } from "@/lib/dialerDetailFilters";
 import { dialerFilterParams } from "@/hooks/useContacts";
+import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS } from "@/lib/ghlFieldFolders";
 
 /** The newest migration that defines dialer_detail_fields() is the server whitelist. */
 function serverWhitelist(): Map<string, string> {
@@ -89,6 +92,7 @@ describe("sanitizeDetailFilters", () => {
           : def.kind === "int" ? 3
           : def.kind === "bool" ? true
           : def.kind === "date" ? "2026-11-01"
+          : def.kind === "num" ? 4.5
           : "x";
         expect(sanitizeDetailFilters([{ field: def.field, op, value }])).toHaveLength(1);
       }
@@ -226,29 +230,31 @@ describe("RPC params", () => {
 describe("chip labels", () => {
   it("reads naturally", () => {
     expect(describeDetailFilter({ field: "team_size", op: "gte", value: 5 })).toBe("Headcount (incl. owner) at least 5");
-    expect(describeDetailFilter({ field: "key_objection", op: "in", value: ["Too Busy"] })).toBe("Key objection: Too Busy");
-    expect(describeDetailFilter({ field: "dm_phone", op: "is_set" })).toBe("DM phone is captured");
+    expect(describeDetailFilter({ field: "key_objection", op: "in", value: ["Too Busy"] })).toBe("Key Objection: Too Busy");
+    expect(describeDetailFilter({ field: "dm_phone", op: "is_set" })).toBe("Decision Maker Phone is captured");
   });
 });
 
-describe("fields restored to the Intelligence tab (PR #185)", () => {
-  it("are all filterable, in their groups", () => {
+describe("one set of captured details: the filters mirror the Intelligence tab", () => {
+  it("lets you filter on every Intelligence field the dialer stores, in the same folder and name", () => {
     const byField = new Map(DETAIL_FIELDS.map((f) => [f.field, f]));
-    const expected: Record<string, string> = {
-      seo_visibility: "Marketing",
-      lifecycle_stage: "Lead & booking",
-      lifecycle_reason: "Lead & booking",
-      lead_type: "Lead & booking",
-      lead_channel: "Lead & booking",
-      last_outcome: "Lead & booking",
-      meeting_booked_date: "Lead & booking",
-      setter_name: "Lead & booking",
-      assigned_closer: "Lead & booking",
-      meeting_source: "Lead & booking",
-      meeting_set_by_role: "Lead & booking",
-      mobile_reaches_gatekeeper: "Decision maker & gatekeeper",
-    };
-    for (const [field, group] of Object.entries(expected)) expect(byField.get(field)?.group).toBe(group);
+    for (const folder of GHL_FIELD_FOLDERS) {
+      for (const def of folder.fields) {
+        const field = def.supabaseColumn ?? def.derived;
+        if (!field) continue;
+        const filter = byField.get(field);
+        expect(filter, `${def.label} (${field})`).toBeTruthy();
+        expect(filter!.group).toBe(MARKETING_TAB_FIELD_KEYS.has(def.key) ? MARKETING_GROUP : folder.label);
+      }
+    }
+  });
+
+  it("orders groups like the Intelligence tabs, Marketing after Additional Info", () => {
+    expect(DETAIL_GROUPS).toEqual([
+      "01 Lead Routing", "02 Decision Maker", "03 Dialer Activity", "04 Qualification", "05 Appointments",
+      "06 Attribution", "General Info", "Additional Info", "Marketing",
+    ]);
+    expect(DETAIL_FIELDS.every((f) => DETAIL_GROUPS.includes(f.group))).toBe(true);
   });
 
   it("filters the booked date by a from/to range and drops bad dates", () => {
@@ -257,7 +263,14 @@ describe("fields restored to the Intelligence tab (PR #185)", () => {
     const next = setDateRange([], "meeting_booked_date", { from: "2026-11-01", to: "2026-11-30" });
     expect(getDateRange(next, "meeting_booked_date")).toEqual({ from: "2026-11-01", to: "2026-11-30" });
     expect(sanitizeDetailFilters([...next, { field: "meeting_booked_date", op: "gte", value: "next week" }])).toEqual(next);
-    expect(describeDetailFilter(next[0])).toBe("Meeting booked date from 2026-11-01");
+    expect(describeDetailFilter(next[0])).toBe("Meeting Booked Date from 2026-11-01");
+  });
+
+  it("takes decimals for Google rating", () => {
+    const def = DETAIL_FIELDS.find((f) => f.field === "google_rating")!;
+    expect(def.kind).toBe("num");
+    expect(controlFor(def)).toBe("range");
+    expect(sanitizeDetailFilters([{ field: "google_rating", op: "gte", value: "4.5" }])).toEqual([{ field: "google_rating", op: "gte", value: 4.5 }]);
   });
 
   it("lists reps as the setter and closer options", () => {
