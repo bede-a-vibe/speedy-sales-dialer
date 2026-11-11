@@ -763,6 +763,21 @@ export type Database = {
           },
         ]
       }
+      contact_person_backfill_20261111: {
+        Row: {
+          id: string | null
+          old_contact_person: string | null
+        }
+        Insert: {
+          id?: string | null
+          old_contact_person?: string | null
+        }
+        Update: {
+          id?: string | null
+          old_contact_person?: string | null
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           abn: string | null
@@ -4127,6 +4142,24 @@ export type Database = {
         }
         Relationships: []
       }
+      person_first_names: {
+        Row: {
+          name: string
+          refreshed_at: string
+          seen: number
+        }
+        Insert: {
+          name: string
+          refreshed_at?: string
+          seen: number
+        }
+        Update: {
+          name?: string
+          refreshed_at?: string
+          seen?: number
+        }
+        Relationships: []
+      }
       pipeline_audit: {
         Row: {
           changed_at: string
@@ -5014,7 +5047,10 @@ export type Database = {
         Args: { phone_number: string }
         Returns: string
       }
-      clean_person_name: { Args: { raw: string }; Returns: string }
+      clean_person_name: {
+        Args: { business?: string; raw: string }
+        Returns: string
+      }
       contact_channel: {
         Args: { _lead_channel: string; _lead_type: string }
         Returns: string
@@ -5231,6 +5267,10 @@ export type Database = {
       dialpad_backfill_window: {
         Args: { cap?: number; since_ms: number; until_ms: number }
         Returns: number
+      }
+      dm_name_for_contact: {
+        Args: { business: string; dm: string; source: string }
+        Returns: string
       }
       export_contacts_for_ghl_link: {
         Args: never
@@ -5537,6 +5577,7 @@ export type Database = {
         }
         Returns: number
       }
+      refresh_person_first_names: { Args: never; Returns: number }
       release_dialer_lead_locks: {
         Args: { _contact_ids?: string[]; _session_id: string }
         Returns: number
