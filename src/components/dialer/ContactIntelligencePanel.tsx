@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Brain, Check, CircleDashed, Loader2, AlertTriangle } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import { Brain, Check, CircleDashed, Loader2, AlertTriangle, Megaphone } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,19 @@ interface ContactIntelligencePanelProps {
   ghlContactId?: string | null;
   /** Snapshot of the supabase contact row for hydration. */
   contact: Record<string, unknown>;
+  /**
+   * The Marketing capture (ads, SEO, existing agency). When given, it shows as a
+   * "Marketing" tab after Digital and replaces the Agency folder, whose three
+   * fields it already captures (same columns and GHL keys).
+   */
+  marketing?: ReactNode;
 }
+
+const MARKETING_TAB = "marketing";
+/** Folders the Marketing tab replaces. */
+const REPLACED_BY_MARKETING = new Set(["agency"]);
+/** The Marketing tab goes right after this folder. */
+const MARKETING_AFTER = "digital";
 
 /**
  * Build the initial field values map by reading any mirrored Supabase columns
@@ -209,7 +221,12 @@ function FolderTabContent({
  * Live GHL custom-fields panel for the active call. Renders one tab per
  * GHL folder, debounces saves to Supabase + GHL, and shows per-field status.
  */
-export function ContactIntelligencePanel({ contactId, ghlContactId, contact }: ContactIntelligencePanelProps) {
+export function ContactIntelligencePanel({ contactId, ghlContactId, contact, marketing }: ContactIntelligencePanelProps) {
+  const hasMarketing = Boolean(marketing);
+  const folders = useMemo(
+    () => (hasMarketing ? GHL_FIELD_FOLDERS.filter((f) => !REPLACED_BY_MARKETING.has(f.id)) : GHL_FIELD_FOLDERS),
+    [hasMarketing],
+  );
   const initialValues = useMemo(() => buildInitialValues(contact), [contact]);
   const schemaQuery = useGHLFieldSchema();
   const schemaByKey = schemaQuery.data?.byKey ?? {};
@@ -222,19 +239,25 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact }: C
 
   const fillCounts = useMemo(() => {
     const counts: Record<string, { filled: number; total: number }> = {};
-    for (const folder of GHL_FIELD_FOLDERS) {
+    for (const folder of folders) {
       const total = folder.fields.length;
       const filled = folder.fields.filter((f) => isFilled(values[f.key])).length;
       counts[folder.id] = { filled, total };
     }
     return counts;
-  }, [values]);
+  }, [values, folders]);
 
   const totalFilled = Object.values(fillCounts).reduce((acc, c) => acc + c.filled, 0);
   const totalFields = Object.values(fillCounts).reduce((acc, c) => acc + c.total, 0);
   const hasError = Object.values(statuses).some((s) => s === "error");
 
-  const defaultTab = GHL_FIELD_FOLDERS[0]?.id ?? "qualification";
+  const defaultTab = folders[0]?.id ?? "qualification";
+  const marketingTrigger = marketing ? (
+    <TabsTrigger key={MARKETING_TAB} value={MARKETING_TAB} className="flex h-7 items-center gap-1.5 px-2 text-[11px]">
+      <Megaphone className="h-3 w-3" />
+      <span>Marketing</span>
+    </TabsTrigger>
+  ) : null;
 
   return (
     <div className="space-y-3">
@@ -259,9 +282,9 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact }: C
 
       <Tabs defaultValue={defaultTab}>
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted/60 p-1">
-          {GHL_FIELD_FOLDERS.map((folder) => {
+          {folders.map((folder) => {
             const count = fillCounts[folder.id];
-            return (
+            const trigger = (
               <TabsTrigger
                 key={folder.id}
                 value={folder.id}
@@ -279,10 +302,18 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact }: C
                 </span>
               </TabsTrigger>
             );
+            return folder.id === MARKETING_AFTER && marketingTrigger ? [trigger, marketingTrigger] : trigger;
           })}
+          {marketingTrigger && !folders.some((f) => f.id === MARKETING_AFTER) ? marketingTrigger : null}
         </TabsList>
 
-        {GHL_FIELD_FOLDERS.map((folder) => (
+        {marketing ? (
+          <TabsContent value={MARKETING_TAB} className="mt-3">
+            {marketing}
+          </TabsContent>
+        ) : null}
+
+        {folders.map((folder) => (
           <TabsContent key={folder.id} value={folder.id} className="mt-3">
             {folder.description ? (
               <p className="mb-3 text-[11px] text-muted-foreground">{folder.description}</p>
