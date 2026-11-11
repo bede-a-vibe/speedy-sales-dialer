@@ -10,7 +10,7 @@
  * below and one row to dialer_detail_fields() on the server, with the same kind.
  */
 
-import { GHL_FIELD_FOLDERS, MARKETING_TAB_FIELD_KEYS } from "@/lib/ghlFieldFolders";
+import { GHL_FIELD_FOLDERS, MARKETING_FOLDER_ID } from "@/lib/ghlFieldFolders";
 
 export type DetailFilterOp = "eq" | "in" | "not_in" | "gte" | "lte" | "contains" | "is_set" | "is_not_set";
 
@@ -29,14 +29,14 @@ export type DetailFilter = {
   value?: DetailFilterValue;
 };
 
-/** The Intelligence tab's folders, with Marketing after Additional Info, as it shows there. */
+/** The Intelligence tab's folders (the GHL contact folders), in the order it shows them. */
 export type DetailFieldGroup = string;
 
-export const MARKETING_GROUP = "Marketing";
+/** The GHL Marketing folder's name. */
+export const MARKETING_GROUP: DetailFieldGroup =
+  GHL_FIELD_FOLDERS.find((f) => f.id === MARKETING_FOLDER_ID)?.label ?? "Marketing";
 
-export const DETAIL_GROUPS: readonly DetailFieldGroup[] = GHL_FIELD_FOLDERS.flatMap((f) =>
-  f.id === "additional" ? [f.label, MARKETING_GROUP] : [f.label],
-);
+export const DETAIL_GROUPS: readonly DetailFieldGroup[] = GHL_FIELD_FOLDERS.map((f) => f.label);
 
 export type DetailFieldDef = {
   field: string;
@@ -172,14 +172,14 @@ const FILTER_META: Record<string, { kind: DetailFieldKind; label?: string; optio
 
 /**
  * Captured columns the Intelligence tab doesn't list as their own field: the
- * team-size band (the drawer's Team size block), the Marketing tab's own
- * agency answers, and where the call intel came from.
+ * team-size band (the drawer's Team size block), the Marketing capture's
+ * agency answers (a boolean and an array, so the folder lists them without a
+ * column), and where the call intel came from.
  */
 const EXTRA_FIELDS: readonly { field: string; label: string; group: DetailFieldGroup }[] = [
   { field: "business_size", label: "Team size band", group: "General Info" },
   { field: "has_existing_agency", label: "Has Existing Agency", group: MARKETING_GROUP },
   { field: "existing_agency_services", label: "Existing Agency Services", group: MARKETING_GROUP },
-  { field: "existing_agency_notes", label: "Existing Agency Notes", group: MARKETING_GROUP },
   { field: "call_intel_source", label: "Call Intel Source", group: "03 Dialer Activity" },
   { field: "team_size_source", label: "Team Size Source", group: "03 Dialer Activity" },
 ];
@@ -210,7 +210,7 @@ export const DETAIL_FIELDS: readonly DetailFieldDef[] = (() => {
     for (const def of folder.fields) {
       const field = def.supabaseColumn ?? def.derived;
       if (!field) continue;
-      push(field, def.label, MARKETING_TAB_FIELD_KEYS.has(def.key) ? MARKETING_GROUP : folder.label);
+      push(field, def.label, folder.label);
     }
   }
   for (const extra of EXTRA_FIELDS) push(extra.field, extra.label, extra.group);

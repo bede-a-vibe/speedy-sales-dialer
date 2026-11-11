@@ -140,7 +140,6 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.key_quote", ghlId: "aQMw8XHDdYocQrOWft8h", label: "Key Quote", ui: "textarea", fullWidth: true, supabaseColumn: "key_quote" },
       { key: "contact.agreed_next_steps", ghlId: "XIh2qkCyBZui0vEwND4f", label: "Agreed Next Steps", ui: "textarea", fullWidth: true, supabaseColumn: "agreed_next_steps" },
       { key: "contact.competitive_intel", ghlId: "NUbSRl1jVGA9fmmPwFXj", label: "Competitive Intel", ui: "textarea", fullWidth: true, supabaseColumn: "competitive_intel" },
-      { key: "contact.existing_agency_notes", ghlId: "VKodU7rpvGxFzkLyO3tR", label: "Existing Agency Notes", ui: "textarea", fullWidth: true, supabaseColumn: "existing_agency_notes" },
     ],
   },
   {
@@ -198,32 +197,45 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
     id: "additional",
     label: "Additional Info",
     fields: [
+      { key: "contact.gmb_link", ghlId: "ndqiVBUh3uLV3Ldv2U3y", label: "GMB Link", supabaseColumn: "gmb_link" },
+      { key: "contact.google_rating", ghlId: "tURFlUlaFptokRxVtTnY", label: "Google Rating", ui: "number", supabaseColumn: "google_rating" },
+      { key: "contact.google_review_count", ghlId: "zFL0ugGivKLRaT66Rb2z", label: "Google Review Count", ui: "number", supabaseColumn: "google_review_count" },
+      { key: "contact.nurture_last_email", ghlId: "AzWwUC8oiZskQhKyOEFM", label: "Nurture Last Email", ui: "number", supabaseColumn: "nurture_last_email" },
+    ],
+  },
+  {
+    // GHL folder c5YaV0wvOgukqWdiuyB4. In the Intelligence panel this tab also
+    // carries the Marketing capture buttons (see MARKETING_TAB_FIELD_KEYS).
+    id: "marketing",
+    label: "Marketing",
+    fields: [
       { key: "contact.runs_google_ads", ghlId: "ZG3QeG2W3Ik6becivAGs", label: "Runs Google Ads", supabaseColumn: "has_google_ads" },
       { key: "contact.runs_facebook_ads", ghlId: "38OdKPZZEzcS8R8rjRWD", label: "Runs Facebook Ads", supabaseColumn: "has_facebook_ads" },
       { key: "contact.has_seo", ghlId: "DmuVdRMa7GUo75ELoAUe", label: "Has SEO", supabaseColumn: "has_seo" },
       { key: "contact.seo_visibility", ghlId: "ldibksHJ28IRx3nr9HbQ", label: "SEO Visibility", supabaseColumn: "seo_visibility", placeholder: "Page 1, maps pack, not ranking…" },
-      // Dialer has_existing_agency is a boolean and agency services an array; the Marketing tab writes both.
+      // Dialer has_existing_agency is a boolean and agency services an array; the Marketing capture writes both.
       { key: "contact.has_existing_agency", ghlId: "foSa0W3pYXsVAJ0hhDL3", label: "Has Existing Agency" },
       { key: "contact.existing_agency", ghlId: "gCrMGwsqXWSZtafyRpbz", label: "Existing Agency", supabaseColumn: "existing_agency_name" },
       { key: "contact.existing_agency_services", ghlId: "eABDylJMAnBKPjh0E1EQ", label: "Existing Agency Services" },
       { key: "contact.agency_satisfaction", ghlId: "uJLkIMKwn9GJzcw2MN1p", label: "Agency Satisfaction", supabaseColumn: "agency_satisfaction" },
+      { key: "contact.existing_agency_notes", ghlId: "VKodU7rpvGxFzkLyO3tR", label: "Existing Agency Notes", ui: "textarea", fullWidth: true, supabaseColumn: "existing_agency_notes" },
       { key: "contact.monthly_media_spend", ghlId: "uMj8mIEp3iFAksnpYwV9", label: "Monthly Media Spend", supabaseColumn: "current_monthly_ad_spend" },
       { key: "contact.current_marketing_channels", ghlId: "taiXbbtrC4tmJRJ5edvn", label: "Current Marketing Channels", supabaseColumn: "current_marketing_channels" },
       { key: "contact.lead_source_dependency", ghlId: "6MM3HCwi658qrP23cOd1", label: "Lead Source Dependency", supabaseColumn: "lead_source_dependency" },
       { key: "contact.social_media_presence", ghlId: "d13bnB0e76cF5xIB6IUL", label: "Social Media Presence", supabaseColumn: "social_media_presence" },
-      { key: "contact.gmb_link", ghlId: "ndqiVBUh3uLV3Ldv2U3y", label: "GMB Link", supabaseColumn: "gmb_link" },
-      { key: "contact.google_rating", ghlId: "tURFlUlaFptokRxVtTnY", label: "Google Rating", ui: "number", supabaseColumn: "google_rating" },
-      { key: "contact.google_review_count", ghlId: "zFL0ugGivKLRaT66Rb2z", label: "Google Review Count", ui: "number", supabaseColumn: "google_review_count" },
       { key: "contact.facebook_ads_manager_id", ghlId: "VNJerPugxUw9Ag2wCbjZ", label: "Facebook Ads Manager Id", supabaseColumn: "facebook_ads_manager_id" },
-      { key: "contact.nurture_last_email", ghlId: "AzWwUC8oiZskQhKyOEFM", label: "Nurture Last Email", ui: "number", supabaseColumn: "nurture_last_email" },
       { key: "contact.marketing_pain_points", ghlId: "tk7TtUMRZq0XY2MARcbf", label: "Marketing Pain Points", ui: "textarea", fullWidth: true, supabaseColumn: "marketing_pain_points" },
     ],
   },
 ];
 
+/** The Marketing folder's id: the Intelligence panel shows the Marketing capture in this tab. */
+export const MARKETING_FOLDER_ID = "marketing";
+
 /**
- * Additional Info fields the Intelligence panel's Marketing tab captures with
- * its own yes/no/unsure buttons, so they show there instead of in the folder.
+ * Marketing folder fields the Marketing capture (yes/no/unsure buttons, agency
+ * name, services and notes) already shows at the top of the Marketing tab, so
+ * the folder's field grid below it skips them.
  */
 export const MARKETING_TAB_FIELD_KEYS: ReadonlySet<string> = new Set([
   "contact.runs_google_ads",
@@ -232,6 +244,7 @@ export const MARKETING_TAB_FIELD_KEYS: ReadonlySet<string> = new Set([
   "contact.has_existing_agency",
   "contact.existing_agency",
   "contact.existing_agency_services",
+  "contact.existing_agency_notes",
 ]);
 
 export function getAllGhlFieldDefs(): GhlFieldDef[] {

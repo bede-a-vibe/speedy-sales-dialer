@@ -92,6 +92,36 @@ describe("Intelligence tab carries the dialer's fields and GHL's", () => {
     expect(await screen.findByText("Booked")).toBeTruthy();
   });
 
+  it("shows Marketing as one tab: the capture on top, then the folder's other fields, none twice", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ContactIntelligencePanel
+          contactId="c-3"
+          ghlContactId={null}
+          contact={{}}
+          marketing={<div>Marketing capture</div>}
+        />
+      </QueryClientProvider>,
+    );
+    const tabs = screen.getAllByRole("tab").map((t) => t.textContent ?? "");
+    expect(tabs.filter((t) => t.startsWith("Marketing"))).toHaveLength(1);
+    const additional = tabs.findIndex((t) => t.startsWith("Additional Info"));
+    expect(tabs[additional + 1]).toMatch(/^Marketing/);
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Marketing/ }), { button: 0 });
+    expect(await screen.findByText("Marketing capture")).toBeTruthy();
+    expect(screen.getByText("Marketing Pain Points")).toBeTruthy();
+    expect(screen.getByText("Agency Satisfaction")).toBeTruthy();
+    for (const captured of ["Runs Google Ads", "Has Existing Agency", "Existing Agency Notes"]) {
+      expect(screen.queryByText(captured)).toBeNull();
+    }
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Additional Info/ }), { button: 0 });
+    expect(await screen.findByText("GMB Link")).toBeTruthy();
+    expect(screen.queryByText("Monthly Media Spend")).toBeNull();
+  });
+
   it("is the one place to capture the decision maker: opens there, with one-tap picks", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(

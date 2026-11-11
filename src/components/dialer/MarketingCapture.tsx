@@ -23,6 +23,22 @@ interface MarketingCaptureProps {
   deepCrawlAttempted?: boolean | null;
 }
 
+/**
+ * GHL Marketing-folder field ids for the answers whose old "contact.*" keys the
+ * ghl edge function doesn't map (it drops unmapped keys; raw ids pass through).
+ */
+const GHL_ID = {
+  hasSeo: "DmuVdRMa7GUo75ELoAUe",
+  hasExistingAgency: "foSa0W3pYXsVAJ0hhDL3",
+  existingAgencyServices: "eABDylJMAnBKPjh0E1EQ",
+  existingAgencyNotes: "VKodU7rpvGxFzkLyO3tR",
+} as const;
+
+/** GHL "Has Existing Agency" is a Yes/No pick list; "Not sure" clears it. */
+function agencyToGhl(v: TriState): string {
+  return v === "yes" ? "Yes" : v === "no" ? "No" : "";
+}
+
 function toTri(v: string | null): TriState {
   if (v == null) return "unknown";
   const s = String(v).toLowerCase();
@@ -164,7 +180,7 @@ export function MarketingCapture({
     void persist(
       { has_seo: triToDb(v) },
       "SEO",
-      { "contact.has_seo": triToDb(v) ?? "" },
+      { [GHL_ID.hasSeo]: triToDb(v) ?? "" },
     );
   };
 
@@ -174,7 +190,7 @@ export function MarketingCapture({
     void persist(
       { existing_agency_services: next },
       "services",
-      { "contact.existing_agency_services": next.join(", ") },
+      { [GHL_ID.existingAgencyServices]: next.join(", ") },
     );
   };
 
@@ -268,10 +284,8 @@ export function MarketingCapture({
               },
               "agency status",
               {
-                "contact.has_existing_agency": opt,
-                ...(opt !== "yes"
-                  ? { "contact.existing_agency_name": "", "contact.current_marketing_agency": "", "contact.existing_agency_services": "" }
-                  : {}),
+                [GHL_ID.hasExistingAgency]: agencyToGhl(opt),
+                ...(opt !== "yes" ? { "contact.current_marketing_agency": "", [GHL_ID.existingAgencyServices]: "" } : {}),
               },
             );
           }}
@@ -314,8 +328,8 @@ export function MarketingCapture({
                   persist(
                     { existing_agency_name: agencyName || null },
                     "agency name",
-                    // GHL has two agency-name fields on the same column; keep both in step.
-                    { "contact.existing_agency_name": agencyName, "contact.current_marketing_agency": agencyName },
+                    // The edge function maps this old key to GHL "Existing Agency" (gCrMGwsqXWSZtafyRpbz).
+                    { "contact.current_marketing_agency": agencyName },
                   )
                 }
                 placeholder="e.g. King Kong, WebFX"
@@ -330,7 +344,9 @@ export function MarketingCapture({
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => persist({ existing_agency_notes: notes || null }, "agency notes")}
+                onBlur={() =>
+                  persist({ existing_agency_notes: notes || null }, "agency notes", { [GHL_ID.existingAgencyNotes]: notes })
+                }
                 placeholder="e.g. $3k/mo, unhappy with reporting, contract ends Aug"
                 className="min-h-[60px] text-xs"
               />
