@@ -68,9 +68,14 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
       if (!ghlContactId) return {};
       const res = (await ghlGetContact(ghlContactId)) as RawGhlContact;
       const cfs = res?.contact?.customFields ?? [];
+      // GHL returns custom fields by id; match on id first so fields the edge
+      // function does not know by key still load.
+      const keyById: Record<string, string> = {};
+      for (const f of fieldDefs) keyById[f.ghlId] = f.key;
       const out: Record<string, unknown> = {};
       for (const cf of cfs) {
-        if (cf?.key) out[cf.key] = cf.value;
+        const key = (cf?.id && keyById[cf.id]) || cf?.key;
+        if (key) out[key] = cf.value;
       }
       return out;
     },
@@ -112,7 +117,8 @@ export function useGHLContactFields({ contactId, ghlContactId, initialValues }: 
       // 2) Push to GHL.
       if (ghlContactId) {
         try {
-          await ghlUpdateContactFields(ghlContactId, { [key]: value == null ? "" : String(value) });
+          // Push by GHL id: the edge function passes raw ids through, so new fields save too.
+          await ghlUpdateContactFields(ghlContactId, { [def?.ghlId ?? key]: value == null ? "" : String(value) });
           setStatuses((s) => ({ ...s, [key]: "saved" }));
           setLastSavedAt(Date.now());
         } catch (err) {
