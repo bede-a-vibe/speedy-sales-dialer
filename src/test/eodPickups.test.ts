@@ -19,7 +19,7 @@ describe("shared Insights and EOD answered-outcome definition", () => {
       dialpad_total_duration_seconds: 40, reached_connection: false,
       reached_commitment: false, exit_reason_connection: null,
     })) as ReportCallLog[];
-    const metrics = getReportMetrics({ callLogs: logs, bookingItems: [], contacts: [] });
+    const metrics = getReportMetrics({ callLogs: logs, bookedItems: [], contacts: [] });
     expect(metrics.dialer.pickUps).toBe(2);
     expect(metrics.dialer.pickUpRate).toBe(50);
   });
