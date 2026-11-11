@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GHL_FIELD_FOLDERS, type GhlFieldDef, type GhlFieldFolder } from "@/lib/ghlFieldFolders";
 import { useGHLFieldSchema, type GhlCustomFieldSchema } from "@/hooks/useGHLFieldSchema";
 import { useGHLContactFields, type FieldSaveStatus } from "@/hooks/useGHLContactFields";
+import { useLatestBookingAttribution } from "@/hooks/useLatestBookingAttribution";
+import { OUTCOME_CONFIG } from "@/data/constants";
 import { cn } from "@/lib/utils";
 
 interface ContactIntelligencePanelProps {
@@ -54,6 +56,31 @@ function buildInitialValues(contact: Record<string, unknown>): Record<string, un
     }
   }
   return out;
+}
+
+/** A read-only value as a rep should read it ("attempting" -> "Attempting", true -> "Yes"). */
+export function formatReadOnlyValue(def: GhlFieldDef, value: unknown): string {
+  if (value == null || value === "") return "";
+  if (def.ui === "date") {
+    const d = new Date(String(value));
+    return Number.isNaN(d.getTime())
+      ? String(value)
+      : d.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "numeric" });
+  }
+  if (def.display === "yesno") {
+    if (value === true || value === "true") return "Yes";
+    if (value === false || value === "false") return "No";
+    return String(value);
+  }
+  const text = String(value);
+  if (def.display === "outcome") {
+    return (OUTCOME_CONFIG as Record<string, { label: string } | undefined>)[text]?.label ?? text;
+  }
+  if (def.display === "humanize" && /^[a-z0-9_]+$/.test(text)) {
+    const words = text.replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+  return text;
 }
 
 function isFilled(value: unknown): boolean {
@@ -111,6 +138,20 @@ function FieldRow({ def, schema, value, status, onChange }: FieldRowProps) {
   const stringValue = value == null ? "" : String(value);
 
   const renderControl = () => {
+    if (def.readOnly) {
+      const shown = formatReadOnlyValue(def, value);
+      return (
+        <div
+          className={cn(
+            "flex min-h-8 items-center rounded-md border border-dashed border-input bg-muted/40 px-3 py-1.5 text-sm",
+            shown ? "text-foreground" : "text-muted-foreground",
+          )}
+          title="Set by the dialer"
+        >
+          {shown || "Not set"}
+        </div>
+      );
+    }
     // Per-folder UI override wins.
     if (def.ui === "textarea" || dataType === "LARGE_TEXT") {
       return (
@@ -157,7 +198,8 @@ function FieldRow({ def, schema, value, status, onChange }: FieldRowProps) {
     }
     if ((dataType === "DROPDOWN" || dataType === "RADIO" || dataType === "SINGLE_OPTIONS") && picklist.length > 0) {
       return (
-        <Select value={stringValue || "__unset__"} onValueChange={(v) => onChange(v === "__unset__" ? "" : v)}>
+        // An empty value shows the "Select…" placeholder (Radix 2), not the Clear item.
+        <Select value={stringValue} onValueChange={(v) => onChange(v === "__unset__" ? "" : v)}>
           <SelectTrigger className="h-8 text-sm">
             <SelectValue placeholder={def.placeholder ?? "Select…"} />
           </SelectTrigger>
@@ -189,7 +231,10 @@ function FieldRow({ def, schema, value, status, onChange }: FieldRowProps) {
   return (
     <div className={cn("flex flex-col gap-1", def.fullWidth && "md:col-span-2")}>
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">{def.label}</Label>
+        <Label className="text-[11px] font-medium text-muted-foreground">
+          {def.label}
+          {def.readOnly ? <span className="ml-1 font-normal text-muted-foreground/70">· dialer</span> : null}
+        </Label>
         <StatusPill status={status} />
       </div>
       {renderControl()}
@@ -248,11 +293,22 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
   const schemaQuery = useGHLFieldSchema();
   const schemaByKey = schemaQuery.data?.byKey ?? {};
 
-  const { values, statuses, lastSavedAt, setField, isLoadingRemote } = useGHLContactFields({
+  const { values: fieldValues, statuses, lastSavedAt, setField, isLoadingRemote } = useGHLContactFields({
     contactId,
     ghlContactId,
     initialValues,
   });
+  // Booking attribution comes from the lead's latest meeting, not a contacts column.
+  const attribution = useLatestBookingAttribution(contactId);
+  const values = useMemo(() => {
+    const next = { ...fieldValues };
+    for (const folder of GHL_FIELD_FOLDERS) {
+      for (const def of folder.fields) {
+        if (def.derived) next[def.key] = attribution[def.derived] ?? fieldValues[def.key];
+      }
+    }
+    return next;
+  }, [fieldValues, attribution]);
 
   const fillCounts = useMemo(() => {
     const counts: Record<string, { filled: number; total: number }> = {};

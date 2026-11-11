@@ -4,11 +4,13 @@
  * keys), so the dialer and GHL read the same way and can be synced one to one.
  * public.ghl_field_map holds the same mapping for server-side sync.
  *
+ * The panel carries both sides: every GHL field, and every field the dialer
+ * captures itself (each one also exists in GHL, in the matching folder).
+ *
  * `supabaseColumn` mirrors writes into the local `contacts` row, so dialer
- * queue logic keeps working. It is left off where the dialer column holds
- * different values from GHL's options (lifecycle stage, lead source channel)
- * or a different type (arrays and booleans), so a panel edit can never write
- * a GHL value over the dialer's own.
+ * queue logic keeps working. Fields the dialer owns (lifecycle stage, lead
+ * channel, call disposition, booking date and attribution) show the dialer's
+ * value read-only, so a panel edit can never write a GHL value over it.
  */
 
 export type GhlFieldUiHint = "text" | "textarea" | "number" | "date" | "auto";
@@ -31,7 +33,19 @@ export interface GhlFieldDef {
   supabaseColumn?: string;
   /** Render across both columns of the grid. */
   fullWidth?: boolean;
+  /**
+   * Shown but not editable: the dialer sets it (logging a call, booking,
+   * cleanups) and an edit here could change queue behaviour.
+   */
+  readOnly?: boolean;
+  /** How a read-only value is shown: a call outcome label, snake_case to words, or a yes/no flag. */
+  display?: "outcome" | "humanize" | "yesno";
+  /** Worked out from the lead's latest booking rather than read from a contacts column. */
+  derived?: DerivedBookingField;
 }
+
+/** Fields worked out from the latest booked meeting (pipeline_items). */
+export type DerivedBookingField = "setter_name" | "assigned_closer" | "meeting_source" | "meeting_set_by_role";
 
 export interface GhlFieldFolder {
   id: string;
@@ -49,8 +63,10 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
     label: "01 Lead Routing",
     fields: [
       { key: "contact.lead_status", ghlId: "jkEml3ZgsT39j0dw5wb4", label: "Lead Status", supabaseColumn: "lead_status" },
-      // Dialer lifecycle values (new, booked, won, lost) differ from GHL's options; GHL-only here.
-      { key: "contact.lifecycle_stage", ghlId: "P2jB7XrffoxEXQjhlBSD", label: "Lifecycle Stage" },
+      // The dialer owns the stage (new, attempting, booked, won, lost); shown read-only.
+      { key: "contact.lifecycle_stage", ghlId: "P2jB7XrffoxEXQjhlBSD", label: "Lifecycle Stage", supabaseColumn: "lifecycle_stage", readOnly: true, display: "humanize" },
+      { key: "contact.lifecycle_reason", ghlId: "zNjVM4SpjAd13g0oeZ5F", label: "Lifecycle Reason", supabaseColumn: "lifecycle_reason", readOnly: true, display: "humanize" },
+      { key: "contact.lead_type", ghlId: "yrQ4M8P40sbaLX3QrGRz", label: "Lead Type", supabaseColumn: "lead_type", readOnly: true, display: "humanize" },
       { key: "contact.brand", ghlId: "6Sudcgra1Mg2Ird0wIIJ", label: "Brand", supabaseColumn: "brand" },
       { key: "contact.segment", ghlId: "yNZ7hCIwoY37vTZD27Ws", label: "Segment", supabaseColumn: "segment" },
       { key: "contact.segment_changed_at", ghlId: "6ub0dL2Cq5JwBJOYmZGj", label: "Segment Changed At", ui: "date", supabaseColumn: "segment_changed_at" },
@@ -76,6 +92,7 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.preferred_contact_method", ghlId: "4DjpfGirGSrati3ff47I", label: "Preferred Contact Method", supabaseColumn: "preferred_contact_method" },
       { key: "contact.gatekeeper_name", ghlId: "lCSsKeALjcWqPnta12QT", label: "Gatekeeper Name", supabaseColumn: "gatekeeper_name" },
       { key: "contact.gatekeeper_role", ghlId: "RA4QpfGGjhXLgjurypAY", label: "Gatekeeper Role", supabaseColumn: "gatekeeper_role" },
+      { key: "contact.mobile_reaches_gatekeeper", ghlId: "QCQs662OMOx8FCGlA4Nh", label: "Mobile Reaches Gatekeeper", supabaseColumn: "mobile_reaches_gatekeeper", readOnly: true, display: "yesno" },
       { key: "contact.gatekeeper_notes", ghlId: "R8wxTGh9n3EY3LDD6ape", label: "Gatekeeper Notes", ui: "textarea", fullWidth: true, supabaseColumn: "gatekeeper_notes" },
       { key: "contact.stakeholders_enterprise", ghlId: "1HuyARU6BQVcGX88GQfm", label: "Stakeholders (Enterprise)", ui: "textarea", fullWidth: true, supabaseColumn: "stakeholders" },
     ],
@@ -84,6 +101,7 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
     id: "dialer_activity",
     label: "03 Dialer Activity",
     fields: [
+      { key: "contact.call_disposition", ghlId: "kOKXNVwanlxbEpr6ZfaI", label: "Call Disposition", supabaseColumn: "last_outcome", readOnly: true, display: "outcome" },
       { key: "contact.dial_count", ghlId: "YjMRd5Rjibg5QrvtsxUa", label: "Dial Count", ui: "number", supabaseColumn: "call_attempt_count" },
       { key: "contact.last_called_at", ghlId: "fuVXcQF6wcYCUqo2in4s", label: "Last Called At", ui: "date", supabaseColumn: "last_called_at" },
       { key: "contact.next_followup_date", ghlId: "eCycdDk2CeGl8XBx8F9w", label: "Next Follow-Up Date", ui: "date", supabaseColumn: "next_followup_date" },
@@ -131,6 +149,12 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.last_appointment_date", ghlId: "f9YIjyfnCTLsPYChFyHo", label: "Last Appointment Date", ui: "date", supabaseColumn: "latest_appointment_scheduled_for" },
       { key: "contact.last_appointment_calendar", ghlId: "31IX1l2Ic2BHh5dlvvgy", label: "Last Appointment Calendar", supabaseColumn: "last_appointment_calendar" },
       { key: "contact.noshow_count", ghlId: "k1lvtr2msSPEf8kSqMwI", label: "No-Show Count", ui: "number", supabaseColumn: "noshow_count" },
+      // Set by booking; clearing it would put the lead back in the dial queue.
+      { key: "contact.meeting_booked_date", ghlId: "fdpUI4bst6xp1APg4IF6", label: "Meeting Booked Date", ui: "date", supabaseColumn: "meeting_booked_date", readOnly: true },
+      { key: "contact.setter_name", ghlId: "5VixA3oZlDC45b67BkQg", label: "Setter Name", readOnly: true, derived: "setter_name" },
+      { key: "contact.assigned_closer", ghlId: "0aCaKkjthHUEd7D0qLlt", label: "Assigned Closer", readOnly: true, derived: "assigned_closer" },
+      { key: "contact.meeting_source", ghlId: "cPL7LWKp3mxP1aAb6ifY", label: "Meeting Source", readOnly: true, derived: "meeting_source" },
+      { key: "contact.meeting_set_by_role", ghlId: "EfgdEuY7U7eRJACMdo7w", label: "Meeting Set By (Role)", readOnly: true, derived: "meeting_set_by_role" },
     ],
   },
   {
@@ -163,8 +187,8 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.abn", ghlId: "iCiidz5RzuRYi8Iw8gVe", label: "ABN", supabaseColumn: "abn" },
       { key: "contact.website_not_always_formatted", ghlId: "rEtCUJTaE1pS1z1R2cNX", label: "Website (Not always formatted)", supabaseColumn: "website" },
       { key: "contact.website_quality", ghlId: "e7BCMovLMDtEAchA1fS9", label: "Website Quality", supabaseColumn: "website_quality" },
-      // Dialer lead_channel uses its own names (Cold Call, meta ads…); GHL-only here.
-      { key: "contact.lead_source_channel", ghlId: "jDoscxdqzhHNh6lHqFcP", label: "Lead Source Channel" },
+      // The dialer's own channel names (Cold Call, Ads, Student…); shown read-only.
+      { key: "contact.lead_source_channel", ghlId: "jDoscxdqzhHNh6lHqFcP", label: "Lead Source Channel", supabaseColumn: "lead_channel", readOnly: true },
       { key: "contact.prospect_tier", ghlId: "tj6IENIKIjrRNOwAlQrH", label: "Prospect Tier", supabaseColumn: "prospect_tier" },
     ],
   },
@@ -175,6 +199,7 @@ export const GHL_FIELD_FOLDERS: GhlFieldFolder[] = [
       { key: "contact.runs_google_ads", ghlId: "ZG3QeG2W3Ik6becivAGs", label: "Runs Google Ads", supabaseColumn: "has_google_ads" },
       { key: "contact.runs_facebook_ads", ghlId: "38OdKPZZEzcS8R8rjRWD", label: "Runs Facebook Ads", supabaseColumn: "has_facebook_ads" },
       { key: "contact.has_seo", ghlId: "DmuVdRMa7GUo75ELoAUe", label: "Has SEO", supabaseColumn: "has_seo" },
+      { key: "contact.seo_visibility", ghlId: "ldibksHJ28IRx3nr9HbQ", label: "SEO Visibility", supabaseColumn: "seo_visibility", placeholder: "Page 1, maps pack, not ranking…" },
       // Dialer has_existing_agency is a boolean and agency services an array; the Marketing tab writes both.
       { key: "contact.has_existing_agency", ghlId: "foSa0W3pYXsVAJ0hhDL3", label: "Has Existing Agency" },
       { key: "contact.existing_agency", ghlId: "gCrMGwsqXWSZtafyRpbz", label: "Existing Agency", supabaseColumn: "existing_agency_name" },
