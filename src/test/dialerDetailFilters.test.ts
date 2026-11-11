@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   DETAIL_FIELDS,
   KIND_OPS,
+  controlFor,
+  controlOwns,
+  getTextMode,
+  setTextMode,
   countDetailCriteria,
   describeDetailFilter,
   detailFiltersForRpc,
@@ -124,6 +128,36 @@ describe("band as a criterion (Contacts page)", () => {
     ]);
     expect(getEq(f, "business_size")).toBe("Team (3+)");
     expect(setEq(f, "business_size", null)).toEqual([{ field: "team_size", op: "gte", value: 3 }]);
+  });
+});
+
+describe("per-field controls", () => {
+  it("gives every field a control", () => {
+    const byControl = (field: string) => controlFor(DETAIL_FIELDS.find((f) => f.field === field)!);
+    expect(byControl("need_identified")).toBe("pick");
+    expect(byControl("years_in_business")).toBe("range");
+    expect(byControl("has_existing_agency")).toBe("yesno");
+    expect(byControl("key_quote")).toBe("text");
+  });
+
+  it("captured / not captured / contains share one entry per field", () => {
+    let f: DetailFilter[] = [{ field: "need_identified", op: "in", value: ["Strong Need"] }];
+    f = setTextMode(f, "dm_email", "is_set");
+    expect(getTextMode(f, "dm_email")).toEqual({ mode: "is_set", text: "" });
+    f = setTextMode(f, "dm_email", "contains", "  gmail ");
+    expect(f).toEqual([
+      { field: "need_identified", op: "in", value: ["Strong Need"] },
+      { field: "dm_email", op: "contains", value: "gmail" },
+    ]);
+    expect(setTextMode(f, "dm_email", "contains", "")).toHaveLength(1);
+    expect(setTextMode(f, "dm_email", "any")).toHaveLength(1);
+  });
+
+  it("chips only for criteria a control can't show", () => {
+    expect(controlOwns({ field: "need_identified", op: "in", value: ["x"] })).toBe(true);
+    expect(controlOwns({ field: "need_identified", op: "not_in", value: ["x"] })).toBe(false);
+    expect(controlOwns({ field: "key_quote", op: "contains", value: "x" })).toBe(true);
+    expect(controlOwns({ field: "years_in_business", op: "eq", value: 3 })).toBe(false);
   });
 });
 
