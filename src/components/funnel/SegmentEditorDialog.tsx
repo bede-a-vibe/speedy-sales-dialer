@@ -310,16 +310,16 @@ export function SegmentEditorDialog({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Business Size</Label>
+              <Label className="text-xs text-muted-foreground">Team Size</Label>
               <Select
                 value={filters.businessSize ?? "all"}
                 onValueChange={(v) => updateFilter("businessSize", v === "all" ? null : v)}
               >
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="All Sizes" />
+                  <SelectValue placeholder="Any team size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Sizes</SelectItem>
+                  <SelectItem value="all">Any team size</SelectItem>
                   {BUSINESS_SIZES.map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}

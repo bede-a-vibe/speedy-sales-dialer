@@ -74,7 +74,7 @@ import {
   LEAD_TYPES,
   LEAD_CHANNELS,
 } from "@/data/constants";
-import type { DqReason, DncReason } from "@/data/constants";
+import { TEAM_SIZE_BANDS, teamSizeBandOf, type DqReason, type DncReason } from "@/data/constants";
 import type { DialerFilterOptions } from "@/hooks/useContacts";
 import { useEnrichmentCoverage } from "@/hooks/useEnrichmentCoverage";
 import { RingCountdown, SessionActiveTime, SessionCallsPerHour, SessionPausedBadge } from "@/components/dialer/SessionClock";
@@ -3506,6 +3506,18 @@ export default function DialerPage() {
                 contactId={session.currentContact.id}
                 emailFlag={eodEmailFlag}
                 onEmailFlagChange={setEodEmailFlag}
+                teamSizeBand={teamSizeBandOf(((displayContact ?? session.currentContact) as Record<string, unknown>).business_size as string | null)}
+                onTeamSizeBandChange={(band) => {
+                  updateContact.mutateAsync({
+                    id: session.currentContact!.id,
+                    business_size: band ? TEAM_SIZE_BANDS[band] : null,
+                    // A rep's tag replaces any headcount read from an older transcript.
+                    team_size: null,
+                    team_size_evidence: null,
+                    team_size_source: band ? "rep" : null,
+                    team_size_set_at: band ? new Date().toISOString() : null,
+                  }).catch(() => toast.error("Could not save the team size. Try again."));
+                }}
                 mobileGatekeeper={Boolean(((displayContact ?? session.currentContact) as Record<string, unknown>).mobile_reaches_gatekeeper)}
                 onMobileGatekeeperChange={
                   session.currentContact.phone_type === "mobile"

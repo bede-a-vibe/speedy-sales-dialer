@@ -609,13 +609,13 @@ export function AdvancedFilters({
             </div> : null}
 
             {showBusinessSize ? <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Business Size</label>
+              <label className="text-xs font-medium text-muted-foreground">Team Size</label>
               <Select value={businessSize} onValueChange={setBusinessSize} disabled={disabled}>
                 <SelectTrigger className="h-8 border-border bg-card text-xs">
-                  <SelectValue placeholder="All Sizes" />
+                  <SelectValue placeholder="Any team size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Sizes</SelectItem>
+                  <SelectItem value="all">Any team size</SelectItem>
                   {BUSINESS_SIZES.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}

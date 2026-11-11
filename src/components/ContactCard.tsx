@@ -69,6 +69,8 @@ interface ContactCardProps {
     gbp_rating?: number | null;
     review_count?: number | null;
     business_size?: string | null;
+    team_size?: number | null;
+    team_size_evidence?: string | null;
     buying_signal_strength?: string | null;
     has_existing_agency?: boolean | null;
     existing_agency_name?: string | null;
@@ -278,8 +280,12 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
             </span>
           )}
           {contact.business_size && (
-            <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground">
+            <span
+              className="rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-secondary-foreground"
+              title={contact.team_size_evidence ? `On a call: "${contact.team_size_evidence}"` : undefined}
+            >
               {contact.business_size}
+              {contact.team_size ? ` · ${contact.team_size} on the tools` : ""}
             </span>
           )}
           {contact.buying_signal_strength && contact.buying_signal_strength !== "None" && (

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { OutcomeButton } from "@/components/OutcomeButton";
 import { CallOutcome } from "@/data/mockData";
-import { DQ_REASONS, DNC_REASONS, OUTCOME_CONFIG, type DqReason, type DncReason } from "@/data/constants";
+import { DQ_REASONS, DNC_REASONS, OUTCOME_CONFIG, TEAM_SIZE_BANDS, type DqReason, type DncReason, type TeamSizeBand } from "@/data/constants";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Mail, Shield } from "lucide-react";
+import { AlertTriangle, Mail, Shield, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import {
@@ -36,6 +36,9 @@ interface LogCallPanelProps {
   /** Flag this lead for the end-of-day email round; persisted when the call is logged. */
   emailFlag?: boolean;
   onEmailFlagChange?: (v: boolean) => void;
+  /** Team size band heard on the call; saved to the contact as soon as it is tapped. */
+  teamSizeBand?: TeamSizeBand | null;
+  onTeamSizeBandChange?: (band: TeamSizeBand | null) => void;
 }
 
 /**
@@ -124,13 +127,17 @@ export function LogCallPanel({
   contactId,
   emailFlag = false,
   onEmailFlagChange,
+  teamSizeBand = null,
+  onTeamSizeBandChange,
 }: LogCallPanelProps) {
   // Local optimistic state so the toggle flips instantly on click. The persisted
   // value lives on session.currentContact, which doesn't refresh mid-call, so we
   // seed from the prop and reset whenever the lead changes.
   const [gatekeeperChecked, setGatekeeperChecked] = useState(mobileGatekeeper);
+  const [teamSize, setTeamSize] = useState<TeamSizeBand | null>(teamSizeBand);
   useEffect(() => {
     setGatekeeperChecked(mobileGatekeeper);
+    setTeamSize(teamSizeBand);
     // Reset when the contact changes (seeded from that contact's stored value).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId]);
@@ -247,6 +254,26 @@ export function LogCallPanel({
         outcomeIsBooked={selectedOutcome === "booked"}
         onCallDropped={onCallDropped}
       />
+
+      {onTeamSizeBandChange && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Team size">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Team size</span>
+          {(Object.keys(TEAM_SIZE_BANDS) as TeamSizeBand[]).map((band) => (
+            <FlagChip
+              key={band}
+              checked={teamSize === band}
+              icon={band === "small" ? <User className="h-3.5 w-3.5 shrink-0" /> : <Users className="h-3.5 w-3.5 shrink-0" />}
+              label={TEAM_SIZE_BANDS[band]}
+              hint="Who is on the tools, owner included. Saved to the lead straight away; tap again to clear."
+              onClick={() => {
+                const next = teamSize === band ? null : band;
+                setTeamSize(next);
+                onTeamSizeBandChange(next);
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {(onMobileGatekeeperChange || onEmailFlagChange) && (
         <div className="flex flex-wrap gap-1.5">
