@@ -232,6 +232,37 @@ export function useSalesReps() {
   });
 }
 
+/**
+ * Who usually runs the meetings: the most common closer on the last 30 days of
+ * bookings where the closer was not the setter. The database sets the real
+ * closer from the GHL calendar event (ghl_event_closer); this is only the
+ * picker's starting value, so a setter is never the default closer.
+ */
+export function useDefaultCloser() {
+  return useQuery({
+    queryKey: ["default-closer"],
+    queryFn: async (): Promise<string | null> => {
+      const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+      const { data, error } = await supabase
+        .from("pipeline_items")
+        .select("assigned_user_id, created_by")
+        .eq("pipeline_type", "booked")
+        .gte("created_at", since)
+        .limit(1000);
+      if (error) throw error;
+      const counts = new Map<string, number>();
+      for (const row of data ?? []) {
+        if (!row.assigned_user_id || row.assigned_user_id === row.created_by) continue;
+        counts.set(row.assigned_user_id, (counts.get(row.assigned_user_id) ?? 0) + 1);
+      }
+      let best: string | null = null;
+      for (const [id, n] of counts) if (!best || n > (counts.get(best) ?? 0)) best = id;
+      return best;
+    },
+    staleTime: 30 * 60_000,
+  });
+}
+
 export function useContactPipelineItems(contactId?: string) {
   return useQuery({
     queryKey: ["pipeline-items", "contact", contactId],

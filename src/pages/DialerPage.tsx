@@ -45,7 +45,7 @@ import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
 import { evaluateCallingWindow, describeWindowReason } from "@/lib/callingCompliance";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { useCreatePipelineItem, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
+import { useCreatePipelineItem, useDefaultCloser, useSalesReps, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useGHLBookingSync } from "@/hooks/ghl/useGHLBookingSync";
@@ -895,6 +895,7 @@ export default function DialerPage() {
   ]);
 
   const { data: salesReps = [] } = useSalesReps();
+  const { data: defaultCloserId = null } = useDefaultCloser();
   const updateContact = useUpdateContact();
   const createCallLog = useCreateCallLog();
   const createPipelineItem = useCreatePipelineItem();
@@ -1424,17 +1425,20 @@ export default function DialerPage() {
   }, [session.isSessionActive]);
 
   // When booking, default the closer to the setter's usual choice (remembered
-  // on this device) instead of the setter themselves. Only primes while the
-  // picker still holds the default (the current user), never overrides a pick.
+  // on this device), else whoever usually runs the meetings, never the setter
+  // themselves. Only primes while the picker still holds the current user, so
+  // it never overrides a pick. The database then sets the closer from the GHL
+  // calendar event when there is one.
   useEffect(() => {
     if (session.selectedOutcome !== "booked") return;
     if (!session.user?.id || session.assignedRepId !== session.user.id) return;
     let stored: string | null = null;
     try { stored = window.localStorage.getItem(DEFAULT_CLOSER_STORAGE_KEY); } catch { /* ignore */ }
-    if (stored && stored !== session.user.id && salesReps.some((rep) => rep.user_id === stored)) {
-      session.setAssignedRepId(stored);
-    }
-  }, [session.selectedOutcome, session.user?.id, session.assignedRepId, session.setAssignedRepId, salesReps]);
+    const isRep = (id: string | null): id is string => !!id && salesReps.some((rep) => rep.user_id === id);
+    // A remembered pick wins, including a setter who chose to run it themselves.
+    const next = isRep(stored) ? stored : isRep(defaultCloserId) ? defaultCloserId : null;
+    if (next && next !== session.user.id) session.setAssignedRepId(next);
+  }, [session.selectedOutcome, session.user?.id, session.assignedRepId, session.setAssignedRepId, salesReps, defaultCloserId]);
 
   // Reset the native call bar whenever the current contact changes or the
   // session goes inactive. The bar goes back to "dialing" as soon as we

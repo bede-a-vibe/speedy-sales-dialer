@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
-import { useSalesReps, useCreatePipelineItem, type FollowUpMethod } from "@/hooks/usePipelineItems";
+import { useSalesReps, useCreatePipelineItem, useDefaultCloser, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { useGHLBookingSync } from "@/hooks/ghl/useGHLBookingSync";
 import { useGHLFollowUpSync } from "@/hooks/ghl/useGHLFollowUpSync";
@@ -146,6 +146,8 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
   const [pipelineType, setPipelineType] = useState<PipelineType>(initialPipelineType ?? "booked");
   const [followUpMethod, setFollowUpMethod] = useState<FollowUpMethod>("call");
   const [assignedRepId, setAssignedRepId] = useState("");
+  // Set once the user picks a rep, so a late-loading default never overrides them.
+  const [repPicked, setRepPicked] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
   const [scheduledTime, setScheduledTime] = useState("09:00");
   const [notes, setNotes] = useState("");
@@ -186,12 +188,15 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
     [defaultFollowUpPipeline],
   );
 
-  // Set default rep to current user
+  // Default rep: for a booking, whoever usually runs the meetings (the database
+  // corrects it from the GHL calendar event); for a follow-up, the current user.
+  const { data: defaultCloserId = null } = useDefaultCloser();
+  const defaultRepId = (pipelineType === "booked" ? defaultCloserId : null) ?? user?.id ?? "";
   useEffect(() => {
-    if (user && !assignedRepId) {
-      setAssignedRepId(user.id);
+    if (user && !repPicked && defaultRepId && assignedRepId !== defaultRepId) {
+      setAssignedRepId(defaultRepId);
     }
-  }, [user, assignedRepId]);
+  }, [user, repPicked, assignedRepId, defaultRepId]);
 
   // Auto-select the explicit booked pipeline contract when available
   useEffect(() => {
@@ -236,7 +241,8 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
       setScheduledTime("09:00");
       setNotes("");
       setAppointmentTitle("");
-      setAssignedRepId(user?.id || "");
+      setAssignedRepId("");
+      setRepPicked(false);
       setGhlCalendarId("");
       setGhlPipelineId("");
       setGhlStageId("");
@@ -820,7 +826,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
                 <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">
                   Assigned Sales Rep
                 </label>
-                <Select value={assignedRepId} onValueChange={setAssignedRepId}>
+                <Select value={assignedRepId} onValueChange={(value) => { setRepPicked(true); setAssignedRepId(value); }}>
                   <SelectTrigger className="w-full border-border bg-background">
                     <SelectValue placeholder="Choose a sales rep" />
                   </SelectTrigger>
