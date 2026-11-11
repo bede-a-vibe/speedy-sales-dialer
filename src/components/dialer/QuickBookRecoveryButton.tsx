@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useDefaultCloser } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 
 interface QuickBookRecoveryButtonProps {
@@ -35,6 +36,7 @@ interface QuickBookRecoveryButtonProps {
  */
 export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }: QuickBookRecoveryButtonProps) {
   const { user } = useAuth();
+  const { data: defaultCloserId = null } = useDefaultCloser();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(() => {
@@ -105,7 +107,8 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
       const { error: pipelineErr } = await supabase.from("pipeline_items").insert({
         contact_id: contactId,
         pipeline_type: "booked",
-        assigned_user_id: user.id,
+        // The database replaces this with the GHL event's owner when there is one.
+        assigned_user_id: defaultCloserId ?? user.id,
         created_by: user.id,
         scheduled_for: scheduled.toISOString(),
         notes: notes || `Recovered booking for ${contactName}`,
