@@ -86,7 +86,7 @@ export const BENCHMARK_DIMENSIONS: BenchmarkDimension[] = [
   },
   {
     id: "business_size",
-    label: "Business Size",
+    label: "Team Size",
     getValue: (row) => trimOrNull(row.contacts?.business_size) ?? UNKNOWN,
   },
   {

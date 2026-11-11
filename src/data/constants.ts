@@ -201,14 +201,24 @@ export const WORK_TYPES = [
   "Commercial Only",
 ];
 
-export const BUSINESS_SIZES = [
-  "Sole Trader",
-  "2-5 Employees",
-  "6-15 Employees",
-  "16-30 Employees",
-  "31-50 Employees",
-  "50+ Employees",
-];
+/**
+ * Team size bands, stored in contacts.business_size. The split is the offer:
+ * one-man bands (1 or 2 on the tools) get one offer, teams of 3+ another.
+ * contacts.team_size holds the exact headcount when the prospect said it.
+ */
+export const TEAM_SIZE_BANDS = {
+  small: "One-man band (1-2)",
+  team: "Team (3+)",
+} as const;
+export type TeamSizeBand = keyof typeof TEAM_SIZE_BANDS;
+
+export const BUSINESS_SIZES: string[] = [TEAM_SIZE_BANDS.small, TEAM_SIZE_BANDS.team];
+
+export function teamSizeBandOf(businessSize: string | null | undefined): TeamSizeBand | null {
+  if (businessSize === TEAM_SIZE_BANDS.small) return "small";
+  if (businessSize === TEAM_SIZE_BANDS.team) return "team";
+  return null;
+}
 
 export const PROSPECT_TIERS = [
   "Tier 1 - Hot",

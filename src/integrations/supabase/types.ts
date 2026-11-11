@@ -774,6 +774,10 @@ export type Database = {
           budget_indication: string | null
           business_name: string
           business_size: string | null
+          team_size: number | null
+          team_size_evidence: string | null
+          team_size_set_at: string | null
+          team_size_source: string | null
           buying_signal_strength: string | null
           buying_timeline: string | null
           call_attempt_count: number
@@ -890,6 +894,10 @@ export type Database = {
           budget_indication?: string | null
           business_name: string
           business_size?: string | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
           buying_signal_strength?: string | null
           buying_timeline?: string | null
           call_attempt_count?: number
@@ -1006,6 +1014,10 @@ export type Database = {
           budget_indication?: string | null
           business_name?: string
           business_size?: string | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+          team_size_set_at?: string | null
+          team_size_source?: string | null
           buying_signal_strength?: string | null
           buying_timeline?: string | null
           call_attempt_count?: number
