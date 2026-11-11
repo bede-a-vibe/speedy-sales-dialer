@@ -20,7 +20,7 @@ interface SalesToolkitProps {
  * - Objection Handlers
  * - Voicemail Templates
  *
- * Lives inside the Filters & tools drawer, which only opens before a session.
+ * Not mounted on the dialer since the drawer lost its Tools section (11 Nov 2026).
  * It no longer sits beside the live call: the Live Talk Aid panel was removed
  * on 29 Oct 2026 because reps run the script from the Miro board instead.
  */
