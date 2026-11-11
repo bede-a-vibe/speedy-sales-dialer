@@ -235,7 +235,27 @@ export type PaginatedContactsFilters = {
   page?: number;
   pageSize?: number;
   sortBy?: ContactsSortOption;
+  /** Captured-detail criteria, same whitelist as the dialer queue. */
+  detailFilters?: DetailFilter[];
 };
+
+/**
+ * Base contacts query for the Contacts page. With captured-detail criteria it
+ * reads from the contacts_matching_details RPC (a set of contacts rows) and the
+ * caller chains its usual filters, sort, range and count on top, exactly as on
+ * the table. Without criteria it is the plain table.
+ */
+const contactsTableSelect = (columns: string, options?: { count?: "exact" }) =>
+  supabase.from("contacts").select(columns, options);
+
+function contactsBaseQuery(columns: string, detailFilters: DetailFilter[] | undefined, options?: { count?: "exact" }) {
+  const detail = detailFiltersForRpc(detailFilters);
+  if (!detail) return contactsTableSelect(columns, options);
+  // The generated types don't model set-returning RPCs, so type it as the table.
+  return supabase
+    .rpc("contacts_matching_details" as never, { _detail_filters: detail } as never, options)
+    .select(columns) as unknown as ReturnType<typeof contactsTableSelect>;
+}
 
 export type PaginatedContactsResult = {
   contacts: Contact[];
@@ -254,13 +274,12 @@ async function fetchPaginatedContacts({
   page = 1,
   pageSize = 100,
   sortBy = "operational",
+  detailFilters,
 }: PaginatedContactsFilters): Promise<PaginatedContactsResult> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("contacts")
-    .select("*", { count: "exact" })
+  let query = contactsBaseQuery("*", detailFilters, { count: "exact" })
     .eq("is_archived", false);
 
   if (sortBy === "operational") {
@@ -319,7 +338,7 @@ async function fetchPaginatedContacts({
   if (error) throw error;
 
   return {
-    contacts: (data ?? []) as Contact[],
+    contacts: (data ?? []) as unknown as Contact[],
     totalCount: count ?? 0,
   };
 }
@@ -1020,7 +1039,7 @@ export async function fetchAllMatchingContactIds(filters: PaginatedContactsFilte
   const pageSize = 1000;
   let from = 0;
   while (true) {
-    let q = supabase.from("contacts").select("id").eq("is_archived", false).range(from, from + pageSize - 1);
+    let q = contactsBaseQuery("id", filters.detailFilters).eq("is_archived", false).order("id").range(from, from + pageSize - 1);
     if (industry && industry !== "all") q = q.eq("industry", industry);
     if (status && status !== "all") {
       if (status === "dnc") q = q.eq("is_dnc", true);
@@ -1044,7 +1063,7 @@ export async function fetchAllMatchingContactIds(filters: PaginatedContactsFilte
     }
     const { data, error } = await q;
     if (error) throw error;
-    const rows = (data ?? []) as { id: string }[];
+    const rows = (data ?? []) as unknown as { id: string }[];
     ids.push(...rows.map((r) => r.id));
     if (rows.length < pageSize) break;
     from += pageSize;

@@ -11,12 +11,14 @@ import {
   OP_LABELS,
   describeDetailFilter,
   getDetailField,
+  getEq,
   getPicked,
   getRange,
   opNeedsValue,
   opTakesList,
   opsForField,
   sanitizeDetailFilters,
+  setEq,
   setPicked,
   setRange,
   type DetailFieldGroup,
@@ -39,8 +41,9 @@ const GROUP_ORDER: DetailFieldGroup[] = ["Team", "Call intel", "Marketing", "Dec
 const QUICK_FIELDS = DETAIL_FIELDS.filter((f) => f.quick);
 
 /** Filters the panel shows in its own controls; everything else is a listed criterion. */
-function isOwnedByPanel(f: DetailFilter) {
+function isOwnedByPanel(f: DetailFilter, bandInDetails: boolean) {
   if (f.field === "team_size" && (f.op === "gte" || f.op === "lte")) return true;
+  if (bandInDetails && f.field === "business_size" && f.op === "eq") return true;
   if (f.op === "in" && QUICK_FIELDS.some((q) => q.field === f.field)) return true;
   return false;
 }
@@ -62,8 +65,12 @@ function parseWholeNumber(raw: string): number | null {
 }
 
 interface CapturedDetailsFiltersProps {
-  businessSize: string;
-  setBusinessSize: (v: string) => void;
+  /**
+   * The dialer passes its own band state (sent as _business_size). Leave both
+   * out and the band is kept as a business_size criterion instead (Contacts).
+   */
+  businessSize?: string;
+  setBusinessSize?: (v: string) => void;
   detailFilters: DetailFilter[];
   setDetailFilters: (v: DetailFilter[]) => void;
   coverage?: DetailCoverage;
@@ -78,10 +85,16 @@ export function CapturedDetailsFilters({
   coverage,
   disabled = false,
 }: CapturedDetailsFiltersProps) {
+  const bandInDetails = setBusinessSize === undefined;
+  const band = bandInDetails ? getEq(detailFilters, "business_size") ?? "all" : businessSize ?? "all";
+  const pickBand = (next: string) => {
+    if (setBusinessSize) setBusinessSize(next);
+    else setDetailFilters(setEq(detailFilters, "business_size", next === "all" ? null : next));
+  };
   const range = getRange(detailFilters, "team_size");
   const otherCriteria = detailFilters
     .map((f, index) => ({ f, index }))
-    .filter(({ f }) => !isOwnedByPanel(f));
+    .filter(({ f }) => !isOwnedByPanel(f, bandInDetails));
 
   const setHeadcount = (min: number | null, max: number | null) =>
     setDetailFilters(setRange(detailFilters, "team_size", { min, max }));
@@ -99,18 +112,18 @@ export function CapturedDetailsFilters({
           Team size <CoverageCount field="business_size" coverage={coverage} />
         </p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Team size band">
-          {["all", ...BUSINESS_SIZES].map((band) => (
+          {["all", ...BUSINESS_SIZES].map((option) => (
             <Button
-              key={band}
+              key={option}
               type="button"
               size="sm"
-              variant={businessSize === band ? "default" : "outline"}
+              variant={band === option ? "default" : "outline"}
               className="h-8 text-xs"
-              aria-pressed={businessSize === band}
-              onClick={() => setBusinessSize(band)}
+              aria-pressed={band === option}
+              onClick={() => pickBand(option)}
               disabled={disabled}
             >
-              {band === "all" ? "Any size" : band}
+              {option === "all" ? "Any size" : option}
             </Button>
           ))}
         </div>

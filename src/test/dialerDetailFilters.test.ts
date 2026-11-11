@@ -7,9 +7,11 @@ import {
   countDetailCriteria,
   describeDetailFilter,
   detailFiltersForRpc,
+  getEq,
   getPicked,
   getRange,
   sanitizeDetailFilters,
+  setEq,
   setPicked,
   setRange,
   type DetailFilter,
@@ -108,6 +110,20 @@ describe("quick pickers", () => {
     expect(f).toEqual([{ field: "need_identified", op: "in", value: ["Strong Need", "Moderate Need"] }]);
     expect(getPicked(f, "need_identified")).toEqual(["Strong Need", "Moderate Need"]);
     expect(setPicked(f, "need_identified", [])).toEqual([]);
+  });
+});
+
+describe("band as a criterion (Contacts page)", () => {
+  it("keeps one business_size eq entry", () => {
+    let f: DetailFilter[] = [{ field: "team_size", op: "gte", value: 3 }];
+    f = setEq(f, "business_size", "One-man band (1-2)");
+    f = setEq(f, "business_size", "Team (3+)");
+    expect(f).toEqual([
+      { field: "team_size", op: "gte", value: 3 },
+      { field: "business_size", op: "eq", value: "Team (3+)" },
+    ]);
+    expect(getEq(f, "business_size")).toBe("Team (3+)");
+    expect(setEq(f, "business_size", null)).toEqual([{ field: "team_size", op: "gte", value: 3 }]);
   });
 });
 
