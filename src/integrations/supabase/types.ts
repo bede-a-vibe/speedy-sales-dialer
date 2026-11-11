@@ -774,6 +774,35 @@ export type Database = {
           budget_indication: string | null
           business_name: string
           business_size: string | null
+          booking_tier: string | null
+          brand: string | null
+          callback_date: string | null
+          facebook_ads_manager_id: string | null
+          import_batch: string | null
+          job_role: string | null
+          last_appointment_calendar: string | null
+          lead_status: string | null
+          monthly_retainer_value: number | null
+          noshow_count: number | null
+          nurture_last_email: number | null
+          proposal_format: string | null
+          rep_coaching_notes: string | null
+          revival_date: string | null
+          segment: string | null
+          segment_changed_at: string | null
+          service_type: string[] | null
+          social_media_presence: string | null
+          stakeholders: string | null
+          student_email: string | null
+          student_first_name: string | null
+          student_last_name: string | null
+          student_outreach_email: string | null
+          student_purchased_from_list: string | null
+          utm_ad_name: string | null
+          utm_ad_set: string | null
+          vertical: string | null
+          website_quality: string | null
+          appointment_status: string | null
           agency_satisfaction: string | null
           call_intel_at: string | null
           call_intel_source: string | null
@@ -914,6 +943,35 @@ export type Database = {
           budget_indication?: string | null
           business_name: string
           business_size?: string | null
+          booking_tier?: string | null
+          brand?: string | null
+          callback_date?: string | null
+          facebook_ads_manager_id?: string | null
+          import_batch?: string | null
+          job_role?: string | null
+          last_appointment_calendar?: string | null
+          lead_status?: string | null
+          monthly_retainer_value?: number | null
+          noshow_count?: number | null
+          nurture_last_email?: number | null
+          proposal_format?: string | null
+          rep_coaching_notes?: string | null
+          revival_date?: string | null
+          segment?: string | null
+          segment_changed_at?: string | null
+          service_type?: string[] | null
+          social_media_presence?: string | null
+          stakeholders?: string | null
+          student_email?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
+          student_outreach_email?: string | null
+          student_purchased_from_list?: string | null
+          utm_ad_name?: string | null
+          utm_ad_set?: string | null
+          vertical?: string | null
+          website_quality?: string | null
+          appointment_status?: string | null
           agency_satisfaction?: string | null
           call_intel_at?: string | null
           call_intel_source?: string | null
@@ -1054,6 +1112,35 @@ export type Database = {
           budget_indication?: string | null
           business_name?: string
           business_size?: string | null
+          booking_tier?: string | null
+          brand?: string | null
+          callback_date?: string | null
+          facebook_ads_manager_id?: string | null
+          import_batch?: string | null
+          job_role?: string | null
+          last_appointment_calendar?: string | null
+          lead_status?: string | null
+          monthly_retainer_value?: number | null
+          noshow_count?: number | null
+          nurture_last_email?: number | null
+          proposal_format?: string | null
+          rep_coaching_notes?: string | null
+          revival_date?: string | null
+          segment?: string | null
+          segment_changed_at?: string | null
+          service_type?: string[] | null
+          social_media_presence?: string | null
+          stakeholders?: string | null
+          student_email?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
+          student_outreach_email?: string | null
+          student_purchased_from_list?: string | null
+          utm_ad_name?: string | null
+          utm_ad_set?: string | null
+          vertical?: string | null
+          website_quality?: string | null
+          appointment_status?: string | null
           agency_satisfaction?: string | null
           call_intel_at?: string | null
           call_intel_source?: string | null
