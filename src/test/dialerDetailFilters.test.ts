@@ -251,7 +251,7 @@ describe("one set of captured details: the filters mirror the Intelligence tab",
 
   it("orders groups like the Intelligence tabs and GHL: most important first, Lead Routing last", () => {
     expect(DETAIL_GROUPS).toEqual([
-      "Decision Maker", "General Info", "Marketing", "Additional Info", "Qualification", "Appointments",
+      "Contact", "General Info", "Marketing", "Additional Info", "Qualification", "Appointments",
       "Dialer Activity", "Attribution", "Lead Routing",
     ]);
     expect(DETAIL_GROUPS).toEqual(GHL_FIELD_FOLDERS.map((f) => f.label));

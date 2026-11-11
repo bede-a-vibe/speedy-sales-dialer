@@ -128,7 +128,7 @@ describe("Intelligence tab carries the dialer's fields and GHL's", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>
-        <ContactIntelligencePanel contactId="c-2" ghlContactId={null} contact={{}} defaultFolder="decision_maker" />
+        <ContactIntelligencePanel contactId="c-2" ghlContactId={null} contact={{}} defaultFolder="contact" />
       </QueryClientProvider>,
     );
     expect(await screen.findByText("Decision Maker Name")).toBeTruthy();
