@@ -8,3 +8,4 @@
 - Fathom is connected per closer: each user's API key lives in fathom_connections (key column not granted to browser roles) and only the `fathom` edge function reads it — keys are personal to each Fathom account.
 - Recover stale lazy-page imports through the shared error boundary with a session-guarded document reload; React retries reuse rejected imports and cannot fetch a new deployment manifest.
 - The dialer's explicit Pitched checkpoint sits between Solution and Commitment and is retained in call notes; keep it distinct from solution awareness without changing the existing reporting schema.
+- EOD dials and pick-ups use logged outcomes matching Insights; manager reports fetch current metrics rather than submission snapshots so corrected calls are reflected, while submitted reflections remain unchanged.
