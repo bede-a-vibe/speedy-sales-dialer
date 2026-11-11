@@ -119,6 +119,32 @@ describe("a moved meeting keeps its missed slot in the show-up rate", () => {
     expect(closer.closer.rescheduled).toBe(1);
   });
 
+  it("splits reschedules by who moved them and tracks show-up after a move", () => {
+    const ours = { ...(missedSlot as object), id: "reschedule:r2", contact_id: "c9", outcome_reason: "rs_clash" } as never;
+    const theirs = { ...(missedSlot as object), outcome_reason: "rs_prospect" } as never;
+    const m = run("2026-11-11", "2026-11-17", { slots: [theirs, ours] }).appointmentPerformance.setter;
+    expect(m.reschedulesByProspect).toBe(1);
+    expect(m.reschedulesByUs).toBe(1);
+    expect(m.reschedulesNoReason).toBe(0);
+    expect(m.movedByUsRate).toBe(50);
+    // The moved meeting sat on 17 Nov: 1 of 1 moved-once meetings showed.
+    expect(m.movedOnceShowUpRate).toBe(100);
+  });
+
+  it("counts cancellation reasons on first meetings", () => {
+    const cancel = (id: string, reason: string | null) =>
+      ({ ...(other(id, "cancelled", "2026-11-11") as object), appointment_outcome: "cancelled", outcome_reason: reason }) as never;
+    const m = getReportMetrics({
+      callLogs: [],
+      bookedItems: [cancel("x", "cx_not_interested"), cancel("y", "cx_not_interested"), cancel("z", null)],
+      from: "2026-11-11",
+      to: "2026-11-11",
+      contacts: [],
+    }).appointmentPerformance.setter;
+    expect(m.cancellationReasons).toEqual({ cx_not_interested: 2, unrecorded: 1 });
+    expect(m.cancellationRate).toBe(100);
+  });
+
   it("without slots, a moved meeting no longer reads as rescheduled before its new time", () => {
     // The database now calls a moved, not-yet-held booking "upcoming".
     const moved = { ...(meeting as object), appointment_outcome: "rescheduled", status: "open", resolved_bucket: "upcoming" } as never;
