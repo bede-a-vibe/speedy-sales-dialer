@@ -72,7 +72,7 @@ function MetricsRow({ metrics, compact }: { metrics: EodMetrics | null | undefin
     <div className={`grid gap-2 ${compact ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"}`}>
       <MetricTile label="Dials" value={String(metrics?.dials ?? 0)} compact={compact} />
       <MetricTile label="Connects" value={String(metrics?.connects ?? 0)} compact={compact} />
-      <MetricTile label="Pickup %" value={formatPct(metrics?.pickup_pct)} compact={compact} />
+      <MetricTile label="Pickup %" value={formatPct(Math.round(metrics?.pickup_pct ?? 0))} compact={compact} />
       <MetricTile
         label="Convos >2min"
         value={String(metrics?.convos_over_2min ?? 0)}
@@ -515,6 +515,7 @@ function TeamReportCard({
   managerId: string;
 }) {
   const saveComment = useSaveManagerComment();
+  const metricsQuery = useEodMetrics(report.user_id, report.report_date);
   const ghlMetricsQuery = useEodGhlCallMetrics(report.user_id, report.report_date);
   const [comment, setComment] = useState(report.manager_comment ?? "");
 
@@ -555,7 +556,12 @@ function TeamReportCard({
         )}
       </div>
 
-      <MetricsRow metrics={report.auto_metrics} compact />
+      {metricsQuery.isLoading ? <ListRowsSkeleton rows={1} /> : null}
+      {metricsQuery.error ? (
+        <p className="text-sm text-destructive">Unable to refresh report metrics.</p>
+      ) : !metricsQuery.isLoading ? (
+        <MetricsRow metrics={metricsQuery.data} compact />
+      ) : null}
 
       {/* GHL-placed calls the dialer never saw. Shown separately so a rep is
           never marked down for work that landed in the other phone system. */}
