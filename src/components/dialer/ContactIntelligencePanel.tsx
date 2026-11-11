@@ -26,16 +26,18 @@ interface ContactIntelligencePanelProps {
 
 const MARKETING_TAB = "marketing";
 /** Folders the Marketing tab replaces. */
-const REPLACED_BY_MARKETING = new Set(["agency"]);
-/** Fields in other folders that Marketing already captures (same columns and GHL keys). */
+const REPLACED_BY_MARKETING = new Set<string>();
+/** Additional Info fields the Marketing tab already captures, with yes/no/unsure buttons. */
 const FIELDS_IN_MARKETING = new Set([
-  "contact.has_google_ads",
-  "contact.has_facebookmeta_ads",
-  // Same column (existing_agency_name) as Marketing's agency name, which writes both GHL keys.
-  "contact.current_marketing_agency",
+  "contact.runs_google_ads",
+  "contact.runs_facebook_ads",
+  "contact.has_seo",
+  "contact.has_existing_agency",
+  "contact.existing_agency",
+  "contact.existing_agency_services",
 ]);
 /** The Marketing tab goes right after this folder. */
-const MARKETING_AFTER = "digital";
+const MARKETING_AFTER = "additional";
 
 /**
  * Build the initial field values map by reading any mirrored Supabase columns
@@ -266,7 +268,8 @@ export function ContactIntelligencePanel({ contactId, ghlContactId, contact, mar
   const totalFields = Object.values(fillCounts).reduce((acc, c) => acc + c.total, 0);
   const hasError = Object.values(statuses).some((s) => s === "error");
 
-  const defaultTab = folders[0]?.id ?? "qualification";
+  // Open on Qualification: it is what a rep fills in during the call.
+  const defaultTab = folders.find((f) => f.id === "qualification")?.id ?? folders[0]?.id ?? "qualification";
   const marketingTrigger = marketing ? (
     <TabsTrigger key={MARKETING_TAB} value={MARKETING_TAB} className="flex h-7 items-center gap-1.5 px-2 text-[11px]">
       <Megaphone className="h-3 w-3" />
