@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Dumbbell } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, ListTodo, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { LazyQuickBookDialog } from "@/components/LazyMount";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnseenReviewCount } from "@/hooks/useManager";
+import { useOverdueFollowUpCount } from "@/hooks/useOverdueFollowUpCount";
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +32,7 @@ const mainItems = [
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
+  { title: "Follow-ups", url: "/follow-ups", icon: ListTodo },
   { title: "Classroom", url: "/classroom", icon: GraduationCap },
   { title: "Training", url: "/training", icon: Dumbbell },
   { title: "End of Day", url: "/eod", icon: NotebookPen },
@@ -58,6 +60,7 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const [quickBookOpen, setQuickBookOpen] = useState(false);
   const { user } = useAuth();
+  const { data: overdueFollowUps = 0 } = useOverdueFollowUpCount(user?.id);
   const email = user?.email ?? "";
   const displayName =
     (user?.user_metadata?.full_name as string | undefined) ||
@@ -118,6 +121,11 @@ export function AppSidebar() {
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                       {!collapsed && item.url === "/training" && unseenReviews > 0 && <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{unseenReviews} new</span>}
+                      {!collapsed && item.url === "/follow-ups" && overdueFollowUps > 0 && (
+                        <span className="ml-auto rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground" title="Your overdue follow-ups">
+                          {overdueFollowUps} overdue
+                        </span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
