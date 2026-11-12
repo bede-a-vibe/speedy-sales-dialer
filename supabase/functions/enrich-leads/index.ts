@@ -43,8 +43,8 @@ const DEEP_CONCURRENCY = 11;
 // State backfill hits up to 5 pages on one domain per lead, so keep it modest.
 const STATE_CONCURRENCY = 8;
 
-// Best-effort free website discovery via DuckDuckGo HTML.
-// Skip hosts that are directories, socials, aggregators, gov/edu, or search engines.
+// Hosts never accepted as a lead's own website (discovered or stored): directories,
+// socials, aggregators, gov/edu, or search engines.
 const SEARCH_HOST_BLOCKLIST = [
   "facebook", "instagram", "linkedin", "twitter", "x.com", "yelp",
   "yellowpages", "truelocal", "hotfrog", "localsearch", "oneflare",
@@ -156,82 +156,52 @@ function isRealBusinessName(name: string | null | undefined): boolean {
   return true;
 }
 
-/** Best-effort: search DuckDuckGo HTML for a business's real website. Never throws. */
-async function findWebsiteViaSearch(
-  businessName: string,
-  city: string | null | undefined,
-  state: string | null | undefined,
-): Promise<string | null> {
+/**
+ * The lead's own website from its Google Business Profile, via Places Text
+ * Search. Matching reuses the GMB lookup (phone first, then a strict name
+ * match), so the site belongs to the lead, not to whatever ranks first for its
+ * name. Replaced DuckDuckGo HTML scraping, which answers automated traffic with
+ * a 202 captcha page and found no sites after July 2026. Never throws: a Places
+ * error is reported through `error` so the batch can count it.
+ */
+async function findWebsiteViaPlaces(
+  auth: PlacesAuth,
+  contact: {
+    business_name: string | null;
+    phone: string | null;
+    phone_e164: string | null;
+    city: string | null;
+    state: string | null;
+  },
+): Promise<{ website: string | null; error: string | null }> {
   try {
-    const parts = [businessName, city ?? "", state ?? "", "Australia"]
-      .map((s) => (s ?? "").trim())
-      .filter(Boolean);
-    const query = parts.join(" ");
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-    let html: string;
+    const r = await lookupGmbForContact(auth, contact, PLACES_WEBSITE_FIELD_MASK);
+    if (!r.matched || !r.place) return { website: null, error: null };
+    // A profile in another state is a namesake, not this lead.
+    const ourState = String(contact.state ?? "").trim().toUpperCase();
+    if (ourState && r.state && r.state !== ourState) return { website: null, error: null };
+    const raw = String(r.place.websiteUri ?? "").trim();
+    if (!raw) return { website: null, error: null };
+    let normalized: string;
+    let host: string;
     try {
-      const res = await fetch(url, {
-        redirect: "follow",
-        signal: ctrl.signal,
-        headers: {
-          "User-Agent": UA,
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "en-AU,en;q=0.9",
-        },
-      });
-      if (!res.ok) {
-        try { await res.body?.cancel(); } catch { /* ignore */ }
-        return null;
-      }
-      html = await res.text();
-    } finally {
-      clearTimeout(timer);
+      const u = new URL(raw);
+      host = u.host;
+      normalized = `${u.protocol}//${u.host}`;
+    } catch {
+      return { website: null, error: null };
     }
-
-    // Extract candidate hrefs — both class="result__a" anchors and the raw
-    // DuckDuckGo redirect links "/l/?uddg=..." or "//duckduckgo.com/l/?uddg=...".
-    const hrefRe = /href=["']([^"']+)["']/gi;
-    const candidates: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = hrefRe.exec(html)) !== null) {
-      const raw = m[1];
-      if (!raw) continue;
-      // Only care about uddg redirects (DDG wraps every result this way).
-      if (!raw.includes("uddg=")) continue;
-      try {
-        const abs = raw.startsWith("//") ? "https:" + raw : raw.startsWith("/") ? "https://duckduckgo.com" + raw : raw;
-        const u = new URL(abs);
-        const real = u.searchParams.get("uddg");
-        if (!real) continue;
-        const decoded = decodeURIComponent(real);
-        candidates.push(decoded);
-      } catch {
-        // ignore malformed
-      }
-    }
-
-    for (const cand of candidates) {
-      let host: string;
-      let normalized: string | null;
-      try {
-        const u = new URL(cand);
-        host = u.host;
-        normalized = `${u.protocol}//${u.host}`;
-      } catch {
-        continue;
-      }
-      if (!host || isBlockedSearchHost(host)) continue;
-      // Confirm the candidate actually serves HTML.
-      const probe = await fetchPage(normalized!);
-      if (probe === null) continue;
-      return normalized;
-    }
-    return null;
+    // Many tradies list a Facebook page, a directory listing or a link-in-bio
+    // as their profile website. None of those is their own site.
+    if (!host || isBlockedSearchHost(host)) return { website: null, error: null };
+    // Confirm the site actually serves HTML.
+    const probe = await fetchPage(normalized);
+    if (probe === null) return { website: null, error: null };
+    return { website: normalized, error: null };
   } catch (err) {
-    console.warn("[enrich-leads] search error:", (err as { message?: string })?.message ?? err);
-    return null;
+    const message = String((err as { message?: string })?.message ?? err);
+    console.warn("[enrich-leads] places website lookup error:", message);
+    return { website: null, error: message };
   }
 }
 
@@ -928,9 +898,12 @@ async function processContact(
     industry: string | null;
     city: string | null;
     state: string | null;
+    phone: string | null;
+    phone_e164: string | null;
   },
   lovableApiKey: string | undefined,
   allowAiName: boolean,
+  placesAuth: PlacesAuth | null,
 ): Promise<{
   mobile: string | null;
   email: string | null;
@@ -940,6 +913,7 @@ async function processContact(
   resolvedWebsite: string | null;
   siteFromEmail: boolean;
   siteFromSearch: boolean;
+  siteSearchError: string | null;
   websiteWasDirectory: boolean;
   industry: string | null;
   homepageText: string | null;
@@ -956,6 +930,7 @@ async function processContact(
   let base = contact.website && !websiteWasDirectory ? normalizeWebsite(contact.website) : null;
   let siteFromEmail = false;
   let siteFromSearch = false;
+  let siteSearchError: string | null = null;
   let resolvedWebsite: string | null = base;
 
   // Derive site from a business email domain when no website is set.
@@ -972,13 +947,18 @@ async function processContact(
     }
   }
 
-  // Best-effort free website discovery via DuckDuckGo HTML — only when we still
-  // have nothing and the business_name is real (not digits / a phone number).
-  if (!base && isRealBusinessName(contact.business_name)) {
-    const found = await findWebsiteViaSearch(contact.business_name!, contact.city, contact.state);
-    if (found) {
-      base = found;
-      resolvedWebsite = found;
+  // Website from the lead's Google Business Profile — only when we still have
+  // nothing and there is a real business name or a phone to match on. Skipped
+  // when no Places key is configured.
+  if (
+    !base && placesAuth &&
+    (isRealBusinessName(contact.business_name) || toE164Au(contact.phone_e164 ?? contact.phone))
+  ) {
+    const found = await findWebsiteViaPlaces(placesAuth, contact);
+    siteSearchError = found.error;
+    if (found.website) {
+      base = found.website;
+      resolvedWebsite = found.website;
       siteFromSearch = true;
     }
   }
@@ -1002,7 +982,7 @@ async function processContact(
     return {
       mobile: null, email: null, name: null, ownerAttributed: false,
       source: "none", resolvedWebsite: null, siteFromEmail: false,
-      siteFromSearch: false, websiteWasDirectory,
+      siteFromSearch: false, siteSearchError, websiteWasDirectory,
       industry: industryOnly, homepageText: null,
       pagesFetched: 0, ms: Date.now() - start,
       addrState: null, addrCity: null,
@@ -1090,6 +1070,7 @@ async function processContact(
     resolvedWebsite,
     siteFromEmail,
     siteFromSearch,
+    siteSearchError,
     websiteWasDirectory,
     industry,
     homepageText,
@@ -1122,6 +1103,9 @@ async function runInChunks<T, R>(items: T[], size: number, fn: (item: T) => Prom
 const GMB_CONCURRENCY = 5;
 const GMB_FIELD_MASK =
   "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location";
+// websiteUri moves the call to Google's Enterprise Text Search SKU, so only the
+// website lookup asks for it; the state backfill keeps the cheaper mask.
+const PLACES_WEBSITE_FIELD_MASK = `${GMB_FIELD_MASK},places.websiteUri`;
 
 interface PlacesAuth {
   mode: "direct" | "gateway";
@@ -1143,14 +1127,18 @@ function resolvePlacesAuth(): PlacesAuth | null {
   return { mode: "gateway", key: raw, lovableKey };
 }
 
-async function placesSearchText(auth: PlacesAuth, textQuery: string): Promise<any[]> {
+async function placesSearchText(
+  auth: PlacesAuth,
+  textQuery: string,
+  fieldMask: string = GMB_FIELD_MASK,
+): Promise<any[]> {
   const url =
     auth.mode === "direct"
       ? "https://places.googleapis.com/v1/places:searchText"
       : "https://connector-gateway.lovable.dev/google_maps/places/v1/places:searchText";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Goog-FieldMask": GMB_FIELD_MASK,
+    "X-Goog-FieldMask": fieldMask,
   };
   if (auth.mode === "direct") {
     headers["X-Goog-Api-Key"] = auth.key;
@@ -1280,6 +1268,7 @@ interface GmbLookupResult {
 async function lookupGmbForContact(
   auth: PlacesAuth,
   c: { business_name?: string | null; phone_e164?: string | null; phone?: string | null; city?: string | null },
+  fieldMask: string = GMB_FIELD_MASK,
 ): Promise<GmbLookupResult> {
   const none = (reason: string, ambiguous = false): GmbLookupResult => ({
     matched: false, via: null, place: null, state: null, city: null, ambiguous, reason,
@@ -1288,7 +1277,7 @@ async function lookupGmbForContact(
   // (a) Phone match — near-unambiguous, so no name check required.
   const e164 = toE164Au(c.phone_e164 ?? c.phone ?? null);
   if (e164) {
-    const byPhone = await placesSearchText(auth, e164);
+    const byPhone = await placesSearchText(auth, e164, fieldMask);
     if (byPhone.length === 1) {
       const p = byPhone[0];
       const loc = stateFromPlace(p);
@@ -1302,7 +1291,7 @@ async function lookupGmbForContact(
   const name = String(c.business_name ?? "").trim();
   if (!name) return none("no_phone_no_name");
   const cityPart = c.city ? ` ${String(c.city).trim()}` : "";
-  const byName = await placesSearchText(auth, `${name}${cityPart} Australia`);
+  const byName = await placesSearchText(auth, `${name}${cityPart} Australia`, fieldMask);
   if (byName.length === 0) return none("no_result");
 
   const close = byName.filter((p) => isCloseNameMatch(name, p?.displayName?.text ?? ""));
@@ -1670,7 +1659,7 @@ Deno.serve(async (req) => {
 
   // ── Daily AI-call budget (Australia/Melbourne) ──
   // Bounds Lovable AI credit spend. Free extraction (scrape, regex, ad-tech,
-  // ABN, address, years, ABR, DDG) ALWAYS runs — only the AI name-fallback
+  // ABN, address, years, ABR, Places website) ALWAYS runs — only the AI name-fallback
   // is capped by this budget.
   const melbTodayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
   let budgetRow: { id: string; day: string; calls_used: number; daily_cap: number } | null = null;
@@ -2085,7 +2074,7 @@ Deno.serve(async (req) => {
   // Select batch
   let query = admin
     .from("contacts")
-    .select("id, website, email, business_name, industry, trade_type, phone, phone_type, prospect_tier, dm_phone, dm_phone_blocklist, dm_email, dm_name, best_route_to_decision_maker, city, state, has_google_ads, has_facebook_ads");
+    .select("id, website, email, business_name, industry, trade_type, phone, phone_e164, phone_type, prospect_tier, dm_phone, dm_phone_blocklist, dm_email, dm_name, best_route_to_decision_maker, city, state, has_google_ads, has_facebook_ads");
 
   if (forcedIds) {
     query = query.in("id", forcedIds);
@@ -2136,11 +2125,18 @@ Deno.serve(async (req) => {
   let emails_found = 0;
   let names_found = 0;
   let websites_found = 0;
+  let website_search_errors = 0;
   let states_found = 0;
   let cities_found = 0;
   let ai_name_calls = 0;
   let ai_name_eligible = 0;
   const logs: any[] = [];
+  // Website discovery for leads with no usable site. Without a key the lookup
+  // is skipped and those leads only get a site from a business email domain.
+  const websitePlacesAuth = resolvePlacesAuth();
+  if (!websitePlacesAuth) {
+    console.log("[enrich-leads] no Google Places API key configured — website discovery skipped.");
+  }
 
   const perContact = async (c: any) => {
     try {
@@ -2161,14 +2157,19 @@ Deno.serve(async (req) => {
         industry: c.industry,
         city: c.city,
         state: c.state,
-      }, LOVABLE_API_KEY, allowAi);
+        phone: c.phone,
+        phone_e164: c.phone_e164,
+      }, LOVABLE_API_KEY, allowAi, websitePlacesAuth);
       if (r.aiCalled) ai_name_calls++;
       if (allowAi && !r.aiCalled && batchAiState.made > 0) batchAiState.made--;
+      if (r.siteSearchError) website_search_errors++;
 
-      // Source: 'search-website' if discovered via DDG, 'email-domain' if from
-      // email domain, 'website' if we fetched an existing site, else 'ai-classify'.
+      // Source: 'places-website' if found on the Google Business Profile
+      // ('search-website' was the retired DuckDuckGo search), 'email-domain' if
+      // from email domain, 'website' if we fetched an existing site, else
+      // 'ai-classify'.
       const enrichSource = r.siteFromSearch
-        ? "search-website"
+        ? "places-website"
         : r.siteFromEmail
         ? "email-domain"
         : r.pagesFetched > 0
@@ -2257,6 +2258,8 @@ Deno.serve(async (req) => {
         website: c.website,
         resolved_website: r.resolvedWebsite,
         site_from_email: r.siteFromEmail,
+        site_from_search: r.siteFromSearch,
+        site_search_error: r.siteSearchError,
         industry: r.industry,
         pages: r.pagesFetched,
         ms: r.ms,
@@ -2292,6 +2295,7 @@ Deno.serve(async (req) => {
     emails_found,
     names_found,
     websites_found,
+    website_search_errors,
     states_found,
     cities_found,
     remaining,
