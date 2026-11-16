@@ -78,6 +78,11 @@ export interface OutcomeExtras {
   phoneRecordingUrl?: string | null;
   /** What was sold. Required to open the client_deals row on a close. */
   stream?: ClientStream | null;
+  /**
+   * More than one service sold: each service's monthly amount (already
+   * normalised to monthly). The close opens one revenue record per service.
+   */
+  streamAmounts?: Partial<Record<ClientStream, number>> | null;
 }
 
 interface BookedOutcomePanelProps {
@@ -181,7 +186,17 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   // moment someone knows what was actually sold. Without it the client_deals
   // row cannot be opened (stream is NOT NULL) — which is why closes were
   // landing on the board and never reaching the revenue table.
-  const [stream, setStream] = useState<ClientStream>("seo");
+  const [streams, setStreams] = useState<ClientStream[]>(["seo"]);
+  const [streamAmounts, setStreamAmounts] = useState<Partial<Record<ClientStream, string>>>({});
+  const stream: ClientStream = streams.length === 1 ? streams[0] : "other";
+  const multiService = streams.length > 1;
+  const toggleStream = (sv: ClientStream) =>
+    setStreams((current) => (current.includes(sv) ? (current.length > 1 ? current.filter((x) => x !== sv) : current) : [...current, sv]));
+  // Several services: the retainer is the sum of the per-service amounts.
+  const multiServiceTotal = multiService
+    ? streams.reduce((sum, sv) => sum + (parseFloat(streamAmounts[sv] ?? "") || 0), 0)
+    : 0;
+  const toMonthly = (v: number) => (retainerCadence === "weekly" ? Math.round(v * (52 / 12) * 100) / 100 : v);
 
   const rescheduleIso = rescheduleDate ? combineDateTime(rescheduleDate, rescheduleTime) : undefined;
   const secondMeetingIso = secondMeetingDate ? combineDateTime(secondMeetingDate, secondMeetingTime) : undefined;
@@ -189,6 +204,19 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     if (!reasonOk(outcome)) return;
+    if (outcome === "showed_closed" && multiService) {
+      const missing = streams.filter((sv) => !(parseFloat(streamAmounts[sv] ?? "") > 0));
+      if (missing.length) {
+        toast.error(`Enter the monthly amount for ${missing.map((sv) => STREAM_LABELS[sv]).join(", ")} before closing.`);
+        return;
+      }
+      const amounts: Partial<Record<ClientStream, number>> = {};
+      for (const sv of streams) amounts[sv] = toMonthly(parseFloat(streamAmounts[sv] ?? "0"));
+      const total = Object.values(amounts).reduce((a, b) => a + (b ?? 0), 0);
+      onRecordOutcome(item, outcome, outcomeNotes, scheduledFor, dealValue ? parseFloat(dealValue) : undefined,
+        undefined, undefined, Math.round(total * 100) / 100, { ...extras(), reason: null, stream: "other", streamAmounts: amounts });
+      return;
+    }
     if (outcome === "showed_closed" && !monthlyValue && !dealValue) {
       toast.error("Enter the retainer or deal value before closing — it opens the client's revenue record.");
       return;
@@ -379,10 +407,16 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
               type="number"
               min="0"
               step="0.01"
-              value={monthlyValue}
+              value={multiService ? (multiServiceTotal ? String(multiServiceTotal) : "") : monthlyValue}
               onChange={(e) => setMonthlyValue(e.target.value)}
-              placeholder={retainerCadence === "weekly" ? "Retainer ($/wk)" : "Retainer ($/mo)"}
-              className="w-full bg-background"
+              readOnly={multiService}
+              title={multiService ? "Total of the per-service amounts below" : undefined}
+              placeholder={
+                multiService
+                  ? "Total of the services below"
+                  : retainerCadence === "weekly" ? "Retainer ($/wk)" : "Retainer ($/mo)"
+              }
+              className={cn("w-full bg-background", multiService && "text-muted-foreground")}
             />
           </div>
         </div>
@@ -395,16 +429,43 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
       <div className="flex flex-col gap-2 rounded-md border border-border p-3">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground">What did they buy?</p>
-        <Select value={stream} onValueChange={(v) => setStream(v as ClientStream)}>
-          <SelectTrigger className="h-8 w-56 bg-background"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {STREAM_ORDER.map((sv) => (
-              <SelectItem key={sv} value={sv}>{STREAM_LABELS[sv]}</SelectItem>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Services sold">
+          {STREAM_ORDER.map((sv) => (
+            <Button
+              key={sv}
+              type="button"
+              size="sm"
+              variant={streams.includes(sv) ? "default" : "outline"}
+              className="h-7 px-2.5 text-xs"
+              aria-pressed={streams.includes(sv)}
+              onClick={() => toggleStream(sv)}
+            >
+              {STREAM_LABELS[sv]}
+            </Button>
+          ))}
+        </div>
+        {multiService && (
+          <div className="flex flex-col gap-1.5">
+            {streams.map((sv) => (
+              <div key={sv} className="flex items-center gap-2">
+                <span className="w-24 shrink-0 text-xs text-foreground">{STREAM_LABELS[sv]}</span>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  aria-label={`${STREAM_LABELS[sv]} amount`}
+                  value={streamAmounts[sv] ?? ""}
+                  onChange={(e) => setStreamAmounts((cur) => ({ ...cur, [sv]: e.target.value }))}
+                  placeholder={retainerCadence === "weekly" ? "$/wk" : "$/mo"}
+                  className="h-8 w-40 bg-background"
+                />
+              </div>
             ))}
-          </SelectContent>
-        </Select>
+          </div>
+        )}
         <p className="text-[11px] text-muted-foreground">
-          Used to open the client's revenue record when you hit Close. Change it later on the Clients page if the scope shifts.
+          Pick every service they bought. With more than one, enter each one's monthly amount and Close opens a revenue record per service. Change it later on the Clients page if the scope shifts.
         </p>
       </div>
 

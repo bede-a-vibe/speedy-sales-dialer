@@ -548,7 +548,28 @@ export default function PipelinesPage() {
               const monthly = monthlyValue ?? null;
               const oneOff = monthly == null ? dealValue ?? null : null;
               const amount = monthly ?? oneOff;
-              if (amount == null) {
+              const perService = Object.entries(extras?.streamAmounts ?? {}).filter(([, v]) => (v ?? 0) > 0);
+              if (perService.length > 1) {
+                // Several services sold: one revenue record per service, each with its own amount.
+                const start = (item.scheduled_for ? new Date(item.scheduled_for) : new Date()).toISOString().slice(0, 10);
+                const { error: dealError } = await supabase.from("client_deals").insert(
+                  perService.map(([sv, v]) => ({
+                    contact_id: item.contact_id,
+                    stream: sv,
+                    amount: v,
+                    billing_period: "monthly",
+                    status: "active",
+                    start_date: start,
+                    gst: false,
+                    created_by: user?.id ?? null,
+                    notes: `Opened automatically when the meeting was marked closed on ${new Date().toLocaleDateString("en-AU")} (${perService.length}-service deal).`,
+                  })) as any,
+                );
+                if (dealError) throw dealError;
+                queryClient.invalidateQueries({ queryKey: ["client-deals"] });
+                queryClient.invalidateQueries({ queryKey: ["client-rollup"] });
+                toast.success(`${perService.length} revenue records opened, one per service.`);
+              } else if (amount == null) {
                 toast.error("Closed, but no value was entered — add the deal on the Clients page.");
               } else {
                 const { error: dealError } = await supabase.from("client_deals").insert({

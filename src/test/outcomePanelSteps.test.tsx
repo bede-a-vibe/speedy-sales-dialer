@@ -66,4 +66,25 @@ describe("outcome buttons ask for the reason inline", () => {
     expect(screen.getByRole("group", { name: "Meeting format" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "In person" })).toBeTruthy();
   });
+
+  it("sells several services with an amount each", () => {
+    const onRecordOutcome = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Google Ads" }));
+    fireEvent.change(screen.getByLabelText("SEO amount"), { target: { value: "2000" } });
+    fireEvent.change(screen.getByLabelText("Google Ads amount"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
+    expect(onRecordOutcome).toHaveBeenCalledTimes(1);
+    const call = onRecordOutcome.mock.calls[0];
+    expect(call[1]).toBe("showed_closed");
+    expect(call[7]).toBe(4000);
+    expect(call[8].streamAmounts).toEqual({ seo: 2000, google_ads: 2000 });
+  });
+
+  it("won't close a multi-service deal with an amount missing", () => {
+    const onRecordOutcome = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Google Ads" }));
+    fireEvent.change(screen.getByLabelText("SEO amount"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
+    expect(onRecordOutcome).not.toHaveBeenCalled();
+  });
 });
