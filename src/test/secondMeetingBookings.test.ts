@@ -16,14 +16,14 @@ const history = [
   { id: "ghosted", contact_id: "rebook", created_at: "2026-10-20T22:00:00Z", scheduled_for: "2026-10-22T06:00:00Z", appointment_outcome: "no_show", resolved_bucket: "noshow" },
 ];
 
-function metrics(extra: Partial<ReportBookingItem> = {}, repUserId?: string) {
+function metrics(extra: Partial<ReportBookingItem> = {}, repUserId?: string, to = DAY) {
   const items = [
     row("new-1", "fresh", "2026-11-03T23:00:00Z", "2026-11-06T04:00:00Z"),
     row("rebook-1", "rebook", "2026-11-03T23:30:00Z", "2026-11-07T04:00:00Z"),
     row("second-1", "second", "2026-11-03T22:38:00Z", "2026-11-05T04:00:00Z", { created_by: "bede", ...extra }),
   ];
   return getReportMetrics({
-    callLogs: [], bookedItems: markFollowUpMeetings(items, [...history, ...items]), from: DAY, to: DAY, repUserId,
+    callLogs: [], bookedItems: markFollowUpMeetings(items, [...history, ...items]), from: DAY, to, repUserId,
   });
 }
 
@@ -47,7 +47,8 @@ describe("second meetings in bookings made", () => {
   });
 
   it("keeps revenue from a deal closed at a second meeting", () => {
-    const m = metrics({ appointment_outcome: "showed_closed", deal_value: 2000 });
+    // Sales Efficiency counts closes by meeting date: the second meeting is on 5 Nov.
+    const m = metrics({ appointment_outcome: "showed_closed", deal_value: 2000 }, undefined, "2026-11-05");
     expect(m.bookingsMade.totalBookingsMade).toBe(2);
     expect(m.sales.setupRevenue).toBe(2000);
     expect(m.sales.closes).toBe(1);
