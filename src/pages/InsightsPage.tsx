@@ -17,6 +17,7 @@ import { InsightsTiming } from "@/components/insights/InsightsTiming";
 import { ClosingTracker } from "@/components/insights/ClosingTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { InsightsFunnel, ALL_SOURCES } from "@/components/insights/InsightsFunnel";
+import { filterBookingsBySource } from "@/lib/sourceFunnelTotals";
 
 const ALL_REPS_VALUE = "all";
 
@@ -104,6 +105,16 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
     () => getReportMetrics({ callLogs, bookedItems: bookings, rescheduleSlots, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),
     [activeRepId, bookings, callLogs, contactAttempts, dateFrom, dateTo, rescheduleSlots],
   );
+  // The Funnel tab's lead source picker also filters the call funnel's meeting
+  // stages and the deep dives. Other tabs keep every source.
+  const sourceBookings = useMemo(() => filterBookingsBySource(bookings, source, ALL_SOURCES), [bookings, source]);
+  const sourceSlots = useMemo(() => filterBookingsBySource(rescheduleSlots, source, ALL_SOURCES), [rescheduleSlots, source]);
+  const funnelMetrics = useMemo(
+    () => source === ALL_SOURCES
+      ? metrics
+      : getReportMetrics({ callLogs, bookedItems: sourceBookings, rescheduleSlots: sourceSlots, from: dateFrom, to: dateTo, repUserId: activeRepId, contacts: contactAttempts }),
+    [source, metrics, callLogs, sourceBookings, sourceSlots, dateFrom, dateTo, activeRepId, contactAttempts],
+  );
   const teamMetrics = useMemo(
     () => getReportMetrics({ callLogs, bookedItems: bookings, rescheduleSlots, from: dateFrom, to: dateTo }),
     [bookings, callLogs, dateFrom, dateTo, rescheduleSlots],
@@ -165,11 +176,11 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
               coldCallDetail={
                 <div className="space-y-5">
-                  <CallFunnelBody controlled={{ dateFrom, dateTo, selectedRepId }} />
+                  <CallFunnelBody controlled={{ dateFrom, dateTo, selectedRepId, source }} />
                   <FunnelDeepDives
                     dateFrom={dateFrom}
                     dateTo={dateTo}
-                    metrics={metrics}
+                    metrics={funnelMetrics}
                     callLogs={callLogs}
                     activeRepId={activeRepId}
                     selectedRepLabel={activeRepId ? selectedRepLabel : undefined}

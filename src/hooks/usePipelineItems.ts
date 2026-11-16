@@ -119,6 +119,8 @@ export interface BookedAppointmentReportItem {
   pitched?: boolean | null;
   /** Real moves (meeting_reschedules kind 'move'); reschedule_count also counts entry errors. Use movesOf(). */
   move_count?: number | null;
+  /** Lead source channel (Cold Call, Ads, Referral...): public.meeting_channel, same rule as v_meetings_unified. */
+  meeting_channel?: string | null;
   /** Proposal after the sitting: to_send (owed) or sent. */
   proposal_status?: "to_send" | "sent" | null;
   proposal_sent_date?: string | null;
@@ -357,7 +359,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 
@@ -504,7 +506,7 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("meeting_reschedules")
         .select(
-          "id, from_scheduled_for, reason, kind, pipeline_items!inner(contact_id, created_at, created_by, assigned_user_id, pipeline_type, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count))",
+          "id, from_scheduled_for, reason, kind, pipeline_items!inner(contact_id, created_at, created_by, assigned_user_id, pipeline_type, meeting_channel, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count))",
         )
         .eq("kind", "move");
       if (from && to) {
@@ -529,6 +531,7 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
           created_by: string;
           assigned_user_id: string;
           pipeline_type: string;
+          meeting_channel?: string | null;
           contacts: BookedAppointmentReportItem["contacts"];
         } | null;
       };
@@ -557,6 +560,7 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
           resolved_bucket: "rescheduled",
           is_reschedule_slot: true,
           contacts: r.pipeline_items!.contacts,
+          meeting_channel: r.pipeline_items!.meeting_channel ?? null,
         }) as BookedAppointmentReportItem);
       if (slots.length === 0) return slots;
 

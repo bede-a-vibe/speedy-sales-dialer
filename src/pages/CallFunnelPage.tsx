@@ -10,6 +10,7 @@ import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
 import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
+import { filterBookingsBySource } from "@/lib/sourceFunnelTotals";
 import { getReportMetrics, shiftDateKey, todayDateKey } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
@@ -75,7 +76,8 @@ function dayDiff(from: string, to: string) {
 
 interface CallFunnelBodyProps {
   /** When provided (Insights shared toolbar), use these filters and hide the local toolbar. */
-  controlled?: { dateFrom: string; dateTo: string; selectedRepId: string };
+  /** source: the Insights lead source slug; filters the meeting stages (Showed, Closed). */
+  controlled?: { dateFrom: string; dateTo: string; selectedRepId: string; source?: string };
 }
 
 export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
@@ -124,7 +126,11 @@ export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
   // Missed slots of moved meetings ride along in the same list; getReportMetrics
   // counts them only in the show-up buckets, and the breakdowns filter them with the rest.
   const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(compareMode ? previousFrom : dateFrom, dateTo);
-  const bookedAppointments = useMemo(() => [...bookedOnly, ...rescheduleSlots], [bookedOnly, rescheduleSlots]);
+  const source = controlled?.source ?? "all";
+  const bookedAppointments = useMemo(
+    () => filterBookingsBySource([...bookedOnly, ...rescheduleSlots], source, "all"),
+    [bookedOnly, rescheduleSlots, source],
+  );
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
 
   const repNameMap = useMemo(() => {
