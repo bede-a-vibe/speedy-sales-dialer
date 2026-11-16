@@ -40,7 +40,7 @@ export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRe
 
       <ReportSection
         title="End-to-End Funnel"
-        description="Cold call: dial → conversation → booking → close for the selected range. Pick any lead source on the Funnel tab."
+        description="Dial → conversation → booking from cold calling; Showed and Closed count meetings from every source. Pick a lead source on the Funnel tab to narrow it."
       >
         <EndToEndFunnel metrics={metrics} funnel={funnel} />
       </ReportSection>

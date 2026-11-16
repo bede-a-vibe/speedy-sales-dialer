@@ -4294,6 +4294,7 @@ export type Database = {
           updated_at: string
           resolved_bucket: string | null
           move_count: number | null
+          meeting_channel: string | null
         }
         Insert: {
           appointment_outcome?:

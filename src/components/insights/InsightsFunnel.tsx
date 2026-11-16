@@ -165,7 +165,11 @@ export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldC
         <div className="space-y-3">
           <div className="flex items-center gap-2 border-b border-border pb-2">
             <h2 className="text-sm font-semibold text-foreground">Cold call: dial to booking</h2>
-            <span className="text-xs text-muted-foreground">Dialer data only. Other sources have no dials.</span>
+            <span className="text-xs text-muted-foreground">
+              {isAll
+                ? "Dials are cold calling. Showed and Closed count meetings from every source; pick Cold Call to see cold calling only."
+                : "Cold calling only: dials, bookings, and the meetings they produced."}
+            </span>
           </div>
           {coldCallDetail}
         </div>

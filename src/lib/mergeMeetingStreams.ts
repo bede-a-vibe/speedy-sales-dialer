@@ -104,6 +104,7 @@ export function ghlMeetingToBookingItem(
     // than crediting the closer with a booking they did not make.
     created_by: createdBy ?? "",
     assigned_user_id: row.rep_user_id ?? "",
+    meeting_channel: row.channel,
     scheduled_for: row.start_time,
     appointment_outcome: outcome,
     outcome_recorded_at: null,

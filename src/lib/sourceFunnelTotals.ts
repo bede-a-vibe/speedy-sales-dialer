@@ -78,3 +78,13 @@ export function channelOptions(rows: SourceFunnelRow[]): { channel: string; slug
     .map(([channel, meetings]) => ({ channel, slug: channelSlug(channel), meetings }))
     .sort((a, b) => rank(a.channel) - rank(b.channel) || b.meetings - a.meetings);
 }
+
+/**
+ * Keep bookings from one lead source (a picker slug, e.g. "cold-call", "ads").
+ * Uses each booking's meeting_channel, the same rule get_source_funnel uses, so
+ * the call funnel and the meeting funnel card agree on every source.
+ */
+export function filterBookingsBySource<T extends { meeting_channel?: string | null }>(items: T[], source: string, allValue: string): T[] {
+  if (!source || source === allValue) return items;
+  return items.filter((i) => channelSlug(i.meeting_channel || "Unattributed") === source);
+}
