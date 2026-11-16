@@ -231,7 +231,7 @@ export const METRIC_FORMULAS: Record<string, string> = {
   dials: "Every call attempt logged in the dialer in the period, by date dialled.",
   unique_leads: "Distinct contacts dialled at least once in the period.",
   avg_attempts: "Dials ÷ unique leads dialled.",
-  pickups: "Dials answered by a person: not interested, DNC, follow-up, booked, or a gatekeeper. Voicemail and no answer are not pickups.",
+  pickups: "Dials answered by a person: not interested, DNC, follow-up, booked, disqualified, or a gatekeeper. Voicemail and no answer are not pickups.",
   pickup_rate: "Pick ups ÷ dials.",
   talk_time: "Sum of Dialpad talk time across the period's dials (total call duration when talk time is missing).",
   avg_talk_dial: "Talk time ÷ dials.",

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { ANSWERED_OUTCOMES, getReportMetrics, type ReportCallLog } from "@/lib/reportMetrics";
 
 describe("shared Insights and EOD answered-outcome definition", () => {
-  it.each(["not_interested", "dnc", "follow_up", "booked", "gatekeeper"] as const)(
+  it.each(["not_interested", "dnc", "follow_up", "booked", "gatekeeper", "disqualified"] as const)(
     "counts %s as a pick-up", (outcome) => {
       expect(ANSWERED_OUTCOMES.has(outcome)).toBe(true);
     },
   );
-  it.each(["no_answer", "voicemail", "wrong_number", "disqualified"] as const)(
+  it.each(["no_answer", "voicemail", "wrong_number"] as const)(
     "does not count %s as a pick-up", (outcome) => {
       expect(ANSWERED_OUTCOMES.has(outcome)).toBe(false);
     },
