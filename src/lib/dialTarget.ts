@@ -36,14 +36,33 @@ export interface DialTarget {
 
 const last9 = (value?: string | null) => (value ?? "").replace(/\D/g, "").slice(-9);
 
+/**
+ * An Australian number in the form Dialpad accepts (+61...). Reps type numbers
+ * every which way ("0412 174 299", "+0412174299", "412174299", "61 412..."),
+ * and a "+0" number cannot ring. Anything that isn't recognisably Australian is
+ * passed through with only spaces and punctuation removed.
+ */
+export function toDialableAU(value?: string | null): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (/^0[2-478]\d{8}$/.test(digits)) return `+61${digits.slice(1)}`;
+  if (/^[2-478]\d{8}$/.test(digits)) return `+61${digits}`;
+  if (/^61[2-478]\d{8}$/.test(digits)) return `+${digits}`;
+  if (/^610[2-478]\d{8}$/.test(digits)) return `+61${digits.slice(3)}`;
+  if (/^1[38]00\d{6}$/.test(digits) || /^13\d{4}$/.test(digits)) return digits;
+  return raw.startsWith("+") ? `+${digits}` : digits;
+}
+
 /** Landline and 1300/1800 numbers route through reception; mobiles don't. */
 export function isSwitchboardNumber(phoneType?: string | null): boolean {
   return phoneType === "landline" || phoneType === "business_line";
 }
 
 export function resolveDialTarget(contact: DialTargetContact | null | undefined): DialTarget {
-  const main = contact?.phone?.trim() || null;
-  const dm = contact?.dm_phone?.trim() || null;
+  const main = toDialableAU(contact?.phone);
+  const dm = toDialableAU(contact?.dm_phone);
 
   if (!dm || (main && last9(dm) === last9(main))) {
     return { number: main, isDmDirect: false, reason: "Calling the main number." };

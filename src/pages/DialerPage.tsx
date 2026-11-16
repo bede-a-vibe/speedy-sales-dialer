@@ -3112,6 +3112,7 @@ export default function DialerPage() {
                     ((displayContact ?? session.currentContact) as any).ghl_contact_id
                     || ghlLink.getCachedGHLId(session.currentContact.id),
                 }}
+                onCallDM={(number) => dialpad.callNumberNow(number)}
                 onConfirmDM={() => {
                   const c = session.currentContact!;
                   updateContact.mutateAsync({
