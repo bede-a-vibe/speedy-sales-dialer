@@ -29,6 +29,17 @@ type Item = BookedAppointmentReportItem;
 const TZ = "Australia/Melbourne";
 const SHOWED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "second_meeting_booked", "no_close_follow_up", "disqualified"]);
 const PITCHED = new Set(["showed_closed", "showed_no_close", "showed_verbal_commitment", "no_close_follow_up"]);
+
+/**
+ * Was the offer pitched? The closer's Pitched / Not pitched answer wins
+ * (pipeline_items.pitched, from 16 Nov 2026). Older rows have no answer, so
+ * fall back to the outcome: a close decision recorded means it was pitched.
+ */
+function wasPitched(i: Item) {
+  if (i.appointment_outcome === "showed_closed") return true;
+  if (i.pitched != null) return i.pitched;
+  return PITCHED.has(i.appointment_outcome ?? "");
+}
 const NO_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 const RESOLVED = new Set(["showed", "noshow", "cancelled", "rescheduled"]);
 
@@ -125,6 +136,7 @@ interface Stats {
   pitchedFirst: number;
   pitchedFollow: number;
   pitchedQualified: number;
+  satNotPitched: number;
   notClosed: number;
   obj: Record<string, number>;
   dq: number;
@@ -146,7 +158,7 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, satNotPitched: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
@@ -201,12 +213,16 @@ function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<strin
     }
     s.meetingMinutes += minutesByItem.get(i.id) ?? 0;
     if (SHOWED.has(outcome) && i.is_qualified === true) s.qualifiedLive += 1;
-    if (PITCHED.has(outcome)) {
+    const pitchedHere = bucket === "showed" && wasPitched(i);
+    if (pitchedHere) {
       s.pitched += 1;
       if (first) s.pitchedFirst += 1; else s.pitchedFollow += 1;
       if (i.is_qualified !== false) s.pitchedQualified += 1;
+    } else if (bucket === "showed" && outcome !== "disqualified") {
+      s.satNotPitched += 1;
     }
-    if (NO_CLOSE.has(outcome)) {
+    // Objection rates are ÷ pitched, so only pitched no-closes carry an objection.
+    if (NO_CLOSE.has(outcome) && pitchedHere) {
       const r = i.outcome_reason || "unrecorded";
       s.obj[r] = (s.obj[r] ?? 0) + 1;
     }
@@ -324,8 +340,9 @@ function buildSections(): SectionDef[] {
       rows: [
         { label: "Qualified live calls", fmt: "n", hint: "sat and marked qualified", value: (s) => s.qualifiedLive },
         { label: "Qualified live call rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.qualifiedLive, s.showed) },
-        { label: "Offers made (pitched)", fmt: "n", hint: "a close decision recorded", value: (s) => s.pitched, emphasis: true },
+        { label: "Offers made (pitched)", fmt: "n", hint: "closer marked Pitched, or a close decision recorded on older meetings", value: (s) => s.pitched, emphasis: true },
         { label: "Offer rate", fmt: "pct", hint: "pitched ÷ showed", value: (s) => pct(s.pitched, s.showed) },
+        { label: "Sat, not pitched", fmt: "n", hint: "showed, not DQ'd, no offer put (closer said Not pitched)", value: (s) => s.satNotPitched },
         { label: "Disqualified on the call", fmt: "n", value: (s) => s.dq },
         { label: "DQ rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.dq, s.showed) },
         ...Object.entries(DQ_LABEL).map<RowDef>(([k, label]) => ({ label: `  DQ: ${label}`, fmt: "n", value: (s) => s.dqReasons[k] ?? 0 })),

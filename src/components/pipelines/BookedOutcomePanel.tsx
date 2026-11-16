@@ -83,7 +83,14 @@ export interface OutcomeExtras {
    * normalised to monthly). The close opens one revenue record per service.
    */
   streamAmounts?: Partial<Record<ClientStream, number>> | null;
+  /** Whether the offer was pitched on this sitting (null = not recorded). */
+  pitched?: boolean | null;
 }
+
+/** Sat outcomes that need Pitched / Not pitched before they save. Close is always pitched. */
+const PITCH_REQUIRED = new Set<AppointmentOutcomeValue>([
+  "showed_verbal_commitment", "showed_no_close", "no_close_follow_up", "second_meeting_booked",
+]);
 
 interface BookedOutcomePanelProps {
   item: PipelineItemWithRelations;
@@ -133,6 +140,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     recordingUrl: recordingUrl.trim() || null,
     phoneRecordingUrl: phoneRecordingUrl.trim() || null,
     stream,
+    pitched,
   });
   /** No Close / DQ can't be saved without a reason that matches the outcome. */
   const reasonOk = (outcome: AppointmentOutcomeValue) => {
@@ -171,6 +179,21 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     qc.invalidateQueries({ predicate: (q) => QUALIFICATION_QUERY_ROOTS.has(String(q.queryKey[0])) });
     toast.success(`Marked as ${MEETING_FORMATS.find((f) => f.value === next)?.label ?? next}`);
   };
+  const [pitched, setPitched] = useState<boolean | null>((item as { pitched?: boolean | null }).pitched ?? null);
+  const savePitched = async (next: boolean) => {
+    const previous = pitched;
+    setPitched(next);
+    const { error } = await supabase.from("pipeline_items").update({ pitched: next } as never).eq("id", item.id);
+    if (error) { setPitched(previous); toast.error(error.message); return; }
+    qc.invalidateQueries({ predicate: (q) => QUALIFICATION_QUERY_ROOTS.has(String(q.queryKey[0])) });
+    toast.success(next ? "Marked pitched" : "Marked not pitched");
+  };
+  /** A sat meeting that didn't close can't be saved until the pitch is recorded. */
+  const pitchOk = (outcome: AppointmentOutcomeValue) => {
+    if (!PITCH_REQUIRED.has(outcome) || pitched != null) return true;
+    toast.error("Did you pitch? Pick Pitched or Not pitched first.");
+    return false;
+  };
   const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
   const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
   const [noCloseFollowUpDate, setNoCloseFollowUpDate] = useState<Date | undefined>(undefined);
@@ -204,6 +227,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const fireOutcome = (outcome: AppointmentOutcomeValue, scheduledFor?: string) => {
     if (!reasonOk(outcome)) return;
+    if (!pitchOk(outcome)) return;
     if (outcome === "showed_closed" && multiService) {
       const missing = streams.filter((sv) => !(parseFloat(streamAmounts[sv] ?? "") > 0));
       if (missing.length) {
@@ -244,6 +268,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
   const handleSecondMeetingBooked = () => {
     if (!secondMeetingIso) return;
+    if (!pitchOk("second_meeting_booked")) return;
     // Pass the chosen date as scheduledFor so the parent can create a new booked item.
     onRecordOutcome(
       item,
@@ -263,6 +288,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     const method = noCloseFollowUpMethod;
     if (!iso) return;
     if (!reasonOk("no_close_follow_up")) return;
+    if (!pitchOk("no_close_follow_up")) return;
     onRecordOutcome(
       item,
       "no_close_follow_up",
@@ -483,6 +509,19 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             </Select>
           )}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Did you pitch? (closer)</p>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Pitched">
+          <Button size="sm" variant={pitched === true ? "default" : "outline"} disabled={isSaving} aria-pressed={pitched === true}
+            onClick={() => savePitched(true)}>Pitched</Button>
+          <Button size="sm" variant={pitched === false ? "default" : "outline"} disabled={isSaving} aria-pressed={pitched === false}
+            onClick={() => savePitched(false)}>Not pitched</Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Pitched = you put the offer and price to them. Needed before No Close, No Close Follow-up, Verbal or Second Meeting. Close counts as pitched.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
