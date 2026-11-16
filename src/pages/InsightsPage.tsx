@@ -82,7 +82,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
 
-  const { data: callLogs = [], isLoading: callsLoading } = useCallLogsByDateRange(dateFrom, dateTo);
+  const { data: callLogs = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
   const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(dateFrom, dateTo);
   const { data: reps = [], isLoading: repsLoading } = useSalesReps();
@@ -127,6 +127,15 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
           allRepsValue={ALL_REPS_VALUE}
           isLoading={callsLoading || bookingsLoading || repsLoading}
         />
+
+        {callsError ? (
+          <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
+            <span>Call data didn't load for this range, so dial and pick-up numbers below are not real zeros.</span>
+            <button type="button" className="underline" onClick={() => refetchCalls()}>Try again</button>
+          </div>
+        ) : callsLoading ? (
+          <p className="mb-4 text-xs text-muted-foreground">Loading call data for this range. Long ranges take a few seconds; dial numbers read 0 until it lands.</p>
+        ) : null}
 
         <Tabs value={activeTab} onValueChange={handleChange}>
           <TabsList className="mb-4 h-auto flex-wrap gap-1">
