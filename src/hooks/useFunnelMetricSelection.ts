@@ -29,6 +29,22 @@ export function withFirstMeetingShowed(ids: string[]): string[] {
   return [...ids.slice(0, at), "first_meeting_showed", ...ids.slice(at)];
 }
 
+/** Apply withFirstMeetingShowed once per saved selection, so removing the stat later sticks. */
+function migrateOnce(storage: string, ids: string[]): string[] {
+  const flag = `${storage}:first-meeting-showed-added`;
+  try {
+    if (window.localStorage.getItem(flag)) return ids;
+    const next = withFirstMeetingShowed(ids);
+    // Persist straight away: the re-load effect reads storage again before the
+    // save effect runs, and must see the migrated list.
+    window.localStorage.setItem(storage, JSON.stringify(next));
+    window.localStorage.setItem(flag, "1");
+    return next;
+  } catch {
+    return ids;
+  }
+}
+
 export function useFunnelMetricSelection() {
   const { user } = useAuth();
   const key = storageKey(user?.id);
@@ -39,7 +55,7 @@ export function useFunnelMetricSelection() {
       const raw = window.localStorage.getItem(storageKey(user?.id));
       if (!raw) return DEFAULT_SELECTION;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) return withFirstMeetingShowed(parsed);
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) return migrateOnce(storageKey(user?.id), parsed);
       return DEFAULT_SELECTION;
     } catch {
       return DEFAULT_SELECTION;
@@ -57,7 +73,7 @@ export function useFunnelMetricSelection() {
       }
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
-        setSelectedIds(parsed);
+        setSelectedIds(migrateOnce(key, parsed));
       }
     } catch {
       // ignore
