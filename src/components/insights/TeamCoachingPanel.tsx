@@ -31,17 +31,21 @@ const STAGE_LABEL: Record<NepqStage, string> = {
 };
 
 interface ScoreRow {
+  id: string;
   call_log_id: string | null;
+  created_at: string;
   scorecard: Record<string, unknown> | null;
   overall_score: number | null;
   broke_down_at: string | null;
   booking_blocker: string | null;
+  call_logs: CallLogRow | null;
 }
 
 interface CallLogRow {
   id: string;
   user_id: string | null;
   outcome: string | null;
+  created_at: string;
 }
 
 interface JoinedRow {
@@ -50,6 +54,25 @@ interface JoinedRow {
   bookingBlocker: string | null;
   userId: string | null;
   booked: boolean;
+}
+
+const PAGE_SIZE = 1000; // PostgREST caps every response at 1000 rows.
+
+/**
+ * One score per call: the latest by created_at (then id). The scoring job has
+ * written some calls many times (one call had 1,584 rows), and counting every
+ * row let a single call dominate the averages.
+ */
+export function latestScorePerCall<T extends { id: string; call_log_id: string | null; created_at: string }>(rows: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const r of rows) {
+    if (!r.call_log_id) continue;
+    const cur = latest.get(r.call_log_id);
+    if (!cur || r.created_at > cur.created_at || (r.created_at === cur.created_at && r.id > cur.id)) {
+      latest.set(r.call_log_id, r);
+    }
+  }
+  return Array.from(latest.values());
 }
 
 function readStageScores(scorecard: Record<string, unknown> | null): Partial<Record<NepqStage, number>> {
@@ -76,32 +99,47 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-export function TeamCoachingPanel() {
+interface Props {
+  /** Page date range (local calendar days, inclusive). Filters on the call's date, not when it was scored. */
+  dateFrom: string;
+  dateTo: string;
+  activeRepId?: string;
+  selectedRepLabel?: string;
+}
+
+export function TeamCoachingPanel({ dateFrom, dateTo, activeRepId, selectedRepLabel }: Props) {
   const query = useQuery({
-    queryKey: ["team-coaching-nepq-30d"],
+    queryKey: ["team-coaching-nepq", dateFrom, dateTo, activeRepId ?? "all"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      // Local-day bounds, the same as the call log range the rest of Insights uses.
+      const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
+      const toIso = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
-      const { data: scoreData, error: scoreErr } = await supabase
-        .from("call_scores")
-        .select("call_log_id, scorecard, overall_score, broke_down_at, booking_blocker")
-        .gte("created_at", since)
-        .limit(5000);
-      if (scoreErr) throw scoreErr;
-
-      const scores = (scoreData ?? []) as ScoreRow[];
-      const callLogIds = Array.from(new Set(scores.map((s) => s.call_log_id).filter(Boolean))) as string[];
-
-      let callLogs: CallLogRow[] = [];
-      if (callLogIds.length > 0) {
-        const { data: cl, error: clErr } = await supabase
-          .from("call_logs")
-          .select("id, user_id, outcome")
-          .in("id", callLogIds);
-        if (clErr) throw clErr;
-        callLogs = (cl ?? []) as CallLogRow[];
+      // Page through every score whose call happened in the range. A single
+      // request is capped at 1000 rows, so a stable order (id) plus .range()
+      // is the only way to read them all.
+      const all: ScoreRow[] = [];
+      for (let page = 0; ; page += 1) {
+        let q = supabase
+          .from("call_scores")
+          .select(
+            "id, call_log_id, created_at, scorecard, overall_score, broke_down_at, booking_blocker, call_logs!inner(id, user_id, outcome, created_at)",
+          )
+          .gte("call_logs.created_at", fromIso)
+          .lte("call_logs.created_at", toIso);
+        if (activeRepId) q = q.eq("call_logs.user_id", activeRepId);
+        const { data, error } = await q
+          .order("id", { ascending: true })
+          .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        if (error) throw error;
+        const rows = (data ?? []) as unknown as ScoreRow[];
+        all.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
       }
+
+      const scores = latestScorePerCall(all);
+      const callLogs = scores.map((s) => s.call_logs).filter((c): c is CallLogRow => !!c);
       const callLogMap = new Map(callLogs.map((c) => [c.id, c]));
 
       const userIds = Array.from(new Set(callLogs.map((c) => c.user_id).filter(Boolean))) as string[];
@@ -249,10 +287,10 @@ export function TeamCoachingPanel() {
         <div>
           <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
             <GraduationCap className="h-4 w-4 text-primary" />
-            Team Coaching · NEPQ (last 30 days)
+            Team Coaching · NEPQ{selectedRepLabel ? ` · ${selectedRepLabel}` : activeRepId ? "" : " · All reps"}
           </h3>
           <p className="text-xs text-muted-foreground">
-            Auto-generated from call transcripts scored against the NEPQ framework.
+            Auto-generated from call transcripts scored against the NEPQ framework. Calls made in the selected range, latest score per call.
           </p>
         </div>
         {!isLoading && !isEmpty && (
