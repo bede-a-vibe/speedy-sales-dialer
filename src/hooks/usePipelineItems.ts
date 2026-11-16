@@ -115,6 +115,8 @@ export interface BookedAppointmentReportItem {
   dq_reason?: string | null;
   /** Setter's qualification verdict on the booking (null = not judged yet). */
   is_qualified?: boolean | null;
+  /** Closer's record of whether the offer was pitched (null = not recorded). */
+  pitched?: boolean | null;
   /** Which booking stream the row came from. GHL-only cold meetings are merged in. */
   stream?: "dialer" | "ghl";
   /** True when this contact already showed at an earlier booking (second meeting, not a reschedule). */
@@ -173,6 +175,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           follow_up_method,
           reschedule_count,
           meeting_format,
+          pitched,
           outcome_reason,
           recording_url,
           phone_recording_url,
@@ -327,7 +330,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 

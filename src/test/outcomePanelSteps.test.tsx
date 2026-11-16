@@ -87,4 +87,24 @@ describe("outcome buttons ask for the reason inline", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
     expect(onRecordOutcome).not.toHaveBeenCalled();
   });
+  it("a no-close can't save until Pitched / Not pitched is picked", async () => {
+    const onRecordOutcome = setup();
+    fireEvent.click(screen.getByRole("button", { name: "No Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Needs to think / partner" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onRecordOutcome).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Not pitched" }));
+    await screen.findByRole("button", { name: "Not pitched", pressed: true });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onRecordOutcome).toHaveBeenCalledTimes(1);
+    expect(onRecordOutcome.mock.calls[0][1]).toBe("showed_no_close");
+    expect(onRecordOutcome.mock.calls[0][8].pitched).toBe(false);
+  });
+
+  it("Close does not ask about the pitch", () => {
+    const onRecordOutcome = setup();
+    fireEvent.change(screen.getByPlaceholderText("Retainer ($/mo)"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
+    expect(onRecordOutcome).toHaveBeenCalledTimes(1);
+  });
 });

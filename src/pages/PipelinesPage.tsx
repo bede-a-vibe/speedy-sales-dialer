@@ -486,6 +486,8 @@ export default function PipelinesPage() {
       ...(extras?.recordingUrl !== undefined ? { recording_url: extras.recordingUrl } : {}),
       ...(extras?.phoneRecordingUrl !== undefined ? { phone_recording_url: extras.phoneRecordingUrl } : {}),
       ...(outcome === "disqualified" ? { is_qualified: false, dq_reason: extras?.reason ?? null } : {}),
+      // A close is always a pitch; otherwise keep what the closer recorded.
+      ...(outcome === "showed_closed" ? { pitched: true } : extras?.pitched != null && outcome !== "rescheduled" ? { pitched: extras.pitched } : {}),
     } as Record<string, unknown>;
     try {
       if (outcome === "rescheduled") {
