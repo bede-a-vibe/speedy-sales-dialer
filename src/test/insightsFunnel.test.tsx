@@ -13,7 +13,7 @@ function row(channel: string, over: Partial<SourceFunnelRow> = {}): SourceFunnel
 }
 
 const ROWS: SourceFunnelRow[] = [
-  row("Cold Call", { meetings_booked: 100, showed: 30, noshow: 50, cancelled: 10, rescheduled: 10, contacts_booked: 90, contacts_showed: 30, contacts_won: 6, mrr: 24000 }),
+  row("Cold Call", { meetings_booked: 100, showed: 30, noshow: 50, cancelled: 10, rescheduled: 10, contacts_booked: 90, contacts_showed: 30, contacts_won: 6, contacts_won_showed: 6, mrr: 24000 }),
   row("Ads", { meetings_booked: 40, showed: 10, noshow: 20, contacts_booked: 40, contacts_showed: 10, contacts_won: 2, mrr: 4000 }),
   row("Unattributed", { meetings_booked: 5, pending: 5, contacts_booked: 5 }),
   row("Referral", { meetings_booked: 1, showed: 1, contacts_booked: 1, contacts_showed: 1 }),
@@ -30,6 +30,9 @@ describe("sourceFunnelTotals", () => {
     expect(all.won).toBe(8);
     expect(all.mrr).toBe(28000);
     expect(totalSourceRows([]).showRate).toBeNull();
+    // Won contacts with no recorded sitting (GHL ad meetings left pending) never push close / show past 100%.
+    const ads = totalSourceRows([row("Ads", { contacts_showed: 1, contacts_won: 2, contacts_won_showed: 0 })]);
+    expect(ads.closeFromShow).toBe(0);
   });
 
   it("slugs channels and orders pinned first, Unattributed last", () => {

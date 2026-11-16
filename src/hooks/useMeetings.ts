@@ -66,6 +66,8 @@ export interface SourceFunnelRow {
   reschedule_rate_pct: number | null;
   close_from_show_pct: number | null;
   close_from_booked_pct: number | null;
+  /** Won contacts that also showed in the range (close / show numerator, never above contacts_showed). */
+  contacts_won_showed?: number;
 }
 
 export interface RepMeetingStats {

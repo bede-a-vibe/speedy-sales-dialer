@@ -50,7 +50,8 @@ export function totalSourceRows(rows: SourceFunnelRow[]): SourceFunnelTotals {
     mrr: sum("mrr"),
     amount: sum("total_amount"),
     showRate: rate(showed, resolved),
-    closeFromShow: rate(won, contactsShowed),
+    // Only won contacts that also showed, like the RPC per row, so it never passes 100%.
+    closeFromShow: rate(sum("contacts_won_showed"), contactsShowed),
     closeFromBooked: rate(won, contactsBooked),
   };
 }
