@@ -1,5 +1,6 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
+import { toDateKey } from "@/lib/reportMetrics";
 
 type CallLogRow = Pick<
   Tables<"call_logs">,
@@ -30,7 +31,7 @@ export const FUNNEL_STAGE_LABELS: Record<FunnelStageKey, string> = {
   connection: "Connected (>15s)",
   problem_awareness: "Problem Awareness",
   solution_awareness: "Solution Awareness",
-  commitment: "Verbal Commitment",
+  commitment: "Call Commitment",
   booked: "Meeting Booked",
 };
 
@@ -142,7 +143,9 @@ export interface FunnelMetrics {
 
 function dateInRange(iso: string, from?: string, to?: string) {
   if (!from && !to) return true;
-  const d = iso.slice(0, 10);
+  // Local (Melbourne) date, same as reportMetrics.isInDateRange. iso.slice(0, 10) is the
+  // UTC date and dropped everything before 11am AEDT on the start day.
+  const d = toDateKey(iso);
   if (from && d < from) return false;
   if (to && d > to) return false;
   return true;
@@ -164,7 +167,7 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
   // any earlier row defaults to false. Clamp stage counts so the funnel doesn't
   // collapse when the date range includes pre-launch dates.
   const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
-  const eligible = logs.filter((l) => l.created_at.slice(0, 10) >= launchDate);
+  const eligible = logs.filter((l) => toDateKey(l.created_at) >= launchDate);
   const scoped = eligible.length !== logs.length;
   const totalBooked = logs.filter((l) => l.outcome === "booked").length;
   const booked = eligible.filter((l) => l.outcome === "booked" && l.reached_connection).length;

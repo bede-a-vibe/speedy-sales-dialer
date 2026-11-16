@@ -10,7 +10,7 @@ import { ReportsToolbar } from "@/components/reports/ReportsToolbar";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
 import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
-import { getReportMetrics } from "@/lib/reportMetrics";
+import { getReportMetrics, shiftDateKey, todayDateKey } from "@/lib/reportMetrics";
 import { computeFunnel, computeStageExitBreakdowns, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { EndToEndFunnel } from "@/components/funnel/EndToEndFunnel";
 import { ConversionRateStrip } from "@/components/funnel/ConversionRateStrip";
@@ -62,10 +62,9 @@ function readJSON<T>(key: string, fallback: T): T {
   }
 }
 
+/** Local date maths. toISOString() turned local midnight into the previous UTC day, so compare mode lost a day. */
 function shiftDate(iso: string, days: number) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return shiftDateKey(iso, days);
 }
 
 function dayDiff(from: string, to: string) {
@@ -80,8 +79,9 @@ interface CallFunnelBodyProps {
 }
 
 export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
-  const today = new Date().toISOString().split("T")[0];
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  // Local (Melbourne) dates, not the UTC date toISOString() gives.
+  const today = todayDateKey();
+  const thirtyDaysAgo = shiftDateKey(today, -30);
 
   const [internalDateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [internalDateTo, setDateTo] = useState(today);

@@ -27,8 +27,15 @@ interface Props {
 export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRepLabel }: Props) {
   return (
     <div className="space-y-5">
+      {selectedRepLabel ? (
+        <p className="text-[11px] text-muted-foreground">
+          Client revenue below is all time, whole team: it ignores the date range and does not filter to {selectedRepLabel}.
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">Client revenue below is all time: it ignores the date range.</p>
+      )}
       <ClientRevenueSummary />
-      <DialEconomicsCard dateFrom={dateFrom} dateTo={dateTo} />
+      <DialEconomicsCard dateFrom={dateFrom} dateTo={dateTo} selectedRepLabel={selectedRepLabel} />
       <HeadlineKpiStrip metrics={metrics} />
 
       <ReportSection
@@ -54,14 +61,14 @@ export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRe
 
       <ReportSection
         title="Sales Efficiency"
-        description={`Dial → sale economics${selectedRepLabel ? ` for ${selectedRepLabel}` : " across the team"}, at 3/6/9/12-month client-lifetime horizons.`}
+        description={`Dial → sale economics${selectedRepLabel ? ` for ${selectedRepLabel}` : " across the team"}, at 3/6/9/12-month client-lifetime horizons. Closes are counted by meeting date: closed meetings scheduled in the range, whenever they were booked.`}
         collapsible
         defaultOpen={false}
       >
         <SalesEfficiencyPanel metrics={metrics} />
       </ReportSection>
 
-      <InsightsSources dateFrom={dateFrom} dateTo={dateTo} />
+      <InsightsSources dateFrom={dateFrom} dateTo={dateTo} selectedRepLabel={selectedRepLabel} />
     </div>
   );
 }

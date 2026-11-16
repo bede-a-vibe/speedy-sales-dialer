@@ -1,5 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
-import { getTalkTimeSeconds, ANSWERED_OUTCOMES } from "@/lib/reportMetrics";
+import { getTalkTimeSeconds, bucketOf, type ReportBookingItem } from "@/lib/reportMetrics";
 
 type CallLogRow = Pick<
   Tables<"call_logs">,
@@ -20,6 +20,12 @@ type BookingRow = {
   appointment_outcome: string | null;
   deal_value: number | null;
   monthly_recurring_value: number | null;
+  /** Second meeting for a lead that already sat (markFollowUpMeetings). */
+  is_follow_up?: boolean;
+  /** From public.resolve_meeting_bucket(); read with bucketOf(). */
+  resolved_bucket?: string | null;
+  /** Missed slot of a moved meeting: never a booking or a sitting. */
+  is_reschedule_slot?: boolean;
   contacts?: Partial<Pick<Tables<"contacts">,
     "industry" | "state" | "trade_type" | "work_type" | "business_size" | "prospect_tier" | "buying_signal_strength" | "has_google_ads" | "has_facebook_ads"
   >> | null;
@@ -224,40 +230,91 @@ export interface RepPerformanceRow {
   dials: number;
   talkTimeSeconds: number;
   conversations: number;
+  /** First-meeting bookings this rep made (created_by) in the range. Second meetings are not bookings made. */
   bookings: number;
+  /** First meetings this rep set (created_by) that sat, by meeting day, from resolved_bucket. */
   showed: number;
+  /** Closes credited to the setter: whoever made the lead's first booking. */
   closed: number;
   setupRevenue: number;
   mrr: number;
+  /** First collection on the setter's closes: one-off / setup fee plus the first retainer month. */
+  firstCollection: number;
+  /** 12-month projection (setup + 12 × MRR). Not the agreed average-deal measure; label it as a projection if shown. */
   firstYearValue: number;
+  /** As closer (assigned_user_id): sittings in the range, first and second meetings. */
+  closerSat: number;
+  /** As closer (assigned_user_id): closes on meetings in the range. */
+  closerClosed: number;
+  /** As closer (assigned_user_id): MRR won on those closes. */
+  closerMrr: number;
   contactRate: number;
   bookingRate: number;
+  /** First meetings set that sat ÷ resolved first meetings set. */
   showRate: number;
   closeRate: number;
   dialToCloseRate: number;
+  /** First collection ÷ dials. */
   revenuePerDial: number;
   dialsPerClose: number;
   dialsPerHour: number;
   activeHours: number;
 }
 
+/** resolved_bucket is the one attendance rule (public.resolve_meeting_bucket); never re-derive it from the outcome. */
+const bucketOfRow = (b: BookingRow) => bucketOf(b as unknown as ReportBookingItem);
+
+/**
+ * Who set each lead: created_by on the lead's first booking. A close on a
+ * second meeting belongs to the setter of the first one, not to whoever logged
+ * the follow-up. `firstSetterByContact` carries full history (bookings before
+ * the window); without it, the earliest booking in `bookings` is used.
+ */
+export function firstSetterOf(bookings: BookingRow[], firstSetterByContact?: Map<string, string>) {
+  const earliest = new Map<string, BookingRow>();
+  for (const b of bookings) {
+    if (b.is_reschedule_slot || !b.created_at) continue;
+    const cur = earliest.get(b.contact_id);
+    if (!cur || b.created_at < cur.created_at || (b.created_at === cur.created_at && b.id < cur.id)) {
+      earliest.set(b.contact_id, b);
+    }
+  }
+  return (b: BookingRow): string | null =>
+    firstSetterByContact?.get(b.contact_id) || earliest.get(b.contact_id)?.created_by || b.created_by || null;
+}
+
 export function getRepPerformance(
   callLogs: CallLogRow[],
-  bookings: BookingRow[],
+  allBookings: BookingRow[],
   from?: string,
   to?: string,
+  firstSetterByContact?: Map<string, string>,
 ): RepPerformanceRow[] {
+  // Missed slots of moved meetings are never bookings or sittings.
+  const bookings = allBookings.filter((b) => !b.is_reschedule_slot);
+  const setterOf = firstSetterOf(bookings, firstSetterByContact);
+
+  const scheduledInRange = bookings.filter((b) => b.scheduled_for && inRange(b.scheduled_for, from, to));
+  const closesInRange = scheduledInRange.filter((b) => b.appointment_outcome === "showed_closed");
+
   const repIds = new Set<string>();
   for (const l of callLogs) if (l.user_id) repIds.add(l.user_id);
-  for (const b of bookings) if (b.created_by) repIds.add(b.created_by);
+  for (const b of bookings) {
+    if (b.created_by) repIds.add(b.created_by);
+    if (b.assigned_user_id && b.scheduled_for && inRange(b.scheduled_for, from, to)) repIds.add(b.assigned_user_id);
+  }
+  for (const b of closesInRange) {
+    const setter = setterOf(b);
+    if (setter) repIds.add(setter);
+  }
 
   const rows: RepPerformanceRow[] = [];
   for (const repId of repIds) {
     const repLogs = callLogs.filter((l) => l.user_id === repId && inRange(l.created_at, from, to));
-    const repBookings = bookings.filter((b) => b.created_by === repId && inRange(b.created_at, from, to));
+    // Bookings made: first meetings only, so the rows add up to the team's bookings made.
+    const repBookings = bookings.filter((b) => b.created_by === repId && !b.is_follow_up && inRange(b.created_at, from, to));
     const dials = repLogs.length;
     const conversations = repLogs.filter((l) => l.reached_connection).length;
-    const pickUps = repLogs.filter((l) => ANSWERED_OUTCOMES.has(l.outcome as never)).length;
     const talkTime = repLogs.reduce((s, l) => s + getTalkTimeSeconds(l as never), 0);
     const bookingsCount = repBookings.length;
 
@@ -274,18 +331,24 @@ export function getRepPerformance(
     const activeHours = hourBuckets.size;
     const dialsPerHour = activeHours > 0 ? Math.round((dials / activeHours) * 10) / 10 : 0;
 
-    // Show/close from bookings scheduled in-range, attributed to setter (created_by)
-    const scheduledInRange = bookings.filter(
-      (b) => b.created_by === repId && b.scheduled_for && inRange(b.scheduled_for, from, to),
-    );
-    const showed = scheduledInRange.filter(
-      (b) => b.appointment_outcome && !["no_show", "rescheduled"].includes(b.appointment_outcome),
-    ).length;
-    const closedDeals = scheduledInRange.filter((b) => b.appointment_outcome === "showed_closed");
+    // Setter view: first meetings this rep set, by meeting day.
+    const setFirstMeetings = scheduledInRange.filter((b) => b.created_by === repId && !b.is_follow_up);
+    const resolvedFirst = setFirstMeetings.filter((b) => bucketOfRow(b) !== null).length;
+    const showed = setFirstMeetings.filter((b) => bucketOfRow(b) === "showed").length;
+
+    // Closes credited to the setter of the lead's first booking.
+    const closedDeals = closesInRange.filter((b) => setterOf(b) === repId);
     const closed = closedDeals.length;
     const setupRevenue = closedDeals.reduce((s, b) => s + Number(b.deal_value ?? 0), 0);
     const mrr = closedDeals.reduce((s, b) => s + Number(b.monthly_recurring_value ?? 0), 0);
+    const firstCollection = setupRevenue + mrr;
     const firstYearValue = setupRevenue + mrr * 12;
+
+    // Closer view: meetings this rep ran (assigned_user_id), first and second.
+    const ran = scheduledInRange.filter((b) => b.assigned_user_id === repId);
+    const closerSat = ran.filter((b) => bucketOfRow(b) === "showed").length;
+    const closerDeals = ran.filter((b) => b.appointment_outcome === "showed_closed");
+    const closerMrr = closerDeals.reduce((s, b) => s + Number(b.monthly_recurring_value ?? 0), 0);
 
     rows.push({
       repUserId: repId,
@@ -297,18 +360,20 @@ export function getRepPerformance(
       closed,
       setupRevenue,
       mrr,
+      firstCollection,
       firstYearValue,
+      closerSat,
+      closerClosed: closerDeals.length,
+      closerMrr,
       contactRate: pct(conversations, dials),
       bookingRate: pct(bookingsCount, conversations),
-      showRate: pct(showed, scheduledInRange.length),
+      showRate: pct(showed, resolvedFirst),
       closeRate: pct(closed, showed),
       dialToCloseRate: pct(closed, dials),
-      revenuePerDial: dials > 0 ? Math.round((firstYearValue / dials) * 100) / 100 : 0,
+      revenuePerDial: dials > 0 ? Math.round((firstCollection / dials) * 100) / 100 : 0,
       dialsPerClose: closed > 0 ? Math.round(dials / closed) : 0,
       dialsPerHour,
       activeHours,
-      // expose pickUps to silence unused warning; not currently surfaced
-      ...(pickUps as unknown as object ? {} : {}),
     });
   }
 

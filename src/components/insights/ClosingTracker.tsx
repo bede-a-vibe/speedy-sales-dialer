@@ -5,6 +5,7 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
+import { movesOf, wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
@@ -36,11 +37,14 @@ const PITCHED = new Set(["showed_closed", "showed_no_close", "showed_verbal_comm
  * fall back to the outcome: a close decision recorded means it was pitched.
  */
 function wasPitched(i: Item) {
-  if (i.appointment_outcome === "showed_closed") return true;
-  if (i.pitched != null) return i.pitched;
-  return PITCHED.has(i.appointment_outcome ?? "");
+  return sharedWasPitched(i);
 }
 const NO_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
+/** Pitched, not closed, and the next step is still open: no objection is recorded on these. */
+const VERBAL_OR_SECOND = new Set(["showed_verbal_commitment", "second_meeting_booked"]);
+/** Bucket for reason keys that have no label, so the breakdown rows add up to their total. */
+export const UNMAPPED = "__unmapped";
+const hasLabel = (labels: Record<string, string>, key: string) => Object.prototype.hasOwnProperty.call(labels, key);
 const RESOLVED = new Set(["showed", "noshow", "cancelled", "rescheduled"]);
 
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ });
@@ -140,6 +144,8 @@ interface Stats {
   proposalsSent: number;
   proposalsOwed: number;
   notClosed: number;
+  /** Pitched, not closed, verbal commitment or second meeting booked (no objection on these). */
+  notClosedVerbal: number;
   obj: Record<string, number>;
   dq: number;
   dqReasons: Record<string, number>;
@@ -160,17 +166,27 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
 
-function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<string, number>): Stats {
+/**
+ * `items` are the meetings in view by closer (assigned_user_id). `bookedItems`
+ * feed "Bookings made" only, which is a setter number (created_by), the same as
+ * every other tab. With no rep filter the two lists are the same.
+ */
+export function computeStats(
+  items: Item[],
+  days: Set<string>,
+  minutesByItem: Map<string, number>,
+  bookedItems: Item[] = items,
+): Stats {
   const s = emptyStats();
   for (const d of days) s.availableSlots += availableSlotsForDay(d);
   const dueAll = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
   const due = dueAll.filter((i) => !i.is_reschedule_slot);
-  s.booked = items.filter((i) => !i.is_reschedule_slot && i.created_at && days.has(dayKey(i.created_at))).length;
+  s.booked = bookedItems.filter((i) => !i.is_reschedule_slot && i.created_at && days.has(dayKey(i.created_at))).length;
   s.due = due.length;
   // A missed slot of a moved meeting is a resolved slot that did not sit.
   for (const slot of dueAll.filter((i) => i.is_reschedule_slot)) {
@@ -204,36 +220,50 @@ function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<strin
       }
     }
     if (first && RESOLVED.has(bucket)) {
-      const moved = (i.reschedule_count ?? 0) > 0;
+      // Real moves only: reschedule_count also goes up when a date typo is corrected.
+      const moved = movesOf(i) > 0;
       if (moved) { s.movedResolved += 1; if (bucket === "showed") s.movedShowed += 1; }
       else { s.neverMovedResolved += 1; if (bucket === "showed") s.neverMovedShowed += 1; }
     }
     if (bucket === "rescheduled") { s.rescheduled += 1; if (first) s.firstRescheduled += 1; }
-    if (i.scheduled_for) {
+    // A cancelled meeting no longer holds the slot, so it cannot double-book it.
+    if (i.scheduled_for && bucket !== "cancelled") {
       const k = `${i.assigned_user_id}-${i.scheduled_for}`;
       slotKeys.set(k, (slotKeys.get(k) ?? 0) + 1);
     }
-    s.meetingMinutes += minutesByItem.get(i.id) ?? 0;
+    // Recorded sittings only: a recording linked to a no-show is not meeting time.
+    if (bucket === "showed") s.meetingMinutes += minutesByItem.get(i.id) ?? 0;
     if (SHOWED.has(outcome) && i.is_qualified === true) s.qualifiedLive += 1;
     const pitchedHere = bucket === "showed" && wasPitched(i);
     if (pitchedHere) {
       s.pitched += 1;
       if (first) s.pitchedFirst += 1; else s.pitchedFollow += 1;
-      if (i.is_qualified !== false) s.pitchedQualified += 1;
+      // Same "qualified" as the Qualified live calls row: marked qualified, not merely not-unqualified.
+      if (i.is_qualified === true) s.pitchedQualified += 1;
     } else if (bucket === "showed" && outcome !== "disqualified") {
       s.satNotPitched += 1;
     }
     if (i.proposal_status === "sent") s.proposalsSent += 1;
     if (i.proposal_status === "to_send") s.proposalsOwed += 1;
     // Objection rates are ÷ pitched, so only pitched no-closes carry an objection.
-    if (NO_CLOSE.has(outcome) && pitchedHere) {
-      const r = i.outcome_reason || "unrecorded";
-      s.obj[r] = (s.obj[r] ?? 0) + 1;
+    // Every pitched meeting that did not close lands in exactly one row, so the
+    // breakdown adds up to "Total not closed".
+    if (pitchedHere && outcome !== "showed_closed") {
+      if (NO_CLOSE.has(outcome)) {
+        const r = i.outcome_reason || "unrecorded";
+        const k = hasLabel(OBJ_LABEL, r) ? r : UNMAPPED;
+        s.obj[k] = (s.obj[k] ?? 0) + 1;
+      } else if (VERBAL_OR_SECOND.has(outcome)) {
+        s.notClosedVerbal += 1;
+      } else {
+        s.obj[UNMAPPED] = (s.obj[UNMAPPED] ?? 0) + 1;
+      }
     }
     if (outcome === "disqualified") {
       s.dq += 1;
       const r = i.dq_reason || "unrecorded";
-      s.dqReasons[r] = (s.dqReasons[r] ?? 0) + 1;
+      const k = hasLabel(DQ_LABEL, r) ? r : UNMAPPED;
+      s.dqReasons[k] = (s.dqReasons[k] ?? 0) + 1;
     }
     if (outcome === "showed_closed") {
       s.closed += 1;
@@ -293,13 +323,16 @@ const DQ_LABEL: Record<string, string> = {
   unrecorded: "No reason recorded",
 };
 
-function buildSections(): SectionDef[] {
+function buildSections(repFiltered = false): SectionDef[] {
+  const slotsHint = "9:00 to 18:30 Mon to Fri (less the Mon and Thu directors' hour), 9:00 to 13:00 Sat";
   return [
     {
       title: "Bookings",
       rows: [
-        { label: "Available slots", fmt: "n", hint: "9:00 to 18:30 Mon to Fri (less the Mon and Thu directors' hour), 9:00 to 13:00 Sat", value: (s) => s.availableSlots },
-        { label: "Bookings made", fmt: "n", hint: "by the day they were booked", value: (s) => s.booked },
+        repFiltered
+          ? { label: "Available slots (team-wide)", fmt: "n", hint: `${slotsHint}. The calendar is shared, so this is not filtered by rep.`, value: (s) => s.availableSlots }
+          : { label: "Available slots", fmt: "n", hint: slotsHint, value: (s) => s.availableSlots },
+        { label: "Bookings made", fmt: "n", hint: repFiltered ? "booked by this rep as setter, by the day they were booked" : "by the day they were booked", value: (s) => s.booked },
         { label: "Bookings due", fmt: "n", hint: "meetings scheduled for the day", value: (s) => s.due, emphasis: true },
         { label: "Resolved slots", fmt: "n", hint: "showed + no-show + cancelled + rescheduled", value: (s) => s.resolved },
         { label: "Showed (sittings)", fmt: "n", value: (s) => s.showed, emphasis: true },
@@ -308,9 +341,9 @@ function buildSections(): SectionDef[] {
         { label: "No-show", fmt: "n", value: (s) => s.noShow },
         { label: "Cancelled", fmt: "n", value: (s) => s.cancelled },
         { label: "Rescheduled", fmt: "n", value: (s) => s.rescheduled },
-        { label: "Double booked", fmt: "n", hint: "slots sharing a closer and a start time", value: (s) => s.doubleBooked },
+        { label: "Double booked", fmt: "n", hint: "slots sharing a closer and a start time, cancelled meetings left out", value: (s) => s.doubleBooked },
         { label: "Meeting time (Fathom)", fmt: "hm", hint: "recorded sittings only", value: (s) => s.meetingMinutes },
-        { label: "Booking rate", fmt: "pct", hint: "bookings due ÷ available slots", value: (s) => pct(s.due, s.availableSlots), emphasis: true },
+        { label: "Booking rate", fmt: "pct", hint: repFiltered ? "bookings due ÷ team-wide available slots" : "bookings due ÷ available slots", value: (s) => pct(s.due, s.availableSlots), emphasis: true },
       ],
     },
     {
@@ -349,18 +382,21 @@ function buildSections(): SectionDef[] {
         { label: "Proposals sent", fmt: "n", hint: "sittings marked Proposal sent, by meeting day", value: (s) => s.proposalsSent },
         { label: "Proposals still owed", fmt: "n", hint: "marked Proposal to send, not yet sent", value: (s) => s.proposalsOwed },
         { label: "Proposal rate", fmt: "pct", hint: "proposals sent or owed ÷ pitched", value: (s) => pct(s.proposalsSent + s.proposalsOwed, s.pitched) },
-        { label: "Sat, not pitched", fmt: "n", hint: "showed, not DQ'd, no offer put (closer said Not pitched)", value: (s) => s.satNotPitched },
+        { label: "Sat, not pitched", fmt: "n", hint: "Not pitched, or second meeting booked on older rows", value: (s) => s.satNotPitched },
         { label: "Disqualified on the call", fmt: "n", value: (s) => s.dq },
         { label: "DQ rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.dq, s.showed) },
         ...Object.entries(DQ_LABEL).map<RowDef>(([k, label]) => ({ label: `  DQ: ${label}`, fmt: "n", value: (s) => s.dqReasons[k] ?? 0 })),
+        { label: "  DQ: Other / unmapped", fmt: "n", hint: "a reason with no label here (free text or an old code)", value: (s) => s.dqReasons[UNMAPPED] ?? 0 },
       ],
     },
     {
       title: "Not closed",
       rows: [
         { label: "Total not closed", fmt: "n", hint: "pitched − closed", value: (s) => s.notClosed, emphasis: true },
-        ...Object.entries(OBJ_LABEL).flatMap<RowDef>(([k, label]) => [
-          { label: `  ${label}`, fmt: "n", value: (s) => s.obj[k] ?? 0 },
+        { label: "  Verbal / second meeting booked", fmt: "n", hint: "pitched, next step still open, no objection recorded", value: (s) => s.notClosedVerbal },
+        { label: "  Verbal / second meeting booked rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.notClosedVerbal, s.pitched) },
+        ...[...Object.entries(OBJ_LABEL), [UNMAPPED, "Other / unmapped"] as [string, string]].flatMap<RowDef>(([k, label]) => [
+          { label: `  ${label}`, fmt: "n", hint: k === UNMAPPED ? "a reason with no label here, or a pitched meeting with no close decision" : undefined, value: (s) => s.obj[k] ?? 0 },
           { label: `  ${label} rate`, fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.obj[k] ?? 0, s.pitched) },
         ]),
       ],
@@ -379,7 +415,7 @@ function buildSections(): SectionDef[] {
         { label: "Total bookings close rate", fmt: "pct", hint: "÷ bookings made", value: (s) => pct(s.closed, s.booked) },
         { label: "Bookings-due close rate", fmt: "pct", hint: "÷ bookings due", value: (s) => pct(s.closed, s.due) },
         { label: "Live call close rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.closed, s.showed), emphasis: true },
-        { label: "Qualified live call close rate", fmt: "pct", hint: "÷ pitched, not-qualified excluded", value: (s) => pct(s.closed, s.pitchedQualified), emphasis: true },
+        { label: "Qualified live call close rate", fmt: "pct", hint: "÷ pitched and marked qualified", value: (s) => pct(s.closed, s.pitchedQualified), emphasis: true },
         { label: "Offer-to-close rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.closed, s.pitched) },
         { label: "Verbal commitment rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.verbal, s.pitched) },
       ],
@@ -442,24 +478,31 @@ function useMeetingMinutes(itemIds: string[]) {
 }
 
 export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [], activeRepId, selectedRepLabel }: Props) {
-  const items = useMemo(() => {
-    const all = [...bookings, ...rescheduleSlots];
-    return activeRepId ? all.filter((b) => b.assigned_user_id === activeRepId) : all;
-  }, [bookings, rescheduleSlots, activeRepId]);
+  const all = useMemo(() => [...bookings, ...rescheduleSlots], [bookings, rescheduleSlots]);
+  // With a rep picked, meetings count for the closer (assigned_user_id) and
+  // bookings made count for the setter (created_by), as on every other tab.
+  const items = useMemo(
+    () => (activeRepId ? all.filter((b) => b.assigned_user_id === activeRepId) : all),
+    [all, activeRepId],
+  );
+  const setterItems = useMemo(
+    () => (activeRepId ? all.filter((b) => b.created_by === activeRepId) : all),
+    [all, activeRepId],
+  );
   const itemIds = useMemo(() => items.filter((i) => !i.is_reschedule_slot).map((i) => i.id), [items]);
   const { data: minutesByItem = new Map<string, number>() } = useMeetingMinutes(itemIds);
   const columns = useMemo(() => buildColumns(dateFrom, dateTo), [dateFrom, dateTo]);
   const statsByColumn = useMemo(
-    () => new Map(columns.map((c) => [c.key, computeStats(items, c.days, minutesByItem)])),
-    [columns, items, minutesByItem],
+    () => new Map(columns.map((c) => [c.key, computeStats(items, c.days, minutesByItem, setterItems)])),
+    [columns, items, minutesByItem, setterItems],
   );
-  const sections = useMemo(() => buildSections(), []);
+  const sections = useMemo(() => buildSections(!!activeRepId), [activeRepId]);
   const today = dayKey(new Date().toISOString());
 
   return (
     <ReportSection
       title="Closing tracker"
-      description={`One column per day, a roll-up after each week, and the range total${selectedRepLabel ? `, closer ${selectedRepLabel}` : ""}. Bookings made count by the day booked; everything else counts by the day of the meeting. Show rates use resolved slots; close rates use pitched meetings; cash is the first collection.`}
+      description={`One column per day, a roll-up after each week, and the range total${selectedRepLabel ? `, ${selectedRepLabel}: bookings made as setter, everything else as closer; available slots stay team-wide` : ""}. Bookings made count by the day booked; everything else counts by the day of the meeting. Show rates use resolved slots; close rates use pitched meetings; cash is the first collection.`}
       className="overflow-hidden"
     >
       <div className="overflow-x-auto">

@@ -25,6 +25,8 @@ import { totalSourceRows } from "@/lib/sourceFunnelTotals";
 interface Props {
   dateFrom: string;
   dateTo: string;
+  /** Set when a rep is picked. get_source_funnel has no rep filter, so the table says it is the whole team. */
+  selectedRepLabel?: string;
 }
 
 const currency = new Intl.NumberFormat("en-AU", {
@@ -45,7 +47,7 @@ function rateTone(value: number | null, good: number, poor: number) {
   return "text-foreground";
 }
 
-export function InsightsSources({ dateFrom, dateTo }: Props) {
+export function InsightsSources({ dateFrom, dateTo, selectedRepLabel }: Props) {
   const [basis, setBasis] = useState<FunnelBasis>("scheduled");
   const [group, setGroup] = useState<FunnelGroup>("channel");
   const [stream, setStream] = useState<MeetingStream | "all">("all");
@@ -59,6 +61,9 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
   });
 
   const totals = useMemo(() => totalSourceRows(rows), [rows]);
+  // On a meeting-date basis the count is meetings on the calendar in the range,
+  // not bookings made; the KPI strip's Bookings Made is by booking date.
+  const countLabel = basis === "scheduled" ? "Meetings" : "Booked";
 
   const pendingShare =
     totals.meetings > 0 ? Math.round((100 * totals.pending) / totals.meetings) : 0;
@@ -89,8 +94,8 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
       ) : null}
 
       <ReportSection
-        title="Lead sources compared"
-        description="Show rate and close rate for every source side by side, from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound). The dial-level stats above cover cold call only, so compare them against the Cold Call row, not the Total. To drill into one source, pick it on the Funnel tab."
+        title={`Lead sources compared${selectedRepLabel ? " · whole team" : ""}`}
+        description={`Show rate and close rate for every source side by side, from both streams: GHL calendars (ads, inbound) and dialer bookings (cold outbound). The dial-level stats above cover cold call only, so compare them against the Cold Call row, not the Total. To drill into one source, pick it on the Funnel tab.${selectedRepLabel ? ` Whole team: this table does not filter to ${selectedRepLabel}.` : ""}`}
       >
         <div className="mb-4 flex flex-wrap items-center gap-4">
           <div className="space-y-1">
@@ -156,7 +161,7 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
               <TableHeader>
                 <TableRow>
                   <TableHead>{group === "source" ? "Source" : "Channel"}</TableHead>
-                  <TableHead className="text-right">Booked</TableHead>
+                  <TableHead className="text-right">{countLabel}</TableHead>
                   <TableHead className="text-right">Showed</TableHead>
                   <TableHead className="text-right">No-show</TableHead>
                   <TableHead className="text-right">Show rate</TableHead>
@@ -243,12 +248,13 @@ export function InsightsSources({ dateFrom, dateTo }: Props) {
         )}
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          Show rate = showed ÷ (showed + no-show + cancelled + rescheduled): every meeting that was
-          on the calendar for its day and resolved one way or the other. Meetings with no recorded
+          Show rate = first meetings only: showed ÷ (showed + no-show + cancelled + rescheduled), every
+          first meeting that was on the calendar for its day and resolved one way or the other. Second
+          meetings with a lead who already sat are left out of the rate. Meetings with no recorded
           outcome are excluded from the denominator rather than counted as no-shows. A setter booking
           appears in both the dialer and the GHL calendar; it is counted once here (the dialer row wins),
-          and onboarding calls are left out. "Moved" is how many times meetings were pushed, with the
-          share of meetings affected in brackets. Close rate counts distinct contacts with a signed deal
+          and onboarding calls are left out. "Moved" is how many times meetings were really pushed (date-typo
+          fixes are not moves), with the share of meetings affected in brackets. Close rate counts distinct contacts with a signed deal
           dated on or after the booking, so one client with three meetings counts once. MRR is monthly
           retainers won; One-off is setup and one-off fees only.
         </p>

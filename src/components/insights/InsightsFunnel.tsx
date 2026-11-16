@@ -20,6 +20,8 @@ interface Props {
   onSourceChange: (slug: string) => void;
   /** The dialer's dial-level funnel. Shown for All and Cold Call: dials only exist for cold outbound. */
   coldCallDetail: ReactNode;
+  /** Set when a rep is picked. get_source_funnel has no rep filter, so the card says it is the whole team. */
+  selectedRepLabel?: string;
 }
 
 const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
@@ -34,11 +36,12 @@ function Stage({ label, value, sub }: { label: string; value: string; sub?: stri
   );
 }
 
-function StageArrow({ rate }: { rate: string }) {
+function StageArrow({ rate, note }: { rate: string; note?: string }) {
   return (
     <div className="flex shrink-0 flex-col items-center justify-center px-1 text-muted-foreground">
       <ArrowRight className="h-4 w-4" />
       <span className="font-mono text-[11px] tabular-nums">{rate}</span>
+      {note ? <span className="text-[9px] leading-none">{note}</span> : null}
     </div>
   );
 }
@@ -60,7 +63,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
  * bookings, so it works for every channel. Below it sits the detail that only
  * exists for some channels: dial-level stats for cold call, Meta spend for ads.
  */
-export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldCallDetail }: Props) {
+export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldCallDetail, selectedRepLabel }: Props) {
   const { data: rows = [], isLoading } = useSourceFunnel({
     from: dateFrom,
     to: dateTo,
@@ -116,8 +119,8 @@ export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldC
       </div>
 
       <ReportSection
-        title={`Meeting funnel · ${sourceLabel}`}
-        description="Meetings in the selected range by meeting date, from GHL calendars and dialer bookings. Show rate counts every resolved slot. Won counts distinct contacts with a signed deal after booking."
+        title={`Meeting funnel · ${sourceLabel}${selectedRepLabel ? " · whole team" : ""}`}
+        description={`Meetings in the selected range by meeting date, from GHL calendars and dialer bookings. Show rate is first meetings only: showed ÷ resolved first-meeting slots. Moved counts real moves, not date-typo fixes. Won counts distinct contacts with a signed deal after booking, so Showed → Won is per contact.${selectedRepLabel ? ` Whole team: this card does not filter to ${selectedRepLabel}.` : ""}`}
       >
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
@@ -130,11 +133,16 @@ export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldC
                   <StageArrow rate={costPer(totals.meetings)} />
                 </>
               ) : null}
-              <Stage label="Booked" value={String(totals.meetings)} sub={`${totals.contactsBooked} contacts`} />
-              <StageArrow rate={pct(totals.showRate)} />
-              <Stage label="Showed" value={String(totals.showed)} sub={`${totals.noshow} no-show · ${totals.cancelled + totals.rescheduled} moved`} />
-              <StageArrow rate={pct(totals.closeFromShow)} />
-              <Stage label="Won" value={String(totals.won)} sub={`${pct(totals.closeFromBooked)} of booked`} />
+              {/* Meeting-date basis: these are meetings on the calendar in the range, not bookings made. */}
+              <Stage label="Meetings" value={String(totals.meetings)} sub={`${totals.contactsBooked} contacts`} />
+              <StageArrow rate={pct(totals.showRate)} note="show rate" />
+              <Stage
+                label="Showed"
+                value={String(totals.showed)}
+                sub={`${totals.noshow} no-show · ${totals.cancelled} cancelled · ${totals.rescheduled} moved`}
+              />
+              <StageArrow rate={pct(totals.closeFromShow)} note="per contact" />
+              <Stage label="Won" value={String(totals.won)} sub={`${pct(totals.closeFromBooked)} of contacts`} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t border-border pt-3 sm:grid-cols-4 lg:grid-cols-6">

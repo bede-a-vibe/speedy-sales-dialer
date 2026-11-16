@@ -100,7 +100,9 @@ export function ghlMeetingToBookingItem(
     id: row.id,
     contact_id: row.contact_id,
     created_at: row.booked_at ?? row.start_time,
-    created_by: createdBy ?? row.rep_user_id ?? "",
+    // No dialer call to infer the setter from: leave it unattributed rather
+    // than crediting the closer with a booking they did not make.
+    created_by: createdBy ?? "",
     assigned_user_id: row.rep_user_id ?? "",
     scheduled_for: row.start_time,
     appointment_outcome: outcome,

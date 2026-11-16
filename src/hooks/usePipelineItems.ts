@@ -117,6 +117,8 @@ export interface BookedAppointmentReportItem {
   is_qualified?: boolean | null;
   /** Closer's record of whether the offer was pitched (null = not recorded). */
   pitched?: boolean | null;
+  /** Real moves (meeting_reschedules kind 'move'); reschedule_count also counts entry errors. Use movesOf(). */
+  move_count?: number | null;
   /** Proposal after the sitting: to_send (owed) or sent. */
   proposal_status?: "to_send" | "sent" | null;
   proposal_sent_date?: string | null;
@@ -328,6 +330,26 @@ export function useContactPipelineItems(contactId?: string) {
   });
 }
 
+/** Drop GHL-stream rows whose contact shares its GHL contact id with another dialer contact. */
+async function dropSharedGhlContacts(rows: UnifiedMeetingLite[]): Promise<UnifiedMeetingLite[]> {
+  const contactIds = [...new Set(rows.map((r) => r.contact_id).filter((id): id is string => !!id))];
+  if (contactIds.length === 0) return rows;
+  const { data: linked, error } = await supabase.from("contacts").select("id, ghl_contact_id").in("id", contactIds);
+  if (error) throw error;
+  const ghlByContact = new Map<string, string>();
+  for (const c of linked ?? []) if (c.ghl_contact_id) ghlByContact.set(c.id, c.ghl_contact_id);
+  const ghlIds = [...new Set(ghlByContact.values())];
+  if (ghlIds.length === 0) return rows;
+  const { data: sharing, error: sharingError } = await supabase.from("contacts").select("id, ghl_contact_id").in("ghl_contact_id", ghlIds);
+  if (sharingError) throw sharingError;
+  const holders = new Map<string, number>();
+  for (const c of sharing ?? []) if (c.ghl_contact_id) holders.set(c.ghl_contact_id, (holders.get(c.ghl_contact_id) ?? 0) + 1);
+  return rows.filter((r) => {
+    const g = r.contact_id ? ghlByContact.get(r.contact_id) : undefined;
+    return !g || (holders.get(g) ?? 0) <= 1;
+  });
+}
+
 export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["booked-appointments-range", from, to],
@@ -335,7 +357,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 
@@ -390,9 +412,14 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       const items = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) =>
         inRange(item.created_at, item.scheduled_for),
       );
-      const ghlRows = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
+      const ghlRowsInRange = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
         (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
       );
+      // Several dialer contacts can carry the same GHL contact id (a bad link
+      // made when they were pushed to GHL). A GHL meeting on such a contact is
+      // attached to an arbitrary business and usually duplicates a dialer row
+      // on another contact, so it is left out until the links are cleaned.
+      const ghlRows = await dropSharedGhlContacts(ghlRowsInRange);
       // Follow-up (second) meetings need each contact's full booking history,
       // not just the rows inside the reporting window.
       const withFollowUps = async (merged: BookedAppointmentReportItem[]) => {

@@ -29,6 +29,10 @@ export type ReportBookingItem = Pick<
    * booking, not an appointment scheduled and not a sitting.
    */
   is_reschedule_slot?: boolean;
+  /** Closer's Pitched / Not pitched answer (null = not recorded). Read through wasPitched(). */
+  pitched?: boolean | null;
+  /** Real moves (meeting_reschedules kind 'move'). Read through movesOf(); reschedule_count also counts entry errors. */
+  move_count?: number | null;
 };
 
 export type ReportContact = Pick<
@@ -61,7 +65,7 @@ export interface AppointmentPerformanceMetrics {
   noCloseFollowUps: number;
   showed: number;
   showUpRate: number;
-  /** Meetings where a pitch outcome was recorded: closed, no close, verbal, or no-close follow-up. First or second meeting. */
+  /** Sittings where the offer was pitched (wasPitched: the closer's Pitched answer, else the outcome). First or second meeting. */
   pitched: number;
   /** Pitched meetings not marked unqualified (unjudged stays in). */
   qualifiedPitched: number;
@@ -146,14 +150,15 @@ export interface AppointmentPerformanceMetrics {
   disqualifiedBookings: number;
   /** judged / all bookings — how much of the sample has a verdict. */
   qualifiedCoverage: number;
-  /** qualified / all bookings. Unjudged bookings count as not qualified here. */
+  /** Qualified first-meeting sittings / resolved first-meeting sittings (showed, no-show, cancelled). Unjudged count as not qualified here. */
   qualifiedRate: number;
   qualifiedShowed: number;
   qualifiedNoShows: number;
   qualifiedClosed: number;
   qualifiedVerbal: number;
-  /** qualified shows / all shows. Unjudged shows count as not qualified here. */
+  /** Qualified share of shows: qualified shows / all shows. Unjudged shows count as not qualified here. */
   showedQualifiedRate: number;
+  /** Not on any card: a verdict is only given after the prospect sits, so this is ~100% by construction. */
   qualifiedShowUpRate: number;
   /** closed / pitched among bookings marked qualified */
   qualifiedCloseRate: number;
@@ -271,12 +276,25 @@ export interface ReportMetrics {
   outboundDiagnostic: OutboundDiagnosticMetrics;
 }
 
-function toDateKey(value: string) {
+/** Local (browser, Melbourne) calendar date of a timestamp, YYYY-MM-DD. Never slice an ISO string: that is the UTC date. */
+export function toDateKey(value: string | Date) {
   const d = new Date(value);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** Today's local date key. new Date().toISOString() is the UTC date, a day behind before 11am in Melbourne. */
+export function todayDateKey() {
+  return toDateKey(new Date());
+}
+
+/** Add whole days to a YYYY-MM-DD key in local time and return a local key. */
+export function shiftDateKey(dateKey: string, days: number) {
+  const d = new Date(`${dateKey}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toDateKey(d);
 }
 
 function isInDateRange(value: string | null, from?: string, to?: string) {
@@ -351,6 +369,27 @@ export const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
   "showed_verbal_commitment",
   "no_close_follow_up",
 ]);
+
+/**
+ * Was the offer pitched on this sitting? The closer's Pitched / Not pitched
+ * answer (pipeline_items.pitched, from 16 Nov 2026) wins; a close is always a
+ * pitch; older rows with no answer fall back to the outcome. Every surface
+ * (Funnel, Closing, Timing heat maps) must use this one rule.
+ */
+export function wasPitched(item: { appointment_outcome?: string | null; pitched?: boolean | null }) {
+  if (item.appointment_outcome === "showed_closed") return true;
+  if (item.pitched != null) return item.pitched;
+  return !!item.appointment_outcome && PITCHED_OUTCOMES.has(item.appointment_outcome as AppointmentOutcomeKey);
+}
+
+/**
+ * Real moves of a booking: public.move_count (meeting_reschedules kind
+ * 'move'). reschedule_count also goes up on entry-error date fixes, so it is
+ * only a fallback for rows that do not carry move_count (GHL-only meetings).
+ */
+export function movesOf(item: { move_count?: number | null; reschedule_count?: number | null }) {
+  return item.move_count ?? item.reschedule_count ?? 0;
+}
 
 /** Did they turn up. Same single rule as every other surface. */
 function isShowed(item: ReportBookingItem) {
@@ -443,9 +482,10 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
   const unqualifiedClosed = unqualified.filter((item) => item.appointment_outcome === "showed_closed").length;
   const qualifiedVerbal = qualified.filter((item) => item.appointment_outcome === "showed_verbal_commitment").length;
 
-  // ---- Pitched = a close decision was recorded on the meeting (first or
-  // second). "Second meeting booked" is discovery only, so it is not a pitch.
-  const pitchedItems = items.filter((item) => !!item.appointment_outcome && PITCHED_OUTCOMES.has(item.appointment_outcome));
+  // ---- Pitched: the closer's Pitched / Not pitched answer when recorded, else
+  // the outcome (a close decision recorded = pitched). One rule, wasPitched(),
+  // shared with the Closing tab so Close Rate reads the same on both.
+  const pitchedItems = items.filter((item) => wasPitched(item));
   const qualifiedPitchedItems = pitchedItems.filter((item) => item.is_qualified !== false);
   const closedAmong = (list: ReportBookingItem[]) => list.filter((item) => item.appointment_outcome === "showed_closed").length;
   const verbalLeadIds = new Set(items.filter((item) => item.appointment_outcome === "showed_verbal_commitment").map((item) => item.contact_id));
@@ -454,7 +494,7 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
 
   // ---- Reschedule history of the slots that resolved ----
   const rescheduleBucket = (item: ReportBookingItem): "0" | "1" | "2" | "3+" => {
-    const n = item.reschedule_count ?? 0;
+    const n = movesOf(item);
     return n <= 0 ? "0" : n === 1 ? "1" : n === 2 ? "2" : "3+";
   };
   const showUpByRescheduleCount = (["0", "1", "2", "3+"] as const).map((bucket) => {
@@ -476,10 +516,11 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
   const firstMeetingSittings = resolved.filter((item) => !item.is_follow_up);
   const firstMeetingResolved = [...firstMeetingSittings, ...slots.filter((item) => !item.is_follow_up)];
   const followUpResolved = [...resolved.filter((item) => !!item.is_follow_up), ...slots.filter((item) => !!item.is_follow_up)];
-  const rescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) > 0);
-  const firstTimeResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 0);
-  const multiRescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) >= 2);
-  const movedOnceResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 1);
+  // Real moves only (movesOf): a date-typo entry error is not a move.
+  const rescheduledResolved = firstMeetingSittings.filter((item) => movesOf(item) > 0);
+  const firstTimeResolved = firstMeetingSittings.filter((item) => movesOf(item) === 0);
+  const multiRescheduledResolved = firstMeetingSittings.filter((item) => movesOf(item) >= 2);
+  const movedOnceResolved = firstMeetingSittings.filter((item) => movesOf(item) === 1);
   const firstMeetingSlots = slots.filter((item) => !item.is_follow_up);
   const reschedulesByProspect = firstMeetingSlots.filter((item) => isProspectReschedule(item.outcome_reason)).length;
   const reschedulesByUs = firstMeetingSlots.filter((item) => isOurReschedule(item.outcome_reason)).length;
@@ -553,7 +594,9 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
       qualifiedBookings: qualified.length,
       disqualifiedBookings: unqualified.length,
       qualifiedCoverage: toPercent(judged.length, items.length),
-      qualifiedRate: toPercent(qualified.length, items.length),
+      // Resolved first-meeting sittings, not "all bookings": the old denominator
+      // was every meeting in the window, upcoming and second meetings included.
+      qualifiedRate: toPercent(firstMeetingSittings.filter((item) => item.is_qualified === true).length, firstMeetingSittings.length),
       qualifiedShowed: qualifiedShowedItems.length,
       qualifiedNoShows,
       qualifiedClosed,
@@ -566,6 +609,20 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
     } satisfies AppointmentPerformanceMetrics,
     outcomeCounts: appointmentOutcomeCounts,
   };
+}
+
+/** Every day from `from` to `to` (or the first to last day with dials), zero-dial days included. */
+function fillDailyVolume(map: Record<string, number>, from?: string, to?: string) {
+  const keys = Object.keys(map).sort();
+  const start = from ?? keys[0];
+  const end = to ?? keys[keys.length - 1];
+  if (!start || !end || start > end) return keys.map((date) => ({ date, count: map[date] }));
+  const out: Array<{ date: string; count: number }> = [];
+  // Capped at ~3 years so a bad range can never spin forever.
+  for (let key = start, guard = 0; key <= end && guard < 1200; key = shiftDateKey(key, 1), guard += 1) {
+    out.push({ date: key, count: map[key] ?? 0 });
+  }
+  return out;
 }
 
 export function getReportMetrics({
@@ -811,9 +868,12 @@ export function getReportMetrics({
   const immediateHangUps = filteredCallLogs.filter((l) => l.exit_reason_connection === "hung_up_immediately").length;
   const immediateHangUpRate = toPercent(immediateHangUps, totalDials);
 
-  // ---- Sales Efficiency (closed deals attributed to the rep who booked them) ----
-  const closedDealsInRange = bookingsMadeInRange.filter(
-    (item) => item.appointment_outcome === "showed_closed",
+  // ---- Sales Efficiency: closes by MEETING date (closed meetings scheduled in
+  // the range), attributed to the rep who booked them. Counting by booking date
+  // dropped every close whose booking was made before the window (Sean
+  // Emmerson: booked 6 Nov, closed 9 Nov). ----
+  const closedDealsInRange = setterAppointmentsInRange.filter(
+    (item) => !item.is_reschedule_slot && item.appointment_outcome === "showed_closed",
   );
   const setupRevenue = closedDealsInRange.reduce(
     (sum, item) => sum + (item.deal_value ?? 0),
@@ -887,9 +947,7 @@ export function getReportMetrics({
       closer: closerPerformance.metrics,
     },
     repComparison,
-    dailyVolume: Object.entries(dailyVolumeMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, count]) => ({ date, count })),
+    dailyVolume: fillDailyVolume(dailyVolumeMap, from, to),
     outcomeCounts,
     appointmentOutcomeCounts: {
       setter: setterPerformance.outcomeCounts,
