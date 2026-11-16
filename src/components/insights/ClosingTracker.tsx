@@ -109,6 +109,7 @@ function buildColumns(from: string, to: string): Column[] {
 interface Stats {
   availableSlots: number;
   booked: number;
+  secondBooked: number;
   due: number;
   resolved: number;
   showed: number;
@@ -162,7 +163,7 @@ interface Stats {
 
 function emptyStats(): Stats {
   return {
-    availableSlots: 0, booked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
+    availableSlots: 0, booked: 0, secondBooked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
@@ -186,7 +187,11 @@ export function computeStats(
   for (const d of days) s.availableSlots += availableSlotsForDay(d);
   const dueAll = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
   const due = dueAll.filter((i) => !i.is_reschedule_slot);
-  s.booked = bookedItems.filter((i) => !i.is_reschedule_slot && i.created_at && days.has(dayKey(i.created_at))).length;
+  // First meetings only, same as Bookings Made on the Funnel and Overview tabs;
+  // a second meeting booked by the closer is counted on its own row.
+  const madeInRange = bookedItems.filter((i) => !i.is_reschedule_slot && i.created_at && days.has(dayKey(i.created_at)));
+  s.booked = madeInRange.filter((i) => !i.is_follow_up).length;
+  s.secondBooked = madeInRange.filter((i) => i.is_follow_up).length;
   s.due = due.length;
   // A missed slot of a moved meeting is a resolved slot that did not sit.
   for (const slot of dueAll.filter((i) => i.is_reschedule_slot)) {
@@ -332,7 +337,8 @@ function buildSections(repFiltered = false): SectionDef[] {
         repFiltered
           ? { label: "Available slots (team-wide)", fmt: "n", hint: `${slotsHint}. The calendar is shared, so this is not filtered by rep.`, value: (s) => s.availableSlots }
           : { label: "Available slots", fmt: "n", hint: slotsHint, value: (s) => s.availableSlots },
-        { label: "Bookings made", fmt: "n", hint: repFiltered ? "booked by this rep as setter, by the day they were booked" : "by the day they were booked", value: (s) => s.booked },
+        { label: "Bookings made", fmt: "n", hint: repFiltered ? "first meetings booked by this rep as setter, by the day they were booked" : "first meetings, by the day they were booked", value: (s) => s.booked },
+        { label: "Second meetings booked", fmt: "n", hint: "follow-up meetings, by the day they were booked", value: (s) => s.secondBooked },
         { label: "Bookings due", fmt: "n", hint: "meetings scheduled for the day", value: (s) => s.due, emphasis: true },
         { label: "Resolved slots", fmt: "n", hint: "showed + no-show + cancelled + rescheduled", value: (s) => s.resolved },
         { label: "Showed (sittings)", fmt: "n", value: (s) => s.showed, emphasis: true },
