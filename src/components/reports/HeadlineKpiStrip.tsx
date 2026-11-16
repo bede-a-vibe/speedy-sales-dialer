@@ -14,7 +14,7 @@ export function HeadlineKpiStrip({ metrics }: HeadlineKpiStripProps) {
     ? `No data before ${CONVERSATION_TAGGING_LAUNCH_LABEL}`
     : dialer.conversationMetricsScoped
       ? `Since ${CONVERSATION_TAGGING_LAUNCH_LABEL}`
-      : "closing skill";
+      : "since tagging live";
 
   return (
     <div className="space-y-2">

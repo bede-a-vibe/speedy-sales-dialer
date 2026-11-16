@@ -18,6 +18,15 @@ interface Stage {
   count: number;
   sub?: string;
   isTotalDials?: boolean;
+  /**
+   * Counted by MEETING date, not by the dial/booking date the stages above use.
+   * These are a different group of meetings (older bookings sit in this window,
+   * this window's bookings sit later), so "% of prev" and "% of top" would be a
+   * fake conversion. They show their own rate instead, or nothing.
+   */
+  meetingCohort?: boolean;
+  /** Rate shown instead of % of top / % of prev on a meeting-cohort stage. null = none. */
+  ownRate?: { pct: number; label: string } | null;
 }
 
 export function EndToEndFunnel({ metrics, funnel }: Props) {
@@ -63,8 +72,10 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
         count: solutionCount,
       },
       {
+        // The call-stage commitment (floored at bookings). Not the meeting
+        // outcome "verbal commitment", which is a closing-side result.
         key: "commitment",
-        label: "Verbal Commitment",
+        label: "Call Commitment",
         count: commitmentCount,
       },
       {
@@ -75,8 +86,23 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
           ? `+${funnel.bookedWithoutFunnelTags} booked without funnel tags`
           : undefined,
       },
-      { key: "showed", label: "Showed", count: setter.showed },
-      { key: "closed", label: "Closed", count: setter.showedClosed },
+      {
+        key: "showed",
+        label: "Showed",
+        count: setter.firstMeetingShowed,
+        sub: "first meetings, by meeting date",
+        meetingCohort: true,
+        // First meetings that sat ÷ first meetings resolved: the Show-Up Rate.
+        ownRate: { pct: setter.firstMeetingShowUpRate, label: "show-up" },
+      },
+      {
+        key: "closed",
+        label: "Closed",
+        count: setter.showedClosed,
+        sub: "all meetings, by meeting date",
+        meetingCohort: true,
+        ownRate: null,
+      },
     ];
   }, [metrics, funnel]);
 
@@ -90,6 +116,9 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
           <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">End-to-End Call Funnel</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Every step from first dial to closed deal. {mode === "of_top" ? "% shown is conversion from top of funnel." : "% shown is conversion from previous stage."}
+          </p>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Showed and Closed count meetings held in the range, not this range's bookings, so they carry their own rate instead of a step %.
           </p>
           {funnel.scoped && (
             <p className="mt-1 text-[10px] text-muted-foreground">
@@ -124,10 +153,21 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
           const pctOfPrev = i === 0 ? 100 : prev > 0 ? Math.round((stage.count / prev) * 100) : 0;
           const dropFromPrev = i === 0 || prev === 0 ? 0 : Math.round(((prev - stage.count) / prev) * 100);
           const barPct = maxBar > 0 ? Math.max((stage.count / maxBar) * 100, stage.count > 0 ? 2 : 0) : 0;
-          const shownPct = mode === "of_top" ? pctOfTop : pctOfPrev;
+          const shownPct = stage.meetingCohort
+            ? stage.ownRate
+              ? `${stage.ownRate.pct}%`
+              : "—"
+            : `${mode === "of_top" ? pctOfTop : pctOfPrev}%`;
+          const firstMeetingStage = stage.meetingCohort && !stages[i - 1]?.meetingCohort;
 
           return (
-            <div key={stage.key} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 sm:flex sm:gap-3">
+            <div key={stage.key}>
+            {firstMeetingStage ? (
+              <div className="mb-2 mt-3 border-t border-dashed border-border pt-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                Meetings held in the range
+              </div>
+            ) : null}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 sm:flex sm:gap-3">
               <div className="min-w-0 sm:w-44 sm:shrink-0">
                 <div className="text-sm text-foreground">{stage.label}</div>
                 {stage.sub && <div className="text-[10px] text-muted-foreground truncate">{stage.sub}</div>}
@@ -143,10 +183,16 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
               <div className="sm:w-16 text-right font-mono text-sm font-semibold text-foreground">
                 {stage.count.toLocaleString()}
               </div>
-              <div className="sm:w-14 text-right font-mono text-sm text-muted-foreground">{shownPct}%</div>
-              <div className="hidden sm:block sm:w-20 text-right font-mono text-xs text-destructive">
-                {i === 0 ? "" : `-${dropFromPrev}%`}
+              <div
+                className="sm:w-14 text-right font-mono text-sm text-muted-foreground"
+                title={stage.ownRate ? stage.ownRate.label : undefined}
+              >
+                {shownPct}
               </div>
+              <div className="hidden sm:block sm:w-20 text-right font-mono text-xs text-destructive">
+                {i === 0 ? "" : stage.meetingCohort ? (stage.ownRate ? <span className="text-muted-foreground">{stage.ownRate.label}</span> : "") : `-${dropFromPrev}%`}
+              </div>
+            </div>
             </div>
           );
         })}

@@ -9,7 +9,7 @@ import { CallFunnelBody } from "@/pages/CallFunnelPage";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useContactAttemptCounts } from "@/hooks/useContactAttemptCounts";
 import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
-import { getReportMetrics } from "@/lib/reportMetrics";
+import { getReportMetrics, shiftDateKey, todayDateKey } from "@/lib/reportMetrics";
 import { computeFunnel, filterFunnelLogs } from "@/lib/funnelMetrics";
 import { InsightsOverview } from "@/components/insights/InsightsOverview";
 import { InsightsTeam } from "@/components/insights/InsightsTeam";
@@ -74,8 +74,10 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   }, [urlTab, searchParams, setSearchParams]);
 
   // ── ONE shared filter set + ONE data fetch for the whole Insights section ──
-  const today = new Date().toISOString().split("T")[0];
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  // Local (Melbourne) dates. toISOString() is the UTC date: before 11am AEDT it
+  // made "today" yesterday and left this morning's dials out of the default range.
+  const today = todayDateKey();
+  const thirtyDaysAgo = shiftDateKey(today, -30);
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
@@ -151,6 +153,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               dateTo={dateTo}
               source={source}
               onSourceChange={handleSourceChange}
+              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
               coldCallDetail={
                 <div className="space-y-5">
                   <CallFunnelBody controlled={{ dateFrom, dateTo, selectedRepId }} />
@@ -198,6 +201,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               dateTo={dateTo}
               callLogs={callLogs}
               bookings={bookings}
+              rescheduleSlots={rescheduleSlots}
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
             />

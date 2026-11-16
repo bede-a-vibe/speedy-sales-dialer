@@ -63,15 +63,7 @@ export function useDialEconomics(dateFrom: string, dateTo: string) {
       if (dealsRes.error) throw dealsRes.error;
 
       const dials = dialsRes.count ?? 0;
-      const deals = (dealsRes.data ?? []) as Array<{
-        contact_id: string;
-        amount: number;
-        billing_period: BillingPeriod;
-        status: ClientDealStatus;
-        start_date: string;
-        end_date: string | null;
-        contacts: { lead_channel: string | null; utm_campaign: string | null } | null;
-      }>;
+      const deals = (dealsRes.data ?? []) as DialEconomicsDeal[];
 
       // Which of these contacts were ever actually dialled. One bounded query
       // rather than a per-deal count — the deal set in a range is small, and
@@ -88,33 +80,52 @@ export function useDialEconomics(dateFrom: string, dateTo: string) {
         for (const row of data ?? []) if (row.contact_id) dialled.add(row.contact_id);
       }
 
-      let newMrr = 0;
-      let oneOffRevenue = 0;
-      let dealsClosed = 0;
-      let excludedDeals = 0;
-      let excludedMrr = 0;
-
-      for (const d of deals) {
-        const fromDialling = dialled.has(d.contact_id) && !isAdsSourced(d.contacts);
-        if (fromDialling) {
-          dealsClosed += 1;
-          newMrr += dealMrr(d);
-          if (d.billing_period === "one_off") oneOffRevenue += Number(d.amount) || 0;
-        } else {
-          excludedDeals += 1;
-          excludedMrr += dealMrr(d);
-        }
-      }
-
-      return {
-        dials,
-        dealsClosed,
-        newMrr,
-        oneOffRevenue,
-        mrrPerDial: dials > 0 ? newMrr / dials : 0,
-        excludedDeals,
-        excludedMrr,
-      };
+      return tallyDialEconomics(deals, dialled, dials);
     },
   });
+}
+
+export interface DialEconomicsDeal {
+  contact_id: string;
+  amount: number;
+  billing_period: BillingPeriod;
+  status: ClientDealStatus;
+  start_date: string;
+  end_date: string | null;
+  contacts: { lead_channel: string | null; utm_campaign: string | null } | null;
+}
+
+/**
+ * Sum the deals into the card's numbers. "Deals closed" counts CLIENTS
+ * (distinct contact_id), not client_deals rows: a retainer plus a one-off on
+ * the same day, or two monthly lines (JR Dixon, 13 Oct), is one deal won.
+ */
+export function tallyDialEconomics(deals: DialEconomicsDeal[], dialled: Set<string>, dials: number): DialEconomics {
+  let newMrr = 0;
+  let oneOffRevenue = 0;
+  let excludedMrr = 0;
+  const closedContacts = new Set<string>();
+  const excludedContacts = new Set<string>();
+
+  for (const d of deals) {
+    const fromDialling = dialled.has(d.contact_id) && !isAdsSourced(d.contacts);
+    if (fromDialling) {
+      closedContacts.add(d.contact_id);
+      newMrr += dealMrr(d);
+      if (d.billing_period === "one_off") oneOffRevenue += Number(d.amount) || 0;
+    } else {
+      excludedContacts.add(d.contact_id);
+      excludedMrr += dealMrr(d);
+    }
+  }
+
+  return {
+    dials,
+    dealsClosed: closedContacts.size,
+    newMrr,
+    oneOffRevenue,
+    mrrPerDial: dials > 0 ? newMrr / dials : 0,
+    excludedDeals: excludedContacts.size,
+    excludedMrr,
+  };
 }

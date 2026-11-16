@@ -18,8 +18,12 @@ function Metric({ label, value, sub, icon: Icon, highlight }: { label: string; v
   );
 }
 
-/** Uses the shared Insights date range — no local time selector. */
-export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
+/**
+ * Uses the shared Insights date range, no local time selector. It has no rep
+ * filter: when a rep is picked it says "whole team" so the dials here are not
+ * read against the rep's dials in the KPI strip.
+ */
+export function DialEconomicsCard({ dateFrom, dateTo, selectedRepLabel }: { dateFrom: string; dateTo: string; selectedRepLabel?: string }) {
   const { data, isLoading } = useDialEconomics(dateFrom, dateTo);
 
   return (
@@ -27,10 +31,12 @@ export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; date
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Coins className="h-4 w-4 text-primary" /> Dial economics
+          {selectedRepLabel ? <span className="text-[11px] font-normal text-muted-foreground">· whole team</span> : null}
         </CardTitle>
         <CardDescription className="text-xs">
           Cold calling only. New monthly recurring revenue from clients someone actually dialled,
           per dial placed, in the selected range.
+          {selectedRepLabel ? ` Whole team: this card does not filter to ${selectedRepLabel}.` : null}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -46,14 +52,14 @@ export function DialEconomicsCard({ dateFrom, dateTo }: { dateFrom: string; date
         <Metric
           label="Deals closed"
           value={isLoading || !data ? "—" : data.dealsClosed.toLocaleString()}
-          sub={data && data.oneOffRevenue > 0 ? `+ ${formatCurrency(data.oneOffRevenue)} one-off` : undefined}
+          sub={data && data.oneOffRevenue > 0 ? `clients · + ${formatCurrency(data.oneOffRevenue)} one-off` : "clients won"}
           icon={Handshake}
         />
       </CardContent>
       {data && data.excludedDeals > 0 ? (
         <CardContent className="pt-0">
           <p className="text-[11px] text-muted-foreground">
-            Excludes {data.excludedDeals} deal{data.excludedDeals === 1 ? "" : "s"} worth{" "}
+            Excludes {data.excludedDeals} client{data.excludedDeals === 1 ? "" : "s"} worth{" "}
             {formatCurrency(data.excludedMrr)}/mo that nobody dialled — paid ads and inbound. Counting
             those here would credit cold calling with revenue the ads bought.
           </p>

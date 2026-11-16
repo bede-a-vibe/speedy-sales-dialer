@@ -54,7 +54,7 @@ export function ConversionRateStrip({ metrics }: Props) {
           subtext={conversationBooking === null ? noDataSubtext : sinceSubtext}
         />
         <StatCard compact label="Pickup → Booking" value={`${pickupBooking}%`} />
-        <StatCard compact label="Show-Up Rate" value={`${bookingShowed}%`} subtext="showed ÷ resolved slots" />
+        <StatCard compact label="Show-Up Rate" value={`${bookingShowed}%`} subtext="first meetings: showed ÷ resolved slots" />
         <StatCard compact label="Showed → Closed" value={`${showedClosed}%`} />
         <StatCard compact label="Lead → Booked" value={`${leadBooked}%`} />
         <StatCard

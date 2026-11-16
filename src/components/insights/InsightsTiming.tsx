@@ -17,6 +17,7 @@ interface Props {
   dateTo: string;
   callLogs: any[];
   bookings: any[];
+  rescheduleSlots?: import("@/hooks/usePipelineItems").BookedAppointmentReportItem[];
   activeRepId?: string;
   selectedRepLabel?: string;
 }
