@@ -4293,6 +4293,7 @@ export type Database = {
           status: Database["public"]["Enums"]["pipeline_status"]
           updated_at: string
           resolved_bucket: string | null
+          move_count: number | null
         }
         Insert: {
           appointment_outcome?:

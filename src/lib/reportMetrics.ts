@@ -352,6 +352,27 @@ export const PITCHED_OUTCOMES = new Set<AppointmentOutcomeKey>([
   "no_close_follow_up",
 ]);
 
+/**
+ * Was the offer pitched on this sitting? The closer's Pitched / Not pitched
+ * answer (pipeline_items.pitched, from 16 Nov 2026) wins; a close is always a
+ * pitch; older rows with no answer fall back to the outcome. Every surface
+ * (Funnel, Closing, Timing heat maps) must use this one rule.
+ */
+export function wasPitched(item: { appointment_outcome?: string | null; pitched?: boolean | null }) {
+  if (item.appointment_outcome === "showed_closed") return true;
+  if (item.pitched != null) return item.pitched;
+  return !!item.appointment_outcome && PITCHED_OUTCOMES.has(item.appointment_outcome as AppointmentOutcomeKey);
+}
+
+/**
+ * Real moves of a booking: public.move_count (meeting_reschedules kind
+ * 'move'). reschedule_count also goes up on entry-error date fixes, so it is
+ * only a fallback for rows that do not carry move_count (GHL-only meetings).
+ */
+export function movesOf(item: { move_count?: number | null; reschedule_count?: number | null }) {
+  return item.move_count ?? item.reschedule_count ?? 0;
+}
+
 /** Did they turn up. Same single rule as every other surface. */
 function isShowed(item: ReportBookingItem) {
   return bucketOf(item) === "showed";

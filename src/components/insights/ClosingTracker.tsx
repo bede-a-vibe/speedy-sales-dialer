@@ -5,6 +5,7 @@ import { ReportSection } from "@/components/reports/ReportSection";
 import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
+import { wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
@@ -36,9 +37,7 @@ const PITCHED = new Set(["showed_closed", "showed_no_close", "showed_verbal_comm
  * fall back to the outcome: a close decision recorded means it was pitched.
  */
 function wasPitched(i: Item) {
-  if (i.appointment_outcome === "showed_closed") return true;
-  if (i.pitched != null) return i.pitched;
-  return PITCHED.has(i.appointment_outcome ?? "");
+  return sharedWasPitched(i);
 }
 const NO_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 const RESOLVED = new Set(["showed", "noshow", "cancelled", "rescheduled"]);
