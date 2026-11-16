@@ -219,6 +219,12 @@ const RANGE_LOG_COLUMNS = [
 const RANGE_CONTACT_COLUMNS =
   "contacts(business_name, industry, trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)";
 
+function rangeDays(from?: string, to?: string) {
+  if (!from) return Infinity;
+  const end = to ? new Date(`${to}T00:00:00`) : new Date();
+  return (end.getTime() - new Date(`${from}T00:00:00`).getTime()) / 86_400_000;
+}
+
 export function useCallLogsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["call-logs-range", from, to],
@@ -226,47 +232,53 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
       const utcFrom = from ? localDateToUtcStart(from) : undefined;
       const utcTo = to ? localDateToUtcEnd(to) : undefined;
 
-      const pageQuery = (page: number, withCount: boolean) => {
-        const rangeFrom = page * BATCH_SIZE;
+      // Keyset paging: each page asks for rows older than the last one seen.
+      // Offset paging made Postgres sort the whole range and scan every
+      // contact for each page (20 s a page on All time under load), so long
+      // ranges timed out and the funnel showed 0 dials. Keyset pages use the
+      // (created_at, id) index and look up only that page's contacts: ~30 ms.
+      type Cursor = { created_at: string; id: string };
+      const pageQuery = (cursor: Cursor | null) => {
         let query = supabase
           .from("call_logs")
-          .select(`${RANGE_LOG_COLUMNS}, ${RANGE_CONTACT_COLUMNS}`, withCount ? { count: "exact" } : undefined)
-          // created_at alone is not unique: tie-break on id so offset pages never skip or repeat rows.
+          .select(`${RANGE_LOG_COLUMNS}, ${RANGE_CONTACT_COLUMNS}`)
+          // created_at alone is not unique: id breaks ties so pages never skip or repeat rows.
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
-          .range(rangeFrom, rangeFrom + BATCH_SIZE - 1);
+          .limit(BATCH_SIZE);
         if (utcFrom) query = query.gte("created_at", utcFrom);
         if (utcTo) query = query.lte("created_at", utcTo);
+        if (cursor) {
+          query = query.or(
+            `created_at.lt."${cursor.created_at}",and(created_at.eq."${cursor.created_at}",id.lt.${cursor.id})`,
+          );
+        }
         return query;
       };
-
-      // First page carries the total, then the rest are fetched in parallel
-      // rather than one round trip after another.
-      const first = await pageQuery(0, true);
-      if (first.error) throw first.error;
-      const rows: any[] = [...(first.data ?? [])];
-      const total = first.count ?? rows.length;
-      const pages = Math.ceil(total / BATCH_SIZE);
-      // Long ranges (All time is ~26 pages) used to fire every page at once;
-      // the database fell behind, a page timed out, the whole query threw and
-      // the funnel showed 0 dials. Fetch a few pages at a time and retry a
-      // failed page once before giving up.
-      const fetchPage = async (page: number) => {
-        const r = await pageQuery(page, false);
-        if (!r.error) return r.data ?? [];
-        const retry = await pageQuery(page, false);
+      const fetchPage = async (cursor: Cursor | null) => {
+        const r = await pageQuery(cursor);
+        if (!r.error) return (r.data ?? []) as any[];
+        const retry = await pageQuery(cursor);
         if (retry.error) throw retry.error;
-        return retry.data ?? [];
+        return (retry.data ?? []) as any[];
       };
-      const CONCURRENCY = 4;
-      for (let start = 1; start < pages; start += CONCURRENCY) {
-        const batch = Array.from({ length: Math.min(CONCURRENCY, pages - start) }, (_, i) => fetchPage(start + i));
-        for (const data of await Promise.all(batch)) rows.push(...data);
+
+      const rows: any[] = [];
+      let cursor: Cursor | null = null;
+      // Hard stop well above any real range (1,000 pages = 1M dials).
+      for (let i = 0; i < 1000; i++) {
+        const page = await fetchPage(cursor);
+        rows.push(...page);
+        if (page.length < BATCH_SIZE) break;
+        const last = page[page.length - 1];
+        cursor = { created_at: last.created_at, id: last.id };
       }
       return rows;
     },
     enabled: true,
-    refetchInterval: 60_000,
+    // Long ranges are thousands of rows; re-pulling them every minute kept
+    // the database busy. Live refresh stays at 1 min for ranges up to a month.
+    refetchInterval: rangeDays(from, to) > 31 ? 10 * 60_000 : 60_000,
   });
 }
 
