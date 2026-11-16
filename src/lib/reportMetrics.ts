@@ -618,7 +618,8 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
 /** Every day from `from` to `to` (or the first to last day with dials), zero-dial days included. */
 function fillDailyVolume(map: Record<string, number>, from?: string, to?: string) {
   const keys = Object.keys(map).sort();
-  const start = from ?? keys[0];
+  // All time starts in 2020: begin at the first day with dials, not the range start.
+  const start = from && keys[0] && keys[0] > from ? keys[0] : from ?? keys[0];
   const end = to ?? keys[keys.length - 1];
   if (!start || !end || start > end) return keys.map((date) => ({ date, count: map[date] }));
   const out: Array<{ date: string; count: number }> = [];

@@ -20,20 +20,24 @@ interface Props {
   breakdownGroups?: BreakdownGroup[];
 }
 
-function eachDay(from: string, to: string): string[] {
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/**
+ * Days from `from` to `to`. Starts no earlier than the first day with data
+ * (All time begins in 2020), and keeps the most recent 366 days when the range
+ * is longer, so the chart always ends on the range's last day.
+ */
+export function eachDay(from: string, to: string, firstDataDay?: string): string[] {
   const out: string[] = [];
-  const start = new Date(`${from}T00:00:00`);
+  const startKey = firstDataDay && firstDataDay > from ? firstDataDay : from;
+  const cur = new Date(`${startKey}T00:00:00`);
   const end = new Date(`${to}T00:00:00`);
-  const cur = new Date(start);
   while (cur <= end) {
-    const y = cur.getFullYear();
-    const m = String(cur.getMonth() + 1).padStart(2, "0");
-    const d = String(cur.getDate()).padStart(2, "0");
-    out.push(`${y}-${m}-${d}`);
+    out.push(dayKey(cur));
     cur.setDate(cur.getDate() + 1);
-    if (out.length > 365) break; // safety
   }
-  return out;
+  return out.length > 366 ? out.slice(out.length - 366) : out;
 }
 
 const SERIES_COLORS = [
@@ -58,7 +62,13 @@ export function MetricTrendChart({
   const [metricId, setMetricId] = useState<string>("bookings_made");
   const stat = STAT_CATALOG_BY_ID.get(metricId);
 
-  const days = useMemo(() => eachDay(from, to), [from, to]);
+  const firstDataDay = useMemo(() => {
+    let min: string | undefined;
+    for (const l of callLogs) { const k = dayKey(new Date(l.created_at)); if (!min || k < min) min = k; }
+    for (const b of bookedItems) { const k = dayKey(new Date(b.created_at)); if (!min || k < min) min = k; }
+    return min;
+  }, [callLogs, bookedItems]);
+  const days = useMemo(() => eachDay(from, to, firstDataDay), [from, to, firstDataDay]);
   const prevDays = useMemo(
     () => (compareMode && previousFrom && previousTo ? eachDay(previousFrom, previousTo) : []),
     [compareMode, previousFrom, previousTo],

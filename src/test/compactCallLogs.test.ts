@@ -23,3 +23,17 @@ describe("get_call_logs_compact expansion", () => {
     expect(out.exit_reason_booking).toBeNull();
   });
 });
+
+import { eachDay } from "@/components/funnel/MetricTrendChart";
+describe("trend chart days", () => {
+  it("starts at the first day with data on All time", () => {
+    const days = eachDay("2020-01-01", "2026-11-17", "2026-03-17");
+    expect(days[0]).toBe("2026-03-17");
+    expect(days[days.length - 1]).toBe("2026-11-17");
+  });
+  it("keeps the most recent 366 days of a longer range", () => {
+    const days = eachDay("2024-01-01", "2026-11-17");
+    expect(days.length).toBe(366);
+    expect(days[days.length - 1]).toBe("2026-11-17");
+  });
+});
