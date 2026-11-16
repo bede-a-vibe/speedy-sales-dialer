@@ -4268,6 +4268,7 @@ export type Database = {
           ghl_sync_error: string | null
           id: string
           is_qualified: boolean | null
+          meeting_format: string | null
           meeting_ghl_opportunity_id: string | null
           meeting_ghl_stage_id: string | null
           minimum_term_months: number | null
@@ -4318,6 +4319,7 @@ export type Database = {
           ghl_sync_error?: string | null
           id?: string
           is_qualified?: boolean | null
+          meeting_format?: string | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           minimum_term_months?: number | null
@@ -4367,6 +4369,7 @@ export type Database = {
           ghl_sync_error?: string | null
           id?: string
           is_qualified?: boolean | null
+          meeting_format?: string | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           minimum_term_months?: number | null

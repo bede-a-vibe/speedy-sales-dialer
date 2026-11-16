@@ -172,6 +172,7 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           deal_stage,
           follow_up_method,
           reschedule_count,
+          meeting_format,
           outcome_reason,
           recording_url,
           phone_recording_url,
