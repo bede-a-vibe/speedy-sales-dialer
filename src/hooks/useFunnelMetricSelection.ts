@@ -17,6 +17,18 @@ function storageKey(userId?: string) {
   return `funnel:metric-selection:${userId ?? "anon"}:v1`;
 }
 
+/**
+ * 17 Nov 2026: "Showed" became "Sittings (all meetings)", which includes second
+ * meetings, while Show-Up Rate is first meetings only. Saved selections that
+ * show the rate get the matching first-meeting count placed in front of it, so
+ * the two numbers next to each other agree.
+ */
+export function withFirstMeetingShowed(ids: string[]): string[] {
+  const at = ids.indexOf("show_up_rate");
+  if (at === -1 || ids.includes("first_meeting_showed")) return ids;
+  return [...ids.slice(0, at), "first_meeting_showed", ...ids.slice(at)];
+}
+
 export function useFunnelMetricSelection() {
   const { user } = useAuth();
   const key = storageKey(user?.id);
@@ -27,7 +39,7 @@ export function useFunnelMetricSelection() {
       const raw = window.localStorage.getItem(storageKey(user?.id));
       if (!raw) return DEFAULT_SELECTION;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) return parsed;
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) return withFirstMeetingShowed(parsed);
       return DEFAULT_SELECTION;
     } catch {
       return DEFAULT_SELECTION;
