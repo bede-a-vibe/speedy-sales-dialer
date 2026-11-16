@@ -108,6 +108,30 @@ function bestBookingHours(
     .slice(0, take);
 }
 
+function localDateKey(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Bookings the scorecards should count: first meetings booked inside the
+ * window. The bookings hook also returns meetings booked earlier that sit in
+ * the window; those are not this window's bookings and used to inflate the
+ * scorecard totals, Best Booking Hours (÷ this window's dials) and the
+ * "0 bookings on <day>" cue. Filter with this before computing scorecards.
+ */
+export function scorecardBookings<T extends { created_at: string | null; is_follow_up?: boolean; is_reschedule_slot?: boolean }>(
+  bookings: T[],
+  from: string,
+  to: string,
+): T[] {
+  return bookings.filter((b) => {
+    if (b.is_follow_up || b.is_reschedule_slot || !b.created_at) return false;
+    const k = localDateKey(b.created_at);
+    return k >= from && k <= to;
+  });
+}
+
 export function formatHourLabel(hour: number): string {
   return HOUR_LABELS(hour);
 }
