@@ -117,6 +117,9 @@ export interface BookedAppointmentReportItem {
   is_qualified?: boolean | null;
   /** Closer's record of whether the offer was pitched (null = not recorded). */
   pitched?: boolean | null;
+  /** Proposal after the sitting: to_send (owed) or sent. */
+  proposal_status?: "to_send" | "sent" | null;
+  proposal_sent_date?: string | null;
   /** Which booking stream the row came from. GHL-only cold meetings are merged in. */
   stream?: "dialer" | "ghl";
   /** True when this contact already showed at an earlier booking (second meeting, not a reschedule). */
@@ -176,6 +179,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           reschedule_count,
           meeting_format,
           pitched,
+          proposal_status,
+          proposal_sent_date,
           outcome_reason,
           recording_url,
           phone_recording_url,
@@ -330,7 +335,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
         )
         .eq("pipeline_type", "booked");
 

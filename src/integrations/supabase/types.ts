@@ -4270,6 +4270,7 @@ export type Database = {
           is_qualified: boolean | null
           meeting_format: string | null
           pitched: boolean | null
+          proposal_status: string | null
           meeting_ghl_opportunity_id: string | null
           meeting_ghl_stage_id: string | null
           minimum_term_months: number | null
@@ -4322,6 +4323,7 @@ export type Database = {
           is_qualified?: boolean | null
           meeting_format?: string | null
           pitched?: boolean | null
+          proposal_status?: string | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           minimum_term_months?: number | null
@@ -4373,6 +4375,7 @@ export type Database = {
           is_qualified?: boolean | null
           meeting_format?: string | null
           pitched?: boolean | null
+          proposal_status?: string | null
           meeting_ghl_opportunity_id?: string | null
           meeting_ghl_stage_id?: string | null
           minimum_term_months?: number | null
