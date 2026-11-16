@@ -97,6 +97,30 @@ export const MEETING_FORMATS = [
 ] as const;
 export type MeetingFormat = (typeof MEETING_FORMATS)[number]["value"];
 
+/** Proposal after a sitting. Null on a booking means no proposal. */
+export const PROPOSAL_STATUSES = [
+  { value: "to_send", label: "To send" },
+  { value: "sent", label: "Sent" },
+] as const;
+export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number]["value"];
+
+/** Follow-up tasks opened for an owed proposal start with this, so Sent can close them. */
+export const PROPOSAL_TASK_PREFIX = "Send proposal:";
+
+/** Today's date in Melbourne as YYYY-MM-DD. */
+export function melbourneToday(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(now);
+}
+
+/** Next weekday at 10am local, for the "send proposal" task. */
+export function nextBusinessDayAt10(now = new Date()) {
+  const d = new Date(now);
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  d.setHours(10, 0, 0, 0);
+  return d.toISOString();
+}
+
 const REASON_LABELS = new Map<string, string>(
   [...NO_CLOSE_REASONS, ...DQ_REASONS, ...NO_SHOW_REASONS, ...CANCEL_REASONS, ...RESCHEDULE_REASONS]
     .map((r) => [r.value, r.label] as [string, string])

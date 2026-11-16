@@ -230,6 +230,11 @@ export function BookedPipelineBoard({
                           ) : (item as { meeting_format?: string | null }).meeting_format === "phone" ? (
                             <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Phone</span>
                           ) : null}
+                          {(item as { proposal_status?: string | null }).proposal_status === "to_send" ? (
+                            <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Proposal owed</span>
+                          ) : (item as { proposal_status?: string | null }).proposal_status === "sent" ? (
+                            <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Proposal sent</span>
+                          ) : null}
                           <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                             {stage.key === "stale"
                               ? "Needs result"

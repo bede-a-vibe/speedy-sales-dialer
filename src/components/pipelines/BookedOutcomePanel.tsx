@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, PHONE_CALL_REASONS, MEETING_FORMATS, reasonsForOutcome, type AppointmentOutcomeValue, type MeetingFormat } from "@/lib/appointments";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, PHONE_CALL_REASONS, MEETING_FORMATS, PROPOSAL_STATUSES, PROPOSAL_TASK_PREFIX, melbourneToday, nextBusinessDayAt10, reasonsForOutcome, type AppointmentOutcomeValue, type MeetingFormat, type ProposalStatus } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { FathomMatch } from "@/components/fathom/FathomConnect";
 import { STREAM_LABELS, STREAM_ORDER, type ClientStream } from "@/lib/clientRevenue";
@@ -193,6 +193,50 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     if (!PITCH_REQUIRED.has(outcome) || pitched != null) return true;
     toast.error("Did you pitch? Pick Pitched or Not pitched first.");
     return false;
+  };
+  const [proposal, setProposal] = useState<ProposalStatus | null>(((item as { proposal_status?: ProposalStatus | null }).proposal_status) ?? null);
+  const [proposalSentDate, setProposalSentDate] = useState<string | null>(((item as { proposal_sent_date?: string | null }).proposal_sent_date) ?? null);
+  /**
+   * To send: opens a follow-up task (next weekday 10am) so the proposal shows
+   * on the Follow-ups page until it goes. Sent: stamps the GHL "Proposal Sent
+   * Date" field and closes that task.
+   */
+  const saveProposal = async (picked: ProposalStatus) => {
+    const next = proposal === picked ? null : picked;
+    const prev = { proposal, proposalSentDate };
+    const sentDate = next === "sent" ? (proposalSentDate ?? melbourneToday()) : next === null ? null : proposalSentDate;
+    setProposal(next);
+    setProposalSentDate(sentDate);
+    const { error } = await supabase.from("pipeline_items")
+      .update({ proposal_status: next, proposal_sent_date: sentDate } as never).eq("id", item.id);
+    if (error) { setProposal(prev.proposal); setProposalSentDate(prev.proposalSentDate); toast.error(error.message); return; }
+    let taskNote = "";
+    if (item.contact_id) {
+      const { data: open } = await supabase.from("pipeline_items").select("id")
+        .eq("contact_id", item.contact_id).eq("pipeline_type", "follow_up").eq("status", "open")
+        .ilike("notes", `${PROPOSAL_TASK_PREFIX}%`);
+      const openIds = ((open ?? []) as { id: string }[]).map((r) => r.id);
+      if (next === "to_send" && openIds.length === 0) {
+        const name = item.contacts?.business_name ?? "this client";
+        const { error: taskError } = await supabase.from("pipeline_items").insert({
+          contact_id: item.contact_id,
+          pipeline_type: "follow_up",
+          assigned_user_id: item.assigned_user_id,
+          created_by: item.assigned_user_id,
+          scheduled_for: nextBusinessDayAt10(),
+          follow_up_method: "email",
+          notes: `${PROPOSAL_TASK_PREFIX} ${name}`,
+          status: "open",
+        } as never);
+        taskNote = taskError ? " (could not add the follow-up task)" : ", follow-up task added for tomorrow 10am";
+      } else if (next !== "to_send" && openIds.length > 0) {
+        await supabase.from("pipeline_items")
+          .update({ status: "completed", completed_at: new Date().toISOString() } as never).in("id", openIds);
+        taskNote = ", proposal task closed";
+      }
+    }
+    qc.invalidateQueries({ predicate: (q) => QUALIFICATION_QUERY_ROOTS.has(String(q.queryKey[0])) || String(q.queryKey[0]).startsWith("follow") });
+    toast.success((next === "to_send" ? "Proposal to send" : next === "sent" ? "Proposal marked sent" : "Proposal cleared") + taskNote);
   };
   const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
   const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
@@ -521,6 +565,24 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </div>
         <p className="text-[11px] text-muted-foreground">
           Pitched = you put the offer and price to them. Needed before No Close, No Close Follow-up, Verbal or Second Meeting. Close counts as pitched.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Proposal</p>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Proposal">
+          {PROPOSAL_STATUSES.map((p) => (
+            <Button key={p.value} size="sm" variant={proposal === p.value ? "default" : "outline"} disabled={isSaving}
+              aria-pressed={proposal === p.value} onClick={() => saveProposal(p.value)}>
+              {p.value === "to_send" ? "Proposal to send" : "Proposal sent"}
+            </Button>
+          ))}
+          {proposal === "sent" && proposalSentDate ? (
+            <span className="text-[11px] text-muted-foreground">Sent {proposalSentDate.split("-").reverse().join("/")}</span>
+          ) : null}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          To send adds a follow-up task for the next weekday at 10am. Sent closes it and fills the GHL Proposal Sent Date. Tap again to clear.
         </p>
       </div>
 

@@ -107,4 +107,10 @@ describe("outcome buttons ask for the reason inline", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
     expect(onRecordOutcome).toHaveBeenCalledTimes(1);
   });
+  it("shows the proposal toggle", () => {
+    setup();
+    expect(screen.getByRole("group", { name: "Proposal" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Proposal to send" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Proposal sent" })).toBeTruthy();
+  });
 });
