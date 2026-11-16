@@ -16,6 +16,8 @@ interface Props {
   metrics: ReportMetrics;
   funnel: FunnelMetrics;
   selectedRepLabel?: string;
+  /** New clients (revenue records) for the Closed stage. */
+  wins?: { count: number } | null;
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * then every lead source side by side at the bottom.
  * Deep dives live on the other tabs.
  */
-export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRepLabel }: Props) {
+export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRepLabel, wins }: Props) {
   return (
     <div className="space-y-5">
       {selectedRepLabel ? (
@@ -42,7 +44,7 @@ export function InsightsOverview({ dateFrom, dateTo, metrics, funnel, selectedRe
         title="End-to-End Funnel"
         description="Dial → conversation → booking from cold calling; Showed and Closed count meetings from every source. Pick a lead source on the Funnel tab to narrow it."
       >
-        <EndToEndFunnel metrics={metrics} funnel={funnel} />
+        <EndToEndFunnel metrics={metrics} funnel={funnel} wins={wins} />
       </ReportSection>
 
       <ReportSection

@@ -8,6 +8,8 @@ import { CONVERSATION_TAGGING_LAUNCH_LABEL } from "@/data/constants";
 interface Props {
   metrics: ReportMetrics;
   funnel: FunnelMetrics;
+  /** New clients from the revenue records (useNewClients), already filtered to the picked source. When set, Closed shows these. */
+  wins?: { count: number } | null;
 }
 
 type ViewMode = "of_top" | "of_prev";
@@ -29,7 +31,7 @@ interface Stage {
   ownRate?: { pct: number; label: string } | null;
 }
 
-export function EndToEndFunnel({ metrics, funnel }: Props) {
+export function EndToEndFunnel({ metrics, funnel, wins }: Props) {
   const [mode, setMode] = useState<ViewMode>("of_top");
 
   const stages = useMemo<Stage[]>(() => {
@@ -98,13 +100,13 @@ export function EndToEndFunnel({ metrics, funnel }: Props) {
       {
         key: "closed",
         label: "Closed",
-        count: setter.showedClosed,
-        sub: "all meetings, by meeting date",
+        count: wins ? wins.count : setter.showedClosed,
+        sub: wins ? "new clients: first deal starts in the range" : "all meetings, by meeting date",
         meetingCohort: true,
         ownRate: null,
       },
     ];
-  }, [metrics, funnel]);
+  }, [metrics, funnel, wins]);
 
   const top = stages[0]?.count || 1;
   const maxBar = Math.max(...stages.map((s) => s.count), 1);
