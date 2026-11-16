@@ -219,6 +219,35 @@ const RANGE_LOG_COLUMNS = [
 const RANGE_CONTACT_COLUMNS =
   "contacts(business_name, industry, trade_type, state, business_size, work_type, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)";
 
+const COMPACT_LOG_FIELDS = [
+  "id", "contact_id", "user_id", "outcome", "follow_up_date", "created_at",
+  "dialpad_call_id", "transcript_synced_at", "dialpad_talk_time_seconds", "dialpad_total_duration_seconds",
+  "reached_connection", "reached_problem_awareness", "reached_solution_awareness", "reached_commitment",
+  "opener_used_id", "drop_off_reason",
+  "exit_reason_connection", "exit_reason_problem", "exit_reason_solution", "exit_reason_commitment", "exit_reason_booking",
+] as const;
+const COMPACT_CONTACT_FIELDS = [
+  "business_name", "industry", "trade_type", "state", "business_size", "work_type", "prospect_tier",
+  "buying_signal_strength", "phone_type", "has_google_ads", "has_facebook_ads", "dm_phone", "gbp_rating", "review_count",
+] as const;
+export type CompactCallLogs = { rows: unknown[][]; contacts: Record<string, unknown[]> };
+
+/** Rebuild get_call_logs_compact output into the row shape the select() path returns. Field order must match the SQL. */
+export function expandCompactCallLogs(data: CompactCallLogs): any[] {
+  const contacts = new Map<string, Record<string, unknown>>();
+  for (const [id, values] of Object.entries(data.contacts ?? {})) {
+    const c: Record<string, unknown> = {};
+    COMPACT_CONTACT_FIELDS.forEach((f, i) => { c[f] = values[i] ?? null; });
+    contacts.set(id, c);
+  }
+  return (data.rows ?? []).map((values) => {
+    const row: Record<string, unknown> = {};
+    COMPACT_LOG_FIELDS.forEach((f, i) => { row[f] = values[i] ?? null; });
+    row.contacts = contacts.get(row.contact_id as string) ?? null;
+    return row;
+  });
+}
+
 function rangeDays(from?: string, to?: string) {
   if (!from) return Infinity;
   const end = to ? new Date(`${to}T00:00:00`) : new Date();
@@ -263,6 +292,16 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
         return (retry.data ?? []) as any[];
       };
 
+      // Fast path: one round trip. public.get_call_logs_compact returns the
+      // range's call logs as positional arrays plus one copy of each contact's
+      // report fields (All time: ~0.35 s in the database, one request instead
+      // of 26). Rebuilt here into the same shape the reports already read.
+      const compact = (await (supabase.rpc as unknown as (
+        fn: string, args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>)("get_call_logs_compact", { _from: utcFrom ?? null, _to: utcTo ?? null }));
+      if (!compact.error && compact.data) return expandCompactCallLogs(compact.data as unknown as CompactCallLogs);
+
+      // Fallback (RPC missing or failed): keyset pages.
       const rows: any[] = [];
       let cursor: Cursor | null = null;
       // Hard stop well above any real range (1,000 pages = 1M dials).
