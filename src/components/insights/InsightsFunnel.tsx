@@ -139,7 +139,7 @@ export function InsightsFunnel({ dateFrom, dateTo, source, onSourceChange, coldC
               <Stage
                 label="Showed"
                 value={String(totals.showed)}
-                sub={`${totals.noshow} no-show · ${totals.cancelled} cancelled · ${totals.rescheduled} moved`}
+                sub={`${totals.noshow} no-show · ${totals.cancelled} cancelled · ${totals.rescheduled} rescheduled`}
               />
               <StageArrow rate={pct(totals.closeFromShow)} note="per contact" />
               <Stage label="Won" value={String(totals.won)} sub={`${pct(totals.closeFromBooked)} of contacts`} />

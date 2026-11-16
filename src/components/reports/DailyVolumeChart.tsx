@@ -13,7 +13,7 @@ export function DailyVolumeChart({ data }: DailyVolumeChartProps) {
     <>
       <div className="flex h-32 items-end gap-1">
         {data.map((item) => (
-          <div key={item.date} className="group relative flex min-w-0 flex-1 flex-col items-center gap-1">
+          <div key={item.date} className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
             <div
               className="min-h-[2px] w-full rounded-t bg-primary/80 transition-all hover:bg-primary"
               style={{ height: `${(item.count / maxVolume) * 100}%` }}
