@@ -6,6 +6,7 @@ import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 import { movesOf, wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
+import { useNewClients } from "@/hooks/useNewClients";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
@@ -109,6 +110,8 @@ function buildColumns(from: string, to: string): Column[] {
 interface Stats {
   availableSlots: number;
   booked: number;
+  newClients: number;
+  newClientsMrr: number;
   secondBooked: number;
   due: number;
   resolved: number;
@@ -163,7 +166,7 @@ interface Stats {
 
 function emptyStats(): Stats {
   return {
-    availableSlots: 0, booked: 0, secondBooked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
+    availableSlots: 0, booked: 0, newClients: 0, newClientsMrr: 0, secondBooked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
@@ -412,7 +415,9 @@ function buildSections(repFiltered = false): SectionDef[] {
       rows: [
         { label: "Same-day closes", fmt: "n", hint: "closed on the first sitting", value: (s) => s.closedFirst },
         { label: "Follow-up closes", fmt: "n", hint: "closed on a second meeting", value: (s) => s.closedFollow },
-        { label: "Total closes", fmt: "n", value: (s) => s.closed, emphasis: true },
+        { label: "Total closes", fmt: "n", hint: "meetings marked Close, by meeting day", value: (s) => s.closed, emphasis: true },
+        { label: "New clients (revenue records)", fmt: "n", hint: "team, every source: first deal starts that day. Same number as Won on Overview and Closed on the Funnel", value: (s) => s.newClients, emphasis: true },
+        { label: "New client MRR", fmt: "money", hint: "first-deal monthly value, every source", value: (s) => s.newClientsMrr },
         { label: "Verbal commitments", fmt: "n", value: (s) => s.verbal },
         { label: "Retainer deals", fmt: "n", hint: "closes with a monthly value", value: (s) => s.retainerDeals },
         { label: "One-off deals", fmt: "n", hint: "closes with a one-off fee", value: (s) => s.oneOffDeals },
@@ -484,6 +489,7 @@ function useMeetingMinutes(itemIds: string[]) {
 }
 
 export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [], activeRepId, selectedRepLabel }: Props) {
+  const { data: newClients = [] } = useNewClients(dateFrom, dateTo);
   const all = useMemo(() => [...bookings, ...rescheduleSlots], [bookings, rescheduleSlots]);
   // With a rep picked, meetings count for the closer (assigned_user_id) and
   // bookings made count for the setter (created_by), as on every other tab.
@@ -499,7 +505,13 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
   const { data: minutesByItem = new Map<string, number>() } = useMeetingMinutes(itemIds);
   const columns = useMemo(() => buildColumns(dateFrom, dateTo), [dateFrom, dateTo]);
   const statsByColumn = useMemo(
-    () => new Map(columns.map((c) => [c.key, computeStats(items, c.days, minutesByItem, setterItems)])),
+    () => new Map(columns.map((c) => {
+      const s = computeStats(items, c.days, minutesByItem, setterItems);
+      for (const n of newClients) {
+        if (c.days.has(n.first_start)) { s.newClients += 1; s.newClientsMrr += n.mrr; }
+      }
+      return [c.key, s];
+    })),
     [columns, items, minutesByItem, setterItems],
   );
   const sections = useMemo(() => buildSections(!!activeRepId), [activeRepId]);

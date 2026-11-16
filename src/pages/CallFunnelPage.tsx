@@ -77,7 +77,7 @@ function dayDiff(from: string, to: string) {
 interface CallFunnelBodyProps {
   /** When provided (Insights shared toolbar), use these filters and hide the local toolbar. */
   /** source: the Insights lead source slug; filters the meeting stages (Showed, Closed). */
-  controlled?: { dateFrom: string; dateTo: string; selectedRepId: string; source?: string };
+  controlled?: { dateFrom: string; dateTo: string; selectedRepId: string; source?: string; wins?: { count: number } | null };
 }
 
 export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
@@ -372,7 +372,7 @@ export function CallFunnelBody({ controlled }: CallFunnelBodyProps = {}) {
           />
         </div>
 
-        <EndToEndFunnel metrics={metrics} funnel={funnel} />
+        <EndToEndFunnel metrics={metrics} funnel={funnel} wins={controlled?.wins} />
 
         <ConversionRateStrip metrics={metrics} />
 

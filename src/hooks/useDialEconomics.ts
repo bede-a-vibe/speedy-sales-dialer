@@ -45,42 +45,25 @@ export function useDialEconomics(dateFrom: string, dateTo: string) {
       const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
       const toIso = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
-      const [dialsRes, dealsRes] = await Promise.all([
+      const nextDay = new Date(`${dateTo}T00:00:00`);
+      nextDay.setDate(nextDay.getDate() + 1);
+      // Wins come from public.get_new_clients, the one "won" rule on Insights
+      // (first deal starts in the range, by the contact's lead source), so this
+      // card, the lead sources table and the funnel's Closed always agree. An
+      // existing client adding a service is not a new deal won from dialling.
+      const [dialsRes, winsRes] = await Promise.all([
         supabase
           .from("call_logs")
           .select("id", { count: "exact", head: true })
           .gte("created_at", fromIso)
           .lte("created_at", toIso),
-        supabase
-          .from("client_deals")
-          .select(
-            "contact_id, amount, billing_period, status, start_date, end_date, contacts:contacts!client_deals_contact_id_fkey(lead_channel, utm_campaign)",
-          )
-          .gte("start_date", dateFrom)
-          .lte("start_date", dateTo),
+        (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+          "get_new_clients", { _from: fromIso, _to: nextDay.toISOString() },
+        ),
       ]);
       if (dialsRes.error) throw dialsRes.error;
-      if (dealsRes.error) throw dealsRes.error;
-
-      const dials = dialsRes.count ?? 0;
-      const deals = (dealsRes.data ?? []) as DialEconomicsDeal[];
-
-      // Which of these contacts were ever actually dialled. One bounded query
-      // rather than a per-deal count — the deal set in a range is small, and
-      // call_logs is not.
-      const contactIds = [...new Set(deals.map((d) => d.contact_id).filter(Boolean))];
-      const dialled = new Set<string>();
-      for (let i = 0; i < contactIds.length; i += 200) {
-        const slice = contactIds.slice(i, i + 200);
-        const { data, error } = await supabase
-          .from("call_logs")
-          .select("contact_id")
-          .in("contact_id", slice);
-        if (error) throw error;
-        for (const row of data ?? []) if (row.contact_id) dialled.add(row.contact_id);
-      }
-
-      return tallyDialEconomics(deals, dialled, dials);
+      if (winsRes.error) throw winsRes.error;
+      return tallyNewClients((winsRes.data ?? []) as NewClientRow[], dialsRes.count ?? 0);
     },
   });
 }
@@ -128,4 +111,23 @@ export function tallyDialEconomics(deals: DialEconomicsDeal[], dialled: Set<stri
     excludedDeals: excludedContacts.size,
     excludedMrr,
   };
+}
+
+export interface NewClientRow { contact_id: string; channel: string | null; mrr: number | string; one_off: number | string }
+
+/** Cold-call wins are new clients whose lead source is Cold Call; everything else is shown as excluded. */
+export function tallyNewClients(rows: NewClientRow[], dials: number): DialEconomics {
+  let newMrr = 0, oneOffRevenue = 0, excludedMrr = 0, closed = 0, excluded = 0;
+  for (const r of rows) {
+    const mrr = Number(r.mrr) || 0;
+    if (r.channel === "Cold Call") {
+      closed += 1;
+      newMrr += mrr;
+      oneOffRevenue += Number(r.one_off) || 0;
+    } else {
+      excluded += 1;
+      excludedMrr += mrr;
+    }
+  }
+  return { dials, dealsClosed: closed, newMrr, oneOffRevenue, mrrPerDial: dials > 0 ? newMrr / dials : 0, excludedDeals: excluded, excludedMrr };
 }

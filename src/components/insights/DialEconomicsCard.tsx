@@ -59,9 +59,9 @@ export function DialEconomicsCard({ dateFrom, dateTo, selectedRepLabel }: { date
       {data && data.excludedDeals > 0 ? (
         <CardContent className="pt-0">
           <p className="text-[11px] text-muted-foreground">
-            Excludes {data.excludedDeals} client{data.excludedDeals === 1 ? "" : "s"} worth{" "}
-            {formatCurrency(data.excludedMrr)}/mo that nobody dialled — paid ads and inbound. Counting
-            those here would credit cold calling with revenue the ads bought.
+            Cold Call clients only. {data.dealsClosed + data.excludedDeals} new clients in this range in total
+            ({formatCurrency(data.newMrr + data.excludedMrr)}/mo); the other {data.excludedDeals} ({formatCurrency(data.excludedMrr)}/mo)
+            came from ads, referrals and inbound, so they are left out of $ per dial. Same new-client list as Won on the lead sources table.
           </p>
         </CardContent>
       ) : null}
