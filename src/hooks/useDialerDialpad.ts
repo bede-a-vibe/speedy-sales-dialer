@@ -10,7 +10,7 @@ import {
 } from "@/hooks/useDialpad";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveDialTarget, type DialTargetContact } from "@/lib/dialTarget";
+import { resolveDialTarget, toDialableAU, type DialTargetContact } from "@/lib/dialTarget";
 import { toast } from "sonner";
 import type { Contact } from "@/hooks/useContacts";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -101,8 +101,22 @@ export function useDialerDialpad({
   // too, so the number on screen can never drift from the number that rings.
   // Unverified scraped numbers are only dialled on switchboard main lines.
   const dialTarget = resolveDialTarget(currentContact as DialTargetContact | null);
-  const dialNumber = dialTarget.number;
-  const dmDirect = dialTarget.isDmDirect ? dialTarget.number ?? undefined : undefined;
+  // A number the rep chose to ring on this lead (e.g. the boss's mobile a
+  // gatekeeper just gave them). Only ever applies to the lead it was set on.
+  const [manualTarget, setManualTarget] = useState<{ contactId: string; number: string } | null>(null);
+  const manualNumber = manualTarget && manualTarget.contactId === currentContact?.id ? manualTarget.number : null;
+  // Rep-chosen numbers already rung, as "contactId:number". A ref, not state:
+  // marking one must not re-run the place effect and orphan the live attempt.
+  // Once rung, only another click rings it again; the auto-dialer never does.
+  const manualPlacedRef = useRef<Set<string>>(new Set());
+  const dialNumber = manualNumber ?? dialTarget.number;
+  const manualIsDm = Boolean(
+    manualNumber && currentContact?.dm_phone
+    && manualNumber.replace(/\D/g, "").slice(-9) === String(currentContact.dm_phone).replace(/\D/g, "").slice(-9),
+  );
+  const dmDirect = manualNumber
+    ? (manualIsDm ? manualNumber : undefined)
+    : dialTarget.isDmDirect ? dialTarget.number ?? undefined : undefined;
   // Frozen at placement: what the ACTIVE/ENDED call actually dialled. The live
   // dialNumber recomputes as contact data changes, which retroactively
   // mislabels an in-flight or ended call in the UI.
@@ -258,10 +272,15 @@ export function useDialerDialpad({
 
   // ── Place call effect ──
   useEffect(() => {
-    if (!isOnline || !isDialing || isSessionPaused || !currentContact || !dialNumber || !myDialpadSettings?.dialpad_user_id) return;
+    // A rep-chosen number rings on its own click, even between auto-dials.
+    if (!isOnline || !(isDialing || manualNumber) || isSessionPaused || !currentContact || !dialNumber || !myDialpadSettings?.dialpad_user_id) return;
 
     const requestKey = `${currentContact.id}:${dialNumber}`;
     if (activeDialRequestRef.current === requestKey || hasActiveDialRequestLock(requestKey)) return;
+    if (manualNumber) {
+      if (manualPlacedRef.current.has(requestKey)) return;
+      manualPlacedRef.current.add(requestKey);
+    }
 
     let cancelled = false;
     const isStaleAttempt = () => cancelled || activeDialRequestRef.current !== requestKey;
@@ -358,7 +377,35 @@ export function useDialerDialpad({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDialing, isOnline, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId]);
+  }, [isDialing, isOnline, isSessionPaused, currentContact, myDialpadSettings?.dialpad_user_id, selectedCallerId, manualTarget]);
+
+  /**
+   * Ring a different number on the lead on screen, e.g. the decision maker's
+   * mobile the rep was just given. Waits for any live call to end first.
+   */
+  const callNumberNow = useCallback((raw: string) => {
+    if (!currentContact) return;
+    const number = toDialableAU(raw);
+    if (!number) {
+      toast.error("That number can't be dialled.");
+      return;
+    }
+    if (!myDialpadSettings?.dialpad_user_id) {
+      toast.error("No Dialpad user is linked to your account, so calls can't be placed.");
+      return;
+    }
+    if (isSessionPaused) {
+      toast.info("Resume the session, then click the number again.");
+      return;
+    }
+    if (!isCallTerminal) {
+      toast.info("Hang up the current call first, then click the number again.");
+      return;
+    }
+    clearActiveDialRequest();
+    manualPlacedRef.current.delete(`${currentContact.id}:${number}`);
+    setManualTarget({ contactId: currentContact.id, number });
+  }, [clearActiveDialRequest, currentContact, isCallTerminal, isSessionPaused, myDialpadSettings?.dialpad_user_id]);
 
   // ── Resolution polling ──
   useEffect(() => {
@@ -705,6 +752,8 @@ export function useDialerDialpad({
     hasDialpadAssignment,
     // Which number the dialer targets for this lead (DM direct when captured)
     dialNumber,
+    // Ring another number on this lead now (the DM's mobile, say).
+    callNumberNow,
     isDmDirect: Boolean(dmDirect),
     // What the current/last call ACTUALLY dialled (frozen at placement, and
     // only ever for the lead on screen).
