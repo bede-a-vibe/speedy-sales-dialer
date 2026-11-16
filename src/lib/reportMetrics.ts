@@ -1,5 +1,6 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
+import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 
 export type ReportCallLog = Pick<
   Tables<"call_logs">,
@@ -119,6 +120,8 @@ export interface AppointmentPerformanceMetrics {
   reschedulesByProspect: number;
   /** Missed first-meeting slots we moved: our request or a clash / double booking (rs_us, rs_clash). */
   reschedulesByUs: number;
+  /** Missed first-meeting slots where it only went ahead as a phone call and was rebooked (rs_phone_*). Part of reschedulesByProspect. */
+  reschedulesPhoneCall: number;
   /** Missed first-meeting slots with no reason recorded. */
   reschedulesNoReason: number;
   /** reschedulesByUs / missed first-meeting slots */
@@ -478,8 +481,9 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
   const multiRescheduledResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) >= 2);
   const movedOnceResolved = firstMeetingSittings.filter((item) => (item.reschedule_count ?? 0) === 1);
   const firstMeetingSlots = slots.filter((item) => !item.is_follow_up);
-  const reschedulesByProspect = firstMeetingSlots.filter((item) => item.outcome_reason === "rs_prospect").length;
-  const reschedulesByUs = firstMeetingSlots.filter((item) => item.outcome_reason === "rs_us" || item.outcome_reason === "rs_clash").length;
+  const reschedulesByProspect = firstMeetingSlots.filter((item) => isProspectReschedule(item.outcome_reason)).length;
+  const reschedulesByUs = firstMeetingSlots.filter((item) => isOurReschedule(item.outcome_reason)).length;
+  const reschedulesPhoneCall = firstMeetingSlots.filter((item) => (item.outcome_reason ?? "").startsWith("rs_phone_")).length;
   const cancellationReasons: Record<string, number> = {};
   for (const item of firstMeetingSittings) {
     if (bucketOf(item) !== "cancelled") continue;
@@ -533,6 +537,7 @@ function buildAppointmentPerformance(allItems: ReportBookingItem[]) {
       movedOnceShowUpRate: showUpOf(movedOnceResolved),
       reschedulesByProspect,
       reschedulesByUs,
+      reschedulesPhoneCall,
       reschedulesNoReason: firstMeetingSlots.length - reschedulesByProspect - reschedulesByUs,
       movedByUsRate: toPercent(reschedulesByUs, firstMeetingSlots.length),
       cancellationReasons,

@@ -68,8 +68,39 @@ export const RESCHEDULE_REASONS = [
   { value: "rs_clash", label: "Clash / double-booked" },
 ] as const;
 
+/**
+ * The meeting only happened as a phone call (prospect answered but couldn't
+ * do the session properly), so it was rebooked. Counted as a reschedule.
+ */
+export const PHONE_CALL_REASONS = [
+  { value: "rs_phone_no_laptop", label: "Not at a laptop" },
+  { value: "rs_phone_not_quiet", label: "Not somewhere quiet" },
+  { value: "rs_phone_driving", label: "Driving / on the tools" },
+  { value: "rs_phone_other", label: "Other" },
+] as const;
+
+/** Reschedules the prospect caused (they asked, or could only take it by phone). */
+export function isProspectReschedule(reason?: string | null) {
+  return reason === "rs_prospect" || Boolean(reason && reason.startsWith("rs_phone_"));
+}
+
+/** Reschedules we caused (we asked, or a clash / double booking on our side). */
+export function isOurReschedule(reason?: string | null) {
+  return reason === "rs_us" || reason === "rs_clash";
+}
+
+/** How the meeting runs. Null on a booking means not recorded (treated as Google Meet). */
+export const MEETING_FORMATS = [
+  { value: "video", label: "Google Meet" },
+  { value: "in_person", label: "In person" },
+  { value: "phone", label: "Phone" },
+] as const;
+export type MeetingFormat = (typeof MEETING_FORMATS)[number]["value"];
+
 const REASON_LABELS = new Map<string, string>(
-  [...NO_CLOSE_REASONS, ...DQ_REASONS, ...NO_SHOW_REASONS, ...CANCEL_REASONS, ...RESCHEDULE_REASONS].map((r) => [r.value, r.label]),
+  [...NO_CLOSE_REASONS, ...DQ_REASONS, ...NO_SHOW_REASONS, ...CANCEL_REASONS, ...RESCHEDULE_REASONS]
+    .map((r) => [r.value, r.label] as [string, string])
+    .concat(PHONE_CALL_REASONS.map((r) => [r.value, `Phone call only: ${r.label.toLowerCase()}`] as [string, string])),
 );
 
 export function getOutcomeReasonLabel(value: string | null | undefined) {
@@ -82,7 +113,7 @@ export function reasonsForOutcome(outcome: AppointmentOutcomeValue) {
   if (outcome === "disqualified") return DQ_REASONS;
   if (outcome === "no_show") return NO_SHOW_REASONS;
   if (outcome === "cancelled") return CANCEL_REASONS;
-  if (outcome === "rescheduled") return RESCHEDULE_REASONS;
+  if (outcome === "rescheduled") return [...RESCHEDULE_REASONS, ...PHONE_CALL_REASONS];
   // No-close outcomes also accept DQ reasons: a lead can be not qualified
   // (e.g. no capacity right now) yet still worth a follow-up later.
   if (outcome === "showed_no_close" || outcome === "no_close_follow_up") return [...NO_CLOSE_REASONS, ...DQ_REASONS];

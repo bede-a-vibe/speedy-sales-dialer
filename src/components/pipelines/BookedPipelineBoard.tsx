@@ -225,6 +225,11 @@ export function BookedPipelineBoard({
                           <span>Closer: {closer}</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5 pt-1">
+                          {(item as { meeting_format?: string | null }).meeting_format === "in_person" ? (
+                            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">In person</span>
+                          ) : (item as { meeting_format?: string | null }).meeting_format === "phone" ? (
+                            <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Phone</span>
+                          ) : null}
                           <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                             {stage.key === "stale"
                               ? "Needs result"

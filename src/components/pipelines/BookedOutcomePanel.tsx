@@ -1,7 +1,7 @@
 import { LeadBuckets } from "@/components/contacts/LeadBuckets";
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded, Ban, Video } from "lucide-react";
+import { CalendarClock, DollarSign, CalendarCheck2, PhoneForwarded, Ban, Video, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, reasonsForOutcome, type AppointmentOutcomeValue } from "@/lib/appointments";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, PHONE_CALL_REASONS, MEETING_FORMATS, reasonsForOutcome, type AppointmentOutcomeValue, type MeetingFormat } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { FathomMatch } from "@/components/fathom/FathomConnect";
 import { STREAM_LABELS, STREAM_ORDER, type ClientStream } from "@/lib/clientRevenue";
@@ -26,6 +26,50 @@ function combineDateTime(date: Date, time: string) {
   const next = new Date(date);
   next.setHours(hours || 0, minutes || 0, 0, 0);
   return next.toISOString();
+}
+
+/** Outcome buttons that open an inline step (reason and/or date) before saving. */
+type PanelAction =
+  | "reschedule" | "phone_call" | "no_show" | "cancelled"
+  | "showed_no_close" | "disqualified" | "no_close_follow_up" | "second_meeting";
+
+const ACTION_STEP: Record<PanelAction, { title: string; reasons?: readonly { value: string; label: string }[]; date?: "reschedule" | "follow_up" | "second_meeting" }> = {
+  reschedule: { title: "Reschedule: why, and the new time", reasons: RESCHEDULE_REASONS, date: "reschedule" },
+  phone_call: { title: "Phone call only: why it couldn't go ahead, and the rebooked time", reasons: PHONE_CALL_REASONS, date: "reschedule" },
+  no_show: { title: "No show: why?", reasons: NO_SHOW_REASONS },
+  cancelled: { title: "Cancelled: why?", reasons: CANCEL_REASONS },
+  showed_no_close: { title: "No close: why?", reasons: NO_CLOSE_REASONS },
+  disqualified: { title: "DQ: why?", reasons: DQ_REASONS },
+  no_close_follow_up: { title: "No close follow-up: why, and when to follow up", reasons: NO_CLOSE_REASONS, date: "follow_up" },
+  second_meeting: { title: "Second meeting: pick the day and time", date: "second_meeting" },
+};
+
+function DateTimePick({ date, onDate, time, onTime, placeholder }: {
+  date: Date | undefined; onDate: (d: Date | undefined) => void; time: string; onTime: (t: string) => void; placeholder: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className={cn("justify-start bg-background", !date && "text-muted-foreground")}>
+            <CalendarClock className="h-4 w-4" />
+            {date ? format(date, "PPP") : placeholder}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={onDate}
+            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+            initialFocus
+            className="p-3 pointer-events-auto"
+          />
+        </PopoverContent>
+      </Popover>
+      <Input type="time" value={time} onChange={(e) => onTime(e.target.value)} className="w-[120px] bg-background" />
+    </div>
+  );
 }
 
 export interface OutcomeExtras {
@@ -108,11 +152,22 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     }
     return BOOKED_APPOINTMENT_DEFAULT_TIME;
   });
-  const [showReschedule, setShowReschedule] = useState(false);
-  const [showSecondMeeting, setShowSecondMeeting] = useState(false);
+  const [action, setAction] = useState<PanelAction | null>(null);
+  const openAction = (next: PanelAction) => {
+    setAction((current) => (current === next ? null : next));
+    setReason("");
+  };
+  const [meetingFormat, setMeetingFormat] = useState<MeetingFormat | null>(((item as { meeting_format?: MeetingFormat | null }).meeting_format) ?? null);
+  const saveMeetingFormat = async (next: MeetingFormat) => {
+    const previous = meetingFormat;
+    setMeetingFormat(next);
+    const { error } = await supabase.from("pipeline_items").update({ meeting_format: next } as never).eq("id", item.id);
+    if (error) { setMeetingFormat(previous); toast.error(error.message); return; }
+    qc.invalidateQueries({ predicate: (q) => QUALIFICATION_QUERY_ROOTS.has(String(q.queryKey[0])) });
+    toast.success(`Marked as ${MEETING_FORMATS.find((f) => f.value === next)?.label ?? next}`);
+  };
   const [secondMeetingDate, setSecondMeetingDate] = useState<Date | undefined>(undefined);
   const [secondMeetingTime, setSecondMeetingTime] = useState<string>(BOOKED_APPOINTMENT_DEFAULT_TIME);
-  const [showNoCloseFollowUp, setShowNoCloseFollowUp] = useState(false);
   const [noCloseFollowUpDate, setNoCloseFollowUpDate] = useState<Date | undefined>(undefined);
   const [noCloseFollowUpTime, setNoCloseFollowUpTime] = useState<string>("09:00");
   const [noCloseFollowUpMethod, setNoCloseFollowUpMethod] = useState<FollowUpMethod>("call");
@@ -213,6 +268,27 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground shrink-0">Meeting</span>
+        <div className="flex rounded-md border border-border bg-background p-0.5 text-xs" role="group" aria-label="Meeting format">
+          {MEETING_FORMATS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              disabled={isSaving}
+              onClick={() => saveMeetingFormat(f.value)}
+              aria-pressed={(meetingFormat ?? "video") === f.value}
+              className={cn(
+                "rounded-sm px-2.5 py-1 transition-colors",
+                (meetingFormat ?? "video") === f.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Textarea
         value={outcomeNotes}
         onChange={(e) => setOutcomeNotes(e.target.value)}
@@ -256,37 +332,6 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
             Save links only
           </Button>
         ) : null}
-      </div>
-
-      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-        <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reason (required for No Show, Cancelled, Reschedule, No Close and DQ)</p>
-        <Select value={reason || undefined} onValueChange={setReason}>
-          <SelectTrigger className="w-full bg-background sm:w-[280px]">
-            <SelectValue placeholder="Why?" />
-          </SelectTrigger>
-          <SelectContent>
-            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">No close</div>
-            {NO_CLOSE_REASONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Disqualified</div>
-            {DQ_REASONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">No show</div>
-            {NO_SHOW_REASONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Cancelled</div>
-            {CANCEL_REASONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-            <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Rescheduled</div>
-            {RESCHEDULE_REASONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
@@ -380,186 +425,116 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Button
-          variant={showReschedule ? "default" : "secondary"}
-          onClick={() => setShowReschedule((v) => !v)}
-          disabled={isSaving}
-          size="sm"
-        >
+        <Button variant={action === "reschedule" ? "default" : "secondary"} size="sm" onClick={() => openAction("reschedule")} disabled={isSaving}>
           <CalendarClock className="h-4 w-4" />
           Reschedule
         </Button>
-        <Button variant="outline" size="sm" onClick={() => fireOutcome("no_show")} disabled={isSaving}>
+        <Button variant={action === "phone_call" ? "default" : "outline"} size="sm" onClick={() => openAction("phone_call")} disabled={isSaving}
+          title="They answered, but it could only be a phone call (not at a laptop, not somewhere quiet). Counts as a reschedule.">
+          <Phone className="h-4 w-4" />
+          Phone call only
+        </Button>
+        <Button variant={action === "no_show" ? "default" : "outline"} size="sm" onClick={() => openAction("no_show")} disabled={isSaving}>
           No Show
         </Button>
-        <Button variant="outline" size="sm" onClick={() => fireOutcome("cancelled")} disabled={isSaving}>
+        <Button variant={action === "cancelled" ? "default" : "outline"} size="sm" onClick={() => openAction("cancelled")} disabled={isSaving}>
           Cancelled
         </Button>
         <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_verbal_commitment")} disabled={isSaving}>
           Verbal Commitment
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fireOutcome("showed_closed")}
-          disabled={isSaving}
-        >
+        <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_closed")} disabled={isSaving}>
           <DollarSign className="h-4 w-4" />
           Close
         </Button>
-        <Button variant="outline" size="sm" onClick={() => fireOutcome("showed_no_close")} disabled={isSaving}>
+        <Button variant={action === "showed_no_close" ? "default" : "outline"} size="sm" onClick={() => openAction("showed_no_close")} disabled={isSaving}>
           No Close
         </Button>
-        <Button variant="outline" size="sm" onClick={() => fireOutcome("disqualified")} disabled={isSaving}>
+        <Button variant={action === "disqualified" ? "default" : "outline"} size="sm" onClick={() => openAction("disqualified")} disabled={isSaving}>
           <Ban className="h-4 w-4" />
           DQ
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowNoCloseFollowUp((v) => !v)}
-          disabled={isSaving}
-        >
+        <Button variant={action === "no_close_follow_up" ? "default" : "outline"} size="sm" onClick={() => openAction("no_close_follow_up")} disabled={isSaving}>
           <PhoneForwarded className="h-4 w-4" />
           No Close Follow-up
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowSecondMeeting((v) => !v)}
-          disabled={isSaving}
-        >
+        <Button variant={action === "second_meeting" ? "default" : "outline"} size="sm" onClick={() => openAction("second_meeting")} disabled={isSaving}>
           <CalendarCheck2 className="h-4 w-4" />
           Second Meeting Booked
         </Button>
       </div>
 
-      {showReschedule && (
-        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Reschedule appointment</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !rescheduleDate && "text-muted-foreground")}>
-                  <CalendarClock className="h-4 w-4" />
-                  {rescheduleDate ? format(rescheduleDate, "PPP") : "Pick new day"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={rescheduleDate}
-                  onSelect={setRescheduleDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={rescheduleTime}
-              onChange={(e) => setRescheduleTime(e.target.value)}
-              className="w-[120px] bg-background"
-            />
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!rescheduleIso) return;
-                fireOutcome("rescheduled", rescheduleIso);
-              }}
-              disabled={!rescheduleIso || isSaving}
-            >
-              Confirm reschedule
-            </Button>
+      {action && (() => {
+        const step = ACTION_STEP[action];
+        const needsReason = Boolean(step.reasons);
+        const dateIso = step.date === "reschedule" ? rescheduleIso : step.date === "follow_up" ? noCloseFollowUpIso : step.date === "second_meeting" ? secondMeetingIso : "ok";
+        const ready = (!needsReason || Boolean(reason)) && Boolean(dateIso);
+        const confirm = () => {
+          if (!ready) {
+            toast.error(needsReason && !reason ? "Pick a reason first." : "Pick the day and time first.");
+            return;
+          }
+          switch (action) {
+            case "reschedule":
+            case "phone_call":
+              fireOutcome("rescheduled", rescheduleIso);
+              break;
+            case "no_close_follow_up":
+              handleNoCloseFollowUp();
+              break;
+            case "second_meeting":
+              handleSecondMeetingBooked();
+              break;
+            default:
+              fireOutcome(action);
+          }
+        };
+        return (
+          <div className="flex flex-col gap-3 rounded-md border border-primary/40 bg-primary/5 p-3" data-testid="outcome-step">
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">{step.title}</p>
+            {step.reasons && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reason">
+                {step.reasons.map((r) => (
+                  <Button
+                    key={r.value}
+                    type="button"
+                    size="sm"
+                    variant={reason === r.value ? "default" : "outline"}
+                    className="h-7 px-2.5 text-xs"
+                    aria-pressed={reason === r.value}
+                    onClick={() => setReason(r.value)}
+                  >
+                    {r.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+            {step.date === "follow_up" && (
+              <FollowUpMethodSelector value={noCloseFollowUpMethod} onChange={setNoCloseFollowUpMethod} allowedMethods={["call", "email"]} />
+            )}
+            {step.date === "reschedule" && (
+              <DateTimePick date={rescheduleDate} onDate={setRescheduleDate} time={rescheduleTime} onTime={setRescheduleTime} placeholder="Pick new day" />
+            )}
+            {step.date === "follow_up" && (
+              <DateTimePick date={noCloseFollowUpDate} onDate={setNoCloseFollowUpDate} time={noCloseFollowUpTime} onTime={setNoCloseFollowUpTime} placeholder="Pick follow-up date" />
+            )}
+            {step.date === "second_meeting" && (
+              <DateTimePick date={secondMeetingDate} onDate={setSecondMeetingDate} time={secondMeetingTime} onTime={setSecondMeetingTime} placeholder="Pick meeting day" />
+            )}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={confirm} disabled={!ready || isSaving}>Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => setAction(null)} disabled={isSaving}>Cancel</Button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {showSecondMeeting && (
-        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Book second meeting</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !secondMeetingDate && "text-muted-foreground")}>
-                  <CalendarCheck2 className="h-4 w-4" />
-                  {secondMeetingDate ? format(secondMeetingDate, "PPP") : "Pick meeting day"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={secondMeetingDate}
-                  onSelect={setSecondMeetingDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={secondMeetingTime}
-              onChange={(e) => setSecondMeetingTime(e.target.value)}
-              className="w-[120px] bg-background"
-            />
-            <Button
-              size="sm"
-              onClick={handleSecondMeetingBooked}
-              disabled={!secondMeetingIso || isSaving}
-            >
-              Confirm second meeting
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {showNoCloseFollowUp && (
-        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Schedule no-close follow-up</p>
-          <FollowUpMethodSelector value={noCloseFollowUpMethod} onChange={setNoCloseFollowUpMethod} allowedMethods={["call", "email"]} />
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start bg-background", !noCloseFollowUpDate && "text-muted-foreground")}>
-                  <PhoneForwarded className="h-4 w-4" />
-                  {noCloseFollowUpDate ? format(noCloseFollowUpDate, "PPP") : "Pick follow-up date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={noCloseFollowUpDate}
-                  onSelect={setNoCloseFollowUpDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="time"
-              value={noCloseFollowUpTime}
-              onChange={(e) => setNoCloseFollowUpTime(e.target.value)}
-              className="w-[120px] bg-background"
-            />
-            <Button
-              size="sm"
-              onClick={handleNoCloseFollowUp}
-              disabled={!noCloseFollowUpIso || isSaving}
-            >
-              Confirm follow-up
-            </Button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <p className="text-[11px] text-muted-foreground">
         Tip: <strong>Close</strong> = won deal. <strong>No Close</strong> = lost, no follow-up.{" "}
         <strong>No Close Follow-up</strong> = lost this time, schedule another touch.{" "}
         <strong>Second Meeting Booked</strong> = re-book a meeting at the chosen date.{" "}
-        <strong>DQ</strong> = not a fit, never going to buy.
+        <strong>DQ</strong> = not a fit, never going to buy.{" "}
+        <strong>Phone call only</strong> = they answered but couldn't do the session, rebooked (counts as a reschedule).
       </p>
       {/* Rename Showed - Closed label */}
     </div>

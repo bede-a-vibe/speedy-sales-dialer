@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ReportSection } from "@/components/reports/ReportSection";
 import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
+import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
@@ -113,6 +114,7 @@ interface Stats {
   /** Missed first-meeting slots by who moved them. */
   movedByProspect: number;
   movedByUs: number;
+  movedPhoneCall: number;
   /** Cancelled first meetings by cx_* reason. */
   cxReasons: Record<string, number>;
   followResolved: number;
@@ -142,7 +144,7 @@ function emptyStats(): Stats {
   return {
     availableSlots: 0, booked: 0, due: 0, resolved: 0, showed: 0, showedFirst: 0, showedFollow: 0, noShow: 0, cancelled: 0, rescheduled: 0,
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
-    movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, cxReasons: {},
+    movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
     qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, notClosed: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
@@ -163,8 +165,9 @@ function computeStats(items: Item[], days: Set<string>, minutesByItem: Map<strin
     if (slot.is_follow_up) { s.followResolved += 1; continue; }
     s.firstResolved += 1;
     s.firstRescheduled += 1;
-    if (slot.outcome_reason === "rs_prospect") s.movedByProspect += 1;
-    else if (slot.outcome_reason === "rs_us" || slot.outcome_reason === "rs_clash") s.movedByUs += 1;
+    if (isProspectReschedule(slot.outcome_reason)) s.movedByProspect += 1;
+    else if (isOurReschedule(slot.outcome_reason)) s.movedByUs += 1;
+    if ((slot.outcome_reason ?? "").startsWith("rs_phone_")) s.movedPhoneCall += 1;
   }
 
   const slotKeys = new Map<string, number>();
@@ -306,6 +309,7 @@ function buildSections(): SectionDef[] {
       rows: [
         { label: "Reschedules", fmt: "n", hint: "missed first-meeting slots, on the day each was missed", value: (s) => s.firstRescheduled, emphasis: true },
         { label: "  Prospect asked", fmt: "n", value: (s) => s.movedByProspect },
+        { label: "    of which phone call only", fmt: "n", hint: "answered but not at a laptop / not somewhere quiet, rebooked", value: (s) => s.movedPhoneCall },
         { label: "  We moved it / double-booked", fmt: "n", value: (s) => s.movedByUs },
         { label: "  No reason recorded", fmt: "n", value: (s) => s.firstRescheduled - s.movedByProspect - s.movedByUs },
         { label: "Moved by us %", fmt: "pct", hint: "÷ reschedules", value: (s) => pct(s.movedByUs, s.firstRescheduled) },
