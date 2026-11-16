@@ -254,9 +254,11 @@ export function InsightsSources({ dateFrom, dateTo, selectedRepLabel }: Props) {
           outcome are excluded from the denominator rather than counted as no-shows. A setter booking
           appears in both the dialer and the GHL calendar; it is counted once here (the dialer row wins),
           and onboarding calls are left out. "Moved" is how many times meetings were really pushed (date-typo
-          fixes are not moves), with the share of meetings affected in brackets. Close rate counts distinct contacts with a signed deal
-          dated on or after the booking, so one client with three meetings counts once. MRR is monthly
-          retainers won; One-off is setup and one-off fees only.
+          fixes are not moves), with the share of meetings affected in brackets. Won is new clients: a client whose first deal in
+          the revenue records starts in the range, credited to their lead source (the same list as Dial
+          economics, the funnel's Closed and the Closing tab's New clients). Close / show and Close / booked
+          count won clients who also showed or booked in the range, so they never pass 100%. MRR and One-off
+          are those new clients' first-deal values.
         </p>
       </ReportSection>
     </div>
