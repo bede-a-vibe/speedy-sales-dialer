@@ -247,12 +247,21 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
       const rows: any[] = [...(first.data ?? [])];
       const total = first.count ?? rows.length;
       const pages = Math.ceil(total / BATCH_SIZE);
-      if (pages > 1) {
-        const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => pageQuery(i + 1, false)));
-        for (const r of rest) {
-          if (r.error) throw r.error;
-          rows.push(...(r.data ?? []));
-        }
+      // Long ranges (All time is ~26 pages) used to fire every page at once;
+      // the database fell behind, a page timed out, the whole query threw and
+      // the funnel showed 0 dials. Fetch a few pages at a time and retry a
+      // failed page once before giving up.
+      const fetchPage = async (page: number) => {
+        const r = await pageQuery(page, false);
+        if (!r.error) return r.data ?? [];
+        const retry = await pageQuery(page, false);
+        if (retry.error) throw retry.error;
+        return retry.data ?? [];
+      };
+      const CONCURRENCY = 4;
+      for (let start = 1; start < pages; start += CONCURRENCY) {
+        const batch = Array.from({ length: Math.min(CONCURRENCY, pages - start) }, (_, i) => fetchPage(start + i));
+        for (const data of await Promise.all(batch)) rows.push(...data);
       }
       return rows;
     },
