@@ -45,6 +45,10 @@ export const ANSWERED_OUTCOMES = new Set<ReportCallLog["outcome"]>([
   "dnc",
   "follow_up",
   "booked",
+  // A DQ'd call needed a conversation to reach the verdict (no budget, wrong
+  // industry...): someone answered. Bede, 17 Nov 2026. get_dial_hour_stats
+  // already counted it, so the Timing dial clock and these tiles now agree.
+  "disqualified",
   // A gatekeeper answering IS a pickup — it just isn't a conversation with
   // the decision maker (reached_connection stays false).
   "gatekeeper",
