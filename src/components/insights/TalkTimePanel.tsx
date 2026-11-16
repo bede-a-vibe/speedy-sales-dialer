@@ -1,14 +1,70 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Clock, Phone, PhoneCall, Gauge } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
 import { useSalesReps } from "@/hooks/usePipelineItems";
-import { useDialpadCallStats, formatTalk, type DialpadCallStatRow } from "@/hooks/useDialpadCallStats";
+import { formatTalk } from "@/hooks/useDialpadCallStats";
+import { humanTalkSeconds, isHumanConnect, summariseTalkTime, type TalkTimeCallRow } from "@/lib/hourlyMetrics";
 
 interface TalkTimePanelProps {
   /** Shared Insights date range (YYYY-MM-DD). */
   dateFrom: string;
   dateTo: string;
+  /** The page's rep filter. Seeds the panel's own rep picker; undefined = all reps. */
+  activeRepId?: string;
+}
+
+/**
+ * Dialpad calls in the range with the outcome of the linked call log
+ * (dialpad_calls.call_log_id), so voicemail and machine pickups that Dialpad
+ * marks "connected" can be told apart from a person answering. Paged, because
+ * PostgREST caps every response at 1,000 rows, with id as a tiebreaker so
+ * pages never skip or repeat rows that share a started_at.
+ */
+function useTalkTimeCalls(dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: ["talk-time-calls", dateFrom, dateTo],
+    staleTime: 60_000,
+    queryFn: async (): Promise<TalkTimeCallRow[]> => {
+      const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
+      const toIso = new Date(`${dateTo}T23:59:59.999`).toISOString();
+      const PAGE = 1000;
+      const rows: TalkTimeCallRow[] = [];
+      for (let fromIdx = 0; ; fromIdx += PAGE) {
+        const { data, error } = await supabase
+          .from("dialpad_calls")
+          .select("id, user_id, talk_time_seconds, started_at, is_connected, direction, call_log:call_logs!dialpad_calls_call_log_id_fkey(outcome)")
+          .gte("started_at", fromIso)
+          .lte("started_at", toIso)
+          .not("started_at", "is", null)
+          .order("started_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(fromIdx, fromIdx + PAGE - 1);
+        if (error) throw error;
+        for (const r of (data ?? []) as unknown as Array<{
+          user_id: string | null;
+          talk_time_seconds: number | null;
+          started_at: string | null;
+          is_connected: boolean | null;
+          direction: string | null;
+          call_log: { outcome: string | null } | null;
+        }>) {
+          rows.push({
+            user_id: r.user_id,
+            talk_time_seconds: r.talk_time_seconds,
+            started_at: r.started_at,
+            is_connected: r.is_connected,
+            direction: r.direction,
+            outcome: r.call_log?.outcome ?? null,
+          });
+        }
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
+    },
+  });
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -50,18 +106,21 @@ function Tile({ label, value, sub, icon: Icon }: { label: string; value: string;
   );
 }
 
-export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
-  const [rep, setRep] = useState("all");
-  const { data: allCalls = [], isLoading } = useDialpadCallStats(dateFrom, dateTo);
+export function TalkTimePanel({ dateFrom, dateTo, activeRepId }: TalkTimePanelProps) {
+  // Seeded from the page's rep filter and kept in step with it; the picker
+  // below can still narrow or widen the panel on its own.
+  const [rep, setRep] = useState(activeRepId ?? "all");
+  useEffect(() => {
+    setRep(activeRepId ?? "all");
+  }, [activeRepId]);
+  const repFilter = rep === "all" ? undefined : rep;
+
+  const { data: allCalls = [], isLoading } = useTalkTimeCalls(dateFrom, dateTo);
   // Inbound calls (prospects ringing back) are not dials: they are left out of
   // every call and connect count here. Talk time still counts them, since the
   // rep was on the phone either way.
   const calls = useMemo(
     () => allCalls.filter((c) => (c.direction ?? "outbound") !== "inbound"),
-    [allCalls],
-  );
-  const inboundTalk = useMemo(
-    () => allCalls.filter((c) => c.direction === "inbound").reduce((s, c) => s + (c.talk_time_seconds ?? 0), 0),
     [allCalls],
   );
   const { data: reps = [] } = useSalesReps();
@@ -71,69 +130,65 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
     return (uid: string | null) => (uid ? m.get(uid) ?? "Unknown rep" : "Unassigned");
   }, [reps]);
 
-  // Per-rep aggregation.
-  const perRep = useMemo(() => {
-    const m = new Map<string, { calls: number; connected: number; talk: number }>();
-    for (const c of calls) {
-      if (!c.user_id) continue;
-      const r = m.get(c.user_id) ?? { calls: 0, connected: 0, talk: 0 };
-      r.calls += 1;
-      if (c.is_connected) r.connected += 1;
-      r.talk += c.talk_time_seconds ?? 0;
-      m.set(c.user_id, r);
-    }
-    return [...m.entries()]
-      .map(([uid, r]) => ({
-        uid,
-        name: repName(uid),
-        ...r,
-        avgTalk: r.connected > 0 ? r.talk / r.connected : 0,
-        connectRate: r.calls > 0 ? r.connected / r.calls : 0,
-      }))
+  // Per-rep aggregation, on the same human-connect rule as the tiles.
+  const perRepAll = useMemo(() => {
+    const ids = [...new Set(calls.map((c) => c.user_id).filter((uid): uid is string => !!uid))];
+    return ids
+      .map((uid) => {
+        const s = summariseTalkTime(allCalls, uid);
+        return {
+          uid,
+          name: repName(uid),
+          calls: s.calls,
+          connected: s.humanConnects,
+          talk: s.talkSeconds,
+          avgTalk: s.avgTalkPerConnect,
+          connectRate: s.connectRate,
+        };
+      })
       .sort((a, b) => b.talk - a.talk);
-  }, [calls, repName]);
+  }, [allCalls, calls, repName]);
+  const perRep = repFilter ? perRepAll.filter((r) => r.uid === repFilter) : perRepAll;
 
-  const totals = useMemo(() => {
-    const totalCalls = calls.length;
-    const connected = calls.filter((c) => c.is_connected).length;
-    const talk = calls.reduce((s, c) => s + (c.talk_time_seconds ?? 0), 0) + inboundTalk;
-    return {
-      totalCalls,
-      connected,
-      talk,
-      connectRate: totalCalls > 0 ? connected / totalCalls : 0,
-      avgTalk: connected > 0 ? talk / connected : 0,
-    };
-  }, [calls, inboundTalk]);
+  const totals = useMemo(() => summariseTalkTime(allCalls, repFilter), [allCalls, repFilter]);
 
-  // Heat map: talk-time seconds by [day][hour], filtered by selected rep.
+  // Heat map: talk with people, by [day][hour], filtered by selected rep.
   const heat = useMemo(() => {
-    const filtered: DialpadCallStatRow[] = rep === "all" ? calls : calls.filter((c) => c.user_id === rep);
+    const filtered: TalkTimeCallRow[] = repFilter ? calls.filter((c) => c.user_id === repFilter) : calls;
     const grid: number[][] = DAY_LABELS.map(() => HOURS.map(() => 0));
     let max = 0;
     for (const c of filtered) {
-      if (!c.started_at) continue;
+      if (!c.started_at || !isHumanConnect(c)) continue;
       const { day, hour } = melbDayHour(c.started_at);
       const hi = HOURS.indexOf(hour);
       if (hi === -1) continue;
-      grid[day][hi] += c.talk_time_seconds ?? 0;
+      grid[day][hi] += humanTalkSeconds(c);
       if (grid[day][hi] > max) max = grid[day][hi];
     }
     return { grid, max };
-  }, [calls, rep]);
+  }, [calls, repFilter]);
+
+  const repOptions = useMemo(() => {
+    const opts = perRepAll.map((r) => ({ uid: r.uid, name: r.name }));
+    if (repFilter && !opts.some((o) => o.uid === repFilter)) opts.push({ uid: repFilter, name: repName(repFilter) });
+    return opts;
+  }, [perRepAll, repFilter, repName]);
 
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Talk time</h3>
-        <p className="text-xs text-muted-foreground">Live from Dialpad — connected talk time, per rep and by time of week (Melbourne).</p>
+        <p className="text-xs text-muted-foreground">
+          Live from Dialpad (Dialpad calls only; GHL calls are not included). Talk with a person, per rep and by time of week (Melbourne).
+          A human connect is a call Dialpad connected and the rep logged as anything but no answer or voicemail.
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile label="Total talk time" value={isLoading ? "—" : formatTalk(totals.talk)} sub="connected time" icon={Clock} />
-        <Tile label="Calls" value={isLoading ? "—" : totals.totalCalls.toLocaleString()} sub={`${totals.connected} connected`} icon={Phone} />
-        <Tile label="Connect rate" value={isLoading ? "—" : `${Math.round(totals.connectRate * 100)}%`} sub="answered / dialled" icon={PhoneCall} />
-        <Tile label="Avg talk / connect" value={isLoading ? "—" : formatTalk(totals.avgTalk)} sub="per connected call" icon={Gauge} />
+        <Tile label="Total talk time" value={isLoading ? "—" : formatTalk(totals.talkSeconds)} sub="human connects + inbound, voicemail excluded" icon={Clock} />
+        <Tile label="Calls" value={isLoading ? "—" : totals.calls.toLocaleString()} sub={`${totals.humanConnects.toLocaleString()} human connects`} icon={Phone} />
+        <Tile label="Human connects" value={isLoading ? "—" : `${Math.round(totals.connectRate * 100)}%`} sub="answered by a person / dialled" icon={PhoneCall} />
+        <Tile label="Avg talk / human connect" value={isLoading ? "—" : formatTalk(totals.avgTalkPerConnect)} sub="per human connect" icon={Gauge} />
       </div>
 
       {/* Heat map */}
@@ -148,7 +203,7 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
               <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All reps</SelectItem>
-                {perRep.map((r) => (
+                {repOptions.map((r) => (
                   <SelectItem key={r.uid} value={r.uid}>{r.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -201,7 +256,7 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">By rep</CardTitle>
-          <CardDescription className="text-xs">Talk time and connect rate per rep in the selected range.</CardDescription>
+          <CardDescription className="text-xs">Talk time and human-connect rate per rep in the selected range.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && <p className="p-6 text-xs text-muted-foreground">Loading…</p>}
@@ -213,9 +268,9 @@ export function TalkTimePanel({ dateFrom, dateTo }: TalkTimePanelProps) {
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground bg-muted/30">
                 <div className="col-span-4">Rep</div>
                 <div className="col-span-2 text-right">Calls</div>
-                <div className="col-span-2 text-right">Connect</div>
+                <div className="col-span-2 text-right">Human connects</div>
                 <div className="col-span-2 text-right">Talk time</div>
-                <div className="col-span-2 text-right">Avg / connect</div>
+                <div className="col-span-2 text-right">Avg / human connect</div>
               </div>
               {perRep.map((r) => (
                 <div key={r.uid} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center">
