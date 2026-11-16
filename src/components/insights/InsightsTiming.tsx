@@ -10,45 +10,57 @@ import { TalkTimePanel } from "@/components/insights/TalkTimePanel";
 import { OpenerSurvivalCard } from "@/components/insights/OpenerSurvivalCard";
 import { DialClockCard } from "@/components/insights/DialClockCard";
 import { PickupRateTrendCard } from "@/components/insights/PickupRateTrendCard";
-import { getHourlyMetrics, getBookingHeatMapData, getPickupHeatMapData, getShowUpHeatMapData, getCloseRateHeatMapData } from "@/lib/hourlyMetrics";
+import {
+  getHourlyMetrics,
+  getBookingHeatMapData,
+  getPickupHeatMapData,
+  getShowUpHeatMapData,
+  getCloseRateHeatMapData,
+  todayLocalDateKey,
+} from "@/lib/hourlyMetrics";
+import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 
 interface Props {
   dateFrom: string;
   dateTo: string;
   callLogs: any[];
   bookings: any[];
-  rescheduleSlots?: import("@/hooks/usePipelineItems").BookedAppointmentReportItem[];
+  /** Missed slots of moved meetings (useRescheduleSlotsByDateRange). Show-up heat map only. */
+  rescheduleSlots?: BookedAppointmentReportItem[];
   activeRepId?: string;
   selectedRepLabel?: string;
 }
+
+const NO_SLOTS: BookedAppointmentReportItem[] = [];
 
 /**
  * Insights → Timing: every time-of-day view in one place —
  * talk-time heat map, pickup-rate + booking heat maps, hourly drilldown.
  */
-export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRepId, selectedRepLabel }: Props) {
-  const today = new Date().toISOString().split("T")[0];
-  const [hourlyDate, setHourlyDate] = useState(today);
+export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = NO_SLOTS, activeRepId, selectedRepLabel }: Props) {
+  // Local date: toISOString() is the UTC date, so before 10 or 11am Melbourne
+  // the breakdown opened on yesterday and hid this morning's dials.
+  const [hourlyDate, setHourlyDate] = useState(() => todayLocalDateKey());
 
   const hourlyRows = useMemo(
     () => getHourlyMetrics(callLogs, bookings, hourlyDate, activeRepId),
     [callLogs, bookings, hourlyDate, activeRepId],
   );
   const heatMapCells = useMemo(
-    () => getBookingHeatMapData(bookings, activeRepId),
-    [bookings, activeRepId],
+    () => getBookingHeatMapData(bookings, activeRepId, { dateFrom, dateTo }),
+    [bookings, activeRepId, dateFrom, dateTo],
   );
   const pickupHeatMapCells = useMemo(
     () => getPickupHeatMapData(callLogs, activeRepId),
     [callLogs, activeRepId],
   );
   const showUpHeatMapCells = useMemo(
-    () => getShowUpHeatMapData(bookings, activeRepId),
-    [bookings, activeRepId],
+    () => getShowUpHeatMapData(bookings, activeRepId, { dateFrom, dateTo, rescheduleSlots }),
+    [bookings, activeRepId, dateFrom, dateTo, rescheduleSlots],
   );
   const closeRateHeatMapCells = useMemo(
-    () => getCloseRateHeatMapData(bookings, activeRepId),
-    [bookings, activeRepId],
+    () => getCloseRateHeatMapData(bookings, activeRepId, { dateFrom, dateTo }),
+    [bookings, activeRepId, dateFrom, dateTo],
   );
 
   return (
@@ -67,13 +79,13 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
         activeRepId={activeRepId}
         selectedRepLabel={selectedRepLabel}
       />
-      <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} />
+      <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <ReportSection title="Pick-Up Rate Heat Map" description={`Pickup % intensity by day of week and hour${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}>
           <PickupHeatMap cells={pickupHeatMapCells} />
         </ReportSection>
-        <ReportSection title="Booking Heat Map" description="Booking density by day of week and hour.">
+        <ReportSection title="Booking Heat Map" description="Bookings made in this date range, by the day and hour they were made. Second meetings excluded.">
           <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
         </ReportSection>
       </div>
@@ -81,13 +93,13 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, activeRep
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <ReportSection
           title="Show-Up Rate Heat Map"
-          description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ resolved slots; follow-ups excluded.`}
+          description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ (showed + no-show + cancelled + rescheduled), same as Show-Up Rate; a moved meeting counts as rescheduled at its old time. Follow-ups, pending and upcoming excluded.`}
         >
           <RateHeatMap cells={showUpHeatMapCells} hitLabel="showed" baseLabel="slots" emptyMessage="No resolved meetings in this date range." />
         </ReportSection>
         <ReportSection
           title="Close Rate Heat Map"
-          description={`Closed ÷ pitched meetings by the day and hour of the pitch${activeRepId ? `, closed by ${selectedRepLabel}` : ""}. First or second meeting; not-qualified leads excluded.`}
+          description={`Closed ÷ pitched meetings by the day and hour of the pitch${activeRepId ? `, closed by ${selectedRepLabel}` : ""}. Pitched as recorded by the closer; first or second meeting; not-qualified leads excluded.`}
         >
           <RateHeatMap cells={closeRateHeatMapCells} minSlots={2} hitLabel="closed" baseLabel="pitched" emptyMessage="No pitched meetings in this date range." />
         </ReportSection>

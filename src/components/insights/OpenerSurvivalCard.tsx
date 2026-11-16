@@ -43,20 +43,38 @@ function useAnsweredCalls(dateFrom: string, dateTo: string) {
     queryKey: ["opener-survival", dateFrom, dateTo],
     staleTime: 60_000,
     queryFn: async (): Promise<Row[]> => {
-      const { data, error } = await supabase
-        .from("call_logs")
-        .select("user_id, outcome, dialpad_talk_time_seconds, created_at")
-        .in("outcome", ["booked", "not_interested", "follow_up", "dnc"])
-        .not("dialpad_talk_time_seconds", "is", null)
-        .gte("created_at", `${dateFrom}T00:00:00`)
-        .lte("created_at", `${dateTo}T23:59:59`);
-      if (error) throw error;
-      return (data ?? []).map((r: any) => ({
-        user_id: r.user_id,
-        outcome: r.outcome,
-        talk: r.dialpad_talk_time_seconds ?? 0,
-        created_at: r.created_at,
-      }));
+      // Melbourne-local day bounds. Naive "YYYY-MM-DDT00:00:00" strings are read
+      // as UTC by Postgres, which shifted the window to 11am-to-11am Melbourne.
+      const fromIso = new Date(`${dateFrom}T00:00:00`).toISOString();
+      const endOfTo = new Date(`${dateTo}T00:00:00`);
+      endOfTo.setDate(endOfTo.getDate() + 1);
+      const toIso = endOfTo.toISOString();
+      // PostgREST caps every response at 1,000 rows; a 30-day range has ~1,900.
+      // Page on a unique order so no row is skipped or repeated.
+      const PAGE = 1000;
+      const rows: Row[] = [];
+      for (let fromIdx = 0; ; fromIdx += PAGE) {
+        const { data, error } = await supabase
+          .from("call_logs")
+          .select("id, user_id, outcome, dialpad_talk_time_seconds, created_at")
+          .in("outcome", ["booked", "not_interested", "follow_up", "dnc"])
+          .not("dialpad_talk_time_seconds", "is", null)
+          .gte("created_at", fromIso)
+          .lt("created_at", toIso)
+          .order("id", { ascending: true })
+          .range(fromIdx, fromIdx + PAGE - 1);
+        if (error) throw error;
+        for (const r of data ?? []) {
+          rows.push({
+            user_id: r.user_id,
+            outcome: r.outcome,
+            talk: r.dialpad_talk_time_seconds ?? 0,
+            created_at: r.created_at,
+          });
+        }
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
     },
   });
 }
@@ -128,8 +146,8 @@ export function OpenerSurvivalCard({ dateFrom, dateTo, activeRepId }: { dateFrom
                 <p className={cn("font-mono text-3xl font-semibold", confusionStats.pct >= 30 ? "text-destructive" : confusionStats.pct >= 15 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
                   {confusionStats.pct}%
                 </p>
-                <p className="text-xs text-muted-foreground" title='Conversations opening with "from where, sorry?" / "who is this?" — the name didn&apos;t land first time'>
-                  name didn't land first time ({confusionStats.calls} convos)
+                <p className="text-xs text-muted-foreground" title='Conversations opening with "from where, sorry?" / "who is this?": the name didn&apos;t land first time. Whole team only; this figure is not split by rep.'>
+                  name didn't land first time (team, {confusionStats.calls} convos)
                 </p>
               </div>
             )}
