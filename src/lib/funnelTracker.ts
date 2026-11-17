@@ -532,6 +532,8 @@ export interface SetterFirstDeal {
   setter_id: string | null;
   billing_period: string;
   amount: number;
+  /** First month fee when it differs from the ongoing amount (Bright Future: $4k first month, then $2k/mo). */
+  first_month_amount?: number | null;
   start_date: string;
   status: string;
   payments: SetterDealPayment[];
@@ -543,8 +545,9 @@ export interface CommissionCash extends NewClientWithCredit {
   sale_start: string;
 }
 
-/** What commission can be paid on: the first month's retainer, or the whole one-off. */
-export function firstMonthValue(d: Pick<SetterFirstDeal, "billing_period" | "amount">) {
+/** What commission can be paid on: the first month's fee (first_month_amount when set), or the whole one-off. */
+export function firstMonthValue(d: Pick<SetterFirstDeal, "billing_period" | "amount" | "first_month_amount">) {
+  if (d.first_month_amount != null && d.billing_period !== "one_off") return Math.max(0, Number(d.first_month_amount) || 0);
   const amount = Number(d.amount) || 0;
   return d.billing_period === "one_off" ? amount : toMonthly(amount, d.billing_period);
 }

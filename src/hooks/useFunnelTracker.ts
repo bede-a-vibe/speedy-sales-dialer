@@ -199,6 +199,7 @@ export function useSetterFirstDeals(enabled = true) {
       return ((data ?? []) as SetterFirstDeal[]).map((d) => ({
         ...d,
         amount: Number(d.amount) || 0,
+        first_month_amount: d.first_month_amount == null ? null : Number(d.first_month_amount),
         payments: (d.payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) || 0 })),
       }));
     },
