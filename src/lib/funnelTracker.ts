@@ -11,7 +11,7 @@
  */
 import { ANSWERED_OUTCOMES, type ReportCallLog } from "@/lib/reportMetrics";
 import { MISSED_BY_US_REASON, tierFor, type BookingTier } from "@/lib/appointments";
-import { setterMarginalCommission } from "@/lib/compPlan";
+import { SETTER_2026_MARGINAL_BANDS, SETTER_2026_ONE_OFF_RATE } from "@/lib/compPlan";
 import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import type { NewClient } from "@/hooks/useNewClients";
 
@@ -372,40 +372,134 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
     else if (n.tier === "tier_2") { s.newClientsT2 += 1; s.cashT2 += cash; }
   }
 
-  // Setter base pay sits in the cold view: the setters are the cold callers.
+  // Setter pay sits in the cold view: the setters are the cold callers.
+  // Commission lands on the day of each sale, allocated per sale in date order
+  // over the whole calendar month (any channel, any tier: pay does not split).
   if (funnel === "cold") {
     for (const d of days) {
       for (const p of activeSetters(args.compPlans, d, repId)) get(d)!.setterBase += (Number(p.base_annual) || 0) / 365;
+    }
+    for (const sale of saleCommissions(args.newClients, args.compPlans, repId)) {
+      const s = get(sale.day);
+      if (s) s.commission += sale.commission;
     }
   }
   return byDay;
 }
 
+/** Retainer dollars of one sale in one commission bracket. */
+export interface BracketSlice {
+  rate: number;
+  amount: number;
+}
+
 /**
- * Commission for one calendar month, per setter on 'setter_2026_marginal'.
- * `clients` should be every new client whose first deal starts in that month
- * (any channel, any tier: pay does not split). The setter credited is the
- * created_by of the lead's first booking.
+ * Split a sale's retainer dollars across the setter_2026_marginal brackets,
+ * given the setter's month running total before the sale. Each dollar earns
+ * the rate of the bracket it falls in. Zero-dollar slices are left out.
+ */
+export function splitAcrossBrackets(before: number, amount: number): BracketSlice[] {
+  const out: BracketSlice[] = [];
+  if (amount <= 0) return out;
+  const after = before + amount;
+  for (const band of SETTER_2026_MARGINAL_BANDS) {
+    const lo = Math.max(before, band.from);
+    const hi = Math.min(after, band.to);
+    if (hi > lo) out.push({ rate: band.rate, amount: hi - lo });
+  }
+  return out;
+}
+
+/** One credited sale with its own share of the setter's month commission. */
+export interface SaleCommission {
+  contact_id: string;
+  business_name: string | null;
+  setter_id: string;
+  /** First deal start day (the sale date). */
+  day: string;
+  month: string;
+  retainer: number;
+  oneOff: number;
+  /** Setter's first-month retainer total for the calendar month, before and after this sale. */
+  runningBefore: number;
+  runningAfter: number;
+  brackets: BracketSlice[];
+  retainerCommission: number;
+  oneOffCommission: number;
+  commission: number;
+}
+
+function onMarginalPlan(plans: CompPlanRow[], setterId: string, month: string) {
+  const plan = plans.find((p) => p.user_id === setterId);
+  if (!plan || plan.role !== "setter" || plan.plan_key !== "setter_2026_marginal") return false;
+  return !plan.active_from || plan.active_from <= lastDayOfMonth(month);
+}
+
+/**
+ * Commission per sale on 'setter_2026_marginal'. Per setter, per calendar
+ * month, the credited sales are taken in date order (first deal start day,
+ * then contact id). Each sale's retainer dollars are split across the brackets
+ * they fall into on the month running total; one-off cash earns a flat 5% and
+ * does not move the running total. So the per-sale amounts add up to the month
+ * figure. `clients` should hold every new client of each whole month in view
+ * (any channel, any tier: pay does not split); the setter credited is the
+ * created_by of the lead's first booking. Returned in date order.
+ */
+export function saleCommissions(clients: NewClientWithCredit[], plans: CompPlanRow[], repId?: string): SaleCommission[] {
+  const eligible = clients
+    .filter((n) => n.setter_id && (!repId || n.setter_id === repId) && onMarginalPlan(plans, n.setter_id, monthOf(n.first_start)))
+    .slice()
+    .sort((a, b) => a.first_start.localeCompare(b.first_start) || a.contact_id.localeCompare(b.contact_id));
+  const running = new Map<string, number>();
+  return eligible.map((n) => {
+    const setter = n.setter_id!;
+    const month = monthOf(n.first_start);
+    const key = `${setter}|${month}`;
+    const retainer = n.mrr || 0;
+    const oneOff = Math.max(0, n.one_off || 0);
+    const runningBefore = running.get(key) ?? 0;
+    const brackets = splitAcrossBrackets(runningBefore, retainer);
+    const runningAfter = runningBefore + Math.max(0, retainer);
+    running.set(key, runningAfter);
+    const retainerCommission = brackets.reduce((sum, b) => sum + b.amount * b.rate, 0);
+    const oneOffCommission = oneOff * SETTER_2026_ONE_OFF_RATE;
+    return {
+      contact_id: n.contact_id,
+      business_name: n.business_name,
+      setter_id: setter,
+      day: n.first_start,
+      month,
+      retainer,
+      oneOff,
+      runningBefore,
+      runningAfter,
+      brackets,
+      retainerCommission,
+      oneOffCommission,
+      commission: retainerCommission + oneOffCommission,
+    };
+  });
+}
+
+/** The brackets a sale hit, e.g. "15% / 18%", plus "5% one-off" when it has project cash. */
+export function bracketLabel(sale: Pick<SaleCommission, "brackets" | "oneOff">) {
+  const parts = sale.brackets.map((b) => `${Math.round(b.rate * 100)}%`);
+  const retainer = parts.join(" / ");
+  const oneOff = sale.oneOff > 0 ? `${Math.round(SETTER_2026_ONE_OFF_RATE * 100)}% one-off` : "";
+  return [retainer, oneOff].filter(Boolean).join(" + ") || "-";
+}
+
+/**
+ * Commission for one calendar month, per setter: the sum of that month's
+ * per-sale commissions (saleCommissions).
  */
 export function monthCommission(clients: NewClientWithCredit[], plans: CompPlanRow[], month: string, repId?: string) {
-  const bySetter = new Map<string, { retainer: number; oneOff: number }>();
-  for (const n of clients) {
-    if (monthOf(n.first_start) !== month || !n.setter_id) continue;
-    const plan = plans.find((p) => p.user_id === n.setter_id);
-    if (!plan || plan.role !== "setter" || plan.plan_key !== "setter_2026_marginal") continue;
-    if (plan.active_from && plan.active_from > lastDayOfMonth(month)) continue;
-    if (repId && n.setter_id !== repId) continue;
-    const acc = bySetter.get(n.setter_id) ?? { retainer: 0, oneOff: 0 };
-    acc.retainer += n.mrr || 0;
-    acc.oneOff += n.one_off || 0;
-    bySetter.set(n.setter_id, acc);
-  }
   let total = 0;
   const perSetter = new Map<string, number>();
-  for (const [uid, acc] of bySetter) {
-    const c = setterMarginalCommission(acc.retainer, acc.oneOff).total;
-    perSetter.set(uid, c);
-    total += c;
+  for (const sale of saleCommissions(clients, plans, repId)) {
+    if (sale.month !== month) continue;
+    perSetter.set(sale.setter_id, (perSetter.get(sale.setter_id) ?? 0) + sale.commission);
+    total += sale.commission;
   }
   return { total, perSetter };
 }

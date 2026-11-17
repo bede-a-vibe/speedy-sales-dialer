@@ -10,7 +10,10 @@ import {
   creditNewClients,
   daysBetween,
   defaultMonthOpen,
+  bracketLabel,
   monthCommission,
+  saleCommissions,
+  splitAcrossBrackets,
   sumTrackerStats,
   tierSplitOf,
   trackerDefaultFrom,
@@ -126,6 +129,108 @@ describe("setter_2026_marginal commission", () => {
     expect(oct.perSetter.get(BEN)).toBeCloseTo(3_760, 6); // $39k retainer + $5k project
     expect(oct.perSetter.get(LACHLAN) ?? 0).toBe(0); // $4k is under the $18k threshold
     expect(monthCommission(clients, plans, "2026-10-01", LACHLAN).total).toBe(0);
+  });
+});
+
+describe("commission per sale", () => {
+  const plans: CompPlanRow[] = [
+    { user_id: BEN, role: "setter", base_annual: 36_500, plan_key: "setter_2026_marginal", active_from: null },
+    { user_id: LACHLAN, role: "setter", base_annual: 36_500, plan_key: "setter_2026_marginal", active_from: null },
+  ];
+  const sale = (contact_id: string, first_start: string, mrr: number, one_off = 0, setter_id: string | null = BEN): NewClientWithCredit => ({
+    contact_id, business_name: contact_id, channel: "Cold Call", source: null, first_start, mrr, one_off, dialled: true, setter_id, tier: null,
+  });
+  // Bede's October method for Ben: $39k retainer + one $5k project.
+  const october = [
+    sale("o1", "2026-10-02", 8_000),
+    sale("o2", "2026-10-06", 8_000, 5_000),
+    sale("o3", "2026-10-09", 4_000), // $16k to $20k: crosses into 15%
+    sale("o4", "2026-10-14", 9_120),
+    sale("o5", "2026-10-20", 6_880), // $29,120 to $36k: 18%
+    sale("o6", "2026-10-28", 3_000), // $36k to $39k: crosses into 21%
+  ];
+
+  it("splits a sale that crosses a bracket line", () => {
+    expect(splitAcrossBrackets(16_000, 4_000)).toEqual([{ rate: 0, amount: 2_000 }, { rate: 0.15, amount: 2_000 }]);
+    const [, , o3] = saleCommissions(october, plans);
+    expect(o3.runningBefore).toBe(16_000);
+    expect(o3.runningAfter).toBe(20_000);
+    expect(o3.commission).toBeCloseTo(300, 9); // 15% x $2k
+    expect(bracketLabel(o3)).toBe("0% / 15%");
+    const o6 = saleCommissions(october, plans)[5];
+    expect(bracketLabel(o6)).toBe("18% / 21%");
+    expect(o6.commission).toBeCloseTo(0.18 * 2_000 + 0.21 * 1_000, 9);
+  });
+
+  it("Bede's October fixture gives $3,760 and the sales add up to the month", () => {
+    const sales = saleCommissions(october, plans);
+    const retainer = sales.reduce((t, x) => t + x.retainerCommission, 0);
+    const total = sales.reduce((t, x) => t + x.commission, 0);
+    expect(retainer).toBeCloseTo(3_510, 9);
+    expect(total).toBeCloseTo(3_760, 9);
+    expect(monthCommission(october, plans, "2026-10-01").total).toBeCloseTo(total, 9);
+    expect(setterMarginalCommission(39_000, 5_000).total).toBeCloseTo(total, 9);
+  });
+
+  it("per-sale amounts sum to the month total per setter, in date order whatever the input order", () => {
+    const mixed = [...october].reverse().concat([sale("l1", "2026-10-05", 12_000, 0, LACHLAN), sale("l2", "2026-10-05", 10_000, 2_000, LACHLAN)]);
+    const sales = saleCommissions(mixed, plans);
+    expect(sales.filter((x) => x.setter_id === BEN).map((x) => x.contact_id)).toEqual(["o1", "o2", "o3", "o4", "o5", "o6"]);
+    const month = monthCommission(mixed, plans, "2026-10-01");
+    for (const uid of [BEN, LACHLAN]) {
+      const perSale = sales.filter((x) => x.setter_id === uid).reduce((t, x) => t + x.commission, 0);
+      expect(month.perSetter.get(uid)).toBeCloseTo(perSale, 9);
+    }
+    // Lachlan: same day, tie-break by contact id; $22k retainer + $2k one-off.
+    expect(month.perSetter.get(LACHLAN)).toBeCloseTo(setterMarginalCommission(22_000, 2_000).total, 9);
+    // A new month starts the running total again.
+    const nov = saleCommissions([...october, sale("n1", "2026-11-02", 5_000)], plans).find((x) => x.contact_id === "n1")!;
+    expect(nov.runningBefore).toBe(0);
+    expect(nov.commission).toBe(0);
+  });
+
+  it("one-off cash earns 5% flat and does not move the running total", () => {
+    const sales = saleCommissions(october, plans);
+    const o2 = sales[1];
+    expect(o2.runningBefore).toBe(8_000);
+    expect(o2.runningAfter).toBe(16_000);
+    expect(o2.oneOffCommission).toBeCloseTo(250, 9);
+    expect(o2.commission).toBeCloseTo(250, 9); // its retainer is all under $18k
+    expect(bracketLabel(o2)).toBe("0% + 5% one-off");
+    const projectOnly = saleCommissions([sale("p1", "2026-10-01", 0, 5_000), sale("p2", "2026-10-02", 20_000)], plans);
+    expect(projectOnly[0].runningAfter).toBe(0);
+    expect(projectOnly[1].commission).toBeCloseTo(300, 9); // 15% of $2k past $18k
+  });
+
+  it("day-row commission sums to the month row, and setter cost on a day is base + that day's commission", () => {
+    const days = daysBetween("2026-10-01", "2026-10-31");
+    const daily = buildDailyTrackerStats({
+      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+    });
+    expect(daily.get("2026-10-09")!.commission).toBeCloseTo(300, 9);
+    expect(daily.get("2026-10-10")!.commission).toBe(0);
+    const month = sumTrackerStats(days.map((d) => daily.get(d)!));
+    expect(month.commission).toBeCloseTo(3_760, 9);
+    expect(month.commission).toBeCloseTo(monthCommission(october, plans, "2026-10-01").total, 9);
+    const d9 = daily.get("2026-10-09")!;
+    expect(d9.setterBase + d9.commission).toBeCloseTo(200 + 300, 9); // two setters at $100 a day + $300
+    // Rep filter and the ads view.
+    const lachlan = buildDailyTrackerStats({
+      days, funnel: "cold", tier: "all", repId: LACHLAN, callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+    });
+    expect(sumTrackerStats(days.map((d) => lachlan.get(d)!)).commission).toBe(0);
+    const ads = buildDailyTrackerStats({
+      days, funnel: "ads", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+    });
+    expect(sumTrackerStats(days.map((d) => ads.get(d)!)).commission).toBe(0);
+  });
+
+  it("a range starting mid-month still runs the total from the 1st", () => {
+    const days = daysBetween("2026-10-09", "2026-10-31");
+    const daily = buildDailyTrackerStats({
+      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+    });
+    expect(daily.get("2026-10-09")!.commission).toBeCloseTo(300, 9);
   });
 });
 

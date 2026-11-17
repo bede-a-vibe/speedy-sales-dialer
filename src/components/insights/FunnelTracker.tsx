@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronRight, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useFunnelTracker";
 import {
   addsUp,
+  bracketLabel,
   buildDailyTrackerStats,
   creditNewClients,
   daysBetween,
@@ -27,16 +28,17 @@ import {
   defaultMonthOpen,
   lastDayOfMonth,
   leadsFor,
-  monthCommission,
   monthOf,
   pctOf,
   ratio,
+  saleCommissions,
   setterCost,
   sumTrackerStats,
   tierSplitOf,
   totalCost,
   type CompPlanRow,
   type NewClientWithCredit,
+  type SaleCommission,
   type TierFilter,
   type TrackerFunnel,
   type TrackerInputRow,
@@ -180,8 +182,8 @@ const COLUMNS: ColumnDef[] = [
   ...tierPair("cashPerSet", "Cash per set", "money", (t) => t.cashPerSet, "cash ÷ sets, within the tier"),
 
   // P&L
-  { key: "setterCost", section: "P&L", label: "Setter cost", fmt: "money", hint: "base ÷ 365 a day for active setters, plus commission on the month row", value: (s) => setterCost(s) },
-  { key: "commission", section: "P&L", label: "Commission", fmt: "money", hint: "month rows only: whole calendar month, marginal setter plan, 5% on one-off", value: (s, c) => (c.isMonth ? s.commission : null) },
+  { key: "setterCost", section: "P&L", label: "Setter cost", fmt: "money", hint: "base ÷ 365 a day for active setters, plus that day's commission", value: (s) => setterCost(s) },
+  { key: "commission", section: "P&L", label: "Commission", fmt: "money", hint: "per sale on the day it starts: each retainer dollar earns the rate of the bracket it falls in on the setter's month running total, 5% on one-off; the month is the sum of its days", value: (s) => s.commission },
   { key: "plAdSpend", section: "P&L", label: "Ad spend", fmt: "money", funnels: ["ads"], value: (s) => s.adSpend },
   { key: "totalCost", section: "P&L", label: "Total cost", fmt: "money", value: (s) => totalCost(s) },
   { key: "cpa", section: "P&L", label: "CPA", fmt: "money", hint: "total cost ÷ new clients", value: (s) => ratio(totalCost(s), s.newClients) },
@@ -421,6 +423,106 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
   );
 });
 
+const money = (v: number) => formatValue(v, "money");
+
+/**
+ * "Commission by sale": every credited sale in the range with its own share of
+ * the setter's month commission, grouped by month, then setter, with a subtotal
+ * per setter. Collapsed by default.
+ */
+function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName: Map<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const groups = useMemo(() => {
+    const byMonth = new Map<string, Map<string, SaleCommission[]>>();
+    for (const sale of sales) {
+      const bySetter = byMonth.get(sale.month) ?? new Map<string, SaleCommission[]>();
+      bySetter.set(sale.setter_id, [...(bySetter.get(sale.setter_id) ?? []), sale]);
+      byMonth.set(sale.month, bySetter);
+    }
+    return [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, bySetter]) => ({
+        month,
+        setters: [...bySetter.entries()]
+          .map(([setterId, list]) => ({ setterId, name: repName.get(setterId) ?? setterId.slice(0, 8), list }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  }, [sales, repName]);
+  const sum = (list: SaleCommission[], pick: (x: SaleCommission) => number) => list.reduce((t, x) => t + pick(x), 0);
+  const cell = "border-b border-border px-2 py-1 text-right font-mono tabular-nums";
+  return (
+    <div className="mt-3 rounded-md border border-border">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-1 px-2 py-1.5 text-left text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-90")} aria-hidden="true" />
+        Commission by sale
+        <span className="font-normal text-muted-foreground">
+          ({sales.length} {sales.length === 1 ? "sale" : "sales"}, {money(sum(sales, (x) => x.commission))})
+        </span>
+      </button>
+      {open ? (
+        sales.length === 0 ? (
+          <p className="border-t border-border px-2 py-2 text-[11px] text-muted-foreground">No credited sales for a setter on the commission plan in this range.</p>
+        ) : (
+          <div className="max-h-[50vh] overflow-auto border-t border-border">
+            <table className="min-w-full border-separate border-spacing-0 text-xs">
+              <thead>
+                <tr className="bg-muted text-muted-foreground">
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Date</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Client</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Setter</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">Retainer</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">One-off</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium" title="setter's first-month retainer total for the calendar month after this sale">Month running total</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Bracket(s)</th>
+                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => (
+                  <Fragment key={g.month}>
+                    <tr className="bg-primary/10">
+                      <td colSpan={8} className="border-b border-border px-2 py-1 font-semibold">{fmtMonthLabel(g.month)}</td>
+                    </tr>
+                    {g.setters.map((st) => (
+                      <Fragment key={st.setterId}>
+                        {st.list.map((x) => (
+                          <tr key={x.contact_id} className="hover:bg-muted/30">
+                            <td className="border-b border-border px-2 py-1 whitespace-nowrap text-muted-foreground">{fmtDayLabel(x.day)}</td>
+                            <td className="border-b border-border px-2 py-1">{x.business_name || "Unnamed client"}</td>
+                            <td className="border-b border-border px-2 py-1 whitespace-nowrap">{st.name}</td>
+                            <td className={cell}>{money(x.retainer)}</td>
+                            <td className={cell}>{x.oneOff > 0 ? money(x.oneOff) : "-"}</td>
+                            <td className={cell}>{money(x.runningAfter)}</td>
+                            <td className="border-b border-border px-2 py-1 whitespace-nowrap">{bracketLabel(x)}</td>
+                            <td className={cn(cell, "text-foreground")}>{money(x.commission)}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-muted/40 font-semibold">
+                          <td colSpan={3} className="border-b border-border px-2 py-1">{st.name} subtotal</td>
+                          <td className={cell}>{money(sum(st.list, (x) => x.retainer))}</td>
+                          <td className={cell}>{money(sum(st.list, (x) => x.oneOff))}</td>
+                          <td className={cell} />
+                          <td className="border-b border-border" />
+                          <td className={cell}>{money(sum(st.list, (x) => x.commission))}</td>
+                        </tr>
+                      </Fragment>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = [], reps, activeRepId, selectedRepLabel }: Props) {
   const [funnel, setFunnel] = useState<TrackerFunnel>("cold");
   const [tier, setTier] = useState<TierFilter>("all");
@@ -457,12 +559,18 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
       byMonth.set(m, [...(byMonth.get(m) ?? []), d]);
     }
     return [...byMonth.entries()].map(([month, mDays]) => {
-      const total = sumTrackerStats(mDays.map((d) => daily.get(d)!));
-      // Setter pay sits in the cold view (the setters are the cold callers).
-      total.commission = funnel === "cold" ? monthCommission(credited, compPlans, month, activeRepId).total : 0;
-      return { month, days: mDays, total };
+      // Month total = sum of its days, commission included (it is allocated per sale).
+      return { month, days: mDays, total: sumTrackerStats(mDays.map((d) => daily.get(d)!)) };
     });
-  }, [days, daily, funnel, credited, compPlans, activeRepId]);
+  }, [days, daily]);
+
+  // Every credited sale in the range with its own commission. The running
+  // totals start at the 1st of each month, so sales before the range still count.
+  const sales = useMemo<SaleCommission[]>(
+    () => (funnel === "cold" ? saleCommissions(credited, compPlans, activeRepId).filter((x) => x.day >= dateFrom && x.day <= dateTo) : []),
+    [funnel, credited, compPlans, activeRepId, dateFrom, dateTo],
+  );
+  const repName = useMemo(() => new Map(reps.map((r) => [r.user_id, r.display_name || r.email || "Unnamed"])), [reps]);
 
   const targetMap = useMemo(() => {
     const m = new Map<string, TrackerTargetRow>();
@@ -664,11 +772,12 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           </tbody>
         </table>
       </div>
+      {funnel === "cold" && !plHidden ? <CommissionBySale sales={sales} repName={repName} /> : null}
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
         Hover a column name for its definition. "-" means nothing to divide by. Tier comes from the booking (team size on the
         tools including the owner and monthly revenue at booking), else the contact's details; older bookings with neither are
-        unknown and only show under All. Commission is the whole calendar month on the setter's marginal plan, credited to
-        whoever made the lead's first booking.
+        unknown and only show under All. Commission is the setter's marginal plan, credited to whoever made the lead's first
+        booking. Commission is allocated per sale in date order: each dollar earns the rate of the bracket it falls in.
         {tier === "all"
           ? " Tier split: a new client takes the tier of the contact's latest booking. Unknown-tier bookings and clients are left out of both tier columns, so T1 + T2 can be less than the totals. The higher of each pair is green on month rows."
           : null}
