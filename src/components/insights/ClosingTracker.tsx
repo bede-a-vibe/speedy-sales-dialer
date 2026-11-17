@@ -9,7 +9,20 @@ import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 import { movesOf, wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
 import { useNewClients } from "@/hooks/useNewClients";
-import { availableSlotsForDay, daysBetween, defaultMonthOpen, defaultWeekOpen, monthOf, weekKey, weeksOf } from "@/lib/funnelTracker";
+import {
+  availableSlotsForDay,
+  bookingTierOf,
+  creditNewClients,
+  daysBetween,
+  defaultMonthOpen,
+  defaultWeekOpen,
+  matchesTier,
+  monthOf,
+  weekKey,
+  weeksOf,
+  type TierFilter,
+} from "@/lib/funnelTracker";
+import { useContactBookingHistory } from "@/hooks/useFunnelTracker";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings, laid out like
@@ -437,6 +450,41 @@ function buildSections(repFiltered = false): SectionDef[] {
   ];
 }
 
+/** A row's numbers: for the tier in view, and for Tier 1 and Tier 2 on their own. */
+interface Bundle {
+  s: Stats;
+  t1: Stats;
+  t2: Stats;
+}
+interface BundleRowDef extends Omit<RowDef, "value"> {
+  value: (b: Bundle) => number | null;
+}
+const EMPTY_BUNDLE: Bundle = { s: emptyStats(), t1: emptyStats(), t2: emptyStats() };
+const NO_CLIENTS: never[] = [];
+
+/**
+ * Tier split (All only): Tier 1 vs Tier 2 on the same definitions as the rest of
+ * the table. Tier 1 = 3+ on the tools incl. the owner and $50k+ a month, from the
+ * booking, else the contact. Bookings and clients with an unknown tier are in neither.
+ */
+const TIER_SPLIT: BundleRowDef[] = [
+  { label: "T1 bookings made", fmt: "n", hint: "first meetings booked, Tier 1", value: (b) => b.t1.booked, emphasis: true },
+  { label: "T2 bookings made", fmt: "n", hint: "first meetings booked, Tier 2", value: (b) => b.t2.booked, emphasis: true },
+  { label: "% Tier 1", fmt: "pct", hint: "Tier 1 ÷ all bookings made", value: (b) => pct(b.t1.booked, b.s.booked) },
+  { label: "T1 show rate", fmt: "pct", hint: "first meetings: showed ÷ resolved", value: (b) => pct(b.t1.showedFirst, b.t1.firstResolved) },
+  { label: "T2 show rate", fmt: "pct", hint: "first meetings: showed ÷ resolved", value: (b) => pct(b.t2.showedFirst, b.t2.firstResolved) },
+  { label: "T1 closes", fmt: "n", value: (b) => b.t1.closed },
+  { label: "T2 closes", fmt: "n", value: (b) => b.t2.closed },
+  { label: "T1 live call close rate", fmt: "pct", hint: "closes ÷ showed", value: (b) => pct(b.t1.closed, b.t1.showed) },
+  { label: "T2 live call close rate", fmt: "pct", hint: "closes ÷ showed", value: (b) => pct(b.t2.closed, b.t2.showed) },
+  { label: "T1 first collection", fmt: "money", value: (b) => b.t1.cash },
+  { label: "T2 first collection", fmt: "money", value: (b) => b.t2.cash },
+  { label: "T1 avg per sale", fmt: "money", value: (b) => (b.t1.closed > 0 ? b.t1.cash / b.t1.closed : null) },
+  { label: "T2 avg per sale", fmt: "money", value: (b) => (b.t2.closed > 0 ? b.t2.cash / b.t2.closed : null) },
+  { label: "T1 cash per booking", fmt: "money", hint: "first collection ÷ bookings made", value: (b) => (b.t1.booked > 0 ? b.t1.cash / b.t1.booked : null) },
+  { label: "T2 cash per booking", fmt: "money", hint: "first collection ÷ bookings made", value: (b) => (b.t2.booked > 0 ? b.t2.cash / b.t2.booked : null) },
+];
+
 function format(v: number | null, fmt: Fmt) {
   if (v === null) return "—";
   switch (fmt) {
@@ -480,7 +528,14 @@ function useMeetingMinutes(itemIds: string[]) {
 }
 
 export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [], activeRepId, selectedRepLabel }: Props) {
-  const { data: newClients = [] } = useNewClients(dateFrom, dateTo);
+  const [tier, setTier] = useState<TierFilter>("all");
+  const { data: rawNewClients = NO_CLIENTS } = useNewClients(dateFrom, dateTo);
+  // A new client takes the tier of the contact's latest booking, as on the Tracker.
+  const { data: history } = useContactBookingHistory(rawNewClients.map((n) => n.contact_id));
+  const newClients = useMemo(
+    () => creditNewClients(rawNewClients, history?.history ?? [], history?.contacts),
+    [rawNewClients, history],
+  );
   const all = useMemo(() => [...bookings, ...rescheduleSlots], [bookings, rescheduleSlots]);
   // With a rep picked, meetings count for the closer (assigned_user_id) and
   // bookings made count for the setter (created_by), as on every other tab.
@@ -493,9 +548,16 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
     [all, activeRepId],
   );
   const itemIds = useMemo(() => items.filter((i) => !i.is_reschedule_slot).map((i) => i.id), [items]);
+  const tierOf = useCallback((i: Item) => bookingTierOf(i as Item & { booking_tier?: string | null }), []);
   const { data: minutesByItem = new Map<string, number>() } = useMeetingMinutes(itemIds);
   const sections = useMemo(() => buildSections(!!activeRepId), [activeRepId]);
-  const metrics = useMemo(() => sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row }))), [sections]);
+  const metrics = useMemo<{ section: string; row: BundleRowDef }[]>(
+    () => [
+      ...sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row: { ...row, value: (b: Bundle) => row.value(b.s) } }))),
+      ...(tier === "all" ? TIER_SPLIT.map((row) => ({ section: "Tier split", row })) : []),
+    ],
+    [sections, tier],
+  );
   const sectionStart = useMemo(
     () => new Set(metrics.filter((m, i) => i === 0 || metrics[i - 1].section !== m.section).map((m) => `${m.section}|${m.row.label}`)),
     [metrics],
@@ -509,16 +571,33 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
     return [...byMonth.entries()].map(([month, mDays]) => ({ month, days: mDays, weeks: weeksOf(mDays) }));
   }, [dateFrom, dateTo]);
 
-  // One Stats per range, month, week and day.
+  // One Stats per range, month, week and day: for the tier in view, and for
+  // Tier 1 and Tier 2 on their own (the Tier split columns). Unknown tier is in neither.
+  const byTier = useMemo(() => {
+    const pick = (f: TierFilter) => ({
+      items: f === "all" ? items : items.filter((i) => tierOf(i) === f),
+      setterItems: f === "all" ? setterItems : setterItems.filter((i) => tierOf(i) === f),
+      newClients: newClients.filter((n) => matchesTier(n.tier, f)),
+    });
+    return { view: pick(tier), t1: pick("tier_1"), t2: pick("tier_2") };
+  }, [items, setterItems, newClients, tier, tierOf]);
+
   const stats = useMemo(() => {
-    const out = new Map<string, Stats>();
-    const add = (key: string, days: string[]) => {
-      const set = new Set(days);
-      const s = computeStats(items, set, minutesByItem, setterItems);
-      for (const n of newClients) {
+    const out = new Map<string, Bundle>();
+    const one = (src: (typeof byTier)["view"], set: Set<string>) => {
+      const s = computeStats(src.items, set, minutesByItem, src.setterItems);
+      for (const n of src.newClients) {
         if (set.has(n.first_start)) { s.newClients += 1; s.newClientsMrr += n.mrr; }
       }
-      out.set(key, s);
+      return s;
+    };
+    const add = (key: string, days: string[]) => {
+      const set = new Set(days);
+      out.set(key, {
+        s: one(byTier.view, set),
+        t1: tier === "all" ? one(byTier.t1, set) : emptyStats(),
+        t2: tier === "all" ? one(byTier.t2, set) : emptyStats(),
+      });
     };
     add("range", months.flatMap((m) => m.days));
     for (const m of months) {
@@ -527,7 +606,7 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
       for (const d of m.days) add(`d:${d}`, [d]);
     }
     return out;
-  }, [months, items, minutesByItem, setterItems, newClients]);
+  }, [months, byTier, minutesByItem, tier]);
 
   const today = dayKey(new Date().toISOString());
   const currentMonth = monthOf(today);
@@ -548,9 +627,9 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
   const setAllOpen = (open: boolean) =>
     setOpen(Object.fromEntries(months.flatMap((m) => [[m.month, open], ...m.weeks.map((w) => [weekKey(w[0]), open])])));
 
-  const cells = (s: Stats | undefined, level: "range" | "month" | "week" | "day") =>
+  const cells = (b: Bundle | undefined, level: "range" | "month" | "week" | "day") =>
     metrics.map(({ section, row }) => {
-      const v = row.value(s ?? emptyStats());
+      const v = row.value(b ?? EMPTY_BUNDLE);
       const empty = v === null || v === 0;
       const total = level !== "day";
       return (
@@ -588,8 +667,29 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
       description={`One row per day, week and month totals that collapse, and the range total${selectedRepLabel ? `, ${selectedRepLabel}: bookings made as setter, everything else as closer; available slots stay team-wide` : ""}. Bookings made count by the day booked; everything else counts by the day of the meeting. Show rates use resolved slots; close rates use pitched meetings; cash is the first collection.`}
       className="overflow-hidden"
     >
-      <div className="mb-2 flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={() => setAllOpen(!allOpen)} disabled={months.length === 0}>
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-md border border-border bg-background p-0.5" role="group" aria-label="Tier filter">
+          {(["all", "tier_1", "tier_2"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTier(t)}
+              aria-pressed={tier === t}
+              className={cn(
+                "rounded-sm px-2.5 py-1 text-xs transition-colors",
+                tier === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t === "all" ? "All" : t === "tier_1" ? "Tier 1" : "Tier 2"}
+            </button>
+          ))}
+        </div>
+        <span className="text-[11px] text-muted-foreground">
+          {tier === "all"
+            ? "Tier split columns compare Tier 1 and Tier 2 side by side."
+            : `${tier === "tier_1" ? "Tier 1" : "Tier 2"} bookings only (available slots stay team-wide).`}
+        </span>
+        <Button className="ml-auto" type="button" variant="outline" size="sm" onClick={() => setAllOpen(!allOpen)} disabled={months.length === 0}>
           {allOpen ? "Collapse all" : "Expand all"}
         </Button>
       </div>
