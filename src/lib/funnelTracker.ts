@@ -21,7 +21,28 @@ export type TierFilter = "all" | BookingTier;
 export const COLD_CALL_CHANNEL = "Cold Call";
 const TZ = "Australia/Melbourne";
 
-export const dayKeyOf = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ });
+// One shared formatter: toLocaleDateString builds a new one per call, which is
+// slow over a whole year of call logs (26k+ rows).
+const DAY_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+export const dayKeyOf = (iso: string) => DAY_KEY_FORMAT.format(new Date(iso));
+
+/** Dials start in March 2026: the tracker has nothing to show before this month. */
+export const TRACKER_FIRST_DATA_MONTH = "2026-03-01";
+
+/**
+ * The Tracker's default range start: 1 January of today's year, or the first
+ * month with data if that is later. The range runs to today.
+ */
+export function trackerDefaultFrom(today: string) {
+  const jan = `${today.slice(0, 4)}-01-01`;
+  const from = jan > TRACKER_FIRST_DATA_MONTH ? jan : TRACKER_FIRST_DATA_MONTH;
+  return from > today ? `${today.slice(0, 7)}-01` : from;
+}
+
+/** Months start collapsed except the current one (or the only month in view). */
+export function defaultMonthOpen(month: string, currentMonth: string, monthCount: number) {
+  return monthCount === 1 || month === currentMonth;
+}
 
 export function addDayKeys(key: string, n: number) {
   const d = new Date(`${key}T12:00:00Z`);
@@ -137,6 +158,10 @@ export interface TrackerStats {
   manualSets: number;
   confirmedDbs: number;
   totalSets: number;
+  /** Total sets by booking tier. T1 + T2 + unknown = total sets. */
+  setsT1: number;
+  setsT2: number;
+  setsUnknownTier: number;
   // Closing calendar
   availability: number;
   bookingsOnCal: number;
@@ -150,6 +175,15 @@ export interface TrackerStats {
   // Closing results
   newClients: number;
   cash: number;
+  // Tier split (unknown tier left out of both)
+  bookingsOnCalT1: number;
+  bookingsOnCalT2: number;
+  liveT1: number;
+  liveT2: number;
+  newClientsT1: number;
+  newClientsT2: number;
+  cashT1: number;
+  cashT2: number;
   // P&L
   setterBase: number;
   commission: number;
@@ -159,8 +193,10 @@ export function emptyTrackerStats(): TrackerStats {
   return {
     adSpend: 0, clicks: 0, leads: 0, tier1Leads: 0, dbsCreated: 0, bookingRequests: 0,
     dials: 0, answers: 0, leadsDialled: new Set(), rosteredHours: 0, productiveHours: 0, manualSets: 0, confirmedDbs: 0, totalSets: 0,
+    setsT1: 0, setsT2: 0, setsUnknownTier: 0,
     availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0,
     newClients: 0, cash: 0,
+    bookingsOnCalT1: 0, bookingsOnCalT2: 0, liveT1: 0, liveT2: 0, newClientsT1: 0, newClientsT2: 0, cashT1: 0, cashT2: 0,
     setterBase: 0, commission: 0,
   };
 }
@@ -168,8 +204,11 @@ export function emptyTrackerStats(): TrackerStats {
 const SUMMED: (keyof TrackerStats)[] = [
   "adSpend", "clicks", "leads", "tier1Leads", "dbsCreated", "bookingRequests",
   "dials", "answers", "rosteredHours", "productiveHours", "manualSets", "confirmedDbs", "totalSets",
+  "setsT1", "setsT2", "setsUnknownTier",
   "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive",
-  "newClients", "cash", "setterBase", "commission",
+  "newClients", "cash",
+  "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2",
+  "setterBase", "commission",
 ];
 
 /** Month total = sum of the days (unique leads dialled are a union, not a sum). */
@@ -266,11 +305,17 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
     }
   }
 
-  const inView = args.items.filter((i) => inFunnel(i.meeting_channel, funnel) && matchesTier(bookingTierOf(i), tier));
+  // Each booking's tier is worked out once and reused below.
+  const inView: { i: TrackerItem; t: BookingTier | null }[] = [];
+  for (const i of args.items) {
+    if (!inFunnel(i.meeting_channel, funnel)) continue;
+    const t = bookingTierOf(i);
+    if (matchesTier(t, tier)) inView.push({ i, t });
+  }
 
   // Sets: first meetings booked that day, by the setter (created_by).
   const tier1LeadsByDay = new Map<string, Set<string>>();
-  for (const i of inView) {
+  for (const { i, t } of inView) {
     if (i.is_reschedule_slot || i.is_follow_up || !i.created_at) continue;
     if (repId && i.created_by !== repId) continue;
     const day = dayKeyOf(i.created_at);
@@ -278,10 +323,13 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
     if (!s) continue;
     const method = bookingMethodOf(i);
     s.totalSets += 1;
+    if (t === "tier_1") s.setsT1 += 1;
+    else if (t === "tier_2") s.setsT2 += 1;
+    else s.setsUnknownTier += 1;
     if (method === "manual_set") s.manualSets += 1;
     if (method === "self_booked") { s.dbsCreated += 1; s.confirmedDbs += 1; }
     if (method === "booking_request") s.bookingRequests += 1;
-    if (funnel === "ads" && bookingTierOf(i) === "tier_1") {
+    if (funnel === "ads" && t === "tier_1") {
       const set = tier1LeadsByDay.get(day) ?? new Set<string>();
       set.add(i.contact_id);
       tier1LeadsByDay.set(day, set);
@@ -290,15 +338,19 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
   for (const [day, set] of tier1LeadsByDay) get(day)!.tier1Leads = set.size;
 
   // Calendar: first-meeting slots due that day, by the closer (assigned_user_id).
-  for (const i of inView) {
+  for (const { i, t } of inView) {
     if (i.is_follow_up || !i.scheduled_for) continue;
     if (repId && i.assigned_user_id !== repId) continue;
     const s = get(dayKeyOf(i.scheduled_for));
     if (!s) continue;
     s.bookingsOnCal += 1;
+    if (t === "tier_1") s.bookingsOnCalT1 += 1;
+    else if (t === "tier_2") s.bookingsOnCalT2 += 1;
     const bucket = calendarBucketOf(i);
     if (bucket === "live") {
       s.live += 1;
+      if (t === "tier_1") s.liveT1 += 1;
+      else if (t === "tier_2") s.liveT2 += 1;
       if (i.is_qualified === true) s.qualifiedLive += 1;
     } else if (bucket === "cancelled") s.cancels += 1;
     else if (bucket === "noshow") s.noShows += 1;
@@ -313,8 +365,11 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
     if (repId && n.setter_id !== repId) continue;
     const s = get(n.first_start);
     if (!s) continue;
+    const cash = (n.mrr || 0) + (n.one_off || 0);
     s.newClients += 1;
-    s.cash += (n.mrr || 0) + (n.one_off || 0);
+    s.cash += cash;
+    if (n.tier === "tier_1") { s.newClientsT1 += 1; s.cashT1 += cash; }
+    else if (n.tier === "tier_2") { s.newClientsT2 += 1; s.cashT2 += cash; }
   }
 
   // Setter base pay sits in the cold view: the setters are the cold callers.
@@ -392,4 +447,31 @@ export function totalCost(s: TrackerStats) {
 /** The lead count the funnel starts from: unique leads dialled (cold) or leads from the ads (ads). */
 export function leadsFor(s: TrackerStats, funnel: TrackerFunnel) {
   return funnel === "cold" ? s.leadsDialled.size : s.leads;
+}
+
+/**
+ * Tier split for one tier: the closing side of Tier 1 vs Tier 2 bookings.
+ * Show rate uses the Show rate column's definition (live calls ÷ bookings on
+ * the calendar), within the tier. Unknown-tier bookings and clients are in
+ * neither tier.
+ */
+export function tierSplitOf(s: TrackerStats, t: BookingTier) {
+  const one = t === "tier_1";
+  const sets = one ? s.setsT1 : s.setsT2;
+  const bookingsOnCal = one ? s.bookingsOnCalT1 : s.bookingsOnCalT2;
+  const live = one ? s.liveT1 : s.liveT2;
+  const newClients = one ? s.newClientsT1 : s.newClientsT2;
+  const cash = one ? s.cashT1 : s.cashT2;
+  return {
+    sets,
+    bookingsOnCal,
+    live,
+    showRate: pctOf(live, bookingsOnCal),
+    newClients,
+    setToClose: pctOf(newClients, sets),
+    liveToClose: pctOf(newClients, live),
+    cash,
+    avgCash: ratio(cash, newClients),
+    cashPerSet: ratio(cash, sets),
+  };
 }

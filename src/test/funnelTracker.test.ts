@@ -9,8 +9,11 @@ import {
   calendarBucketOf,
   creditNewClients,
   daysBetween,
+  defaultMonthOpen,
   monthCommission,
   sumTrackerStats,
+  tierSplitOf,
+  trackerDefaultFrom,
   type CompPlanRow,
   type NewClientWithCredit,
   type TrackerItem,
@@ -224,5 +227,109 @@ describe("tracker rows", () => {
     expect(cold.cash).toBe(5_000);
     expect(build({ newClients: clients, funnel: "ads" }).get("2026-11-04")!.newClients).toBe(1);
     expect(build({ newClients: clients, tier: "tier_2" }).get("2026-11-04")!.newClients).toBe(0);
+  });
+});
+
+describe("tier split", () => {
+  const days = daysBetween("2026-11-03", "2026-11-05");
+  // Sets on 3 and 4 Nov; meetings on 4 and 5 Nov.
+  const items: TrackerItem[] = [
+    // Tier 1: three sets, two on the calendar sit, one cancels.
+    booking({ booking_tier: "tier_1", contact_id: "t1a", created_at: "2026-11-03T10:00:00+11:00", scheduled_for: "2026-11-04T10:00:00+11:00", resolved_bucket: "showed" }),
+    booking({ booking_tier: "tier_1", contact_id: "t1b", created_at: "2026-11-03T11:00:00+11:00", scheduled_for: "2026-11-04T11:00:00+11:00", resolved_bucket: "showed" }),
+    booking({ booking_tier: "tier_1", contact_id: "t1c", created_at: "2026-11-04T11:00:00+11:00", scheduled_for: "2026-11-05T11:00:00+11:00", resolved_bucket: "cancelled" }),
+    // Tier 2: one saved on the booking, one from the contact's team size (fallback). One sits, one no-shows.
+    booking({ booking_tier: "tier_2", contact_id: "t2a", created_at: "2026-11-03T12:00:00+11:00", scheduled_for: "2026-11-04T12:00:00+11:00", resolved_bucket: "showed" }),
+    booking({ booking_tier: null, contacts: { team_size: 1, monthly_revenue: null } as never, contact_id: "t2b", created_at: "2026-11-04T12:00:00+11:00", scheduled_for: "2026-11-05T12:00:00+11:00", resolved_bucket: "noshow", outcome_reason: "ns_ghosted" }),
+    // Unknown: no tier and no contact details. Sits.
+    booking({ booking_tier: null, contact_id: "u1", created_at: "2026-11-04T13:00:00+11:00", scheduled_for: "2026-11-05T13:00:00+11:00", resolved_bucket: "showed" }),
+  ];
+  const clients: NewClientWithCredit[] = [
+    { contact_id: "t1a", business_name: null, channel: "Cold Call", source: null, first_start: "2026-11-04", mrr: 4_000, one_off: 2_000, dialled: true, setter_id: BEN, tier: "tier_1" },
+    { contact_id: "t1b", business_name: null, channel: "Cold Call", source: null, first_start: "2026-11-05", mrr: 2_000, one_off: 0, dialled: true, setter_id: BEN, tier: "tier_1" },
+    { contact_id: "t2a", business_name: null, channel: "Cold Call", source: null, first_start: "2026-11-05", mrr: 2_000, one_off: 0, dialled: true, setter_id: BEN, tier: "tier_2" },
+    { contact_id: "u1", business_name: null, channel: "Cold Call", source: null, first_start: "2026-11-05", mrr: 1_500, one_off: 0, dialled: true, setter_id: BEN, tier: null },
+  ];
+  const daily = buildDailyTrackerStats({
+    days, funnel: "cold", tier: "all", callLogs: [], items, inputs: [], productiveHours: new Map(), newClients: clients, compPlans: [],
+  });
+  const month = sumTrackerStats(days.map((d) => daily.get(d)!));
+
+  it("Tier 1 + Tier 2 + unknown sets = total sets, and the percents are of total sets", () => {
+    for (const d of days) {
+      const s = daily.get(d)!;
+      expect(s.setsT1 + s.setsT2 + s.setsUnknownTier).toBe(s.totalSets);
+    }
+    expect(daily.get("2026-11-03")!.setsT1).toBe(2);
+    expect(daily.get("2026-11-03")!.setsT2).toBe(1);
+    expect(daily.get("2026-11-04")!.setsUnknownTier).toBe(1);
+    expect([month.totalSets, month.setsT1, month.setsT2, month.setsUnknownTier]).toEqual([6, 3, 2, 1]);
+    expect(month.setsT1 + month.setsT2 + month.setsUnknownTier).toBe(month.totalSets);
+    // 3 of 6 = 50%, 2 of 6 = 33.3%; unknown makes up the rest.
+    expect((100 * month.setsT1) / month.totalSets).toBeCloseTo(50, 9);
+    expect((100 * month.setsT2) / month.totalSets).toBeCloseTo(33.333, 2);
+  });
+
+  it("tier filter narrows the tier counts too", () => {
+    const t1 = sumTrackerStats(days.map((d) => buildDailyTrackerStats({
+      days, funnel: "cold", tier: "tier_1", callLogs: [], items, inputs: [], productiveHours: new Map(), newClients: clients, compPlans: [],
+    }).get(d)!));
+    expect([t1.totalSets, t1.setsT1, t1.setsT2, t1.setsUnknownTier]).toEqual([3, 3, 0, 0]);
+  });
+
+  it("works out show rate, set-to-close, live-call-to-close and cash per set within each tier", () => {
+    const t1 = tierSplitOf(month, "tier_1");
+    expect(t1.sets).toBe(3);
+    expect(t1.bookingsOnCal).toBe(3);
+    expect(t1.live).toBe(2);
+    expect(t1.showRate).toBeCloseTo(66.667, 2); // 2 live of 3 on the calendar
+    expect(t1.newClients).toBe(2);
+    expect(t1.setToClose).toBeCloseTo(66.667, 2); // 2 clients of 3 sets
+    expect(t1.liveToClose).toBe(100); // 2 clients of 2 live calls
+    expect(t1.cash).toBe(8_000);
+    expect(t1.avgCash).toBe(4_000);
+    expect(t1.cashPerSet).toBeCloseTo(2_666.667, 2);
+
+    const t2 = tierSplitOf(month, "tier_2");
+    expect([t2.sets, t2.bookingsOnCal, t2.live, t2.newClients, t2.cash]).toEqual([2, 2, 1, 1, 2_000]);
+    expect(t2.showRate).toBe(50);
+    expect(t2.setToClose).toBe(50);
+    expect(t2.liveToClose).toBe(100);
+    expect(t2.avgCash).toBe(2_000);
+    expect(t2.cashPerSet).toBe(1_000);
+  });
+
+  it("leaves unknown tier out of both columns", () => {
+    expect(month.live).toBe(4);
+    expect(month.liveT1 + month.liveT2).toBe(3);
+    expect(month.newClients).toBe(4);
+    expect(month.newClientsT1 + month.newClientsT2).toBe(3);
+    expect(month.cash).toBe(11_500);
+    expect(month.cashT1 + month.cashT2).toBe(10_000); // the unknown-tier $1,500 is in neither
+  });
+
+  it("divides by zero as '-' (null)", () => {
+    const empty = tierSplitOf(daily.get("2026-11-03")!, "tier_2");
+    expect(empty.showRate).toBeNull(); // nothing on the calendar on 3 Nov
+    expect(empty.liveToClose).toBeNull();
+    expect(empty.avgCash).toBeNull();
+  });
+
+  it("month totals equal the sum of their days for the new count columns", () => {
+    for (const key of ["setsT1", "setsT2", "setsUnknownTier", "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2"] as const) {
+      expect(month[key]).toBe(days.reduce((sum, d) => sum + daily.get(d)![key], 0));
+    }
+  });
+});
+
+describe("month stacking", () => {
+  it("default range starts 1 Jan, or the first month with data if later", () => {
+    expect(trackerDefaultFrom("2026-11-17")).toBe("2026-03-01"); // dials start March 2026
+    expect(trackerDefaultFrom("2027-02-10")).toBe("2027-01-01");
+  });
+  it("months start collapsed except the current one, or a lone month", () => {
+    expect(defaultMonthOpen("2026-11-01", "2026-11-01", 9)).toBe(true);
+    expect(defaultMonthOpen("2026-10-01", "2026-11-01", 9)).toBe(false);
+    expect(defaultMonthOpen("2026-10-01", "2026-11-01", 1)).toBe(true);
   });
 });
