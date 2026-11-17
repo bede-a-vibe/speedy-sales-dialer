@@ -12,15 +12,20 @@ import { useAdminAccess } from "@/hooks/useUserRole";
 import {
   useContactBookingHistory,
   useProductiveHoursByDay,
+  useRecordDealPayment,
   useRepCompPlans,
   useSaveTrackerTarget,
+  useSetterFirstDeals,
   useTrackerDailyInputs,
   useTrackerTargets,
   type TrackerTargetRow,
 } from "@/hooks/useFunnelTracker";
 import {
   addsUp,
+  awaitingPayment,
   bracketLabel,
+  paidCommissionCash,
+  type AwaitingPayment,
   buildDailyTrackerStats,
   creditNewClients,
   daysBetween,
@@ -37,6 +42,7 @@ import {
   tierSplitOf,
   totalCost,
   type CompPlanRow,
+  type SetterFirstDeal,
   type NewClientWithCredit,
   type SaleCommission,
   type TierFilter,
@@ -183,7 +189,7 @@ const COLUMNS: ColumnDef[] = [
 
   // P&L
   { key: "setterCost", section: "P&L", label: "Setter cost", fmt: "money", hint: "base ÷ 365 a day for active setters, plus that day's commission", value: (s) => setterCost(s) },
-  { key: "commission", section: "P&L", label: "Commission", fmt: "money", hint: "per sale on the day it starts: each retainer dollar earns the rate of the bracket it falls in on the setter's month running total, 5% on one-off; the month is the sum of its days", value: (s) => s.commission },
+  { key: "commission", section: "P&L", label: "Commission", fmt: "money", hint: "on first-month cash, on the day it is paid: each retainer dollar earns the rate of the bracket it falls in on the setter's month running total of cash paid, 5% on one-off; the month is the sum of its days", value: (s) => s.commission },
   { key: "plAdSpend", section: "P&L", label: "Ad spend", fmt: "money", funnels: ["ads"], value: (s) => s.adSpend },
   { key: "totalCost", section: "P&L", label: "Total cost", fmt: "money", value: (s) => totalCost(s) },
   { key: "cpa", section: "P&L", label: "CPA", fmt: "money", hint: "total cost ÷ new clients", value: (s) => ratio(totalCost(s), s.newClients) },
@@ -256,6 +262,7 @@ interface MonthRows {
 const NO_CLIENTS: NewClient[] = [];
 const NO_INPUTS: TrackerInputRow[] = [];
 const NO_PLANS: CompPlanRow[] = [];
+const NO_FIRST_DEALS: SetterFirstDeal[] = [];
 const NO_TARGETS: TrackerTargetRow[] = [];
 const NO_HOURS = new Map<string, Map<string, number>>();
 const NO_HISTORY: { history: []; contacts: undefined } = { history: [], contacts: undefined };
@@ -426,11 +433,12 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
 const money = (v: number) => formatValue(v, "money");
 
 /**
- * "Commission by sale": every credited sale in the range with its own share of
- * the setter's month commission, grouped by month, then setter, with a subtotal
- * per setter. Collapsed by default.
+ * "Commission by sale": every first-month payment in the range for a setter on
+ * the plan, with its own share of the setter's month commission, grouped by
+ * month, then setter, with a subtotal per setter. Below it, the deals still
+ * owed first-month cash, each with a "Mark paid" control. Collapsed by default.
  */
-function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName: Map<string, string> }) {
+function CommissionBySale({ sales, awaiting, repName }: { sales: SaleCommission[]; awaiting: AwaitingPayment[]; repName: Map<string, string> }) {
   const [open, setOpen] = useState(false);
   const groups = useMemo(() => {
     const byMonth = new Map<string, Map<string, SaleCommission[]>>();
@@ -448,8 +456,9 @@ function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName
           .sort((a, b) => a.name.localeCompare(b.name)),
       }));
   }, [sales, repName]);
-  const sum = (list: SaleCommission[], pick: (x: SaleCommission) => number) => list.reduce((t, x) => t + pick(x), 0);
+  const sum = <T,>(list: T[], pick: (x: T) => number) => list.reduce((t, x) => t + pick(x), 0);
   const cell = "border-b border-border px-2 py-1 text-right font-mono tabular-nums";
+  const head = "sticky top-0 border-b border-border bg-muted px-2 py-1 font-medium";
   return (
     <div className="mt-3 rounded-md border border-border">
       <button
@@ -461,41 +470,44 @@ function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName
         <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-90")} aria-hidden="true" />
         Commission by sale
         <span className="font-normal text-muted-foreground">
-          ({sales.length} {sales.length === 1 ? "sale" : "sales"}, {money(sum(sales, (x) => x.commission))})
+          ({sales.length} paid, {money(sum(sales, (x) => x.commission))}
+          {awaiting.length > 0 ? `; ${awaiting.length} awaiting payment, ${money(sum(awaiting, (x) => x.outstanding))}` : ""})
         </span>
       </button>
       {open ? (
-        sales.length === 0 ? (
-          <p className="border-t border-border px-2 py-2 text-[11px] text-muted-foreground">No credited sales for a setter on the commission plan in this range.</p>
-        ) : (
-          <div className="max-h-[50vh] overflow-auto border-t border-border">
+        <div className="max-h-[60vh] overflow-auto border-t border-border">
+          {sales.length === 0 ? (
+            <p className="px-2 py-2 text-[11px] text-muted-foreground">No first-month cash paid in this range for a setter on the commission plan.</p>
+          ) : (
             <table className="min-w-full border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="bg-muted text-muted-foreground">
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Date</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Client</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Setter</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">Retainer</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">One-off</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium" title="setter's first-month retainer total for the calendar month after this sale">Month running total</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-left font-medium">Bracket(s)</th>
-                  <th className="sticky top-0 border-b border-border bg-muted px-2 py-1 text-right font-medium">Commission</th>
+                  <th className={cn(head, "text-left")} title="the day the cash was paid: commission lands in this month">Paid</th>
+                  <th className={cn(head, "text-left")}>Client</th>
+                  <th className={cn(head, "text-left")}>Setter</th>
+                  <th className={cn(head, "text-left")} title="first deal start day">Sale</th>
+                  <th className={cn(head, "text-right")} title="first-month retainer cash paid">Retainer paid</th>
+                  <th className={cn(head, "text-right")}>One-off paid</th>
+                  <th className={cn(head, "text-right")} title="setter's first-month retainer cash paid in the calendar month, after this payment">Month running total</th>
+                  <th className={cn(head, "text-left")}>Bracket(s)</th>
+                  <th className={cn(head, "text-right")}>Commission</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map((g) => (
                   <Fragment key={g.month}>
                     <tr className="bg-primary/10">
-                      <td colSpan={8} className="border-b border-border px-2 py-1 font-semibold">{fmtMonthLabel(g.month)}</td>
+                      <td colSpan={9} className="border-b border-border px-2 py-1 font-semibold">{fmtMonthLabel(g.month)}</td>
                     </tr>
                     {g.setters.map((st) => (
                       <Fragment key={st.setterId}>
                         {st.list.map((x) => (
-                          <tr key={x.contact_id} className="hover:bg-muted/30">
+                          <tr key={`${x.contact_id}|${x.day}`} className="hover:bg-muted/30">
                             <td className="border-b border-border px-2 py-1 whitespace-nowrap text-muted-foreground">{fmtDayLabel(x.day)}</td>
                             <td className="border-b border-border px-2 py-1">{x.business_name || "Unnamed client"}</td>
                             <td className="border-b border-border px-2 py-1 whitespace-nowrap">{st.name}</td>
-                            <td className={cell}>{money(x.retainer)}</td>
+                            <td className="border-b border-border px-2 py-1 whitespace-nowrap text-muted-foreground">{x.sale_start ? fmtDayLabel(x.sale_start) : "-"}</td>
+                            <td className={cell}>{x.retainer > 0 ? money(x.retainer) : "-"}</td>
                             <td className={cell}>{x.oneOff > 0 ? money(x.oneOff) : "-"}</td>
                             <td className={cell}>{money(x.runningAfter)}</td>
                             <td className="border-b border-border px-2 py-1 whitespace-nowrap">{bracketLabel(x)}</td>
@@ -503,7 +515,7 @@ function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName
                           </tr>
                         ))}
                         <tr className="bg-muted/40 font-semibold">
-                          <td colSpan={3} className="border-b border-border px-2 py-1">{st.name} subtotal</td>
+                          <td colSpan={4} className="border-b border-border px-2 py-1">{st.name} subtotal</td>
                           <td className={cell}>{money(sum(st.list, (x) => x.retainer))}</td>
                           <td className={cell}>{money(sum(st.list, (x) => x.oneOff))}</td>
                           <td className={cell} />
@@ -516,9 +528,94 @@ function CommissionBySale({ sales, repName }: { sales: SaleCommission[]; repName
                 ))}
               </tbody>
             </table>
-          </div>
-        )
+          )}
+          <AwaitingPaymentTable rows={awaiting} repName={repName} />
+        </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Deals still owed first-month cash. "Mark paid" records a payment (the paid marker). */
+function AwaitingPaymentTable({ rows, repName }: { rows: AwaitingPayment[]; repName: Map<string, string> }) {
+  const record = useRecordDealPayment();
+  const today = dayKeyOf(new Date().toISOString());
+  const [editing, setEditing] = useState<string | null>(null);
+  const [paidOn, setPaidOn] = useState(today);
+  const [amount, setAmount] = useState("");
+  const cell = "border-b border-border px-2 py-1 text-right font-mono tabular-nums";
+  const head = "sticky top-0 border-b border-border bg-muted px-2 py-1 font-medium";
+  const start = (r: AwaitingPayment) => {
+    setEditing(r.deal_id);
+    setPaidOn(today);
+    setAmount(String(r.outstanding));
+  };
+  const save = (r: AwaitingPayment) => {
+    const value = Number(amount);
+    if (!paidOn || !(value > 0)) {
+      toast.error("Enter the paid date and an amount above $0");
+      return;
+    }
+    record.mutate(
+      { deal_id: r.deal_id, paid_on: paidOn, amount: value },
+      {
+        onSuccess: () => {
+          toast.success(`Payment recorded for ${r.business_name || "the client"}`);
+          setEditing(null);
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not record the payment"),
+      },
+    );
+  };
+  return (
+    <div className="border-t border-border">
+      <p className="px-2 py-1.5 text-xs font-semibold">
+        Awaiting payment <span className="font-normal text-muted-foreground">(no commission until the first month's cash is paid)</span>
+      </p>
+      {rows.length === 0 ? (
+        <p className="px-2 pb-2 text-[11px] text-muted-foreground">Every credited deal has its first month paid.</p>
+      ) : (
+        <table className="min-w-full border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr className="bg-muted text-muted-foreground">
+              <th className={cn(head, "text-left")}>Sale</th>
+              <th className={cn(head, "text-left")}>Client</th>
+              <th className={cn(head, "text-left")}>Setter</th>
+              <th className={cn(head, "text-right")}>First month</th>
+              <th className={cn(head, "text-right")}>Paid</th>
+              <th className={cn(head, "text-right")}>Outstanding</th>
+              <th className={cn(head, "text-left")} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.deal_id} className="hover:bg-muted/30">
+                <td className="border-b border-border px-2 py-1 whitespace-nowrap text-muted-foreground">{fmtDayLabel(r.start_date)}</td>
+                <td className="border-b border-border px-2 py-1">
+                  {r.business_name || "Unnamed client"}
+                  {r.billing_period === "one_off" ? <span className="ml-1 text-muted-foreground">(one-off)</span> : null}
+                </td>
+                <td className="border-b border-border px-2 py-1 whitespace-nowrap">{repName.get(r.setter_id) ?? r.setter_id.slice(0, 8)}</td>
+                <td className={cell}>{money(r.value)}</td>
+                <td className={cell}>{r.paid > 0 ? money(r.paid) : "-"}</td>
+                <td className={cn(cell, "text-foreground")}>{money(r.outstanding)}</td>
+                <td className="border-b border-border px-2 py-1 whitespace-nowrap">
+                  {editing === r.deal_id ? (
+                    <span className="flex items-center gap-1">
+                      <Input type="date" aria-label="Paid on" value={paidOn} max={today} onChange={(e) => setPaidOn(e.target.value)} className="h-7 w-[8.5rem] text-xs" />
+                      <Input type="number" aria-label="Amount paid" min={0} step="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-7 w-24 text-xs" />
+                      <Button size="sm" className="h-7 px-2 text-xs" disabled={record.isPending} onClick={() => save(r)}>Save</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(null)}>Cancel</Button>
+                    </span>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => start(r)}>Mark paid</Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -539,17 +636,21 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   const { data: inputs = NO_INPUTS } = useTrackerDailyInputs(dateFrom, dateTo);
   const { data: targets = NO_TARGETS } = useTrackerTargets(firstMonth, lastMonth);
   const { data: compPlans = NO_PLANS } = useRepCompPlans();
+  const { data: firstDeals = NO_FIRST_DEALS } = useSetterFirstDeals(canViewAdmin);
   const { data: productiveHours = NO_HOURS } = useProductiveHoursByDay(dateFrom, dateTo, funnel === "cold");
 
   const credited = useMemo<NewClientWithCredit[]>(
     () => creditNewClients(newClients, historyData.history, historyData.contacts),
     [newClients, historyData],
   );
+  // Commission is paid on first-month cash collected, in the month it lands.
+  const commissionCash = useMemo(() => paidCommissionCash(firstDeals), [firstDeals]);
+  const awaiting = useMemo(() => awaitingPayment(firstDeals, compPlans, activeRepId), [firstDeals, compPlans, activeRepId]);
   const items = useMemo(() => [...bookings, ...rescheduleSlots], [bookings, rescheduleSlots]);
 
   const daily = useMemo(
-    () => buildDailyTrackerStats({ days, funnel, tier, repId: activeRepId, callLogs, items, inputs, productiveHours, newClients: credited, compPlans }),
-    [days, funnel, tier, activeRepId, callLogs, items, inputs, productiveHours, credited, compPlans],
+    () => buildDailyTrackerStats({ days, funnel, tier, repId: activeRepId, callLogs, items, inputs, productiveHours, newClients: credited, commissionCash, compPlans }),
+    [days, funnel, tier, activeRepId, callLogs, items, inputs, productiveHours, credited, commissionCash, compPlans],
   );
 
   const months = useMemo<MonthBlock[]>(() => {
@@ -567,8 +668,8 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   // Every credited sale in the range with its own commission. The running
   // totals start at the 1st of each month, so sales before the range still count.
   const sales = useMemo<SaleCommission[]>(
-    () => (funnel === "cold" ? saleCommissions(credited, compPlans, activeRepId).filter((x) => x.day >= dateFrom && x.day <= dateTo) : []),
-    [funnel, credited, compPlans, activeRepId, dateFrom, dateTo],
+    () => (funnel === "cold" ? saleCommissions(commissionCash, compPlans, activeRepId).filter((x) => x.day >= dateFrom && x.day <= dateTo) : []),
+    [funnel, commissionCash, compPlans, activeRepId, dateFrom, dateTo],
   );
   const repName = useMemo(() => new Map(reps.map((r) => [r.user_id, r.display_name || r.email || "Unnamed"])), [reps]);
 
@@ -772,12 +873,13 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           </tbody>
         </table>
       </div>
-      {funnel === "cold" && !plHidden ? <CommissionBySale sales={sales} repName={repName} /> : null}
+      {funnel === "cold" && !plHidden ? <CommissionBySale sales={sales} awaiting={awaiting} repName={repName} /> : null}
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
         Hover a column name for its definition. "-" means nothing to divide by. Tier comes from the booking (team size on the
         tools including the owner and monthly revenue at booking), else the contact's details; older bookings with neither are
         unknown and only show under All. Commission is the setter's marginal plan, credited to whoever made the lead's first
-        booking. Commission is allocated per sale in date order: each dollar earns the rate of the bracket it falls in.
+        booking, and is paid on first-month cash collected in the month it is paid (mark payments under Commission by sale).
+        It is allocated per payment in date order: each dollar earns the rate of the bracket it falls in.
         {tier === "all"
           ? " Tier split: a new client takes the tier of the contact's latest booking. Unknown-tier bookings and clients are left out of both tier columns, so T1 + T2 can be less than the totals. The higher of each pair is green on month rows."
           : null}

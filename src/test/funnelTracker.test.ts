@@ -3,6 +3,8 @@ import { tierFor, NO_SHOW_REASONS, getOutcomeReasonLabel } from "@/lib/appointme
 import { setterMarginalCommission } from "@/lib/compPlan";
 import {
   addsUp,
+  awaitingPayment,
+  paidCommissionCash,
   bookingMethodOf,
   bookingTierOf,
   buildDailyTrackerStats,
@@ -19,6 +21,7 @@ import {
   trackerDefaultFrom,
   type CompPlanRow,
   type NewClientWithCredit,
+  type SetterFirstDeal,
   type TrackerItem,
 } from "@/lib/funnelTracker";
 import { qualifierBookingFields, qualifierContactUpdate, resolveQualifier } from "@/components/pipelines/BookingQualifierFields";
@@ -202,10 +205,60 @@ describe("commission per sale", () => {
     expect(projectOnly[1].commission).toBeCloseTo(300, 9); // 15% of $2k past $18k
   });
 
+  it("paid marker: commission follows cash paid, capped at the first month, in the month it lands", () => {
+    const deal = (id: string, contact: string, start: string, amount: number, payments: [string, number][], extra: Partial<SetterFirstDeal> = {}): SetterFirstDeal => ({
+      deal_id: id, contact_id: contact, business_name: contact, setter_id: BEN, billing_period: "monthly", amount, start_date: start, status: "active",
+      payments: payments.map(([paid_on, amt], i) => ({ id: `${id}-${i}`, paid_on, amount: amt, note: null })), ...extra,
+    });
+    // Ben's October as paid: $39k first-month retainer cash + the $5k project.
+    const deals = [
+      deal("astec", "astec", "2026-09-30", 2_000, [["2026-10-19", 2_000]]),
+      deal("hope", "hope", "2026-10-05", 2_000, [["2026-10-05", 2_000]]),
+      deal("lotron", "lotron", "2026-10-05", 4_000, [["2026-10-05", 4_000]]),
+      deal("falconer", "falconer", "2026-10-09", 4_000, [], { status: "churned" }),
+      deal("infuse", "infuse", "2026-10-09", 4_000, [["2026-10-09", 4_000]]),
+      deal("tt", "tt", "2026-10-12", 5_000, [["2026-10-12", 5_000]], { billing_period: "one_off" }),
+      deal("adelaide", "adelaide", "2026-10-12", 2_000, [["2026-10-12", 2_000]]),
+      deal("pcf", "pcf", "2026-10-12", 4_000, [["2026-10-19", 4_000]]),
+      deal("jrd1", "jrd", "2026-10-13", 2_000, [["2026-10-16", 2_000]]),
+      deal("jrd2", "jrd", "2026-10-13", 2_000, []),
+      deal("legacy", "legacy", "2026-10-13", 4_000, [["2026-10-14", 4_000]]),
+      deal("bright", "bright", "2026-10-16", 2_000, []),
+      deal("otolec", "otolec", "2026-10-23", 2_000, [["2026-10-23", 2_000]]),
+      deal("electrolite", "electrolite", "2026-10-26", 4_000, [["2026-10-26", 4_000]]),
+      deal("coat", "coat", "2026-10-29", 4_000, [["2026-10-29", 4_000]]),
+      deal("select", "select", "2026-10-30", 5_000, [["2026-10-30", 5_000]]),
+    ];
+    const cash = paidCommissionCash(deals);
+    const oct = monthCommission(cash, plans, "2026-10-01");
+    expect(oct.total).toBeCloseTo(3_760, 9);
+    expect(monthCommission(cash, plans, "2026-09-01").total).toBe(0); // ASTEC lands in October, when it was paid
+    const astec = saleCommissions(cash, plans).find((x) => x.contact_id === "astec")!;
+    expect(astec.day).toBe("2026-10-19");
+    expect(astec.sale_start).toBe("2026-09-30");
+
+    // Owed: JR Dixon's second $2k and Bright Future; churned Falconer is left out.
+    const owed = awaitingPayment(deals, plans);
+    expect(owed.map((x) => x.deal_id)).toEqual(["jrd2", "bright"]);
+    expect(owed.reduce((t, x) => t + x.outstanding, 0)).toBe(4_000);
+
+    // JR Dixon's second instalment paid in November lands in November.
+    const later = deals.map((d) => (d.deal_id === "jrd2" ? { ...d, payments: [{ id: "p", paid_on: "2026-11-20", amount: 2_000, note: null }] } : d));
+    const laterCash = paidCommissionCash(later);
+    expect(monthCommission(laterCash, plans, "2026-10-01").total).toBeCloseTo(3_760, 9);
+    expect(saleCommissions(laterCash, plans).find((x) => x.contact_id === "jrd" && x.month === "2026-11-01")!.retainer).toBe(2_000);
+
+    // Payments past the first month are later months' fees: capped.
+    const over = paidCommissionCash([deal("x", "x", "2026-10-01", 4_000, [["2026-10-01", 4_000], ["2026-10-31", 4_000]])]);
+    expect(over.reduce((t, r) => t + r.mrr, 0)).toBe(4_000);
+    // Reps not on the plan are not listed.
+    expect(awaitingPayment([deal("y", "y", "2026-10-01", 2_000, [], { setter_id: "someone-else" })], plans)).toEqual([]);
+  });
+
   it("day-row commission sums to the month row, and setter cost on a day is base + that day's commission", () => {
     const days = daysBetween("2026-10-01", "2026-10-31");
     const daily = buildDailyTrackerStats({
-      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, commissionCash: october, compPlans: plans,
     });
     expect(daily.get("2026-10-09")!.commission).toBeCloseTo(300, 9);
     expect(daily.get("2026-10-10")!.commission).toBe(0);
@@ -216,11 +269,11 @@ describe("commission per sale", () => {
     expect(d9.setterBase + d9.commission).toBeCloseTo(200 + 300, 9); // two setters at $100 a day + $300
     // Rep filter and the ads view.
     const lachlan = buildDailyTrackerStats({
-      days, funnel: "cold", tier: "all", repId: LACHLAN, callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+      days, funnel: "cold", tier: "all", repId: LACHLAN, callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, commissionCash: october, compPlans: plans,
     });
     expect(sumTrackerStats(days.map((d) => lachlan.get(d)!)).commission).toBe(0);
     const ads = buildDailyTrackerStats({
-      days, funnel: "ads", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+      days, funnel: "ads", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, commissionCash: october, compPlans: plans,
     });
     expect(sumTrackerStats(days.map((d) => ads.get(d)!)).commission).toBe(0);
   });
@@ -228,7 +281,7 @@ describe("commission per sale", () => {
   it("a range starting mid-month still runs the total from the 1st", () => {
     const days = daysBetween("2026-10-09", "2026-10-31");
     const daily = buildDailyTrackerStats({
-      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, compPlans: plans,
+      days, funnel: "cold", tier: "all", callLogs: [], items: [], inputs: [], productiveHours: new Map(), newClients: october, commissionCash: october, compPlans: plans,
     });
     expect(daily.get("2026-10-09")!.commission).toBeCloseTo(300, 9);
   });

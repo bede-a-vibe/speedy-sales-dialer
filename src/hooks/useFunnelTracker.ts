@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProductiveHoursByDay } from "@/lib/dialpadHours";
-import type { CompPlanRow, TrackerFunnel, TrackerInputRow } from "@/lib/funnelTracker";
+import type { CompPlanRow, SetterFirstDeal, TrackerFunnel, TrackerInputRow } from "@/lib/funnelTracker";
 
 /** Daily inputs (rostered hours per setter, ad spend / clicks / leads) for a day range. */
 export function useTrackerDailyInputs(from?: string, to?: string) {
@@ -178,6 +178,45 @@ export function useSaveTrackerTarget() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["tracker-targets"] });
+    },
+  });
+}
+
+/**
+ * First deals of setter-credited leads with their payments (the paid marker),
+ * from public.get_setter_first_deals. Admin and coach only (RLS); reps get none.
+ */
+export function useSetterFirstDeals(enabled = true) {
+  return useQuery({
+    queryKey: ["setter-first-deals"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<SetterFirstDeal[]> => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+      ) => Promise<{ data: unknown; error: unknown }>)("get_setter_first_deals");
+      if (error) throw error;
+      return ((data ?? []) as SetterFirstDeal[]).map((d) => ({
+        ...d,
+        amount: Number(d.amount) || 0,
+        payments: (d.payments ?? []).map((p) => ({ ...p, amount: Number(p.amount) || 0 })),
+      }));
+    },
+  });
+}
+
+/** Record a first-month payment against a deal (the paid marker). */
+export function useRecordDealPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { deal_id: string; paid_on: string; amount: number; note?: string | null }) => {
+      const { error } = await supabase
+        .from("client_deal_payments")
+        .insert({ deal_id: p.deal_id, paid_on: p.paid_on, amount: p.amount, note: p.note ?? null });
+      if (error) throw error;
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["setter-first-deals"] });
     },
   });
 }

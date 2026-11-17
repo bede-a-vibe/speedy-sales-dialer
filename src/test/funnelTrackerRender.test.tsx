@@ -18,7 +18,16 @@ vi.mock("@/hooks/useFunnelTracker", () => ({
   useProductiveHoursByDay: () => ({ data: new Map([[BEN, new Map([["2026-11-03", 5]])]]) }),
   useSaveTrackerTarget: () => ({ mutate: vi.fn() }),
   useSaveTrackerDailyInputs: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetterFirstDeals: () => ({
+    data: [
+      { deal_id: "d1", contact_id: "n1", business_name: "Paid Sparky", setter_id: BEN, billing_period: "monthly", amount: 4000, start_date: "2026-11-03", status: "active",
+        payments: [{ id: "p1", paid_on: "2026-11-04", amount: 4000, note: null }] },
+      { deal_id: "d2", contact_id: "n2", business_name: "Owing Sparky", setter_id: BEN, billing_period: "monthly", amount: 2000, start_date: "2026-11-04", status: "active", payments: [] },
+    ],
+  }),
+  useRecordDealPayment: () => ({ mutate: mockRecordPayment, isPending: false }),
 }));
+const mockRecordPayment = vi.fn();
 
 import { FunnelTracker } from "@/components/insights/FunnelTracker";
 
@@ -31,6 +40,19 @@ describe("FunnelTracker", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("lists paid cash under Commission by sale and records a payment for a deal awaiting payment", () => {
+    render(
+      <FunnelTracker dateFrom="2026-11-03" dateTo="2026-11-05" callLogs={[]} bookings={[]} reps={[{ user_id: BEN, display_name: "Ben", email: null }]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Commission by sale/ }));
+    expect(screen.getByText("Paid Sparky")).toBeInTheDocument();
+    const owing = screen.getByText("Owing Sparky").closest("tr")!;
+    fireEvent.click(within(owing).getByRole("button", { name: "Mark paid" }));
+    expect(within(owing).getByLabelText("Amount paid")).toHaveValue(2000);
+    fireEvent.click(within(owing).getByRole("button", { name: "Save" }));
+    expect(mockRecordPayment).toHaveBeenCalledWith({ deal_id: "d2", paid_on: "2026-11-17", amount: 2000 }, expect.anything());
   });
 
   it("renders a month total, a target row and one row per day, and switches to the Ads view", () => {
