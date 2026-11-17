@@ -16,6 +16,7 @@ import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
 import { ClosingTracker } from "@/components/insights/ClosingTracker";
 import { FunnelTracker } from "@/components/insights/FunnelTracker";
+import { trackerDefaultFrom } from "@/lib/funnelTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { InsightsFunnel, ALL_SOURCES } from "@/components/insights/InsightsFunnel";
 import { channelSlug, filterBookingsBySource } from "@/lib/sourceFunnelTotals";
@@ -86,11 +87,12 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
 
-  // The Tracker is a month sheet: opening it on the untouched default range
-  // switches the page to this month (1st to today). A range picked by hand stays.
+  // The Tracker stacks months like the sheet: opening it on the untouched
+  // default range switches the page to the year so far (1 Jan, or the first
+  // month with data if later, to today). A range picked by hand stays.
   useEffect(() => {
     if (activeTab !== "tracker") return;
-    if (dateFrom === thirtyDaysAgo && dateTo === today) setDateFrom(`${today.slice(0, 7)}-01`);
+    if (dateFrom === thirtyDaysAgo && dateTo === today) setDateFrom(trackerDefaultFrom(today));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 
 const BEN = "7f855655-583c-4f70-afca-fafb327ef5db";
@@ -23,6 +23,16 @@ vi.mock("@/hooks/useFunnelTracker", () => ({
 import { FunnelTracker } from "@/components/insights/FunnelTracker";
 
 describe("FunnelTracker", () => {
+  // Pin "today" to 17 Nov 2026 so the current month (open by default) is November.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-17T02:00:00Z"));
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders a month total, a target row and one row per day, and switches to the Ads view", () => {
     render(
       <FunnelTracker
@@ -48,5 +58,69 @@ describe("FunnelTracker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ads" }));
     expect(screen.queryByRole("columnheader", { name: "Dials" })).toBeNull();
     expect(screen.getByRole("columnheader", { name: "CPL" })).toBeInTheDocument();
+  });
+
+  it("stacks months oldest first, collapsed except the current month, and toggles on click", () => {
+    render(
+      <FunnelTracker
+        dateFrom="2026-09-29"
+        dateTo="2026-11-03"
+        callLogs={[]}
+        bookings={[]}
+        reps={[{ user_id: BEN, display_name: "Ben", email: null }]}
+      />,
+    );
+    const monthButtons = screen.getAllByRole("button", { name: /20\d\d total$/ });
+    expect(monthButtons.map((b) => b.textContent)).toEqual(["Sept 2026 total", "Oct 2026 total", "Nov 2026 total"]);
+    const [sep, oct, nov] = monthButtons;
+    expect(sep).toHaveAttribute("aria-expanded", "false");
+    expect(oct).toHaveAttribute("aria-expanded", "false");
+    expect(nov).toHaveAttribute("aria-expanded", "true");
+    // Target rows stay visible with every month total; day rows only for open months.
+    expect(screen.getAllByText("Target")).toHaveLength(3);
+    expect(screen.getByText("Tue 3 Nov")).toBeInTheDocument();
+    expect(screen.queryByText("Thu 1 Oct")).toBeNull();
+
+    // Clicking the month total row opens it, clicking again closes it.
+    fireEvent.click(oct.closest("tr")!);
+    expect(screen.getByRole("button", { name: "Oct 2026 total" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Thu 1 Oct")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Oct 2026 total" }));
+    expect(screen.queryByText("Thu 1 Oct")).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem("insights-tracker-month-open-v1")!)["2026-10-01"]).toBe(false);
+
+    // Expand all / Collapse all.
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(screen.getByText("Tue 29 Sept")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    expect(screen.queryByText("Tue 3 Nov")).toBeNull();
+    expect(screen.getAllByText("Target")).toHaveLength(3);
+  });
+
+  it("shows tier set columns, and the tier split only under All", () => {
+    render(
+      <FunnelTracker
+        dateFrom="2026-11-03"
+        dateTo="2026-11-05"
+        callLogs={[]}
+        bookings={[]}
+        reps={[{ user_id: BEN, display_name: "Ben", email: null }]}
+      />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Tier 1 sets" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Unknown tier sets" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Tier split" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Set-to-close T1" })).toBeInTheDocument();
+    // The one new client is Tier 1 (latest booking), so New clients T1 is green on the month row.
+    const totalRow = screen.getByRole("button", { name: "Nov 2026 total" }).closest("tr")!;
+    const headers = screen.getAllByRole("columnheader").slice(1).filter((h) => !h.hasAttribute("colspan"));
+    const idx = headers.findIndex((h) => h.textContent === "New clients T1");
+    const cell = within(totalRow).getAllByRole("cell")[idx + 1];
+    expect(cell).toHaveTextContent("1");
+    expect(cell.className).toContain("text-emerald-700");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tier 1" }));
+    expect(screen.queryByRole("columnheader", { name: "Tier split" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Tier 1 sets" })).toBeInTheDocument();
   });
 });

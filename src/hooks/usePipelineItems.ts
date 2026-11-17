@@ -373,26 +373,44 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
   return useQuery({
     queryKey: ["booked-appointments-range", from, to],
     queryFn: async () => {
-      let query = supabase
-        .from("pipeline_items")
-        .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue)",
-        )
-        .eq("pipeline_type", "booked");
+      const buildQuery = () => {
+        let query = supabase
+          .from("pipeline_items")
+          .select(
+            "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue)",
+          )
+          .eq("pipeline_type", "booked");
 
-      // Server-side pre-filter with a ±1 day buffer (the precise local-date
-      // range check below stays authoritative). Previously this fetched EVERY
-      // booked row and filtered in the browser.
-      if (from && to) {
-        const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
-        const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
-        query = query.or(
-          `and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(scheduled_for.gte.${fromIso},scheduled_for.lte.${toIso})`,
-        );
-      }
+        // Server-side pre-filter with a ±1 day buffer (the precise local-date
+        // range check below stays authoritative). Previously this fetched EVERY
+        // booked row and filtered in the browser.
+        if (from && to) {
+          const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+          const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+          query = query.or(
+            `and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(scheduled_for.gte.${fromIso},scheduled_for.lte.${toIso})`,
+          );
+        }
+        // created_at alone is not unique: id breaks ties so pages never skip or repeat rows.
+        return query.order("created_at", { ascending: false }).order("id", { ascending: false });
+      };
+
+      // Paged: the API caps a response at 1,000 rows, and a year of bookings
+      // (the Tracker's default range) can pass that.
+      const fetchAllDialerRows = async () => {
+        const PAGE = 1000;
+        const rows: unknown[] = [];
+        for (let offset = 0; ; offset += PAGE) {
+          const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
+          if (error) return { data: null, error };
+          rows.push(...(data ?? []));
+          if (!data || data.length < PAGE) break;
+        }
+        return { data: rows, error: null };
+      };
 
       // Dialer rows and calendar-only rows don't depend on each other: fetch both at once.
-      const dialerPromise = query.order("created_at", { ascending: false });
+      const dialerPromise = fetchAllDialerRows();
 
       // Compare using local date representations for timezone correctness
       const toLocalDate = (iso: string) => {
