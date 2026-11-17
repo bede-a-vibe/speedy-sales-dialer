@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock } from "lucide-react";
+import { Loader2, Search, ShieldCheck, UserRound, GraduationCap, Phone, Clock, KeyRound, UserPlus } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 const EmbeddedShell = ({ children }: { children: import("react").ReactNode; title?: string }) => <>{children}</>;
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import { AddLoginDialog, LoginLinkDialog, useLoginLink, type LoginLinkResult } from "@/components/team/LoginLinks";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -184,6 +185,23 @@ export default function RolesPage({ embedded = false }: { embedded?: boolean } =
 
   const isMutating = grantRole.isPending || revokeRole.isPending;
 
+  // One-time login links (the dialer sends no emails).
+  const loginLink = useLoginLink();
+  const [linkFor, setLinkFor] = useState<string | null>(null);
+  const [linkResult, setLinkResult] = useState<LoginLinkResult | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const makeResetLink = (userId: string) => {
+    setLinkFor(userId);
+    loginLink.mutate(
+      { action: "reset_link", user_id: userId },
+      {
+        onSuccess: setLinkResult,
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not make the link"),
+        onSettled: () => setLinkFor(null),
+      },
+    );
+  };
+
   return (
     <Shell title="User Roles">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -207,15 +225,20 @@ export default function RolesPage({ embedded = false }: { embedded?: boolean } =
           })}
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name or email…"
-            className="pl-9"
-          />
+        {/* Search + add login */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name or email…"
+              className="pl-9"
+            />
+          </div>
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <UserPlus className="mr-1 h-4 w-4" /> Add login
+          </Button>
         </div>
 
         {/* Table */}
@@ -290,6 +313,16 @@ export default function RolesPage({ embedded = false }: { embedded?: boolean } =
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loginLink.isPending}
+                          title="Make a one-time link they use to set a new password"
+                          onClick={() => makeResetLink(u.user_id)}
+                        >
+                          {linkFor === u.user_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <KeyRound className="mr-1 h-3 w-3" />}
+                          Reset link
+                        </Button>
                         {ROLE_ORDER.map((role) => {
                           const has = u.roles.includes(role);
                           const isLastAdmin =
@@ -342,9 +375,13 @@ export default function RolesPage({ embedded = false }: { embedded?: boolean } =
           Roles are evaluated by the database on every request. A user can hold
           multiple roles simultaneously (e.g. admin + sales_rep). Admin and Coach
           unlock admin-section visibility; Coach also activates demo mode (no
-          writes).
+          writes). The dialer sends no emails: Reset link and Add login give you a
+          one-time link to send the person yourself, and they set their own password.
         </p>
       </div>
+
+      <AddLoginDialog open={addOpen} onOpenChange={setAddOpen} onCreated={setLinkResult} />
+      <LoginLinkDialog result={linkResult} onClose={() => setLinkResult(null)} />
 
       <AlertDialog open={!!confirm} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
