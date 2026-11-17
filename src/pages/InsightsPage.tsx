@@ -16,6 +16,7 @@ import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
 import { ClosingTracker } from "@/components/insights/ClosingTracker";
 import { FunnelTracker } from "@/components/insights/FunnelTracker";
+import { SetterTracker } from "@/components/insights/SetterTracker";
 import { trackerDefaultFrom } from "@/lib/funnelTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { InsightsFunnel, ALL_SOURCES } from "@/components/insights/InsightsFunnel";
@@ -24,7 +25,7 @@ import { useNewClients } from "@/hooks/useNewClients";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "closing", "tracker", "team", "talktime"] as const;
+const TABS = ["overview", "funnel", "closing", "tracker", "setters", "team", "talktime"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
@@ -174,6 +175,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
             <TabsTrigger value="closing">Closing</TabsTrigger>
             <TabsTrigger value="tracker">Tracker</TabsTrigger>
+            <TabsTrigger value="setters">Setters</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="talktime">Timing</TabsTrigger>
           </TabsList>
@@ -247,6 +249,18 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               reps={reps}
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+            />
+          </TabsContent>
+
+          <TabsContent value="setters">
+            <SetterTracker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              callLogs={callLogs}
+              bookings={bookings}
+              rescheduleSlots={rescheduleSlots}
+              reps={reps}
+              activeRepId={activeRepId}
             />
           </TabsContent>
 
