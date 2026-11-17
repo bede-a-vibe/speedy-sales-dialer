@@ -937,6 +937,10 @@ export type Database = {
           team_size_evidence: string | null
           team_size_set_at: string | null
           team_size_source: string | null
+          monthly_revenue: number | null
+          monthly_revenue_evidence: string | null
+          monthly_revenue_set_at: string | null
+          monthly_revenue_source: string | null
           timezone: string | null
           trade_type: string | null
           updated_at: string
@@ -1114,6 +1118,10 @@ export type Database = {
           team_size_evidence?: string | null
           team_size_set_at?: string | null
           team_size_source?: string | null
+          monthly_revenue?: number | null
+          monthly_revenue_evidence?: string | null
+          monthly_revenue_set_at?: string | null
+          monthly_revenue_source?: string | null
           timezone?: string | null
           trade_type?: string | null
           updated_at?: string
@@ -1291,6 +1299,10 @@ export type Database = {
           team_size_evidence?: string | null
           team_size_set_at?: string | null
           team_size_source?: string | null
+          monthly_revenue?: number | null
+          monthly_revenue_evidence?: string | null
+          monthly_revenue_set_at?: string | null
+          monthly_revenue_source?: string | null
           timezone?: string | null
           trade_type?: string | null
           updated_at?: string
@@ -4246,6 +4258,9 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          booking_method: string | null
+          booking_tier: string | null
+          booking_tier_source: string | null
           billing_start_date: string | null
           churn_date: string | null
           churn_reason: string | null
@@ -4301,6 +4316,9 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id: string
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
           billing_start_date?: string | null
           churn_date?: string | null
           churn_reason?: string | null
@@ -4353,6 +4371,9 @@ export type Database = {
             | Database["public"]["Enums"]["appointment_outcome"]
             | null
           assigned_user_id?: string
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
           billing_start_date?: string | null
           churn_date?: string | null
           churn_reason?: string | null
@@ -4904,6 +4925,96 @@ export type Database = {
           id?: string
           step_key?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rep_comp_plans: {
+        Row: {
+          active_from: string | null
+          base_annual: number
+          plan_key: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          active_from?: string | null
+          base_annual?: number
+          plan_key?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          active_from?: string | null
+          base_annual?: number
+          plan_key?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tracker_daily_inputs: {
+        Row: {
+          ad_spend: number | null
+          clicks: number | null
+          created_by: string | null
+          day: string
+          funnel: string
+          id: string
+          leads: number | null
+          notes: string | null
+          rostered_hours: number | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          ad_spend?: number | null
+          clicks?: number | null
+          created_by?: string | null
+          day: string
+          funnel: string
+          id?: string
+          leads?: number | null
+          notes?: string | null
+          rostered_hours?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          ad_spend?: number | null
+          clicks?: number | null
+          created_by?: string | null
+          day?: string
+          funnel?: string
+          id?: string
+          leads?: number | null
+          notes?: string | null
+          rostered_hours?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      tracker_targets: {
+        Row: {
+          funnel: string
+          id: string
+          metric: string
+          month: string
+          value: number | null
+        }
+        Insert: {
+          funnel: string
+          id?: string
+          metric: string
+          month: string
+          value?: number | null
+        }
+        Update: {
+          funnel?: string
+          id?: string
+          metric?: string
+          month?: string
+          value?: number | null
         }
         Relationships: []
       }
@@ -5707,6 +5818,10 @@ export type Database = {
         Returns: {
           error: true
         } & "the function public.resolved_bucket with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
+      }
+      tier_for: {
+        Args: { _monthly_revenue: number; _team_size: number }
+        Returns: string
       }
       set_appointment_outcome: {
         Args: {

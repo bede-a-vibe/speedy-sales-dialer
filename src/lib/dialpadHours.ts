@@ -136,3 +136,93 @@ export async function fetchProductiveHours(since: string): Promise<Map<string, P
   }
   return out;
 }
+
+/**
+ * Productive dialling hours per user per Melbourne day, between two day keys
+ * (inclusive). Same definition and sources as fetchProductiveHours (Dialpad +
+ * GHL calls, talk time, 5 minutes a booking), only split by day, for the
+ * Funnel Flowthrough Tracker's daily rows.
+ */
+export async function fetchProductiveHoursByDay(
+  fromDay: string,
+  toDay: string,
+): Promise<Map<string, Map<string, number>>> {
+  // Pad a day each side for the UTC/Melbourne offset; the day key decides.
+  const since = new Date(new Date(`${fromDay}T00:00:00Z`).getTime() - 86_400_000).toISOString();
+  const until = new Date(new Date(`${toDay}T00:00:00Z`).getTime() + 2 * 86_400_000).toISOString();
+  const [dialpad, ghlRows, profiles, bookingRows] = await Promise.all([
+    pageAll<{ user_id: string; started_at: string | null; talk_time_seconds: number | null }>((from, to) =>
+      supabase
+        .from("dialpad_calls")
+        .select("user_id, started_at, talk_time_seconds")
+        .gte("started_at", since)
+        .lt("started_at", until)
+        .not("user_id", "is", null)
+        .order("started_at", { ascending: true })
+        .range(from, to),
+    ),
+    pageAll<{ ghl_user_id: string | null; occurred_at: string; duration_seconds: number | null }>((from, to) =>
+      supabase
+        .from("ghl_calls")
+        .select("ghl_user_id, occurred_at, duration_seconds")
+        .gte("occurred_at", since)
+        .lt("occurred_at", until)
+        .not("ghl_user_id", "is", null)
+        .order("occurred_at", { ascending: true })
+        .range(from, to),
+    ),
+    supabase.from("profiles").select("user_id, ghl_user_id"),
+    pageAll<{ user_id: string | null; created_at: string }>((from, to) =>
+      supabase
+        .from("call_logs")
+        .select("user_id, created_at")
+        .eq("outcome", "booked")
+        .gte("created_at", since)
+        .lt("created_at", until)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  ]);
+  if (profiles.error) throw profiles.error;
+  const byGhlUser = new Map<string, string>();
+  for (const p of profiles.data ?? []) if (p.ghl_user_id) byGhlUser.set(p.ghl_user_id, p.user_id);
+
+  interface Acc { dials: number; talk: number; bookings: number }
+  const acc = new Map<string, Map<string, Acc>>();
+  const get = (uid: string, ms: number) => {
+    const day = melbourneDayKey(ms);
+    let byDay = acc.get(uid);
+    if (!byDay) { byDay = new Map(); acc.set(uid, byDay); }
+    let a = byDay.get(day);
+    if (!a) { a = { dials: 0, talk: 0, bookings: 0 }; byDay.set(day, a); }
+    return a;
+  };
+  for (const r of dialpad) {
+    if (!r.started_at) continue;
+    const a = get(r.user_id, new Date(r.started_at).getTime());
+    a.dials += 1;
+    a.talk += r.talk_time_seconds ?? 0;
+  }
+  for (const r of ghlRows) {
+    const uid = r.ghl_user_id ? byGhlUser.get(r.ghl_user_id) : undefined;
+    if (!uid) continue;
+    const a = get(uid, new Date(r.occurred_at).getTime());
+    a.dials += 1;
+    a.talk += r.duration_seconds ?? 0;
+  }
+  for (const b of bookingRows) {
+    // Same as fetchProductiveHours: booking minutes only for users who placed calls.
+    if (!b.user_id || !acc.has(b.user_id)) continue;
+    get(b.user_id, new Date(b.created_at).getTime()).bookings += 1;
+  }
+  const out = new Map<string, Map<string, number>>();
+  for (const [uid, byDay] of acc) {
+    const days = new Map<string, number>();
+    for (const [day, a] of byDay) {
+      if (day < fromDay || day > toDay) continue;
+      days.set(day, productiveDiallingHours(a.dials, a.talk, a.bookings));
+    }
+    out.set(uid, days);
+  }
+  return out;
+}

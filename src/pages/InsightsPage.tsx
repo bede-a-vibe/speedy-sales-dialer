@@ -15,6 +15,7 @@ import { InsightsOverview } from "@/components/insights/InsightsOverview";
 import { InsightsTeam } from "@/components/insights/InsightsTeam";
 import { InsightsTiming } from "@/components/insights/InsightsTiming";
 import { ClosingTracker } from "@/components/insights/ClosingTracker";
+import { FunnelTracker } from "@/components/insights/FunnelTracker";
 import { FunnelDeepDives } from "@/components/insights/FunnelDeepDives";
 import { InsightsFunnel, ALL_SOURCES } from "@/components/insights/InsightsFunnel";
 import { channelSlug, filterBookingsBySource } from "@/lib/sourceFunnelTotals";
@@ -22,13 +23,14 @@ import { useNewClients } from "@/hooks/useNewClients";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "closing", "team", "talktime"] as const;
+const TABS = ["overview", "funnel", "closing", "tracker", "team", "talktime"] as const;
 type InsightsTab = (typeof TABS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
   overview: "Insights · Overview",
   funnel: "Insights · Funnel",
   closing: "Insights · Closing",
+  tracker: "Insights · Tracker",
   team: "Insights · Team",
   talktime: "Insights · Timing",
 };
@@ -83,6 +85,14 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
+
+  // The Tracker is a month sheet: opening it on the untouched default range
+  // switches the page to this month (1st to today). A range picked by hand stays.
+  useEffect(() => {
+    if (activeTab !== "tracker") return;
+    if (dateFrom === thirtyDaysAgo && dateTo === today) setDateFrom(`${today.slice(0, 7)}-01`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const { data: callLogs = [], isLoading: callsLoading, isError: callsError, refetch: refetchCalls } = useCallLogsByDateRange(dateFrom, dateTo);
   const { data: bookings = [], isLoading: bookingsLoading } = useBookedAppointmentsByDateRange(dateFrom, dateTo);
@@ -161,6 +171,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
             <TabsTrigger value="closing">Closing</TabsTrigger>
+            <TabsTrigger value="tracker">Tracker</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="talktime">Timing</TabsTrigger>
           </TabsList>
@@ -219,6 +230,19 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
               dateTo={dateTo}
               bookings={bookings}
               rescheduleSlots={rescheduleSlots}
+              activeRepId={activeRepId}
+              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+            />
+          </TabsContent>
+
+          <TabsContent value="tracker">
+            <FunnelTracker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              callLogs={callLogs}
+              bookings={bookings}
+              rescheduleSlots={rescheduleSlots}
+              reps={reps}
               activeRepId={activeRepId}
               selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
             />

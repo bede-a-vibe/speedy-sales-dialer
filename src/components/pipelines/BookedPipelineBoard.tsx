@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
 import { GhlMirrorStatusBadge } from "@/components/ghl/GhlMirrorStatusBadge";
+import { BookingTierBadge } from "@/components/pipelines/BookingQualifierFields";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useNavigate } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
@@ -203,6 +204,7 @@ export function BookedPipelineBoard({
                               ghlPipelineId={item.ghl_pipeline_id}
                               ghlStageId={item.ghl_stage_id}
                             />
+                            <BookingTierBadge tier={item.booking_tier} />
                           </div>
                           <p className="truncate text-xs text-muted-foreground">{item.contacts?.contact_person || item.contacts?.dm_name || "No contact name"}</p>
                         </div>

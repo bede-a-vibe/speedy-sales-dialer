@@ -21,6 +21,11 @@ export interface PipelineItemInsert {
   ghl_opportunity_id?: string | null;
   ghl_pipeline_id?: string | null;
   ghl_stage_id?: string | null;
+  /** Booking tier (tier_1 | tier_2, null = unknown) and where it came from (auto | setter). */
+  booking_tier?: string | null;
+  booking_tier_source?: string | null;
+  /** manual_set | self_booked | booking_request */
+  booking_method?: string | null;
 }
 
 export interface PipelineItemUpdate {
@@ -73,6 +78,8 @@ export interface PipelineItemWithRelations {
   phone_recording_url?: string | null;
   ghl_sync_error?: string | null;
   ghl_stage_synced_at?: string | null;
+  booking_tier?: string | null;
+  booking_method?: string | null;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -138,6 +145,10 @@ export interface BookedAppointmentReportItem {
   resolved_bucket?: string | null;
   /** A missed slot of a moved meeting (meeting_reschedules). Show-up buckets only; never a booking. */
   is_reschedule_slot?: boolean;
+  /** tier_1 | tier_2, null = not recorded (see bookingTierOf for the contact fallback). */
+  booking_tier?: string | null;
+  /** manual_set | self_booked | booking_request, null = not recorded. */
+  booking_method?: string | null;
   contacts?: {
     industry: string | null;
     state: string | null;
@@ -152,6 +163,8 @@ export interface BookedAppointmentReportItem {
     dm_phone: string | null;
     gbp_rating: number | null;
     review_count: number | null;
+    team_size?: number | null;
+    monthly_revenue?: number | null;
   } | null;
 }
 
@@ -192,6 +205,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           meeting_ghl_stage_id,
           ghl_sync_error,
           ghl_stage_synced_at,
+          booking_tier,
+          booking_method,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -307,6 +322,8 @@ export function useContactPipelineItems(contactId?: string) {
           outcome_reason,
           recording_url,
           phone_recording_url,
+          booking_tier,
+          booking_method,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
@@ -359,7 +376,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count)",
+          "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue)",
         )
         .eq("pipeline_type", "booked");
 
@@ -460,7 +477,7 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
         supabase
           .from("contacts")
           .select(
-            "id, industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count",
+            "id, industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue",
           )
           .in("id", ghlContactIds),
         supabase
@@ -506,7 +523,7 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
       let query = supabase
         .from("meeting_reschedules")
         .select(
-          "id, from_scheduled_for, reason, kind, pipeline_items!inner(contact_id, created_at, created_by, assigned_user_id, pipeline_type, meeting_channel, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count))",
+          "id, from_scheduled_for, reason, kind, pipeline_items!inner(contact_id, created_at, created_by, assigned_user_id, pipeline_type, meeting_channel, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue))",
         )
         .eq("kind", "move");
       if (from && to) {
@@ -532,6 +549,8 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
           assigned_user_id: string;
           pipeline_type: string;
           meeting_channel?: string | null;
+          booking_tier?: string | null;
+          booking_method?: string | null;
           contacts: BookedAppointmentReportItem["contacts"];
         } | null;
       };
@@ -561,6 +580,8 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
           is_reschedule_slot: true,
           contacts: r.pipeline_items!.contacts,
           meeting_channel: r.pipeline_items!.meeting_channel ?? null,
+          booking_tier: r.pipeline_items!.booking_tier ?? null,
+          booking_method: r.pipeline_items!.booking_method ?? null,
         }) as BookedAppointmentReportItem);
       if (slots.length === 0) return slots;
 
