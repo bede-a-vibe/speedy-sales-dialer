@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateContactCaches } from "@/hooks/useContacts";
 import { format } from "date-fns";
 import { CalendarCheck2, Loader2 } from "lucide-react";
@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDefaultCloser } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 
 interface QuickBookRecoveryButtonProps {
   contactId: string;
@@ -53,6 +54,20 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
   });
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  // Booking tier inputs, prefilled from the contact's saved team size and revenue.
+  const { data: tierContact = null } = useQuery({
+    queryKey: ["contact-tier-inputs", contactId],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contacts").select("team_size, monthly_revenue").eq("id", contactId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const [bookingQualifier, setBookingQualifier] = useState<BookingQualifier>(() => qualifierFromContact(null));
+  useEffect(() => {
+    if (open) setBookingQualifier(qualifierFromContact(tierContact));
+  }, [open, tierContact]);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -114,6 +129,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
         notes: notes || `Recovered booking for ${contactName}`,
         status: "open",
         source_call_log_id: callLog?.id ?? null,
+        ...qualifierBookingFields(bookingQualifier),
       });
 
       if (pipelineErr) throw pipelineErr;
@@ -126,6 +142,7 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
           last_outcome: "booked",
           last_called_at: callMade.toISOString(),
           meeting_booked_date: scheduled.toISOString(),
+          ...qualifierContactUpdate(bookingQualifier, tierContact),
         })
         .eq("id", contactId);
 
@@ -255,6 +272,8 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
                 />
               </div>
             </div>
+
+            <BookingQualifierFields value={bookingQualifier} onChange={setBookingQualifier} />
 
             <div>
               <Label className="text-xs uppercase tracking-widest text-muted-foreground">Notes (optional)</Label>

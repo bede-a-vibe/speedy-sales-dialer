@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, PHONE_CALL_REASONS, MEETING_FORMATS, PROPOSAL_STATUSES, PROPOSAL_TASK_PREFIX, melbourneToday, nextBusinessDayAt10, reasonsForOutcome, type AppointmentOutcomeValue, type MeetingFormat, type ProposalStatus } from "@/lib/appointments";
+import { BOOKED_APPOINTMENT_DEFAULT_TIME, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS, RESCHEDULE_REASONS, PHONE_CALL_REASONS, MEETING_FORMATS, PROPOSAL_STATUSES, PROPOSAL_TASK_PREFIX, BOOKING_METHODS, melbourneToday, nextBusinessDayAt10, reasonsForOutcome, type AppointmentOutcomeValue, type MeetingFormat, type ProposalStatus } from "@/lib/appointments";
 import { MeetingRecordingMatches } from "@/components/pipelines/MeetingRecordingMatches";
 import { FathomMatch } from "@/components/fathom/FathomConnect";
 import { STREAM_LABELS, STREAM_ORDER, type ClientStream } from "@/lib/clientRevenue";
@@ -20,6 +20,7 @@ import type { PipelineItemWithRelations, SalesRepOption, FollowUpMethod } from "
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
 import { OpportunityDetailsSection } from "@/components/pipelines/OpportunityDetailsSection";
+import { BookingTierBadge } from "@/components/pipelines/BookingQualifierFields";
 
 function combineDateTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -346,8 +347,16 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
     );
   };
 
+  const bookingMethodLabel = BOOKING_METHODS.find((m) => m.value === item.booking_method)?.label;
+
   return (
     <div className="space-y-3 rounded-lg border border-border bg-background/60 p-4">
+      {(item.booking_tier === "tier_1" || item.booking_tier === "tier_2" || bookingMethodLabel) && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="booking-tier-header">
+          <BookingTierBadge tier={item.booking_tier} />
+          {bookingMethodLabel ? <span className="text-[11px] text-muted-foreground">{bookingMethodLabel}</span> : null}
+        </div>
+      )}
       {onAssign && (
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground shrink-0">Closer</span>

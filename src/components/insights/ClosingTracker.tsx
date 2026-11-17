@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 import { movesOf, wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
 import { useNewClients } from "@/hooks/useNewClients";
+import { availableSlotsForDay } from "@/lib/funnelTracker";
 
 /**
  * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
@@ -65,17 +66,8 @@ function fmtDay(key: string) {
   return `${d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" })} ${d.getUTCDate()} ${d.toLocaleDateString("en-AU", { month: "short", timeZone: "UTC" })}`;
 }
 
-/**
- * Bede's bookable calendar: 9:00 to 18:30 Monday to Friday (9.5 one-hour slots), a half day
- * to 13:00 on Saturday (4), nothing Sunday. The directors' meeting takes 9 to 10 on Monday
- * and Thursday. Evenings to 20:00 happen but are not counted as standing capacity.
- */
-export function availableSlotsForDay(key: string) {
-  const dow = weekdayIndex(key);
-  if (dow === 6) return 0;
-  if (dow === 5) return 4;
-  return dow === 0 || dow === 3 ? 8.5 : 9.5;
-}
+// Bede's bookable calendar lives in lib/funnelTracker so the Tracker tab shares it.
+export { availableSlotsForDay };
 
 interface Column {
   key: string;

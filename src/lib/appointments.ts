@@ -50,7 +50,45 @@ export const NO_SHOW_REASONS = [
   { value: "ns_emergency", label: "Job or emergency came up" },
   { value: "ns_wrong_time", label: "Wrong number / time" },
   { value: "ns_other", label: "Other" },
+  { value: "ns_missed_by_us", label: "We missed it (late / double-booked)" },
 ] as const;
+
+/** A no-show we caused (late or double-booked). Counted as "Missed by us", never as a prospect no-show. */
+export const MISSED_BY_US_REASON = "ns_missed_by_us";
+
+/**
+ * Booking tier (Bede, 17 Nov 2026). Tier 1 = 3+ on the tools including the
+ * owner AND $50k+ revenue a month; Tier 2 = everything else. Same rule for cold
+ * and ads. Mirrors public.tier_for() in the database: unknown stays null unless
+ * one known input already rules Tier 1 out.
+ */
+export const BOOKING_TIERS = [
+  { value: "tier_1", label: "Tier 1" },
+  { value: "tier_2", label: "Tier 2" },
+] as const;
+export type BookingTier = (typeof BOOKING_TIERS)[number]["value"];
+export const BOOKING_TIER_LABELS: Record<BookingTier, string> = { tier_1: "Tier 1", tier_2: "Tier 2" };
+export const TIER_1_MIN_TEAM_SIZE = 3;
+export const TIER_1_MIN_MONTHLY_REVENUE = 50_000;
+
+export function tierFor(teamSize: number | null | undefined, monthlyRevenue: number | null | undefined): BookingTier | null {
+  const team = teamSize ?? null;
+  const revenue = monthlyRevenue ?? null;
+  if (team === null || revenue === null) {
+    if ((team !== null && team < TIER_1_MIN_TEAM_SIZE) || (revenue !== null && revenue < TIER_1_MIN_MONTHLY_REVENUE)) return "tier_2";
+    return null;
+  }
+  return team >= TIER_1_MIN_TEAM_SIZE && revenue >= TIER_1_MIN_MONTHLY_REVENUE ? "tier_1" : "tier_2";
+}
+
+/** How the meeting got on the calendar. DB = the lead self-booked. */
+export const BOOKING_METHODS = [
+  { value: "manual_set", label: "Manual set" },
+  { value: "self_booked", label: "Self-booked (DB)" },
+  { value: "booking_request", label: "Booking request" },
+] as const;
+export type BookingMethod = (typeof BOOKING_METHODS)[number]["value"];
+export const DEFAULT_BOOKING_METHOD: BookingMethod = "manual_set";
 
 /** Why a prospect cancelled. Required on Cancelled. */
 export const CANCEL_REASONS = [

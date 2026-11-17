@@ -1,0 +1,504 @@
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Check, Download, X } from "lucide-react";
+import { toast } from "sonner";
+import { ReportSection } from "@/components/reports/ReportSection";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { TrackerDailyInputsDialog } from "@/components/insights/TrackerDailyInputsDialog";
+import type { BookedAppointmentReportItem, SalesRepOption } from "@/hooks/usePipelineItems";
+import type { ReportCallLog } from "@/lib/reportMetrics";
+import { useNewClients } from "@/hooks/useNewClients";
+import { useAdminAccess } from "@/hooks/useUserRole";
+import {
+  useContactBookingHistory,
+  useProductiveHoursByDay,
+  useRepCompPlans,
+  useSaveTrackerTarget,
+  useTrackerDailyInputs,
+  useTrackerTargets,
+  type TrackerTargetRow,
+} from "@/hooks/useFunnelTracker";
+import {
+  addsUp,
+  buildDailyTrackerStats,
+  creditNewClients,
+  daysBetween,
+  dayKeyOf,
+  lastDayOfMonth,
+  leadsFor,
+  monthCommission,
+  monthOf,
+  pctOf,
+  ratio,
+  setterCost,
+  sumTrackerStats,
+  totalCost,
+  type TierFilter,
+  type TrackerFunnel,
+  type TrackerStats,
+} from "@/lib/funnelTracker";
+import { cn } from "@/lib/utils";
+
+/**
+ * Insights > Tracker: the IWB Funnel Flowthrough Tracker on the dialer's data.
+ * One row per Melbourne day, a month total and a target row per month, and the
+ * sheet's sections left to right. The maths lives in lib/funnelTracker.ts.
+ */
+
+interface Props {
+  dateFrom: string;
+  dateTo: string;
+  callLogs: ReportCallLog[];
+  bookings: BookedAppointmentReportItem[];
+  rescheduleSlots?: BookedAppointmentReportItem[];
+  reps: SalesRepOption[];
+  activeRepId?: string;
+  selectedRepLabel?: string;
+}
+
+type Fmt = "n" | "dec" | "pct" | "money" | "hours" | "x" | "check";
+
+interface Ctx {
+  funnel: TrackerFunnel;
+  isMonth: boolean;
+}
+
+interface ColumnDef {
+  key: string;
+  section: string;
+  label: string;
+  fmt: Fmt;
+  hint?: string;
+  value: (s: TrackerStats, ctx: Ctx) => number | null | boolean;
+  /** Editable monthly target, and which way is good. */
+  target?: { metric: string; better: "higher" | "lower" };
+  funnels?: TrackerFunnel[];
+}
+
+const BOTH: TrackerFunnel[] = ["cold", "ads"];
+
+const COLUMNS: ColumnDef[] = [
+  // Marketing (Ads view only)
+  { key: "adSpend", section: "Marketing", label: "Ad spend", fmt: "money", funnels: ["ads"], hint: "Daily inputs (ads)", value: (s) => s.adSpend, target: { metric: "ad_spend", better: "lower" } },
+  { key: "clicks", section: "Marketing", label: "Clicks", fmt: "n", funnels: ["ads"], hint: "Daily inputs (ads)", value: (s) => s.clicks },
+  { key: "cpc", section: "Marketing", label: "CPC", fmt: "money", funnels: ["ads"], hint: "ad spend ÷ clicks", value: (s) => ratio(s.adSpend, s.clicks) },
+  { key: "leads", section: "Marketing", label: "Leads", fmt: "n", funnels: ["ads"], hint: "Daily inputs (ads)", value: (s) => s.leads, target: { metric: "leads", better: "higher" } },
+  { key: "cpl", section: "Marketing", label: "CPL", fmt: "money", funnels: ["ads"], hint: "ad spend ÷ leads", value: (s) => ratio(s.adSpend, s.leads), target: { metric: "cpl", better: "lower" } },
+  { key: "tier1Leads", section: "Marketing", label: "Tier 1 leads", fmt: "n", funnels: ["ads"], hint: "distinct leads with a Tier 1 booking made that day", value: (s) => s.tier1Leads },
+  { key: "pctTier1", section: "Marketing", label: "% Tier 1", fmt: "pct", funnels: ["ads"], hint: "Tier 1 leads ÷ leads", value: (s) => pctOf(s.tier1Leads, s.leads) },
+  { key: "dbsCreated", section: "Marketing", label: "DBs created", fmt: "n", funnels: ["ads"], hint: "self-booked first meetings made that day", value: (s) => s.dbsCreated },
+  { key: "bookingRequests", section: "Marketing", label: "Booking requests", fmt: "n", funnels: ["ads"], hint: "'call me' requests made that day", value: (s) => s.bookingRequests },
+  { key: "costPerDb", section: "Marketing", label: "Cost per DB", fmt: "money", funnels: ["ads"], hint: "ad spend ÷ DBs created", value: (s) => ratio(s.adSpend, s.dbsCreated) },
+
+  // Setting
+  { key: "dials", section: "Setting", label: "Dials", fmt: "n", funnels: ["cold"], hint: "calls logged in the dialer", value: (s) => s.dials, target: { metric: "dials", better: "higher" } },
+  { key: "answers", section: "Setting", label: "Answers", fmt: "n", funnels: ["cold"], hint: "pick-ups (same outcomes as Insights)", value: (s) => s.answers },
+  { key: "answerRate", section: "Setting", label: "Answer rate", fmt: "pct", funnels: ["cold"], hint: "answers ÷ dials", value: (s) => pctOf(s.answers, s.dials) },
+  { key: "rostered", section: "Setting", label: "Rostered hours", fmt: "hours", funnels: ["cold"], hint: "Daily inputs, per setter", value: (s) => s.rosteredHours },
+  { key: "productive", section: "Setting", label: "Productive dialling hours", fmt: "hours", funnels: ["cold"], hint: "dials × 25s + talk time + 5 min a booking (same as Targets)", value: (s) => s.productiveHours },
+  { key: "hoursGap", section: "Setting", label: "Hours discrepancy", fmt: "hours", funnels: ["cold"], hint: "productive − rostered (blank until rostered hours are entered)", value: (s) => (s.rosteredHours > 0 ? s.productiveHours - s.rosteredHours : null) },
+  { key: "dialsPerLead", section: "Setting", label: "Dials per lead", fmt: "dec", funnels: ["cold"], hint: "dials ÷ unique leads dialled", value: (s) => ratio(s.dials, s.leadsDialled.size) },
+  { key: "manualSets", section: "Setting", label: "Manual sets", fmt: "n", hint: "first meetings booked by a setter by phone (blank method on a cold booking counts here)", value: (s) => s.manualSets },
+  { key: "confirmedDbs", section: "Setting", label: "Confirmed DBs", fmt: "n", funnels: ["ads"], hint: "self-booked first meetings (no separate confirm step is recorded yet)", value: (s) => s.confirmedDbs },
+  { key: "totalSets", section: "Setting", label: "Total sets", fmt: "n", hint: "every first meeting booked that day", value: (s) => s.totalSets, target: { metric: "total_sets", better: "higher" } },
+  { key: "leadToSet", section: "Setting", label: "Lead-to-set rate", fmt: "pct", hint: "total sets ÷ leads (cold: unique leads dialled)", value: (s, c) => pctOf(s.totalSets, leadsFor(s, c.funnel)) },
+  { key: "answerToSet", section: "Setting", label: "Answer-to-set rate", fmt: "pct", funnels: ["cold"], hint: "total sets ÷ answers", value: (s) => pctOf(s.totalSets, s.answers) },
+  { key: "setsPerHour", section: "Setting", label: "Sets per productive hour", fmt: "dec", funnels: ["cold"], value: (s) => ratio(s.totalSets, s.productiveHours) },
+  { key: "costPerSet", section: "Setting", label: "Cost per set", fmt: "money", hint: "setter cost ÷ total sets", value: (s) => ratio(setterCost(s), s.totalSets) },
+
+  // Closing calendar
+  { key: "availability", section: "Closing calendar", label: "Availability", fmt: "dec", hint: "bookable hours on the calendar (same as the Closing tab)", value: (s) => s.availability },
+  { key: "bookingsOnCal", section: "Closing calendar", label: "Bookings on calendar", fmt: "n", hint: "first meetings due that day, including slots later moved", value: (s) => s.bookingsOnCal, target: { metric: "bookings_on_cal", better: "higher" } },
+  { key: "bookedRate", section: "Closing calendar", label: "Booked rate", fmt: "pct", hint: "bookings on calendar ÷ availability", value: (s) => pctOf(s.bookingsOnCal, s.availability) },
+  { key: "live", section: "Closing calendar", label: "Live calls", fmt: "n", hint: "first-meeting sittings", value: (s) => s.live, target: { metric: "live_calls", better: "higher" } },
+  { key: "showRate", section: "Closing calendar", label: "Show rate", fmt: "pct", hint: "live calls ÷ bookings on calendar", value: (s) => pctOf(s.live, s.bookingsOnCal), target: { metric: "show_rate", better: "higher" } },
+  { key: "showIfNotMissed", section: "Closing calendar", label: "Show rate if not missed", fmt: "pct", hint: "(live + missed by us) ÷ bookings on calendar", value: (s) => pctOf(s.live + s.missedByUs, s.bookingsOnCal) },
+  { key: "cancels", section: "Closing calendar", label: "Cancels", fmt: "n", value: (s) => s.cancels },
+  { key: "noShows", section: "Closing calendar", label: "No-shows", fmt: "n", hint: "prospect no-shows (missed by us left out)", value: (s) => s.noShows },
+  { key: "reschedules", section: "Closing calendar", label: "Reschedules", fmt: "n", hint: "missed slots of moved meetings", value: (s) => s.reschedules },
+  { key: "missedByUs", section: "Closing calendar", label: "Missed by us", fmt: "n", hint: "no-shows marked 'We missed it (late / double-booked)'", value: (s) => s.missedByUs },
+  { key: "pending", section: "Closing calendar", label: "Pending", fmt: "n", hint: "upcoming or no result logged yet", value: (s) => s.pending },
+  { key: "addsUp", section: "Closing calendar", label: "Adds up?", fmt: "check", hint: "live + cancels + no-shows + reschedules + missed + pending = bookings on calendar", value: (s) => addsUp(s) },
+  { key: "qualifiedLive", section: "Closing calendar", label: "Qualified live calls", fmt: "n", hint: "live calls marked qualified", value: (s) => s.qualifiedLive },
+  { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls", value: (s) => pctOf(s.qualifiedLive, s.live) },
+  { key: "costPerQualified", section: "Closing calendar", label: "Cost per qualified live call", fmt: "money", hint: "total cost ÷ qualified live calls", value: (s) => ratio(totalCost(s), s.qualifiedLive) },
+
+  // Closing results
+  { key: "newClients", section: "Closing results", label: "New clients", fmt: "n", hint: "first deal starts that day (revenue records, same as Won on Overview)", value: (s) => s.newClients, target: { metric: "new_clients", better: "higher" } },
+  { key: "cash", section: "Closing results", label: "Cash collected", fmt: "money", hint: "first-deal monthly value + one-off", value: (s) => s.cash, target: { metric: "cash_collected", better: "higher" } },
+  { key: "avgCash", section: "Closing results", label: "Avg cash per client", fmt: "money", value: (s) => ratio(s.cash, s.newClients) },
+  { key: "cashPerLead", section: "Closing results", label: "Cash per lead", fmt: "money", value: (s, c) => ratio(s.cash, leadsFor(s, c.funnel)) },
+  { key: "cashPerBooking", section: "Closing results", label: "Cash per booking", fmt: "money", hint: "cash ÷ total sets", value: (s) => ratio(s.cash, s.totalSets) },
+  { key: "cashPerLive", section: "Closing results", label: "Cash per live call", fmt: "money", value: (s) => ratio(s.cash, s.live) },
+  { key: "leadToClose", section: "Closing results", label: "Lead-to-close", fmt: "pct", value: (s, c) => pctOf(s.newClients, leadsFor(s, c.funnel)) },
+  { key: "bookingToClose", section: "Closing results", label: "Booking-to-close", fmt: "pct", hint: "new clients ÷ total sets", value: (s) => pctOf(s.newClients, s.totalSets) },
+  { key: "liveToClose", section: "Closing results", label: "Live-call-to-close", fmt: "pct", value: (s) => pctOf(s.newClients, s.live) },
+
+  // P&L
+  { key: "setterCost", section: "P&L", label: "Setter cost", fmt: "money", hint: "base ÷ 365 a day for active setters, plus commission on the month row", value: (s) => setterCost(s) },
+  { key: "commission", section: "P&L", label: "Commission", fmt: "money", hint: "month rows only: whole calendar month, marginal setter plan, 5% on one-off", value: (s, c) => (c.isMonth ? s.commission : null) },
+  { key: "plAdSpend", section: "P&L", label: "Ad spend", fmt: "money", funnels: ["ads"], value: (s) => s.adSpend },
+  { key: "totalCost", section: "P&L", label: "Total cost", fmt: "money", value: (s) => totalCost(s) },
+  { key: "cpa", section: "P&L", label: "CPA", fmt: "money", hint: "total cost ÷ new clients", value: (s) => ratio(totalCost(s), s.newClients) },
+  { key: "roas", section: "P&L", label: "ROAS", fmt: "x", hint: "cash ÷ total cost", value: (s) => ratio(s.cash, totalCost(s)) },
+  { key: "grossPl", section: "P&L", label: "Gross P&L", fmt: "money", hint: "cash − total cost", value: (s) => s.cash - totalCost(s) },
+];
+
+function formatValue(v: number | null | boolean, fmt: Fmt): string {
+  if (typeof v === "boolean") return v ? "✓" : "✗";
+  if (v === null || !Number.isFinite(v)) return "-";
+  switch (fmt) {
+    case "pct":
+      return `${Math.round(v)}%`;
+    case "money": {
+      const abs = Math.abs(v);
+      const body = abs < 100 && abs % 1 !== 0
+        ? abs.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : Math.round(abs).toLocaleString("en-AU");
+      return `${v < 0 ? "-" : ""}$${body}`;
+    }
+    case "hours":
+    case "dec":
+      return (Math.round(v * 10) / 10).toLocaleString("en-AU");
+    case "x":
+      return `${(Math.round(v * 100) / 100).toFixed(2)}x`;
+    default:
+      return Math.round(v).toLocaleString("en-AU");
+  }
+}
+
+/** Raw value for the CSV: no currency symbols or separators. */
+function csvValue(v: number | null | boolean, fmt: Fmt): string {
+  if (typeof v === "boolean") return v ? "yes" : "no";
+  if (v === null || !Number.isFinite(v)) return "-";
+  if (fmt === "n") return String(Math.round(v));
+  return String(Math.round(v * 100) / 100);
+}
+
+function fmtDayLabel(key: string) {
+  const d = new Date(`${key}T12:00:00Z`);
+  return `${d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" })} ${d.getUTCDate()} ${d.toLocaleDateString("en-AU", { month: "short", timeZone: "UTC" })}`;
+}
+function fmtMonthLabel(month: string) {
+  return new Date(`${month}T12:00:00Z`).toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function varianceClass(value: number | null | boolean, target: number | null | undefined, better: "higher" | "lower") {
+  if (typeof value !== "number" || target == null || !Number.isFinite(value)) return undefined;
+  const good = better === "higher" ? value >= target : value <= target;
+  return good ? "text-emerald-700 dark:text-emerald-300" : "text-red-600 dark:text-red-400";
+}
+
+interface MonthBlock {
+  month: string;
+  days: string[];
+  total: TrackerStats;
+}
+
+function TargetCell({
+  month, funnel, metric, value, fmt, canEdit,
+}: { month: string; funnel: TrackerFunnel; metric: string; value: number | null | undefined; fmt: Fmt; canEdit: boolean }) {
+  const save = useSaveTrackerTarget();
+  const [draft, setDraft] = useState(value == null ? "" : String(value));
+  useEffect(() => setDraft(value == null ? "" : String(value)), [value]);
+  if (!canEdit) return <>{value == null ? "-" : formatValue(value, fmt)}</>;
+  const commit = () => {
+    const trimmed = draft.trim();
+    const next = trimmed === "" ? null : Number(trimmed);
+    if (next !== null && !Number.isFinite(next)) { toast.error("Targets are numbers."); return; }
+    if (next === (value ?? null)) return;
+    save.mutate({ month, funnel, metric, value: next }, { onError: () => toast.error("Could not save the target.") });
+  };
+  return (
+    <Input
+      aria-label={`Target ${metric} ${month}`}
+      inputMode="decimal"
+      value={draft}
+      placeholder="-"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      className="h-6 w-20 bg-background px-1 text-center font-mono text-xs"
+    />
+  );
+}
+
+export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = [], reps, activeRepId, selectedRepLabel }: Props) {
+  const [funnel, setFunnel] = useState<TrackerFunnel>("cold");
+  const [tier, setTier] = useState<TierFilter>("all");
+  const [inputsOpen, setInputsOpen] = useState(false);
+  const { canViewAdmin } = useAdminAccess();
+
+  const days = useMemo(() => (dateFrom && dateTo && dateFrom <= dateTo ? daysBetween(dateFrom, dateTo) : []), [dateFrom, dateTo]);
+  const firstMonth = dateFrom ? monthOf(dateFrom) : undefined;
+  const lastMonth = dateTo ? monthOf(dateTo) : undefined;
+
+  // New clients for the whole calendar months in view: commission is monthly.
+  const { data: newClients = [] } = useNewClients(firstMonth, lastMonth ? lastDayOfMonth(lastMonth) : undefined);
+  const { data: historyData } = useContactBookingHistory(newClients.map((n) => n.contact_id));
+  const { data: inputs = [] } = useTrackerDailyInputs(dateFrom, dateTo);
+  const { data: targets = [] } = useTrackerTargets(firstMonth, lastMonth);
+  const { data: compPlans = [] } = useRepCompPlans();
+  const { data: productiveHours = new Map<string, Map<string, number>>() } = useProductiveHoursByDay(dateFrom, dateTo, funnel === "cold");
+
+  const credited = useMemo(
+    () => creditNewClients(newClients, historyData?.history ?? [], historyData?.contacts),
+    [newClients, historyData],
+  );
+  const items = useMemo(() => [...bookings, ...rescheduleSlots], [bookings, rescheduleSlots]);
+
+  const daily = useMemo(
+    () => buildDailyTrackerStats({ days, funnel, tier, repId: activeRepId, callLogs, items, inputs, productiveHours, newClients: credited, compPlans }),
+    [days, funnel, tier, activeRepId, callLogs, items, inputs, productiveHours, credited, compPlans],
+  );
+
+  const months = useMemo<MonthBlock[]>(() => {
+    const byMonth = new Map<string, string[]>();
+    for (const d of days) {
+      const m = monthOf(d);
+      byMonth.set(m, [...(byMonth.get(m) ?? []), d]);
+    }
+    return [...byMonth.entries()].map(([month, mDays]) => {
+      const total = sumTrackerStats(mDays.map((d) => daily.get(d)!));
+      // Setter pay sits in the cold view (the setters are the cold callers).
+      total.commission = funnel === "cold" ? monthCommission(credited, compPlans, month, activeRepId).total : 0;
+      return { month, days: mDays, total };
+    });
+  }, [days, daily, funnel, credited, compPlans, activeRepId]);
+
+  const targetMap = useMemo(() => {
+    const m = new Map<string, TrackerTargetRow>();
+    for (const t of targets) m.set(`${t.month.slice(0, 10)}|${t.funnel}|${t.metric}`, t);
+    return m;
+  }, [targets]);
+  const targetOf = (month: string, metric: string) => targetMap.get(`${month}|${funnel}|${metric}`)?.value ?? null;
+
+  const columns = useMemo(() => COLUMNS.filter((c) => (c.funnels ?? BOTH).includes(funnel)), [funnel]);
+  const sections = useMemo(() => {
+    const out: { title: string; span: number }[] = [];
+    for (const c of columns) {
+      const last = out[out.length - 1];
+      if (last && last.title === c.section) last.span += 1;
+      else out.push({ title: c.section, span: 1 });
+    }
+    return out;
+  }, [columns]);
+  const sectionStart = useMemo(() => new Set(columns.filter((c, i) => i === 0 || columns[i - 1].section !== c.section).map((c) => c.key)), [columns]);
+
+  const today = dayKeyOf(new Date().toISOString());
+
+  const downloadCsv = () => {
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const lines: string[] = [];
+    lines.push(["Row", ...columns.map((c) => `${c.section}: ${c.label}`)].map(esc).join(","));
+    for (const block of months) {
+      const ctxMonth = { funnel, isMonth: true };
+      lines.push([`${fmtMonthLabel(block.month)} total`, ...columns.map((c) => csvValue(c.value(block.total, ctxMonth), c.fmt))].map(esc).join(","));
+      lines.push([`${fmtMonthLabel(block.month)} target`, ...columns.map((c) => {
+        if (!c.target) return "";
+        const t = targetOf(block.month, c.target.metric);
+        return t == null ? "" : String(t);
+      })].map(esc).join(","));
+      for (const d of block.days) {
+        lines.push([d, ...columns.map((c) => csvValue(c.value(daily.get(d)!, { funnel, isMonth: false }), c.fmt))].map(esc).join(","));
+      }
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `funnel-tracker-${funnel}-${dateFrom}-to-${dateTo}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggle = <T extends string>(value: T, current: T, set: (v: T) => void, label: string) => (
+    <button
+      key={value}
+      type="button"
+      onClick={() => set(value)}
+      aria-pressed={current === value}
+      className={cn(
+        "rounded-sm px-2.5 py-1 text-xs transition-colors",
+        current === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+
+  const plHidden = compPlans.length === 0;
+
+  return (
+    <ReportSection
+      title="Funnel flowthrough tracker"
+      description={`One row per day, a month total and a target row for each month${selectedRepLabel ? `. ${selectedRepLabel}: dials, hours and sets as setter, the calendar as closer, new clients and pay as the credited setter` : ""}. Sets count by the day booked, the calendar by the meeting day, new clients by the day the first deal starts.`}
+      className="overflow-hidden"
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-md border border-border bg-background p-0.5" role="group" aria-label="Funnel view">
+          {toggle<TrackerFunnel>("cold", funnel, setFunnel, "Cold call")}
+          {toggle<TrackerFunnel>("ads", funnel, setFunnel, "Ads")}
+        </div>
+        <div className="flex rounded-md border border-border bg-background p-0.5" role="group" aria-label="Tier filter">
+          {toggle<TierFilter>("all", tier, setTier, "All")}
+          {toggle<TierFilter>("tier_1", tier, setTier, "Tier 1")}
+          {toggle<TierFilter>("tier_2", tier, setTier, "Tier 2")}
+        </div>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setInputsOpen(true)}>
+            Daily inputs
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={downloadCsv} disabled={days.length === 0}>
+            <Download className="mr-1 h-3.5 w-3.5" />
+            Download CSV
+          </Button>
+        </div>
+      </div>
+      {tier !== "all" ? (
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Dials are not split by tier. The tier filter applies to bookings, the calendar and new clients; costs stay whole.
+        </p>
+      ) : null}
+      {funnel === "ads" ? (
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Ads starts in 2027, so most of this view is empty until ad spend, clicks and leads are entered. Dials and dialling hours
+          sit on the Cold call view: the dialer does not split them by lead source yet. Setter pay also sits on the Cold call view.
+        </p>
+      ) : null}
+      {plHidden ? (
+        <p className="mb-2 text-[11px] text-muted-foreground">Setter pay is visible to admins and coaches only, so costs here leave it out.</p>
+      ) : null}
+
+      <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+        <table className="min-w-full border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th rowSpan={2} className="sticky left-0 top-0 z-30 min-w-[120px] border-b border-r border-border bg-card px-2 py-1.5 text-left font-medium text-muted-foreground">
+                Day
+              </th>
+              {sections.map((s) => (
+                <th
+                  key={s.title}
+                  colSpan={s.span}
+                  className="sticky top-0 z-20 h-7 border-b border-l border-border bg-muted px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
+                >
+                  {s.title}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {columns.map((c) => (
+                <th
+                  key={c.key}
+                  title={c.hint}
+                  className={cn(
+                    "sticky top-7 z-20 min-w-[84px] border-b border-border bg-card px-1.5 py-1.5 text-center align-bottom font-medium leading-tight text-foreground",
+                    sectionStart.has(c.key) && "border-l",
+                  )}
+                >
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((block) => (
+              <Fragment key={block.month}>
+                <tr className="bg-primary/10">
+                  <td className="sticky left-0 z-10 border-b border-r border-border bg-primary/20 px-2 py-1 font-semibold whitespace-nowrap">
+                    {fmtMonthLabel(block.month)} total
+                  </td>
+                  {columns.map((c) => {
+                    const v = c.value(block.total, { funnel, isMonth: true });
+                    const t = c.target ? targetOf(block.month, c.target.metric) : null;
+                    return (
+                      <td
+                        key={c.key}
+                        className={cn(
+                          "border-b border-border px-1.5 py-1 text-center font-mono font-semibold tabular-nums",
+                          sectionStart.has(c.key) && "border-l",
+                          c.target && varianceClass(v, t, c.target.better),
+                          c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                        )}
+                      >
+                        {c.fmt === "check" ? (v ? <Check aria-label="adds up" className="mx-auto h-3.5 w-3.5 text-emerald-600" /> : <X aria-label="does not add up" className="mx-auto h-3.5 w-3.5" />) : formatValue(v, c.fmt)}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="bg-muted/40">
+                  <td className="sticky left-0 z-10 border-b border-r border-border bg-muted px-2 py-1 text-muted-foreground whitespace-nowrap">
+                    Target
+                  </td>
+                  {columns.map((c) => (
+                    <td key={c.key} className={cn("border-b border-border px-1 py-0.5 text-center font-mono tabular-nums text-muted-foreground", sectionStart.has(c.key) && "border-l")}>
+                      {c.target ? (
+                        <TargetCell
+                          month={block.month}
+                          funnel={funnel}
+                          metric={c.target.metric}
+                          value={targetOf(block.month, c.target.metric)}
+                          fmt={c.fmt}
+                          canEdit={canViewAdmin}
+                        />
+                      ) : null}
+                    </td>
+                  ))}
+                </tr>
+                {block.days.map((d) => {
+                  const s = daily.get(d)!;
+                  return (
+                    <tr key={d} className="hover:bg-muted/30">
+                      <td
+                        className={cn(
+                          "sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-1 whitespace-nowrap",
+                          d > today ? "text-muted-foreground/60" : d === today ? "text-primary" : "text-muted-foreground",
+                        )}
+                      >
+                        {fmtDayLabel(d)}
+                      </td>
+                      {columns.map((c) => {
+                        const v = c.value(s, { funnel, isMonth: false });
+                        const empty = v === null || v === 0;
+                        return (
+                          <td
+                            key={c.key}
+                            className={cn(
+                              "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums",
+                              sectionStart.has(c.key) && "border-l",
+                              empty ? "text-muted-foreground/50" : "text-foreground",
+                              c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                            )}
+                          >
+                            {c.fmt === "check" ? (v ? <Check aria-label="adds up" className="mx-auto h-3.5 w-3.5 text-emerald-600" /> : <X aria-label="does not add up" className="mx-auto h-3.5 w-3.5" />) : formatValue(v, c.fmt)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+        Hover a column name for its definition. "-" means nothing to divide by. Tier comes from the booking (team size on the
+        tools including the owner and monthly revenue at booking), else the contact's details; older bookings with neither are
+        unknown and only show under All. Commission is the whole calendar month on the setter's marginal plan, credited to
+        whoever made the lead's first booking.
+      </p>
+
+      <TrackerDailyInputsDialog
+        open={inputsOpen}
+        onOpenChange={setInputsOpen}
+        defaultDay={dateTo && dateTo < today ? dateTo : today}
+        reps={reps}
+        compPlans={compPlans}
+      />
+    </ReportSection>
+  );
+}

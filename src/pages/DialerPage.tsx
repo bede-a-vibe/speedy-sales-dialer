@@ -92,6 +92,7 @@ import { useIsCoach } from "@/hooks/useUserRole";
 import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
 import { ScenarioMode } from "@/components/coach/ScenarioMode";
 import { GraduationCap, Sparkles } from "lucide-react";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 
 const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
 
@@ -480,6 +481,9 @@ export default function DialerPage() {
   // "Worth an email tonight" — persisted on the contact when the call is
   // logged, then cleared for the next lead.
   const [eodEmailFlag, setEodEmailFlag] = useState(false);
+  // Booking tier inputs (team size, monthly revenue, tier, booking method), prefilled from the contact.
+  const [bookingQualifier, setBookingQualifier] = useState<BookingQualifier>(() => qualifierFromContact(null));
+  const bookingQualifierContactRef = useRef<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => storedFilters?.showAdvancedFilters ?? false);
   // Escape-hatch: reveal the full Dialpad iframe in a dialog for rare cases
   // (extra keypad, transfer, etc.). The iframe is ALWAYS mounted (headless);
@@ -832,6 +836,26 @@ export default function DialerPage() {
       description: "Your outcome, conversation progress, and follow-up details were saved while you were away.",
     });
   }, [session.currentContact?.id]);
+
+  // Prefill the booking tier inputs from each new lead's saved team size and
+  // revenue. The live contact can land after the claim snapshot, so refresh the
+  // prefill until the setter edits a field.
+  const bookingQualifierTouchedRef = useRef(false);
+  useEffect(() => {
+    const c = displayContact as ({ id: string; team_size?: number | null; monthly_revenue?: number | null }) | null;
+    if (!c) return;
+    if (bookingQualifierContactRef.current !== c.id) {
+      bookingQualifierContactRef.current = c.id;
+      bookingQualifierTouchedRef.current = false;
+    } else if (bookingQualifierTouchedRef.current) {
+      return;
+    }
+    setBookingQualifier(qualifierFromContact(c));
+  }, [displayContact]);
+  const handleBookingQualifierChange = useCallback((next: BookingQualifier) => {
+    bookingQualifierTouchedRef.current = true;
+    setBookingQualifier(next);
+  }, []);
 
   // Reset rehydration guard when the active contact changes so the next lead is fresh.
   useEffect(() => {
@@ -1667,6 +1691,10 @@ export default function DialerPage() {
     setDncReason(null);
     const eodEmailFlagSnapshot = eodEmailFlag;
     setEodEmailFlag(false);
+    const bookingQualifierSnapshot = bookingQualifier;
+    const bookingContactUpdate = outcomeToLog === "booked"
+      ? qualifierContactUpdate(bookingQualifierSnapshot, (displayContact ?? currentContactSnapshot) as { team_size?: number | null; monthly_revenue?: number | null })
+      : {};
     const cp = conversationProgress;
     setConversationProgress(EMPTY_CONVERSATION_PROGRESS);
     if (!stopRequested) void session.queue.ensureBuffer();
@@ -1737,6 +1765,8 @@ export default function DialerPage() {
             ...(outcomeToLog === "dnc"
               ? { dnc_reason: dncReasonSnapshot }
               : {}),
+            // Team size and monthly revenue the setter captured at booking.
+            ...bookingContactUpdate,
             // End-of-day email round: re-flagging after a sent email re-opens it.
             ...(eodEmailFlagSnapshot
               ? {
@@ -1761,6 +1791,7 @@ export default function DialerPage() {
             scheduled_for: scheduledFor,
             notes: pipelineNotes,
             ...(pipelineType === "follow_up" ? { follow_up_method: method } : {}),
+            ...(pipelineType === "booked" ? qualifierBookingFields(bookingQualifierSnapshot) : {}),
           });
         }
 
@@ -1988,6 +2019,8 @@ export default function DialerPage() {
     dqNotes,
     dncReason,
     eodEmailFlag,
+    bookingQualifier,
+    displayContact,
     handleNativeHangUp,
   ]);
 
@@ -3439,6 +3472,8 @@ export default function DialerPage() {
                           Book the appointment directly in GHL first, then fill in the date/time below to log it here. The GHL calendar/pipeline/stage fields are optional — leave them empty if you've already booked manually.
                         </p>
                       </div>
+                      {/* Booking tier: team size, monthly revenue, tier, booking method */}
+                      <BookingQualifierFields value={bookingQualifier} onChange={handleBookingQualifierChange} />
                       {/* Appointment Title */}
                       <div>
                         <label className="mb-2 block text-[10px] uppercase tracking-widest text-muted-foreground">

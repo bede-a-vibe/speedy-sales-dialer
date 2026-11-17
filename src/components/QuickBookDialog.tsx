@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, useDefaultCloser, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -157,6 +158,11 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
   const [ghlPipelineId, setGhlPipelineId] = useState("");
   const [ghlStageId, setGhlStageId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Booking tier inputs, prefilled from the picked contact.
+  const [bookingQualifier, setBookingQualifier] = useState<BookingQualifier>(() => qualifierFromContact(null));
+  useEffect(() => {
+    setBookingQualifier(qualifierFromContact(selectedContact));
+  }, [selectedContact?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: freeSlots = [], isLoading: isLoadingSlots } = useGHLFreeSlots(
     ghlCalendarId || undefined,
@@ -494,6 +500,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
         scheduled_for: scheduledFor.toISOString(),
         notes: notes.trim() || "",
         follow_up_method: pipelineType === "follow_up" ? followUpMethod : undefined,
+        ...(pipelineType === "booked" ? qualifierBookingFields(bookingQualifier) : {}),
       });
 
       // Create a corresponding call_log so the booking/follow-up shows in dashboard outcomes
@@ -525,6 +532,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
           status: newStatus,
           updated_at: new Date().toISOString(),
           ...lifecycleFieldUpdates,
+          ...(pipelineType === "booked" ? qualifierContactUpdate(bookingQualifier, selectedContact) : {}),
         })
         .eq("id", selectedContact.id);
 
@@ -609,7 +617,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, pushBooking, pushFollowUp, pushFollowUpEmailDraft, updateOpportunityStage, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting]);
+  }, [selectedContact, assignedRepId, scheduledDate, scheduledTime, notes, user, pipelineType, createPipelineItem, createCallLog, onOpenChange, pushBooking, pushFollowUp, pushFollowUpEmailDraft, updateOpportunityStage, ghlLink, ghlCalendarId, ghlPipelineId, ghlStageId, salesReps, followUpMethod, defaultFollowUpPipeline?.id, defaultFollowUpStage?.id, isSubmitting, bookingQualifier]);
 
   useEffect(() => {
     if (!open) return;
@@ -897,6 +905,11 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Booking tier: team size, monthly revenue, tier, booking method */}
+              {isBooked && selectedContact && (
+                <BookingQualifierFields value={bookingQualifier} onChange={setBookingQualifier} />
               )}
 
               {/* Appointment Title — only for booked type */}
