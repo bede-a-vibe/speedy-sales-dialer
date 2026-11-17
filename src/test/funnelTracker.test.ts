@@ -251,6 +251,11 @@ describe("commission per sale", () => {
     // Payments past the first month are later months' fees: capped.
     const over = paidCommissionCash([deal("x", "x", "2026-10-01", 4_000, [["2026-10-01", 4_000], ["2026-10-31", 4_000]])]);
     expect(over.reduce((t, r) => t + r.mrr, 0)).toBe(4_000);
+    // A higher first month (Bright Future: $4k, then $2k/mo) counts in full.
+    const bright = deal("bf", "bf", "2026-10-16", 2_000, [["2026-11-17", 4_000]], { first_month_amount: 4_000 });
+    expect(paidCommissionCash([bright])[0].mrr).toBe(4_000);
+    expect(awaitingPayment([bright], plans)).toEqual([]);
+    expect(awaitingPayment([{ ...bright, payments: [] }], plans)[0].outstanding).toBe(4_000);
     // Reps not on the plan are not listed.
     expect(awaitingPayment([deal("y", "y", "2026-10-01", 2_000, [], { setter_id: "someone-else" })], plans)).toEqual([]);
   });
