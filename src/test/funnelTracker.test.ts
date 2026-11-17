@@ -19,6 +19,7 @@ import {
   sumTrackerStats,
   tierSplitOf,
   trackerDefaultFrom,
+  weeksOf,
   type CompPlanRow,
   type NewClientWithCredit,
   type SetterFirstDeal,
@@ -482,6 +483,24 @@ describe("tier split", () => {
     for (const key of ["setsT1", "setsT2", "setsUnknownTier", "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2"] as const) {
       expect(month[key]).toBe(days.reduce((sum, d) => sum + daily.get(d)![key], 0));
     }
+  });
+});
+
+describe("week totals", () => {
+  it("splits a month into Sunday-to-Saturday weeks that stay inside the month", () => {
+    const weeks = weeksOf(daysBetween("2026-11-01", "2026-11-30"));
+    expect(weeks.map((w) => [w[0], w[w.length - 1]])).toEqual([
+      ["2026-11-01", "2026-11-07"],
+      ["2026-11-08", "2026-11-14"],
+      ["2026-11-15", "2026-11-21"],
+      ["2026-11-22", "2026-11-28"],
+      ["2026-11-29", "2026-11-30"],
+    ]);
+    // October 2026 starts on a Thursday: a short first week.
+    expect(weeksOf(daysBetween("2026-10-01", "2026-10-10")).map((w) => w.length)).toEqual([3, 7]);
+    // A range starting mid-week starts its own week.
+    expect(weeksOf(daysBetween("2026-11-03", "2026-11-09")).map((w) => w.length)).toEqual([5, 2]);
+    expect(weeksOf([])).toEqual([]);
   });
 });
 

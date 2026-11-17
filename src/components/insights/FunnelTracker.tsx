@@ -39,6 +39,7 @@ import {
   saleCommissions,
   setterCost,
   sumTrackerStats,
+  weeksOf,
   tierSplitOf,
   totalCost,
   type CompPlanRow,
@@ -250,12 +251,29 @@ interface MonthBlock {
 
 type CellValue = number | null | boolean;
 
+interface WeekRows {
+  /** First and last day of the week inside the month. */
+  from: string;
+  to: string;
+  total: CellValue[];
+  pairWinners: Set<string>;
+  days: { day: string; values: CellValue[] }[];
+}
+
 interface MonthRows {
   month: string;
   total: CellValue[];
   /** Column keys of the higher value in each Tier 1 / Tier 2 pair. */
   pairWinners: Set<string>;
-  days: { day: string; values: CellValue[] }[];
+  /** Sunday-to-Saturday weeks inside the month, each with its own total row. */
+  weeks: WeekRows[];
+}
+
+/** "Week 1–7 Nov", or "Week 30 Nov" for a one-day week. */
+function fmtWeekLabel(from: string, to: string) {
+  const dayMonth = (d: string) => fmtDayLabel(d).split(" ").slice(1).join(" ");
+  const fromDay = String(Number(from.slice(8, 10)));
+  return from === to ? `Week ${dayMonth(to)}` : `Week ${fromDay}–${dayMonth(to)}`;
 }
 
 // Stable empty defaults: a fresh [] or Map each render would re-run the memos below.
@@ -396,34 +414,59 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
         ))}
       </tr>
       {open
-        ? block.days.map(({ day: d, values }) => (
-            <tr key={d} className="hover:bg-muted/30">
-              <td
-                className={cn(
-                  "sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-1 whitespace-nowrap",
-                  d > today ? "text-muted-foreground/60" : d === today ? "text-primary" : "text-muted-foreground",
-                )}
-              >
-                {fmtDayLabel(d)}
-              </td>
-              {columns.map((c, i) => {
-                const v = values[i];
-                const empty = v === null || v === 0;
-                return (
+        ? block.weeks.map((week) => (
+            <Fragment key={week.from}>
+              {week.days.map(({ day: d, values }) => (
+                <tr key={d} className="hover:bg-muted/30">
                   <td
-                    key={c.key}
                     className={cn(
-                      "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums",
-                      sectionStart.has(c.key) && "border-l",
-                      empty ? "text-muted-foreground/50" : "text-foreground",
-                      c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                      "sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-1 whitespace-nowrap",
+                      d > today ? "text-muted-foreground/60" : d === today ? "text-primary" : "text-muted-foreground",
                     )}
                   >
-                    {c.fmt === "check" ? <CheckCell v={v} /> : formatValue(v, c.fmt)}
+                    {fmtDayLabel(d)}
                   </td>
-                );
-              })}
-            </tr>
+                  {columns.map((c, i) => {
+                    const v = values[i];
+                    const empty = v === null || v === 0;
+                    return (
+                      <td
+                        key={c.key}
+                        className={cn(
+                          "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums",
+                          sectionStart.has(c.key) && "border-l",
+                          empty ? "text-muted-foreground/50" : "text-foreground",
+                          c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                        )}
+                      >
+                        {c.fmt === "check" ? <CheckCell v={v} /> : formatValue(v, c.fmt)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-muted/60" data-week-total={week.from}>
+                <td className="sticky left-0 z-10 border-b-2 border-r border-border bg-muted px-2 py-1 font-semibold whitespace-nowrap">
+                  {fmtWeekLabel(week.from, week.to)}
+                </td>
+                {columns.map((c, i) => {
+                  const v = week.total[i];
+                  return (
+                    <td
+                      key={c.key}
+                      className={cn(
+                        "border-b-2 border-border px-1.5 py-1 text-center font-mono font-semibold tabular-nums",
+                        sectionStart.has(c.key) && "border-l",
+                        week.pairWinners.has(c.key) && "text-emerald-700 dark:text-emerald-300",
+                        c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                      )}
+                    >
+                      {c.fmt === "check" ? <CheckCell v={v} /> : formatValue(v, c.fmt)}
+                    </td>
+                  );
+                })}
+              </tr>
+            </Fragment>
           ))
         : null}
     </>
@@ -709,9 +752,18 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
         month: block.month,
         total,
         pairWinners: pairWinnersOf(columns, total),
-        days: block.days.map((d) => {
-          const s = daily.get(d)!;
-          return { day: d, values: columns.map((c) => c.value(s, ctxDay)) };
+        weeks: weeksOf(block.days).map((wDays) => {
+          const weekTotal = columns.map((c) => c.value(sumTrackerStats(wDays.map((d) => daily.get(d)!)), ctxMonth));
+          return {
+            from: wDays[0],
+            to: wDays[wDays.length - 1],
+            total: weekTotal,
+            pairWinners: pairWinnersOf(columns, weekTotal),
+            days: wDays.map((d) => {
+              const s = daily.get(d)!;
+              return { day: d, values: columns.map((c) => c.value(s, ctxDay)) };
+            }),
+          };
         }),
       };
     });
@@ -746,8 +798,11 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
         const t = targetOf(block.month, c.target.metric);
         return t == null ? "" : String(t);
       })].map(esc).join(","));
-      for (const d of block.days) {
-        lines.push([d.day, ...columns.map((c, i) => csvValue(d.values[i], c.fmt))].map(esc).join(","));
+      for (const w of block.weeks) {
+        for (const d of w.days) {
+          lines.push([d.day, ...columns.map((c, i) => csvValue(d.values[i], c.fmt))].map(esc).join(","));
+        }
+        lines.push([fmtWeekLabel(w.from, w.to), ...columns.map((c, i) => csvValue(w.total[i], c.fmt))].map(esc).join(","));
       }
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });

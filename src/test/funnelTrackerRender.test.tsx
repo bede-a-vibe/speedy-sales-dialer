@@ -71,6 +71,8 @@ describe("FunnelTracker", () => {
     expect(screen.getByText("Target")).toBeInTheDocument();
     expect(screen.getByText("Tue 3 Nov")).toBeInTheDocument();
     expect(screen.getByText("Thu 5 Nov")).toBeInTheDocument();
+    // Week total row (Sunday to Saturday, kept inside the range): 3 to 5 Nov.
+    expect(screen.getByText("Week 3–5 Nov")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Dials" })).toBeInTheDocument();
     expect(screen.getByLabelText("Target dials 2026-11-01")).toHaveValue("1000");
     // Month row: 1 new client, $4,000 cash; dials 1 vs target 1000 shows red.
