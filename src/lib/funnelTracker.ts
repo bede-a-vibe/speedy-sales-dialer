@@ -14,6 +14,7 @@ import { MISSED_BY_US_REASON, tierFor, type BookingTier } from "@/lib/appointmen
 import { SETTER_2026_MARGINAL_BANDS, SETTER_2026_ONE_OFF_RATE } from "@/lib/compPlan";
 import type { BookedAppointmentReportItem } from "@/hooks/usePipelineItems";
 import type { NewClient } from "@/hooks/useNewClients";
+import { toMonthly } from "@/lib/clientRevenue";
 
 export type TrackerFunnel = "cold" | "ads";
 export type TierFilter = "all" | BookingTier;
@@ -259,6 +260,12 @@ export interface BuildTrackerArgs {
   /** user_id -> day -> productive hours. */
   productiveHours: Map<string, Map<string, number>>;
   newClients: NewClientWithCredit[];
+  /**
+   * First-month cash COLLECTED for commission (paidCommissionCash): one row per
+   * client per paid day, first_start = the paid day. Commission is paid on cash
+   * in the month it lands, not on deals started.
+   */
+  commissionCash?: (NewClientWithCredit & { sale_start?: string })[];
   compPlans: CompPlanRow[];
 }
 
@@ -373,13 +380,14 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
   }
 
   // Setter pay sits in the cold view: the setters are the cold callers.
-  // Commission lands on the day of each sale, allocated per sale in date order
-  // over the whole calendar month (any channel, any tier: pay does not split).
+  // Commission lands on the day the first-month cash is paid, allocated per
+  // payment in date order over the whole calendar month (any channel, any
+  // tier: pay does not split).
   if (funnel === "cold") {
     for (const d of days) {
       for (const p of activeSetters(args.compPlans, d, repId)) get(d)!.setterBase += (Number(p.base_annual) || 0) / 365;
     }
-    for (const sale of saleCommissions(args.newClients, args.compPlans, repId)) {
+    for (const sale of saleCommissions(args.commissionCash ?? [], args.compPlans, repId)) {
       const s = get(sale.day);
       if (s) s.commission += sale.commission;
     }
@@ -415,8 +423,10 @@ export interface SaleCommission {
   contact_id: string;
   business_name: string | null;
   setter_id: string;
-  /** First deal start day (the sale date). */
+  /** The commission day: the day the cash was paid (first_start of the input row). */
   day: string;
+  /** The deal's start day, when the input is paid cash (CommissionCash). */
+  sale_start?: string;
   month: string;
   retainer: number;
   oneOff: number;
@@ -445,7 +455,7 @@ function onMarginalPlan(plans: CompPlanRow[], setterId: string, month: string) {
  * (any channel, any tier: pay does not split); the setter credited is the
  * created_by of the lead's first booking. Returned in date order.
  */
-export function saleCommissions(clients: NewClientWithCredit[], plans: CompPlanRow[], repId?: string): SaleCommission[] {
+export function saleCommissions(clients: (NewClientWithCredit & { sale_start?: string })[], plans: CompPlanRow[], repId?: string): SaleCommission[] {
   const eligible = clients
     .filter((n) => n.setter_id && (!repId || n.setter_id === repId) && onMarginalPlan(plans, n.setter_id, monthOf(n.first_start)))
     .slice()
@@ -468,6 +478,7 @@ export function saleCommissions(clients: NewClientWithCredit[], plans: CompPlanR
       business_name: n.business_name,
       setter_id: setter,
       day: n.first_start,
+      sale_start: n.sale_start,
       month,
       retainer,
       oneOff,
@@ -502,6 +513,112 @@ export function monthCommission(clients: NewClientWithCredit[], plans: CompPlanR
     total += sale.commission;
   }
   return { total, perSetter };
+}
+
+// ── Paid marker: commission on first-month cash collected ──────────────────
+
+export interface SetterDealPayment {
+  id: string;
+  paid_on: string;
+  amount: number;
+  note: string | null;
+}
+
+/** A first deal (public.get_setter_first_deals) of a lead whose first booking a rep on a comp plan made. */
+export interface SetterFirstDeal {
+  deal_id: string;
+  contact_id: string;
+  business_name: string | null;
+  setter_id: string | null;
+  billing_period: string;
+  amount: number;
+  start_date: string;
+  status: string;
+  payments: SetterDealPayment[];
+}
+
+/** One client's commissionable cash on one paid day, shaped as a sale for saleCommissions. */
+export interface CommissionCash extends NewClientWithCredit {
+  /** The client's first deal start day. first_start is the paid day. */
+  sale_start: string;
+}
+
+/** What commission can be paid on: the first month's retainer, or the whole one-off. */
+export function firstMonthValue(d: Pick<SetterFirstDeal, "billing_period" | "amount">) {
+  const amount = Number(d.amount) || 0;
+  return d.billing_period === "one_off" ? amount : toMonthly(amount, d.billing_period);
+}
+
+/** Payments counted toward a deal's first month, in paid order, capped at its first-month value. */
+function countedPayments(d: SetterFirstDeal) {
+  let left = firstMonthValue(d);
+  const out: { paid_on: string; amount: number }[] = [];
+  for (const p of [...d.payments].sort((a, b) => a.paid_on.localeCompare(b.paid_on) || a.id.localeCompare(b.id))) {
+    const amount = Math.min(Math.max(0, Number(p.amount) || 0), left);
+    if (amount <= 0) continue;
+    left -= amount;
+    out.push({ paid_on: p.paid_on, amount });
+  }
+  return out;
+}
+
+/**
+ * First-month cash collected, per client per paid day: the input to
+ * saleCommissions for the paid-cash rule. Retainer payments move the setter's
+ * running total; one-off payments earn 5% flat. Payments past a deal's
+ * first-month value are later months' fees and earn nothing. An instalment
+ * deal lands each payment in the month it is paid.
+ */
+export function paidCommissionCash(deals: SetterFirstDeal[]): CommissionCash[] {
+  const byKey = new Map<string, CommissionCash>();
+  for (const d of deals) {
+    if (!d.setter_id) continue;
+    for (const p of countedPayments(d)) {
+      const key = `${d.contact_id}|${p.paid_on}`;
+      const row = byKey.get(key) ?? {
+        contact_id: d.contact_id, business_name: d.business_name, channel: null, source: null,
+        first_start: p.paid_on, mrr: 0, one_off: 0, dialled: false, setter_id: d.setter_id, tier: null,
+        sale_start: d.start_date,
+      };
+      if (d.billing_period === "one_off") row.one_off += p.amount;
+      else row.mrr += p.amount;
+      if (d.start_date < row.sale_start) row.sale_start = d.start_date;
+      byKey.set(key, row);
+    }
+  }
+  return [...byKey.values()];
+}
+
+export interface AwaitingPayment {
+  deal_id: string;
+  contact_id: string;
+  business_name: string | null;
+  setter_id: string;
+  start_date: string;
+  billing_period: string;
+  value: number;
+  paid: number;
+  outstanding: number;
+}
+
+/**
+ * First deals still owed first-month cash, for a setter on the commission
+ * plan, oldest first. Churned deals are left out: they will not pay.
+ */
+export function awaitingPayment(deals: SetterFirstDeal[], plans: CompPlanRow[], repId?: string): AwaitingPayment[] {
+  const onPlan = new Set(plans.filter((p) => p.role === "setter" && p.plan_key === "setter_2026_marginal").map((p) => p.user_id));
+  const out: AwaitingPayment[] = [];
+  for (const d of deals) {
+    if (!d.setter_id || !onPlan.has(d.setter_id) || (repId && d.setter_id !== repId) || d.status === "churned") continue;
+    const value = firstMonthValue(d);
+    const paid = countedPayments(d).reduce((t, p) => t + p.amount, 0);
+    if (value - paid <= 0) continue;
+    out.push({
+      deal_id: d.deal_id, contact_id: d.contact_id, business_name: d.business_name, setter_id: d.setter_id,
+      start_date: d.start_date, billing_period: d.billing_period, value, paid, outstanding: value - paid,
+    });
+  }
+  return out.sort((a, b) => a.start_date.localeCompare(b.start_date) || a.deal_id.localeCompare(b.deal_id));
 }
 
 /** Credit each new client to the setter of the lead's first booking and tag it with the latest booking's tier. */
