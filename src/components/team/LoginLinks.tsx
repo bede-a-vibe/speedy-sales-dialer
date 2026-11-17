@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -94,14 +94,24 @@ export function AddLoginDialog({
   open,
   onOpenChange,
   onCreated,
+  initialEmail = "",
+  initialName = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (r: LoginLinkResult) => void;
+  /** Prefill for a team member who takes meetings but has no login yet. */
+  initialEmail?: string;
+  initialName?: string;
 }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState(initialEmail);
+  const [name, setName] = useState(initialName);
   const [role, setRole] = useState<"admin" | "coach" | "sales_rep" | "none">("sales_rep");
+  useEffect(() => {
+    if (!open) return;
+    setEmail(initialEmail);
+    setName(initialName);
+  }, [open, initialEmail, initialName]);
   const make = useLoginLink();
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
