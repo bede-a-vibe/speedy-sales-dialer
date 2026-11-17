@@ -39,6 +39,9 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [ready, setReady] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
+  // A token_hash link waits for a click before it is used: link previews
+  // (Slack, iMessage, email scanners) open links, and the code works once.
+  const [pendingTokenHash, setPendingTokenHash] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -84,16 +87,8 @@ export default function ResetPasswordPage() {
         if (error) throw error;
         clearRecoveryParamsFromUrl();
       } else if (type === "recovery" && tokenHash) {
-        const { error } = await withTimeout(
-          supabase.auth.verifyOtp({
-            type: "recovery",
-            token_hash: tokenHash,
-          }),
-          AUTH_REQUEST_TIMEOUT_MS,
-          "Password reset session timed out. Please reopen the link from your email.",
-        );
-        if (error) throw error;
-        clearRecoveryParamsFromUrl();
+        if (isMounted) setPendingTokenHash(tokenHash);
+        return;
       }
 
       const { data, error } = await withTimeout(
@@ -126,6 +121,32 @@ export default function ResetPasswordPage() {
       isMounted = false;
     };
   }, []);
+
+  const continueWithLink = async () => {
+    if (!pendingTokenHash) return;
+    setLoading(true);
+    setBackendError(null);
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.verifyOtp({ type: "recovery", token_hash: pendingTokenHash }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "Checking your link timed out. Please try again.",
+      );
+      if (error) throw error;
+      clearRecoveryParamsFromUrl();
+      setPendingTokenHash(null);
+      setReady(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to verify the link.";
+      if (message.includes("timed out") || message.includes("Failed to fetch")) {
+        setBackendError("The server is temporarily unavailable. Please try again in a moment.");
+      } else {
+        toast.error("This link has already been used or has expired. Ask for a new one.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +219,14 @@ export default function ResetPasswordPage() {
             <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
             <p className="text-sm text-foreground font-medium">Password updated!</p>
             <p className="text-xs text-muted-foreground">Redirecting to dashboard...</p>
+          </div>
+        ) : pendingTokenHash ? (
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-foreground">Click continue to set your password.</p>
+            <Button type="button" onClick={continueWithLink} disabled={loading} className="w-full bg-primary text-primary-foreground font-semibold">
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Continue
+            </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

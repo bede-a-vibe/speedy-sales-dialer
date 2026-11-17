@@ -47,10 +47,14 @@ Deno.serve(async (req) => {
   if (!ALLOWED_ORIGINS.some((re) => re.test(origin))) return json({ error: "Origin not allowed" }, 400);
   const redirectTo = `${origin}/reset-password`;
 
+  // The link goes straight to the dialer's reset page with the hashed token,
+  // and the page only uses it when the person clicks Continue. A plain
+  // action_link is used up by whoever opens it first, and Slack's link
+  // preview bot opened Lucas's link 12 seconds after it was posted (17 Nov).
   const recoveryLink = async (email: string) => {
     const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
     if (error) throw error;
-    return data.properties.action_link;
+    return `${redirectTo}?token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=recovery`;
   };
 
   try {
