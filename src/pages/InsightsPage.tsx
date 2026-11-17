@@ -33,6 +33,7 @@ const TITLES: Record<InsightsTab, string> = {
   funnel: "Insights · Funnel",
   closing: "Insights · Closing",
   tracker: "Insights · Tracker",
+  setters: "Insights · Setters",
   team: "Insights · Team",
   talktime: "Insights · Timing",
 };
