@@ -59,6 +59,20 @@ export function daysBetween(from: string, to: string): string[] {
 
 export const monthOf = (day: string) => `${day.slice(0, 7)}-01`;
 
+/**
+ * Split a month's days (in order) into Sunday-to-Saturday weeks. A week never
+ * crosses into another month, so the first and last weeks can be short.
+ */
+export function weeksOf(days: string[]): string[][] {
+  const weeks: string[][] = [];
+  for (const d of days) {
+    const sunday = new Date(`${d}T12:00:00Z`).getUTCDay() === 0;
+    if (weeks.length === 0 || sunday) weeks.push([d]);
+    else weeks[weeks.length - 1].push(d);
+  }
+  return weeks;
+}
+
 export function lastDayOfMonth(month: string) {
   const d = new Date(`${month.slice(0, 7)}-01T12:00:00Z`);
   d.setUTCMonth(d.getUTCMonth() + 1, 0);
