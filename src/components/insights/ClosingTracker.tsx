@@ -1,4 +1,6 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ReportSection } from "@/components/reports/ReportSection";
@@ -7,11 +9,12 @@ import { cn } from "@/lib/utils";
 import { isOurReschedule, isProspectReschedule } from "@/lib/appointments";
 import { movesOf, wasPitched as sharedWasPitched } from "@/lib/reportMetrics";
 import { useNewClients } from "@/hooks/useNewClients";
-import { availableSlotsForDay } from "@/lib/funnelTracker";
+import { availableSlotsForDay, daysBetween, defaultMonthOpen, defaultWeekOpen, monthOf, weekKey, weeksOf } from "@/lib/funnelTracker";
 
 /**
- * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings: one column per
- * day, a roll-up after every week, and a total for the range. Every row is derived from
+ * The IWB "Elites Closing" tracker, rebuilt on the dialer's own bookings, laid out like
+ * the Tracker tab: one row per day, Sunday-to-Saturday week totals and month totals that
+ * collapse, a total for the range, and the metrics across the top. Every row is derived from
  * pipeline_items on Bede's definitions (showed over resolved slots, first meetings for the
  * setting rates, closed over pitched for the close rates, first collection for cash).
  * Rows the dialer cannot see yet (GMeet time, deposits vs paid-in-full) are not faked.
@@ -56,48 +59,40 @@ function addDays(key: string, n: number) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
-function weekdayIndex(key: string) {
-  // 0 = Monday … 6 = Sunday, from the date alone.
-  const d = new Date(`${key}T12:00:00Z`);
-  return (d.getUTCDay() + 6) % 7;
-}
 function fmtDay(key: string) {
   const d = new Date(`${key}T12:00:00Z`);
   return `${d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" })} ${d.getUTCDate()} ${d.toLocaleDateString("en-AU", { month: "short", timeZone: "UTC" })}`;
 }
+function fmtMonth(month: string) {
+  const d = new Date(`${month}T12:00:00Z`);
+  return `${d.toLocaleDateString("en-AU", { month: "short", timeZone: "UTC" })} ${d.getUTCFullYear()}`;
+}
+/** "Week 1–7 Nov", or "Week 30 Nov" for a one-day week. */
+function fmtWeek(from: string, to: string) {
+  const dayMonth = (k: string) => fmtDay(k).split(" ").slice(1).join(" ");
+  return from === to ? `Week ${dayMonth(to)}` : `Week ${Number(from.slice(8, 10))}–${dayMonth(to)}`;
+}
+
+const OPEN_STORAGE_KEY = "insights-closing-open-v1";
+function readOpenState(): Record<string, boolean> {
+  try {
+    const raw = window.localStorage.getItem(OPEN_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+function writeOpenState(state: Record<string, boolean>) {
+  try {
+    window.localStorage.setItem(OPEN_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Private window or blocked storage: the open state just is not remembered.
+  }
+}
 
 // Bede's bookable calendar lives in lib/funnelTracker so the Tracker tab shares it.
 export { availableSlotsForDay };
-
-interface Column {
-  key: string;
-  label: string;
-  kind: "day" | "week" | "total";
-  days: Set<string>;
-}
-
-function buildColumns(from: string, to: string): Column[] {
-  const cols: Column[] = [];
-  let weekDays = new Set<string>();
-  let weekNo = 1;
-  let d = from;
-  const all = new Set<string>();
-  while (d <= to) {
-    cols.push({ key: d, label: fmtDay(d), kind: "day", days: new Set([d]) });
-    weekDays.add(d);
-    all.add(d);
-    if (weekdayIndex(d) === 6 || d === to) {
-      if (weekDays.size > 1 || cols.length > 1) {
-        cols.push({ key: `week-${weekNo}`, label: `Week ${weekNo}`, kind: "week", days: weekDays });
-      }
-      weekNo += 1;
-      weekDays = new Set<string>();
-    }
-    d = addDays(d, 1);
-  }
-  cols.push({ key: "total", label: "Total", kind: "total", days: all });
-  return cols;
-}
 
 interface Stats {
   availableSlots: number;
@@ -499,96 +494,199 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
   );
   const itemIds = useMemo(() => items.filter((i) => !i.is_reschedule_slot).map((i) => i.id), [items]);
   const { data: minutesByItem = new Map<string, number>() } = useMeetingMinutes(itemIds);
-  const columns = useMemo(() => buildColumns(dateFrom, dateTo), [dateFrom, dateTo]);
-  const statsByColumn = useMemo(
-    () => new Map(columns.map((c) => {
-      const s = computeStats(items, c.days, minutesByItem, setterItems);
-      for (const n of newClients) {
-        if (c.days.has(n.first_start)) { s.newClients += 1; s.newClientsMrr += n.mrr; }
-      }
-      return [c.key, s];
-    })),
-    [columns, items, minutesByItem, setterItems],
-  );
   const sections = useMemo(() => buildSections(!!activeRepId), [activeRepId]);
+  const metrics = useMemo(() => sections.flatMap((section) => section.rows.map((row) => ({ section: section.title, row }))), [sections]);
+  const sectionStart = useMemo(
+    () => new Set(metrics.filter((m, i) => i === 0 || metrics[i - 1].section !== m.section).map((m) => `${m.section}|${m.row.label}`)),
+    [metrics],
+  );
+
+  // Days in the range, grouped into months and Sunday-to-Saturday weeks (a week never crosses a month).
+  const months = useMemo(() => {
+    const days = dateFrom && dateTo && dateFrom <= dateTo ? daysBetween(dateFrom, dateTo) : [];
+    const byMonth = new Map<string, string[]>();
+    for (const d of days) byMonth.set(monthOf(d), [...(byMonth.get(monthOf(d)) ?? []), d]);
+    return [...byMonth.entries()].map(([month, mDays]) => ({ month, days: mDays, weeks: weeksOf(mDays) }));
+  }, [dateFrom, dateTo]);
+
+  // One Stats per range, month, week and day.
+  const stats = useMemo(() => {
+    const out = new Map<string, Stats>();
+    const add = (key: string, days: string[]) => {
+      const set = new Set(days);
+      const s = computeStats(items, set, minutesByItem, setterItems);
+      for (const n of newClients) {
+        if (set.has(n.first_start)) { s.newClients += 1; s.newClientsMrr += n.mrr; }
+      }
+      out.set(key, s);
+    };
+    add("range", months.flatMap((m) => m.days));
+    for (const m of months) {
+      add(`m:${m.month}`, m.days);
+      for (const w of m.weeks) add(`w:${w[0]}`, w);
+      for (const d of m.days) add(`d:${d}`, [d]);
+    }
+    return out;
+  }, [months, items, minutesByItem, setterItems, newClients]);
+
   const today = dayKey(new Date().toISOString());
+  const currentMonth = monthOf(today);
+
+  // Open / closed months and weeks, remembered in this browser. Untouched ones
+  // follow the Tracker's default: the current month and the current week open.
+  const [openState, setOpenState] = useState<Record<string, boolean>>(readOpenState);
+  const setOpen = useCallback((updates: Record<string, boolean>) => {
+    setOpenState((prev) => {
+      const next = { ...prev, ...updates };
+      writeOpenState(next);
+      return next;
+    });
+  }, []);
+  const monthOpen = (month: string) => openState[month] ?? defaultMonthOpen(month, currentMonth, months.length);
+  const weekOpen = (w: string[], count: number) => openState[weekKey(w[0])] ?? defaultWeekOpen(w[0], w[w.length - 1], today, count);
+  const allOpen = months.length > 0 && months.every((m) => monthOpen(m.month) && m.weeks.every((w) => weekOpen(w, m.weeks.length)));
+  const setAllOpen = (open: boolean) =>
+    setOpen(Object.fromEntries(months.flatMap((m) => [[m.month, open], ...m.weeks.map((w) => [weekKey(w[0]), open])])));
+
+  const cells = (s: Stats | undefined, level: "range" | "month" | "week" | "day") =>
+    metrics.map(({ section, row }) => {
+      const v = row.value(s ?? emptyStats());
+      const empty = v === null || v === 0;
+      const total = level !== "day";
+      return (
+        <td
+          key={`${section}|${row.label}`}
+          className={cn(
+            "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums whitespace-nowrap",
+            sectionStart.has(`${section}|${row.label}`) && "border-l",
+            total && "font-semibold",
+            empty ? "text-muted-foreground/50" : "text-foreground",
+            row.fmt === "pct" && v !== null && v >= 50 && "text-emerald-700 dark:text-emerald-300",
+            row.fmt === "pct" && v !== null && v > 0 && v < 25 && "text-red-600 dark:text-red-400",
+          )}
+        >
+          {format(v, row.fmt)}
+        </td>
+      );
+    });
+
+  const sectionSpans = useMemo(() => {
+    const out: { title: string; span: number }[] = [];
+    for (const m of metrics) {
+      const last = out[out.length - 1];
+      if (last && last.title === m.section) last.span += 1;
+      else out.push({ title: m.section, span: 1 });
+    }
+    return out;
+  }, [metrics]);
+
+  const stickyDay = "sticky left-0 z-10 border-b border-r border-border px-2 py-1 whitespace-nowrap";
 
   return (
     <ReportSection
       title="Closing tracker"
-      description={`One column per day, a roll-up after each week, and the range total${selectedRepLabel ? `, ${selectedRepLabel}: bookings made as setter, everything else as closer; available slots stay team-wide` : ""}. Bookings made count by the day booked; everything else counts by the day of the meeting. Show rates use resolved slots; close rates use pitched meetings; cash is the first collection.`}
+      description={`One row per day, week and month totals that collapse, and the range total${selectedRepLabel ? `, ${selectedRepLabel}: bookings made as setter, everything else as closer; available slots stay team-wide` : ""}. Bookings made count by the day booked; everything else counts by the day of the meeting. Show rates use resolved slots; close rates use pitched meetings; cash is the first collection.`}
       className="overflow-hidden"
     >
-      <div className="overflow-x-auto">
+      <div className="mb-2 flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={() => setAllOpen(!allOpen)} disabled={months.length === 0}>
+          {allOpen ? "Collapse all" : "Expand all"}
+        </Button>
+      </div>
+      <div className="max-h-[75vh] overflow-auto rounded-md border border-border">
         <table className="min-w-full border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 min-w-[220px] border-b border-r border-border bg-card px-2 py-1.5 text-left font-medium text-muted-foreground">
-                Metric
+              <th rowSpan={2} className="sticky left-0 top-0 z-30 min-w-[150px] border-b border-r border-border bg-card px-2 py-1.5 text-left font-medium text-muted-foreground">
+                Day
               </th>
-              {columns.map((c) => (
+              {sectionSpans.map((sec, i) => (
                 <th
-                  key={c.key}
+                  key={sec.title}
+                  colSpan={sec.span}
                   className={cn(
-                    "min-w-[64px] border-b border-border px-1.5 py-1.5 text-center font-medium whitespace-nowrap",
-                    c.kind === "week" && "bg-primary/10 text-foreground",
-                    c.kind === "total" && "bg-primary/20 text-foreground",
-                    c.kind === "day" && c.key > today && "text-muted-foreground/60",
-                    c.kind === "day" && c.key === today && "text-primary",
+                    "sticky top-0 z-20 border-b border-border bg-muted px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground",
+                    i > 0 && "border-l",
                   )}
                 >
-                  {c.label}
+                  {sec.title}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {metrics.map(({ section, row }) => (
+                <th
+                  key={`${section}|${row.label}`}
+                  title={row.hint}
+                  className={cn(
+                    "sticky top-[25px] z-20 min-w-[72px] max-w-[110px] border-b border-border bg-card px-1.5 py-1.5 text-center align-bottom font-medium leading-tight text-muted-foreground",
+                    sectionStart.has(`${section}|${row.label}`) && "border-l",
+                    row.emphasis && "text-foreground",
+                  )}
+                >
+                  {row.label.trim()}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {sections.map((section) => (
-              <Fragment key={section.title}>
-                <tr>
-                  <td
-                    colSpan={columns.length + 1}
-                    className="sticky left-0 border-b border-border bg-muted/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
-                  >
-                    {section.title}
-                  </td>
-                </tr>
-                {section.rows.map((row) => (
-                  <tr key={`${section.title}-${row.label}`} className="hover:bg-muted/30">
-                    <td
-                      className={cn(
-                        "sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-1 whitespace-nowrap",
-                        row.emphasis ? "font-medium text-foreground" : "text-muted-foreground",
-                        row.label.startsWith("  ") && "pl-5",
-                      )}
-                      title={row.hint}
-                    >
-                      {row.label.trim()}
+            {months.length > 1 ? (
+              <tr className="bg-primary/20">
+                <td className={cn(stickyDay, "bg-primary/25 font-semibold")}>Range total</td>
+                {cells(stats.get("range"), "range")}
+              </tr>
+            ) : null}
+            {months.map((m) => {
+              const mOpen = monthOpen(m.month);
+              return (
+                <Fragment key={m.month}>
+                  <tr className="cursor-pointer bg-primary/10" onClick={() => setOpen({ [m.month]: !mOpen })}>
+                    <td className={cn(stickyDay, "bg-primary/20 px-1 font-semibold")}>
+                      {/* No handler of its own: the click bubbles to the row, so it toggles once. */}
+                      <button type="button" aria-expanded={mOpen} className="flex items-center gap-1 rounded-sm px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", mOpen && "rotate-90")} aria-hidden="true" />
+                        <span>{fmtMonth(m.month)} total</span>
+                      </button>
                     </td>
-                    {columns.map((c) => {
-                      const v = row.value(statsByColumn.get(c.key) ?? emptyStats());
-                      const text = format(v, row.fmt);
-                      const empty = v === null || v === 0;
-                      return (
-                        <td
-                          key={c.key}
-                          className={cn(
-                            "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums",
-                            c.kind === "week" && "bg-primary/5",
-                            c.kind === "total" && "bg-primary/10 font-semibold",
-                            empty ? "text-muted-foreground/50" : "text-foreground",
-                            row.fmt === "pct" && v !== null && v >= 50 && "text-emerald-700 dark:text-emerald-300",
-                            row.fmt === "pct" && v !== null && v > 0 && v < 25 && "text-red-600 dark:text-red-400",
-                          )}
-                        >
-                          {text}
-                        </td>
-                      );
-                    })}
+                    {cells(stats.get(`m:${m.month}`), "month")}
                   </tr>
-                ))}
-              </Fragment>
-            ))}
+                  {mOpen
+                    ? m.weeks.map((w) => {
+                        const wOpen = weekOpen(w, m.weeks.length);
+                        return (
+                          <Fragment key={w[0]}>
+                            <tr className="cursor-pointer bg-muted/60" onClick={() => setOpen({ [weekKey(w[0])]: !wOpen })}>
+                              <td className={cn(stickyDay, "bg-muted px-1 font-semibold")}>
+                                <button type="button" aria-expanded={wOpen} className="flex items-center gap-1 rounded-sm pl-3 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                  <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", wOpen && "rotate-90")} aria-hidden="true" />
+                                  <span>{fmtWeek(w[0], w[w.length - 1])}</span>
+                                </button>
+                              </td>
+                              {cells(stats.get(`w:${w[0]}`), "week")}
+                            </tr>
+                            {wOpen
+                              ? w.map((d) => (
+                                  <tr key={d} className="hover:bg-muted/30">
+                                    <td
+                                      className={cn(
+                                        stickyDay,
+                                        "bg-card",
+                                        d > today ? "text-muted-foreground/60" : d === today ? "text-primary" : "text-muted-foreground",
+                                      )}
+                                    >
+                                      {fmtDay(d)}
+                                    </td>
+                                    {cells(stats.get(`d:${d}`), "day")}
+                                  </tr>
+                                ))
+                              : null}
+                          </Fragment>
+                        );
+                      })
+                    : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
