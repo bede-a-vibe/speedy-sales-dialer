@@ -31,6 +31,7 @@ import {
   daysBetween,
   dayKeyOf,
   defaultMonthOpen,
+  defaultWeekOpen,
   lastDayOfMonth,
   leadsFor,
   monthOf,
@@ -39,6 +40,7 @@ import {
   saleCommissions,
   setterCost,
   sumTrackerStats,
+  weekKey,
   weeksOf,
   tierSplitOf,
   totalCost,
@@ -362,6 +364,8 @@ interface TrackerMonthProps {
   targetMap: Map<string, TrackerTargetRow>;
   canEdit: boolean;
   today: string;
+  /** Comma-joined first days of this month's open weeks (a string so the memo compares by value). */
+  openWeeks: string;
 }
 
 /**
@@ -369,8 +373,9 @@ interface TrackerMonthProps {
  * target row, then the day rows when open. Memoised so a toggle re-renders
  * only the month clicked; the values come precomputed in `block`.
  */
-const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns, sectionStart, funnel, targetMap, canEdit, today }: TrackerMonthProps) {
+const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns, sectionStart, funnel, targetMap, canEdit, today, openWeeks }: TrackerMonthProps) {
   const label = fmtMonthLabel(block.month);
+  const weekOpen = new Set(openWeeks ? openWeeks.split(",") : []);
   const targetOf = (metric: string) => targetMap.get(`${block.month}|${funnel}|${metric}`)?.value ?? null;
   return (
     <>
@@ -416,7 +421,40 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
       {open
         ? block.weeks.map((week) => (
             <Fragment key={week.from}>
-              {week.days.map(({ day: d, values }) => (
+              <tr
+                className="cursor-pointer bg-muted/60"
+                data-week-total={week.from}
+                onClick={() => onToggle({ [weekKey(week.from)]: !weekOpen.has(week.from) })}
+              >
+                <td className="sticky left-0 z-10 border-b border-r border-border bg-muted px-1 py-1 font-semibold whitespace-nowrap">
+                  {/* No handler of its own: the click bubbles to the row, so it toggles once. */}
+                  <button
+                    type="button"
+                    aria-expanded={weekOpen.has(week.from)}
+                    className="flex items-center gap-1 rounded-sm pl-3 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", weekOpen.has(week.from) && "rotate-90")} aria-hidden="true" />
+                    <span>{fmtWeekLabel(week.from, week.to)}</span>
+                  </button>
+                </td>
+                {columns.map((c, i) => {
+                  const v = week.total[i];
+                  return (
+                    <td
+                      key={c.key}
+                      className={cn(
+                        "border-b border-border px-1.5 py-1 text-center font-mono font-semibold tabular-nums",
+                        sectionStart.has(c.key) && "border-l",
+                        week.pairWinners.has(c.key) && "text-emerald-700 dark:text-emerald-300",
+                        c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
+                      )}
+                    >
+                      {c.fmt === "check" ? <CheckCell v={v} /> : formatValue(v, c.fmt)}
+                    </td>
+                  );
+                })}
+              </tr>
+              {weekOpen.has(week.from) && week.days.map(({ day: d, values }) => (
                 <tr key={d} className="hover:bg-muted/30">
                   <td
                     className={cn(
@@ -445,27 +483,6 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
                   })}
                 </tr>
               ))}
-              <tr className="bg-muted/60" data-week-total={week.from}>
-                <td className="sticky left-0 z-10 border-b-2 border-r border-border bg-muted px-2 py-1 font-semibold whitespace-nowrap">
-                  {fmtWeekLabel(week.from, week.to)}
-                </td>
-                {columns.map((c, i) => {
-                  const v = week.total[i];
-                  return (
-                    <td
-                      key={c.key}
-                      className={cn(
-                        "border-b-2 border-border px-1.5 py-1 text-center font-mono font-semibold tabular-nums",
-                        sectionStart.has(c.key) && "border-l",
-                        week.pairWinners.has(c.key) && "text-emerald-700 dark:text-emerald-300",
-                        c.fmt === "check" && v === false && "text-red-600 dark:text-red-400",
-                      )}
-                    >
-                      {c.fmt === "check" ? <CheckCell v={v} /> : formatValue(v, c.fmt)}
-                    </td>
-                  );
-                })}
-              </tr>
             </Fragment>
           ))
         : null}
@@ -783,8 +800,17 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
       return next;
     });
   }, []);
-  const allOpen = months.length > 0 && months.every((m) => isOpen(m.month));
-  const setAllOpen = (open: boolean) => setOpen(Object.fromEntries(months.map((m) => [m.month, open])));
+  const isWeekOpen = useCallback(
+    (from: string, to: string, weekCount: number) => openState[weekKey(from)] ?? defaultWeekOpen(from, to, today, weekCount),
+    [openState, today],
+  );
+  const openWeeksOf = (block: MonthRows) =>
+    block.weeks.filter((w) => isWeekOpen(w.from, w.to, block.weeks.length)).map((w) => w.from).join(",");
+  const allOpen =
+    rows.length > 0 && rows.every((b) => isOpen(b.month) && b.weeks.every((w) => isWeekOpen(w.from, w.to, b.weeks.length)));
+  // Expand all opens every month and week; Collapse all closes both.
+  const setAllOpen = (open: boolean) =>
+    setOpen(Object.fromEntries(rows.flatMap((b) => [[b.month, open], ...b.weeks.map((w) => [weekKey(w.from), open])])));
 
   const downloadCsv = () => {
     const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
@@ -923,6 +949,7 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                 targetMap={targetMap}
                 canEdit={canViewAdmin}
                 today={today}
+                openWeeks={openWeeksOf(block)}
               />
             ))}
           </tbody>
