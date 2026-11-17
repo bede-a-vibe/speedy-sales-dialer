@@ -45,6 +45,14 @@ export function defaultMonthOpen(month: string, currentMonth: string, monthCount
   return monthCount === 1 || month === currentMonth;
 }
 
+/** Weeks inside an open month start collapsed except the current week (or a month's only week). */
+export function defaultWeekOpen(from: string, to: string, today: string, weekCount: number) {
+  return weekCount === 1 || (from <= today && today <= to);
+}
+
+/** Collapse-state key for a week (months are keyed by their first day). */
+export const weekKey = (from: string) => `week:${from}`;
+
 export function addDayKeys(key: string, n: number) {
   const d = new Date(`${key}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);

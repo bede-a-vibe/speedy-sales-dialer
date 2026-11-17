@@ -12,6 +12,7 @@ import {
   creditNewClients,
   daysBetween,
   defaultMonthOpen,
+  defaultWeekOpen,
   bracketLabel,
   monthCommission,
   saleCommissions,
@@ -501,6 +502,12 @@ describe("week totals", () => {
     // A range starting mid-week starts its own week.
     expect(weeksOf(daysBetween("2026-11-03", "2026-11-09")).map((w) => w.length)).toEqual([5, 2]);
     expect(weeksOf([])).toEqual([]);
+  });
+
+  it("opens only the current week by default, or a month's only week", () => {
+    expect(defaultWeekOpen("2026-11-15", "2026-11-21", "2026-11-17", 3)).toBe(true);
+    expect(defaultWeekOpen("2026-11-08", "2026-11-14", "2026-11-17", 3)).toBe(false);
+    expect(defaultWeekOpen("2026-09-29", "2026-09-30", "2026-11-17", 1)).toBe(true);
   });
 });
 

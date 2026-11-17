@@ -108,7 +108,17 @@ describe("FunnelTracker", () => {
     // Clicking the month total row opens it, clicking again closes it.
     fireEvent.click(oct.closest("tr")!);
     expect(screen.getByRole("button", { name: "Oct 2026 total" })).toHaveAttribute("aria-expanded", "true");
+    // Its weeks show as collapsed total rows (none holds today); a click opens one.
+    const octWeeks = screen.getAllByRole("button", { name: /^Week .* Oct$/ });
+    expect(octWeeks.map((b) => b.textContent)).toEqual(["Week 1–3 Oct", "Week 4–10 Oct", "Week 11–17 Oct", "Week 18–24 Oct", "Week 25–31 Oct"]);
+    expect(octWeeks.every((b) => b.getAttribute("aria-expanded") === "false")).toBe(true);
+    expect(screen.queryByText("Thu 1 Oct")).toBeNull();
+    fireEvent.click(octWeeks[0].closest("tr")!);
+    expect(screen.getByRole("button", { name: "Week 1–3 Oct" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Thu 1 Oct")).toBeInTheDocument();
+    expect(screen.queryByText("Sun 4 Oct")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Week 1–3 Oct" }));
+    expect(screen.queryByText("Thu 1 Oct")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Oct 2026 total" }));
     expect(screen.queryByText("Thu 1 Oct")).toBeNull();
     expect(JSON.parse(window.localStorage.getItem("insights-tracker-month-open-v1")!)["2026-10-01"]).toBe(false);
@@ -116,6 +126,7 @@ describe("FunnelTracker", () => {
     // Expand all / Collapse all.
     fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
     expect(screen.getByText("Tue 29 Sept")).toBeInTheDocument();
+    expect(screen.getByText("Sun 4 Oct")).toBeInTheDocument(); // weeks open too
     fireEvent.click(screen.getByRole("button", { name: "Collapse all" }));
     expect(screen.queryByText("Tue 3 Nov")).toBeNull();
     expect(screen.getAllByText("Target")).toHaveLength(3);
