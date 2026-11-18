@@ -380,7 +380,7 @@ const TrackerMonth = memo(function TrackerMonth({ block, open, onToggle, columns
   return (
     <>
       <tr className="cursor-pointer bg-primary/10" onClick={() => onToggle({ [block.month]: !open })}>
-        <td className="sticky left-0 z-10 border-b border-r border-border bg-primary/20 px-1 py-1 font-semibold whitespace-nowrap">
+        <td className="sticky left-0 z-10 border-b border-r border-border bg-solid-primary-20 px-1 py-1 font-semibold whitespace-nowrap">
           {/* No handler of its own: the click bubbles to the row, so it toggles once. */}
           <button type="button" aria-expanded={open} className="flex items-center gap-1 rounded-sm px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-90")} aria-hidden="true" />

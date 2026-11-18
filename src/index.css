@@ -130,6 +130,15 @@
 }
 
 @layer utilities {
+  /* Solid versions of the tinted backgrounds, for sticky first columns. A
+     translucent tint lets the numbers scrolling underneath show through; the
+     tint is laid over the card colour instead, so it looks the same and is
+     opaque. */
+  .bg-solid-primary-20 { background: linear-gradient(hsl(var(--primary) / 0.2), hsl(var(--primary) / 0.2)), hsl(var(--card)); }
+  .bg-solid-primary-25 { background: linear-gradient(hsl(var(--primary) / 0.25), hsl(var(--primary) / 0.25)), hsl(var(--card)); }
+  .bg-solid-muted-20 { background: linear-gradient(hsl(var(--muted) / 0.2), hsl(var(--muted) / 0.2)), hsl(var(--card)); }
+  .bg-solid-muted-30 { background: linear-gradient(hsl(var(--muted) / 0.3), hsl(var(--muted) / 0.3)), hsl(var(--card)); }
+  .bg-solid-muted-40 { background: linear-gradient(hsl(var(--muted) / 0.4), hsl(var(--muted) / 0.4)), hsl(var(--card)); }
   .outcome-no-answer {
     @apply bg-[hsl(var(--outcome-no-answer))];
   }
