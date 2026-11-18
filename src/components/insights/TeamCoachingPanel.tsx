@@ -119,7 +119,7 @@ export function blockerTheme(raw: string | null | undefined): string | null {
   if (/^(booked|none|n\/a|na|-|no blocker)\.?$/.test(l)) return null;
   if (/(shut|cut) (down|off) the (call|pitch|conversation)|brush[- ]?off|no need for marketing|not interested|hung up/.test(l)) return "Brushed off early (no need / not interested)";
   if (/disconnect|dropped|call (cut|ended) (out|before)|before any conversation/.test(l)) return "Call dropped before a conversation";
-  if (/retir|shut down|closed down|clos(ed|ing) the business|no longer (operat|trading|in business)|out of business|ceased trading|sold the business|business (has )?closed/.test(l)) return "Business closed, sold or owner retired";
+  if (/retir|shut down|closed down|clos(ed|ing) the business|no longer (operat|trading|in business)|out of business|ceased (trading|working|operat)|sold the business|business (has |is )?(now )?closed/.test(l)) return "Business closed, sold or owner retired";
   if (/too busy|flat out|enough work|fully booked|booked out/.test(l)) return "Too busy / enough work";
   if (/already (has|have|uses|using|with)|existing (agency|provider)|another agency/.test(l)) return "Already has an agency or provider";
   if (/gatekeeper|not the (owner|decision)|decision maker (not|unavailable)/.test(l)) return "Didn't reach the decision maker";

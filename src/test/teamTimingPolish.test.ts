@@ -18,6 +18,7 @@ describe("Team and Timing polish", () => {
     expect(blockerTheme("Prospect is retired and no longer operating the business.")).toBe("Business closed, sold or owner retired");
     expect(blockerTheme("Prospect shut down the call immediately with a brush-off before any engagement could occur.")).toBe("Brushed off early (no need / not interested)");
     expect(blockerTheme("The call disconnected during the opening exchange before any conversation could take place.")).toBe("Call dropped before a conversation");
+    expect(blockerTheme("The prospect has ceased working and the business is closed.")).toBe("Business closed, sold or owner retired");
     expect(blockerTheme("Wants to wait until after Christmas")).toBe("Wants to wait until after Christmas");
   });
 
