@@ -6,7 +6,8 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { DashboardGreeting } from "@/components/dashboard/DashboardGreeting";
 import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats";
 import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerformancePanel";
-import { MyCallFunnel } from "@/components/dashboard/MyCallFunnel";
+import { MyNumbers } from "@/components/dashboard/MyNumbers";
+import { PayThisMonthCard } from "@/components/dashboard/PayThisMonthCard";
 import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
@@ -50,30 +51,32 @@ export default function DashboardPage() {
         {/* Row 2: Quick Stats */}
         <DashboardQuickStats />
 
-        {/* Row 2.5: My Sales — lifetime dial-to-sale economics */}
-        <MySalesPanel />
-
-        {/* Row 3: Achievements with confetti & gamification */}
-        <DailyAchievements data={achievementData} />
-
-        {/* Row 4: Progress ring + reporting snapshot */}
+        {/* Row 3: Today: progress ring + reporting snapshot */}
         <div className="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-6">
           <DailyProgressRing />
           <DashboardPerformancePanel />
         </div>
 
-        <MyCallFunnel />
+        {/* Row 4: Pay this month (own for setters on a plan; every setter for admins) */}
+        <PayThisMonthCard />
 
-        {/* Row 5: Targets (daily visible, weekly/team collapsed) */}
+        {/* Row 5: My numbers: Setter tracker and Closing, locked to the signed-in rep */}
+        <MyNumbers />
+
+        {/* Row 6: My Sales (lifetime) and goals */}
+        <MySalesPanel />
         <DashboardTargetsOverview />
 
-        {/* Row 7: Leaderboard + Activity Feed */}
+        {/* Row 7: Daily achievements */}
+        <DailyAchievements data={achievementData} />
+
+        {/* Row 8: Leaderboard + Activity Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
 
-        {/* Row 8: Long-term achievements */}
+        {/* Row 9: Long-term achievements */}
         <LongTermAchievements data={achievementData} />
       </div>
     </AppLayout>
