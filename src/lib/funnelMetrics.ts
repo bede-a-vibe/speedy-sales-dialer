@@ -1,5 +1,6 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
+import { callStagesOf } from "@/lib/callStages";
 import { toDateKey } from "@/lib/reportMetrics";
 
 type CallLogRow = Pick<
@@ -170,16 +171,22 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
   const eligible = logs.filter((l) => toDateKey(l.created_at) >= launchDate);
   const scoped = eligible.length !== logs.length;
   const totalBooked = logs.filter((l) => l.outcome === "booked").length;
-  const booked = eligible.filter((l) => l.outcome === "booked" && l.reached_connection).length;
-  const bookedWithoutFunnelTags = totalBooked - booked;
-  // Every booking passed through every earlier stage, so no stage before
-  // "booked" may sit below the booking count. Stage tags lag behind outcomes,
-  // so floor each stage at the bookings and cascade upward.
-  const eligibleBooked = eligible.filter((l) => l.outcome === "booked").length;
-  const commitment = Math.max(eligible.filter((l) => l.reached_commitment).length, eligibleBooked);
-  const solution = Math.max(eligible.filter((l) => l.reached_solution_awareness).length, commitment);
-  const problem = Math.max(eligible.filter((l) => l.reached_problem_awareness).length, solution);
-  const connection = Math.max(eligible.filter((l) => l.reached_connection).length, problem);
+  // Every booking passed through every earlier stage, and a later stage implies
+  // the earlier ones, call by call (callStagesOf), so the stages always step
+  // down and match the Setters tab. Bookings with no stage ticks still count.
+  let connection = 0, problem = 0, solution = 0, commitment = 0, booked = 0, untagged = 0;
+  for (const l of eligible) {
+    const st = callStagesOf(l);
+    if (st.intro) connection += 1;
+    if (st.problem) problem += 1;
+    if (st.solution) solution += 1;
+    if (st.ask) commitment += 1;
+    if (st.booked) {
+      booked += 1;
+      if (!l.reached_connection) untagged += 1;
+    }
+  }
+  const bookedWithoutFunnelTags = totalBooked - booked + untagged;
 
   const top = connection || 1;
   const stages: FunnelStageMetric[] = [
