@@ -46,7 +46,7 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
   if (audioUrl) {
     return (
       <div className={className ?? "mb-3 flex flex-wrap items-center gap-2"}>
-        <audio controls autoPlay={autoPlay} src={audioUrl} className="h-9 w-full max-w-md" />
+        <audio controls autoPlay={autoPlay} src={audioUrl} className="h-9 w-full min-w-[260px] max-w-md" />
         <a href={shareUrl ?? audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
           Open recording <ExternalLink className="h-3 w-3" />
         </a>
