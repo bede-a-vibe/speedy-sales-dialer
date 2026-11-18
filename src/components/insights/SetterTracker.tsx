@@ -2,6 +2,7 @@ import { Fragment, useCallback, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { ReportSection } from "@/components/reports/ReportSection";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useNewClients } from "@/hooks/useNewClients";
 import { useContactBookingHistory, useProductiveHoursByDay, useRepCompPlans, useTrackerDailyInputs } from "@/hooks/useFunnelTracker";
@@ -169,6 +170,7 @@ function writeOpenState(state: Record<string, boolean>) {
 }
 
 const ALL = "__all";
+const RANGE_KEY = "range";
 /** Dials in the range before someone who is not on a setter pay plan is listed as a setter. */
 const MIN_DIALS_TO_LIST = 10;
 const NO_CLIENTS: never[] = [];
@@ -196,7 +198,8 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
       .sort((a, b) => Number(b.paid) - Number(a.paid) || a.name.localeCompare(b.name));
   }, [compPlans, callLogs, repName]);
   const [picked, setPicked] = useState<string | null>(null);
-  const selected = activeRepId ?? picked ?? setters[0]?.id ?? ALL;
+  // All setters first; a dropdown narrows it to one.
+  const selected = activeRepId ?? picked ?? ALL;
   const setterIds = useMemo(
     () => new Set(selected === ALL ? setters.map((s) => s.id) : [selected]),
     [selected, setters],
@@ -247,15 +250,20 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   const setterRows = (days: string[], level: Level, combined: SetterStats) => {
     if (perSetter.length === 0) return null;
     // Nothing happened (no dials, sets, meetings or sales): no per-setter rows.
-    if (combined.dials === 0 && combined.sets === 0 && combined.onCal === 0 && combined.sold === 0) return null;
-    return perSetter.map((st) => (
-      <tr key={`${level}-${days[0]}-${st.id}`} className="hover:bg-muted/30">
-        <td className={cn("sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-0.5 whitespace-nowrap text-[11px] text-muted-foreground", level === "day" ? "pl-6" : "pl-7")}>
-          {st.name}
-        </td>
-        {cells(sumSetterStats(days.map((d) => st.daily.get(d)!).filter(Boolean)), level, true)}
-      </tr>
-    ));
+    const active = (x: SetterStats) => x.dials > 0 || x.sets > 0 || x.onCal > 0 || x.sold > 0;
+    if (!active(combined)) return null;
+    // Only the setters who did something in this period.
+    return perSetter
+      .map((st) => ({ st, stats: sumSetterStats(days.map((d) => st.daily.get(d)!).filter(Boolean)) }))
+      .filter(({ stats }) => active(stats))
+      .map(({ st, stats }) => (
+        <tr key={`${level}-${days[0]}-${st.id}`} className="hover:bg-muted/30">
+          <td className={cn("sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-0.5 whitespace-nowrap text-[11px] text-muted-foreground", level === "day" ? "pl-6" : "pl-7")}>
+            {st.name}
+          </td>
+          {cells(stats, level, true)}
+        </tr>
+      ));
   };
 
   const today = dayKeyOf(new Date().toISOString());
@@ -272,7 +280,9 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   const weekOpen = (w: string[], count: number) => openState[weekKey(w[0])] ?? defaultWeekOpen(w[0], w[w.length - 1], today, count);
   const allOpen = months.length > 0 && months.every((m) => monthOpen(m.month) && m.weeks.every((w) => weekOpen(w, m.weeks.length)));
   const setAllOpen = (open: boolean) =>
-    setOpen(Object.fromEntries(months.flatMap((m) => [[m.month, open], ...m.weeks.map((w) => [weekKey(w[0]), open])])));
+    setOpen({ ...Object.fromEntries(months.flatMap((m) => [[m.month, open], ...m.weeks.map((w) => [weekKey(w[0]), open])])), [RANGE_KEY]: open });
+  // The range total opens to show each setter's range line; closed by default.
+  const rangeOpen = openState[RANGE_KEY] ?? false;
 
   const sectionStart = useMemo(() => new Set(COLS.filter((c, i) => i === 0 || COLS[i - 1].section !== c.section).map((c) => c.key)), []);
   const sectionSpans = useMemo(() => {
@@ -313,29 +323,24 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   return (
     <ReportSection
       title="Setter tracker"
-      description={`${selectedName}: one row per day, week and month totals that collapse${selected === ALL ? ", with each setter's own line under every row" : ""}. Calls count by the day dialled, sets by the day booked, meetings by the day they were due, and units sold by the day the first deal starts (credited to the setter of the lead's first booking).`}
+      description={`${selectedName}: one row per day, week and month totals that collapse${selected === ALL ? "; open a month, week or the range total to see each setter's line" : ""}. Calls count by the day dialled, sets by the day booked, meetings by the day they were due, and units sold by the day the first deal starts (credited to the setter of the lead's first booking).`}
       className="overflow-hidden"
     >
       <div className="mb-2 flex flex-wrap items-center gap-3">
         {activeRepId ? (
           <span className="text-xs text-muted-foreground">Showing {selectedName} (from the rep filter).</span>
         ) : (
-          <div className="flex flex-wrap rounded-md border border-border bg-background p-0.5" role="group" aria-label="Setter">
-            {[...setters.map((s) => ({ id: s.id, label: s.name })), { id: ALL, label: "All setters" }].map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setPicked(s.id)}
-                aria-pressed={selected === s.id}
-                className={cn(
-                  "rounded-sm px-2.5 py-1 text-xs transition-colors",
-                  selected === s.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          <Select value={selected} onValueChange={setPicked}>
+            <SelectTrigger className="h-8 w-[200px] text-xs" aria-label="Setter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All setters</SelectItem>
+              {setters.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         <Button className="ml-auto" type="button" variant="outline" size="sm" onClick={() => setAllOpen(!allOpen)} disabled={months.length === 0}>
           {allOpen ? "Collapse all" : "Expand all"}
@@ -378,12 +383,21 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           </thead>
           <tbody>
             {months.length > 1 ? (
-              <tr className="bg-primary/20">
-                <td className={cn(stickyDay, "bg-primary/25 font-semibold")}>Range total</td>
+              <tr className={cn("bg-primary/20", selected === ALL && "cursor-pointer")} onClick={selected === ALL ? () => setOpen({ [RANGE_KEY]: !rangeOpen }) : undefined}>
+                <td className={cn(stickyDay, "bg-primary/25 px-1 font-semibold")}>
+                  {selected === ALL ? (
+                    <button type="button" aria-expanded={rangeOpen} className="flex items-center gap-1 rounded-sm px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", rangeOpen && "rotate-90")} aria-hidden="true" />
+                      <span>Range total</span>
+                    </button>
+                  ) : (
+                    <span className="px-1">Range total</span>
+                  )}
+                </td>
                 {cells(total(months.flatMap((m) => m.days)), "range")}
               </tr>
             ) : null}
-            {months.length > 1 ? setterRows(months.flatMap((m) => m.days), "range", total(months.flatMap((m) => m.days))) : null}
+            {months.length > 1 && rangeOpen ? setterRows(months.flatMap((m) => m.days), "range", total(months.flatMap((m) => m.days))) : null}
             {months.map((m) => {
               const mOpen = monthOpen(m.month);
               return (
@@ -398,7 +412,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                     </td>
                     {cells(total(m.days), "month")}
                   </tr>
-                  {setterRows(m.days, "month", total(m.days))}
+                  {mOpen ? setterRows(m.days, "month", total(m.days)) : null}
                   {mOpen
                     ? m.weeks.map((w) => {
                         const wOpen = weekOpen(w, m.weeks.length);
@@ -413,7 +427,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                               </td>
                               {cells(total(w), "week")}
                             </tr>
-                            {setterRows(w, "week", total(w))}
+                            {wOpen ? setterRows(w, "week", total(w)) : null}
                             {wOpen
                               ? w.map((d) => (
                                   <Fragment key={d}>
