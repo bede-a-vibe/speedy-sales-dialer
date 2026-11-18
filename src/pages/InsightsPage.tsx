@@ -25,24 +25,33 @@ import { useNewClients } from "@/hooks/useNewClients";
 
 const ALL_REPS_VALUE = "all";
 
-const TABS = ["overview", "funnel", "closing", "tracker", "setters", "team", "talktime"] as const;
+const TABS = ["overview", "funnel", "setters", "closing", "tracker"] as const;
 type InsightsTab = (typeof TABS)[number];
+
+/** Setters holds three views (18 Nov 2026): the setter tracker, Team and Timing. */
+const SETTER_VIEWS = ["tracker", "team", "timing"] as const;
+type SetterView = (typeof SETTER_VIEWS)[number];
 
 const TITLES: Record<InsightsTab, string> = {
   overview: "Insights · Overview",
   funnel: "Insights · Funnel",
+  setters: "Insights · Setters",
   closing: "Insights · Closing",
   tracker: "Insights · Tracker",
-  setters: "Insights · Setters",
-  team: "Insights · Team",
-  talktime: "Insights · Timing",
+};
+const SETTER_TITLES: Record<SetterView, string> = {
+  tracker: "Insights · Setters",
+  team: "Insights · Setters · Team",
+  timing: "Insights · Setters · Timing",
 };
 
-/** Tabs that were folded into others on 3 Nov 2026. Old links land on the new home. */
-const LEGACY_TABS: Record<string, { tab: InsightsTab; source?: string }> = {
+/** Tabs folded into others (3 Nov and 18 Nov 2026). Old links land on the new home. */
+const LEGACY_TABS: Record<string, { tab: InsightsTab; source?: string; view?: SetterView }> = {
   sources: { tab: "overview" },
   leads: { tab: "overview" },
   ads: { tab: "funnel", source: "ads" },
+  team: { tab: "setters", view: "team" },
+  talktime: { tab: "setters", view: "timing" },
 };
 
 interface InsightsPageProps {
@@ -63,6 +72,16 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
     setSearchParams(next, { replace: true });
   };
 
+  const urlView = searchParams.get("view");
+  const setterView: SetterView = (SETTER_VIEWS as readonly string[]).includes(urlView ?? "") ? (urlView as SetterView) : "tracker";
+  const handleSetterViewChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "setters");
+    if (value === "tracker") next.delete("view");
+    else next.set("view", value);
+    setSearchParams(next, { replace: true });
+  };
+
   const source = searchParams.get("source") || ALL_SOURCES;
   const handleSourceChange = (slug: string) => {
     const next = new URLSearchParams(searchParams);
@@ -77,6 +96,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
     const next = new URLSearchParams(searchParams);
     next.set("tab", legacy.tab);
     if (legacy.source) next.set("source", legacy.source);
+    if (legacy.view) next.set("view", legacy.view);
     setSearchParams(next, { replace: true });
   }, [urlTab, searchParams, setSearchParams]);
 
@@ -147,7 +167,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   }, [callLogs, dateFrom, dateTo, activeRepId]);
 
   return (
-    <AppLayout title={TITLES[activeTab]}>
+    <AppLayout title={activeTab === "setters" ? SETTER_TITLES[setterView] : TITLES[activeTab]}>
       <div className="mx-auto max-w-7xl space-y-4">
         <ReportsToolbar
           dateFrom={dateFrom}
@@ -174,11 +194,9 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
           <TabsList className="mb-4 h-auto flex-wrap gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="funnel">Funnel</TabsTrigger>
+            <TabsTrigger value="setters">Setters</TabsTrigger>
             <TabsTrigger value="closing">Closing</TabsTrigger>
             <TabsTrigger value="tracker">Tracker</TabsTrigger>
-            <TabsTrigger value="setters">Setters</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="talktime">Timing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -216,18 +234,51 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             />
           </TabsContent>
 
-          <TabsContent value="team">
-            <InsightsTeam
-              callLogs={callLogs}
-              bookings={bookings}
-              reps={reps}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              activeRepId={activeRepId}
-              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
-              repNameMap={repNameMap}
-            />
+          <TabsContent value="setters">
+            <Tabs value={setterView} onValueChange={handleSetterViewChange}>
+              <TabsList className="mb-4 h-auto flex-wrap gap-1" aria-label="Setter views">
+                <TabsTrigger value="tracker">Setter tracker</TabsTrigger>
+                <TabsTrigger value="team">Team</TabsTrigger>
+                <TabsTrigger value="timing">Timing</TabsTrigger>
+              </TabsList>
+              <TabsContent value="tracker">
+                <SetterTracker
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  callLogs={callLogs}
+                  bookings={bookings}
+                  rescheduleSlots={rescheduleSlots}
+                  reps={reps}
+                  activeRepId={activeRepId}
+                />
+              </TabsContent>
+              <TabsContent value="team">
+                <InsightsTeam
+                  callLogs={callLogs}
+                  bookings={bookings}
+                  reps={reps}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  activeRepId={activeRepId}
+                  selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+                  repNameMap={repNameMap}
+                />
+              </TabsContent>
+              <TabsContent value="timing">
+                <InsightsTiming
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  callLogs={callLogs}
+                  bookings={bookings}
+                  rescheduleSlots={rescheduleSlots}
+                  activeRepId={activeRepId}
+                  selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
+
+
 
           <TabsContent value="closing">
             <ClosingTracker
@@ -253,29 +304,7 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
             />
           </TabsContent>
 
-          <TabsContent value="setters">
-            <SetterTracker
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              callLogs={callLogs}
-              bookings={bookings}
-              rescheduleSlots={rescheduleSlots}
-              reps={reps}
-              activeRepId={activeRepId}
-            />
-          </TabsContent>
 
-          <TabsContent value="talktime">
-            <InsightsTiming
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              callLogs={callLogs}
-              bookings={bookings}
-              rescheduleSlots={rescheduleSlots}
-              activeRepId={activeRepId}
-              selectedRepLabel={activeRepId ? selectedRepLabel : undefined}
-            />
-          </TabsContent>
 
         </Tabs>
       </div>
