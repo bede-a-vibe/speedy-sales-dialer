@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
@@ -369,128 +370,112 @@ async function dropSharedGhlContacts(rows: UnifiedMeetingLite[]): Promise<Unifie
   });
 }
 
-export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
-  return useQuery({
-    queryKey: ["booked-appointments-range", from, to],
-    queryFn: async () => {
-      const buildQuery = () => {
-        let query = supabase
-          .from("pipeline_items")
-          .select(
-            "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue)",
-          )
-          .eq("pipeline_type", "booked");
+/** Local-day test used by both booking readers: created in range, or scheduled in range. */
+function bookingInRange(from: string | undefined, to: string | undefined) {
+  const toLocalDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  return (createdIso: string, scheduledIso: string | null) => {
+    const createdDate = toLocalDate(createdIso);
+    const scheduledDate = scheduledIso ? toLocalDate(scheduledIso) : null;
+    const matchesCreatedRange = (!from || createdDate >= from) && (!to || createdDate <= to);
+    const matchesScheduledRange = !!scheduledDate && (!from || scheduledDate >= from) && (!to || scheduledDate <= to);
+    return matchesCreatedRange || matchesScheduledRange;
+  };
+}
 
-        // Server-side pre-filter with a ±1 day buffer (the precise local-date
-        // range check below stays authoritative). Previously this fetched EVERY
-        // booked row and filtered in the browser.
-        if (from && to) {
-          const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
-          const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
-          query = query.or(
-            `and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(scheduled_for.gte.${fromIso},scheduled_for.lte.${toIso})`,
-          );
-        }
-        // created_at alone is not unique: id breaks ties so pages never skip or repeat rows.
-        return query.order("created_at", { ascending: false }).order("id", { ascending: false });
-      };
+/**
+ * Everything the booked-appointments report is built from, for one date range.
+ * Every lookup is by contact (calls, contact fields, verdicts, booking history),
+ * so a wider range carries complete inputs for any narrower range inside it.
+ */
+export interface BookedRaw {
+  dialer: BookedAppointmentReportItem[];
+  ghl: UnifiedMeetingLite[];
+  calls: Array<{ contact_id: string | null; user_id: string | null; created_at: string }>;
+  contactsById: Map<string, NonNullable<BookedAppointmentReportItem["contacts"]>>;
+  verdictRows: Array<{ contact_id: string; is_qualified: boolean | null }>;
+  history: BookingHistoryRow[];
+}
 
-      // Paged: the API caps a response at 1,000 rows, and a year of bookings
-      // (the Tracker's default range) can pass that.
-      const fetchAllDialerRows = async () => {
-        const PAGE = 1000;
-        const rows: unknown[] = [];
-        for (let offset = 0; ; offset += PAGE) {
-          const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
-          if (error) return { data: null, error };
-          rows.push(...(data ?? []));
-          if (!data || data.length < PAGE) break;
-        }
-        return { data: rows, error: null };
-      };
+async function fetchBookedRaw(from?: string, to?: string): Promise<BookedRaw> {
+  const buildQuery = () => {
+    let query = supabase
+      .from("pipeline_items")
+      .select(
+        "id, contact_id, created_at, created_by, assigned_user_id, scheduled_for, appointment_outcome, outcome_reason, dq_reason, outcome_recorded_at, status, deal_value, monthly_recurring_value, reschedule_count, is_qualified, pitched, proposal_status, proposal_sent_date, move_count, meeting_channel, resolved_bucket, booking_tier, booking_method, contacts:contacts!pipeline_items_contact_id_fkey(industry, state, trade_type, work_type, business_size, prospect_tier, buying_signal_strength, phone_type, has_google_ads, has_facebook_ads, dm_phone, gbp_rating, review_count, team_size, monthly_revenue)",
+      )
+      .eq("pipeline_type", "booked");
 
-      // Dialer rows and calendar-only rows don't depend on each other: fetch both at once.
-      const dialerPromise = fetchAllDialerRows();
-
-      // Compare using local date representations for timezone correctness
-      const toLocalDate = (iso: string) => {
-        const d = new Date(iso);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      };
-      const inRange = (createdIso: string, scheduledIso: string | null) => {
-        const createdDate = toLocalDate(createdIso);
-        const scheduledDate = scheduledIso ? toLocalDate(scheduledIso) : null;
-        const matchesCreatedRange = (!from || createdDate >= from) && (!to || createdDate <= to);
-        const matchesScheduledRange =
-          !!scheduledDate && (!from || scheduledDate >= from) && (!to || scheduledDate <= to);
-        return matchesCreatedRange || matchesScheduledRange;
-      };
-
-      // Cold-call meetings that only exist in the GHL calendar (no dialer row).
-      // See mergeMeetingStreams.ts for why ads bookings are excluded.
-      let ghlQuery = supabase
-        .from("v_meetings_unified")
-        .select(
-          "id, stream, contact_id, start_time, booked_at, rep_user_id, resolved_outcome, outcome_reason, reschedule_count, mrr, led_to_deal, channel, is_linked, meeting_type, title",
-        )
-        .eq("stream", "ghl")
-        .eq("channel", "Cold Call")
-        .eq("is_linked", true);
-      if (from && to) {
-        const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
-        const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
-        ghlQuery = ghlQuery.or(
-          `and(booked_at.gte.${fromIso},booked_at.lte.${toIso}),and(start_time.gte.${fromIso},start_time.lte.${toIso})`,
-        );
-      }
-      const [{ data, error }, { data: ghlData, error: ghlError }] = await Promise.all([dialerPromise, ghlQuery]);
-      if (error) throw error;
-      if (ghlError) throw ghlError;
-      const items = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) =>
-        inRange(item.created_at, item.scheduled_for),
+    // Server-side pre-filter with a ±1 day buffer (the precise local-date
+    // range check stays authoritative). Previously this fetched EVERY
+    // booked row and filtered in the browser.
+    if (from && to) {
+      const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+      const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+      query = query.or(
+        `and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(scheduled_for.gte.${fromIso},scheduled_for.lte.${toIso})`,
       );
-      const ghlRowsInRange = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
-        (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
-      );
-      // Several dialer contacts can carry the same GHL contact id (a bad link
-      // made when they were pushed to GHL). A GHL meeting on such a contact is
-      // attached to an arbitrary business and usually duplicates a dialer row
-      // on another contact, so it is left out until the links are cleaned.
-      const ghlRows = await dropSharedGhlContacts(ghlRowsInRange);
-      // Follow-up (second) meetings need each contact's full booking history,
-      // not just the rows inside the reporting window.
-      const withFollowUps = async (merged: BookedAppointmentReportItem[]) => {
-        const ids = [...new Set(merged.map((m) => m.contact_id))];
-        const history: BookingHistoryRow[] = [];
-        const batches: string[][] = [];
-        for (let i = 0; i < ids.length; i += 200) batches.push(ids.slice(i, i + 200));
-        const results = await Promise.all(
-          batches.map((batch) =>
-            supabase
-              .from("pipeline_items")
-              .select("id, contact_id, created_at, scheduled_for, appointment_outcome, resolved_bucket")
-              .eq("pipeline_type", "booked")
-              .in("contact_id", batch),
-          ),
-        );
-        for (const { data: hist, error: histError } of results) {
-          if (histError) throw histError;
-          history.push(...((hist ?? []) as BookingHistoryRow[]));
-        }
-        return markFollowUpMeetings(merged, history);
-      };
+    }
+    // created_at alone is not unique: id breaks ties so pages never skip or repeat rows.
+    return query.order("created_at", { ascending: false }).order("id", { ascending: false });
+  };
 
-      if (ghlRows.length === 0) return withFollowUps(items);
+  // Paged: the API caps a response at 1,000 rows, and a year of bookings
+  // (the Tracker's default range) can pass that.
+  const fetchAllDialerRows = async () => {
+    const PAGE = 1000;
+    const rows: unknown[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
+      if (error) return { data: null, error };
+      rows.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
+    return { data: rows, error: null };
+  };
 
-      const ghlContactIds = [...new Set(ghlRows.map((r) => r.contact_id).filter((id): id is string => !!id))];
-      const bookedAtByContact = new Map<string, string>();
-      for (const r of ghlRows) {
-        if (r.contact_id && r.booked_at) bookedAtByContact.set(r.contact_id, r.booked_at);
-      }
-      // Verdicts live on dialer bookings, which may be outside the window; pull
-      // them for the GHL contacts so a calendar-only sitting inherits the lead's
-      // verdict. Independent of the other two lookups, so all three run at once.
-      const [callsRes, contactsRes, verdictRes] = await Promise.all([
+  // Dialer rows and calendar-only rows don't depend on each other: fetch both at once.
+  const dialerPromise = fetchAllDialerRows();
+  const inRange = bookingInRange(from, to);
+
+  // Cold-call meetings that only exist in the GHL calendar (no dialer row).
+  // See mergeMeetingStreams.ts for why ads bookings are excluded.
+  let ghlQuery = supabase
+    .from("v_meetings_unified")
+    .select(
+      "id, stream, contact_id, start_time, booked_at, rep_user_id, resolved_outcome, outcome_reason, reschedule_count, mrr, led_to_deal, channel, is_linked, meeting_type, title",
+    )
+    .eq("stream", "ghl")
+    .eq("channel", "Cold Call")
+    .eq("is_linked", true);
+  if (from && to) {
+    const fromIso = new Date(new Date(`${from}T00:00:00`).getTime() - 86_400_000).toISOString();
+    const toIso = new Date(new Date(`${to}T23:59:59`).getTime() + 86_400_000).toISOString();
+    ghlQuery = ghlQuery.or(
+      `and(booked_at.gte.${fromIso},booked_at.lte.${toIso}),and(start_time.gte.${fromIso},start_time.lte.${toIso})`,
+    );
+  }
+  const [{ data, error }, { data: ghlData, error: ghlError }] = await Promise.all([dialerPromise, ghlQuery]);
+  if (error) throw error;
+  if (ghlError) throw ghlError;
+  const dialer = ((data ?? []) as BookedAppointmentReportItem[]).filter((item) => inRange(item.created_at, item.scheduled_for));
+  const ghlRowsInRange = ((ghlData ?? []) as UnifiedMeetingLite[]).filter(
+    (row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time),
+  );
+  // Several dialer contacts can carry the same GHL contact id (a bad link
+  // made when they were pushed to GHL). A GHL meeting on such a contact is
+  // attached to an arbitrary business and usually duplicates a dialer row
+  // on another contact, so it is left out until the links are cleaned.
+  const ghl = await dropSharedGhlContacts(ghlRowsInRange);
+
+  const ghlContactIds = [...new Set(ghl.map((r) => r.contact_id).filter((id): id is string => !!id))];
+  // Verdicts live on dialer bookings, which may be outside the window; pull
+  // them for the GHL contacts so a calendar-only sitting inherits the lead's
+  // verdict. Independent of the other lookups, so they all run at once.
+  const lookups = ghlContactIds.length
+    ? Promise.all([
         supabase.from("call_logs").select("contact_id, user_id, created_at").in("contact_id", ghlContactIds),
         supabase
           .from("contacts")
@@ -504,26 +489,88 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
           .eq("pipeline_type", "booked")
           .in("contact_id", ghlContactIds)
           .not("is_qualified", "is", null),
-      ]);
-      if (callsRes.error) throw callsRes.error;
-      if (contactsRes.error) throw contactsRes.error;
-      const bookers = inferBookers(callsRes.data ?? [], bookedAtByContact);
-      const contactsById = new Map<string, NonNullable<BookedAppointmentReportItem["contacts"]>>();
-      for (const c of contactsRes.data ?? []) {
-        const { id, ...rest } = c;
-        contactsById.set(id, rest);
-      }
-      const { data: verdictRows, error: verdictError } = verdictRes;
-      if (verdictError) throw verdictError;
-      const verdictCarriers = (verdictRows ?? []).map((r) => ({
-        id: "", contact_id: r.contact_id, created_at: "", created_by: "", assigned_user_id: "", scheduled_for: null,
-        appointment_outcome: null, outcome_recorded_at: null, status: "completed" as const, deal_value: null,
-        monthly_recurring_value: null, reschedule_count: 0, is_qualified: r.is_qualified,
-      })) as BookedAppointmentReportItem[];
-      const mergedAll = mergeGhlOnlyMeetings([...items, ...verdictCarriers], ghlRows, bookers, contactsById);
-      // Drop the verdict carriers again; they were only there to seed the verdict map.
-      return withFollowUps(mergedAll.filter((m) => m.id !== ""));
-    },
+      ])
+    : null;
+
+  // Follow-up (second) meetings need each contact's full booking history,
+  // not just the rows inside the reporting window.
+  const historyIds = [...new Set([...dialer.map((m) => m.contact_id), ...ghlContactIds])];
+  const batches: string[][] = [];
+  for (let i = 0; i < historyIds.length; i += 200) batches.push(historyIds.slice(i, i + 200));
+  const historyPromise = Promise.all(
+    batches.map((batch) =>
+      supabase
+        .from("pipeline_items")
+        .select("id, contact_id, created_at, scheduled_for, appointment_outcome, resolved_bucket")
+        .eq("pipeline_type", "booked")
+        .in("contact_id", batch),
+    ),
+  );
+
+  const [lookupResults, historyResults] = await Promise.all([lookups, historyPromise]);
+  const history: BookingHistoryRow[] = [];
+  for (const { data: hist, error: histError } of historyResults) {
+    if (histError) throw histError;
+    history.push(...((hist ?? []) as BookingHistoryRow[]));
+  }
+
+  const contactsById = new Map<string, NonNullable<BookedAppointmentReportItem["contacts"]>>();
+  let calls: BookedRaw["calls"] = [];
+  let verdictRows: BookedRaw["verdictRows"] = [];
+  if (lookupResults) {
+    const [callsRes, contactsRes, verdictRes] = lookupResults;
+    if (callsRes.error) throw callsRes.error;
+    if (contactsRes.error) throw contactsRes.error;
+    if (verdictRes.error) throw verdictRes.error;
+    calls = callsRes.data ?? [];
+    for (const c of contactsRes.data ?? []) {
+      const { id, ...rest } = c;
+      contactsById.set(id, rest);
+    }
+    verdictRows = (verdictRes.data ?? []) as BookedRaw["verdictRows"];
+  }
+  return { dialer, ghl, calls, contactsById, verdictRows, history };
+}
+
+/** The booked-appointments report for [from, to], built from raw inputs for that range or any wider one. */
+export function buildBookedReport(raw: BookedRaw, from?: string, to?: string) {
+  const inRange = bookingInRange(from, to);
+  const items = raw.dialer.filter((item) => inRange(item.created_at, item.scheduled_for));
+  const ghlRows = raw.ghl.filter((row) => !!row.start_time && inRange(row.booked_at ?? row.start_time!, row.start_time));
+  if (ghlRows.length === 0) return markFollowUpMeetings(items, raw.history);
+
+  const ghlContacts = new Set(ghlRows.map((r) => r.contact_id).filter((id): id is string => !!id));
+  const bookedAtByContact = new Map<string, string>();
+  for (const r of ghlRows) {
+    if (r.contact_id && r.booked_at) bookedAtByContact.set(r.contact_id, r.booked_at);
+  }
+  const bookers = inferBookers(raw.calls.filter((c) => !!c.contact_id && ghlContacts.has(c.contact_id)), bookedAtByContact);
+  const verdictCarriers = raw.verdictRows
+    .filter((r) => ghlContacts.has(r.contact_id))
+    .map((r) => ({
+      id: "", contact_id: r.contact_id, created_at: "", created_by: "", assigned_user_id: "", scheduled_for: null,
+      appointment_outcome: null, outcome_recorded_at: null, status: "completed" as const, deal_value: null,
+      monthly_recurring_value: null, reschedule_count: 0, is_qualified: r.is_qualified,
+    })) as BookedAppointmentReportItem[];
+  const mergedAll = mergeGhlOnlyMeetings([...items, ...verdictCarriers], ghlRows, bookers, raw.contactsById);
+  // Drop the verdict carriers again; they were only there to seed the verdict map.
+  return markFollowUpMeetings(mergedAll.filter((m) => m.id !== ""), raw.history);
+}
+
+/**
+ * Booked appointments created or scheduled in [from, to]. With `within`, the
+ * wider range's inputs are fetched once (shared by every card passing the same
+ * window) and the report is built for [from, to] from them: the same result a
+ * fetch of [from, to] gives, without a second set of requests.
+ */
+export function useBookedAppointmentsByDateRange(from?: string, to?: string, within?: { from: string; to: string }) {
+  const fetchFrom = within ? within.from : from;
+  const fetchTo = within ? within.to : to;
+  const build = useCallback((raw: BookedRaw) => buildBookedReport(raw, from, to), [from, to]);
+  return useQuery({
+    queryKey: ["booked-appointments-range", "raw", fetchFrom, fetchTo],
+    queryFn: () => fetchBookedRaw(fetchFrom, fetchTo),
+    select: build,
   });
 }
 
@@ -534,10 +581,40 @@ export function useBookedAppointmentsByDateRange(from?: string, to?: string) {
  * differently from the GHL booking made on the same call) are logged but not
  * counted. Pass the result to getReportMetrics({ rescheduleSlots }).
  */
-export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
+export function useRescheduleSlotsByDateRange(from?: string, to?: string, within?: { from: string; to: string }) {
+  const fetchFrom = within ? within.from : from;
+  const fetchTo = within ? within.to : to;
+  const build = useCallback((raw: RescheduleRaw) => buildRescheduleSlots(raw, from, to), [from, to]);
   return useQuery({
-    queryKey: ["reschedule-slots-range", from, to],
-    queryFn: async (): Promise<BookedAppointmentReportItem[]> => {
+    queryKey: ["reschedule-slots-range", "raw", fetchFrom, fetchTo],
+    queryFn: () => fetchRescheduleRaw(fetchFrom, fetchTo),
+    select: build,
+  });
+}
+
+export interface RescheduleRaw {
+  slots: BookedAppointmentReportItem[];
+  history: BookingHistoryRow[];
+}
+
+const slotLocalDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** Slots for [from, to] (local day missed), from raw inputs for that range or a wider one. */
+export function buildRescheduleSlots(raw: RescheduleRaw, from?: string, to?: string) {
+  const slots = raw.slots.filter((s) => {
+    const day = slotLocalDay(s.scheduled_for!);
+    return (!from || day >= from) && (!to || day <= to);
+  });
+  if (slots.length === 0) return slots as ReturnType<typeof markFollowUpMeetings<BookedAppointmentReportItem>>;
+  // A slot with a lead who had already sat is a second-meeting slot.
+  return markFollowUpMeetings(slots, raw.history);
+}
+
+async function fetchRescheduleRaw(from?: string, to?: string): Promise<RescheduleRaw> {
+  {
       let query = supabase
         .from("meeting_reschedules")
         .select(
@@ -601,9 +678,8 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
           booking_tier: r.pipeline_items!.booking_tier ?? null,
           booking_method: r.pipeline_items!.booking_method ?? null,
         }) as BookedAppointmentReportItem);
-      if (slots.length === 0) return slots;
+      if (slots.length === 0) return { slots, history: [] };
 
-      // A slot with a lead who had already sat is a second-meeting slot.
       const ids = [...new Set(slots.map((s) => s.contact_id))];
       const history: BookingHistoryRow[] = [];
       for (let i = 0; i < ids.length; i += 200) {
@@ -615,9 +691,8 @@ export function useRescheduleSlotsByDateRange(from?: string, to?: string) {
         if (histError) throw histError;
         history.push(...((hist ?? []) as BookingHistoryRow[]));
       }
-      return markFollowUpMeetings(slots, history);
-    },
-  });
+      return { slots, history };
+  }
 }
 
 export function useCreatePipelineItem() {

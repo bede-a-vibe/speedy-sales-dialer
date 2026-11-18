@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -254,10 +254,43 @@ function rangeDays(from?: string, to?: string) {
   return (end.getTime() - new Date(`${from}T00:00:00`).getTime()) / 86_400_000;
 }
 
-export function useCallLogsByDateRange(from?: string, to?: string) {
+/** A wider date range to load once and slice, so several cards on one page share a fetch. */
+export interface SharedRange {
+  from: string;
+  to: string;
+}
+
+/** Keep only the call logs inside [from, to] (local days): the same bounds the server filter uses. */
+export function sliceCallLogsToRange<T extends { created_at: string }>(rows: T[], from?: string, to?: string): T[] {
+  const lo = from ? Date.parse(localDateToUtcStart(from)) : -Infinity;
+  const hi = to ? Date.parse(localDateToUtcEnd(to)) : Infinity;
+  return rows.filter((r) => {
+    const t = Date.parse(r.created_at);
+    return t >= lo && t <= hi;
+  });
+}
+
+/**
+ * Call logs for a date range. With `within`, the wider range is fetched once
+ * (shared by every card that passes the same window) and sliced to [from, to]
+ * here, which gives exactly the rows a fetch of [from, to] would.
+ */
+export function useCallLogsByDateRange(from?: string, to?: string, within?: SharedRange) {
+  const fetchFrom = within ? within.from : from;
+  const fetchTo = within ? within.to : to;
+  const slice = useCallback((rows: Awaited<ReturnType<typeof fetchCallLogsRange>>) => sliceCallLogsToRange(rows, from, to), [from, to]);
   return useQuery({
-    queryKey: ["call-logs-range", from, to],
-    queryFn: async () => {
+    queryKey: ["call-logs-range", fetchFrom, fetchTo],
+    queryFn: () => fetchCallLogsRange(fetchFrom, fetchTo),
+    select: within ? slice : undefined,
+    enabled: true,
+    // Long ranges are thousands of rows; re-pulling them every minute kept
+    // the database busy. Live refresh stays at 1 min for ranges up to a month.
+    refetchInterval: rangeDays(from, to) > 31 ? 10 * 60_000 : 60_000,
+  });
+}
+
+async function fetchCallLogsRange(from?: string, to?: string) {
       const utcFrom = from ? localDateToUtcStart(from) : undefined;
       const utcTo = to ? localDateToUtcEnd(to) : undefined;
 
@@ -313,12 +346,6 @@ export function useCallLogsByDateRange(from?: string, to?: string) {
         cursor = { created_at: last.created_at, id: last.id };
       }
       return rows;
-    },
-    enabled: true,
-    // Long ranges are thousands of rows; re-pulling them every minute kept
-    // the database busy. Live refresh stays at 1 min for ranges up to a month.
-    refetchInterval: rangeDays(from, to) > 31 ? 10 * 60_000 : 60_000,
-  });
 }
 
 // Client-side deduplication to prevent double-inserts from the dialer's fire-and-forget pattern
