@@ -127,7 +127,7 @@ function RepLeaderboard({ rows, repName }: { rows: RepPerformanceRow[]; repName:
   return (
     <div className="rounded-lg border border-border bg-background p-4">
       <p className="mb-3 text-xs text-muted-foreground">
-        Click any column to sort. Crown marks the top performer. Setter columns credit the rep who booked the lead; closer columns credit the rep who ran the meeting.
+        Crown marks the top setter in each column. Showed, closed and cash credit the setter who made the lead's first booking.
       </p>
       <div className="overflow-x-auto">
         <Table>
