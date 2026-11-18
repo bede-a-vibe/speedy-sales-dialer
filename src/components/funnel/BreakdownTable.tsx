@@ -134,7 +134,7 @@ export function BreakdownTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[160px] text-[10px] uppercase tracking-wider">
+                <TableHead className="sticky left-0 bg-solid-muted-40 z-10 min-w-[160px] text-[10px] uppercase tracking-wider">
                   {dimensionLabel}
                 </TableHead>
                 {stats.map((stat) => {
@@ -203,7 +203,7 @@ export function BreakdownTable({
                 );
               })}
               <TableRow className="bg-muted/30 hover:bg-muted/30 font-semibold">
-                <TableCell className="sticky left-0 bg-muted/30 z-10 text-sm">Total</TableCell>
+                <TableCell className="sticky left-0 bg-solid-muted-30 z-10 text-sm">Total</TableCell>
                 {totals.map((t) => (
                   <TableCell key={t.id} className="text-right font-mono text-sm">
                     {t.display}

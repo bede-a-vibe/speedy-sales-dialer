@@ -732,7 +732,7 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
           <tbody>
             {months.length > 1 ? (
               <tr className="bg-primary/20">
-                <td className={cn(stickyDay, "bg-primary/25 font-semibold")}>Range total</td>
+                <td className={cn(stickyDay, "bg-solid-primary-25 font-semibold")}>Range total</td>
                 {cells(stats.get("range"), "range")}
               </tr>
             ) : null}
@@ -741,7 +741,7 @@ export function ClosingTracker({ dateFrom, dateTo, bookings, rescheduleSlots = [
               return (
                 <Fragment key={m.month}>
                   <tr className="cursor-pointer bg-primary/10" onClick={() => setOpen({ [m.month]: !mOpen })}>
-                    <td className={cn(stickyDay, "bg-primary/20 px-1 font-semibold")}>
+                    <td className={cn(stickyDay, "bg-solid-primary-20 px-1 font-semibold")}>
                       {/* No handler of its own: the click bubbles to the row, so it toggles once. */}
                       <button type="button" aria-expanded={mOpen} className="flex items-center gap-1 rounded-sm px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 transition-transform", mOpen && "rotate-90")} aria-hidden="true" />

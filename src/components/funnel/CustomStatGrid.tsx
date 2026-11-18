@@ -461,7 +461,7 @@ function TableView({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[160px] text-xs uppercase tracking-wider">
+              <TableHead className="sticky left-0 bg-solid-muted-40 z-10 min-w-[160px] text-xs uppercase tracking-wider">
                 Period
               </TableHead>
               {stats.map((stat) => {
@@ -514,7 +514,7 @@ function TableView({
             {compareMode && previousMetrics && (
               <>
                 <TableRow className="bg-muted/20">
-                  <TableCell className="sticky left-0 bg-muted/20 z-10 text-sm text-muted-foreground">
+                  <TableCell className="sticky left-0 bg-solid-muted-20 z-10 text-sm text-muted-foreground">
                     Previous period
                   </TableCell>
                   {stats.map((stat) => (
@@ -626,7 +626,7 @@ function SegmentTableView({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[220px] text-xs uppercase tracking-wider">
+              <TableHead className="sticky left-0 bg-solid-muted-40 z-10 min-w-[220px] text-xs uppercase tracking-wider">
                 Segment
               </TableHead>
               {stats.map((stat) => {
@@ -730,7 +730,7 @@ function SegmentTableView({
             {/* Totals row — sums numeric stats, blanks percents */}
             {totalsMetrics && totalsMetrics.length > 0 ? (
               <TableRow className="bg-muted/30 font-medium">
-                <TableCell className="sticky left-0 bg-muted/30 z-10 text-sm">Total</TableCell>
+                <TableCell className="sticky left-0 bg-solid-muted-30 z-10 text-sm">Total</TableCell>
                 {stats.map((stat) => {
                   if (stat.isPercent) {
                     return (
@@ -858,7 +858,7 @@ function BenchmarkTableView({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead className="sticky left-0 bg-muted/40 z-10 min-w-[180px] text-xs uppercase tracking-wider">
+              <TableHead className="sticky left-0 bg-solid-muted-40 z-10 min-w-[180px] text-xs uppercase tracking-wider">
                 {dimensionLabel}
               </TableHead>
               {stats.map((stat) => {
