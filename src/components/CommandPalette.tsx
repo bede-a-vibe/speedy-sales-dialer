@@ -112,7 +112,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       ? [
           { title: "Insights · Overview", to: "/insights?tab=overview", icon: BarChart3 },
           { title: "Insights · Funnel", to: "/insights?tab=funnel", icon: BarChart3 },
-          { title: "Insights · Team", to: "/insights?tab=team", icon: BarChart3 },
+          { title: "Insights · Setters · Team", to: "/insights?tab=setters&view=team", icon: BarChart3 },
           { title: "Insights · Paid ads funnel", to: "/insights?tab=funnel&source=ads", icon: BarChart3 },
           { title: "KPIs & targets", to: "/admin/manager", icon: BarChart3 },
           { title: "GHL Sync", to: "/admin/ghl-sync", icon: RefreshCw },
