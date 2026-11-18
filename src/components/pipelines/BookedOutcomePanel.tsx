@@ -290,6 +290,27 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
       toast.error("Enter the retainer or deal value before closing — it opens the client's revenue record.");
       return;
     }
+    // A verbal yes carries the value they said yes to, so it shows as loaded
+    // on the setter's level-up bar until it is signed and paid.
+    if (outcome === "showed_verbal_commitment") {
+      const verbalMonthly = multiService ? multiServiceTotal : monthlyValue ? toMonthly(parseFloat(monthlyValue)) : 0;
+      if (!(verbalMonthly > 0) && !dealValue) {
+        toast.error("Enter the retainer they said yes to before saving the verbal.");
+        return;
+      }
+      onRecordOutcome(
+        item,
+        outcome,
+        outcomeNotes,
+        scheduledFor,
+        dealValue ? parseFloat(dealValue) : undefined,
+        undefined,
+        undefined,
+        verbalMonthly > 0 ? Math.round(verbalMonthly * 100) / 100 : undefined,
+        { ...extras(), reason: reasonsForOutcome(outcome) ? effReason : null },
+      );
+      return;
+    }
     if (outcome === "disqualified" && qualified !== false) { setQualified(false); setDqReason(effReason); saveQualified(false, effReason); }
     const val = outcome === "showed_closed" && dealValue ? parseFloat(dealValue) : undefined;
     const retainerInput = outcome === "showed_closed" && monthlyValue ? parseFloat(monthlyValue) : undefined;
@@ -443,7 +464,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
 
       <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Deal value (for Close)</p>
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Deal value (for Verbal or Close)</p>
           <div className="flex rounded-md border border-border bg-background p-0.5 text-[11px]">
             <button
               type="button"

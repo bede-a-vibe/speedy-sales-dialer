@@ -206,6 +206,35 @@ export function useSetterFirstDeals(enabled = true) {
   });
 }
 
+/** Verbal yeses from the last 30 days not yet signed, credited to the first-booking setter. */
+export interface SetterVerbalDeal {
+  contact_id: string;
+  business_name: string | null;
+  setter_id: string;
+  verbal_on: string;
+  retainer: number | null;
+  upfront: number | null;
+}
+
+export function useSetterVerbalDeals(enabled = true) {
+  return useQuery({
+    queryKey: ["setter-verbal-deals"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<SetterVerbalDeal[]> => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+      ) => Promise<{ data: unknown; error: unknown }>)("get_setter_verbal_deals");
+      if (error) throw error;
+      return ((data ?? []) as SetterVerbalDeal[]).map((d) => ({
+        ...d,
+        retainer: d.retainer == null ? null : Number(d.retainer),
+        upfront: d.upfront == null ? null : Number(d.upfront),
+      }));
+    },
+  });
+}
+
 /** Record a first-month payment against a deal (the paid marker). */
 export function useRecordDealPayment() {
   const queryClient = useQueryClient();

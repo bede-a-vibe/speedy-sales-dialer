@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
-import { useRepCompPlans, useSetterFirstDeals } from "@/hooks/useFunnelTracker";
+import { useRepCompPlans, useSetterFirstDeals, useSetterVerbalDeals } from "@/hooks/useFunnelTracker";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { dayKeyOf, monthOf } from "@/lib/funnelTracker";
 import { repPayThisMonth } from "@/lib/repPay";
@@ -37,6 +37,7 @@ export function PayThisMonthCard() {
   const { canViewAdmin } = useAdminAccess();
   const { data: plans = [] } = useRepCompPlans();
   const { data: deals = [] } = useSetterFirstDeals(true);
+  const { data: verbals = [] } = useSetterVerbalDeals(true);
   const { data: reps = [] } = useSalesReps();
   const today = dayKeyOf(new Date().toISOString());
   const month = monthOf(today);
@@ -46,9 +47,9 @@ export function PayThisMonthCard() {
     () =>
       plans
         .filter((p) => p.role === "setter" && (canViewAdmin || p.user_id === user?.id))
-        .map((p) => repPayThisMonth(deals, plans, p.user_id, month, today))
+        .map((p) => repPayThisMonth(deals, plans, p.user_id, month, today, verbals))
         .sort((a, b) => (name.get(a.setterId) ?? "").localeCompare(name.get(b.setterId) ?? "")),
-    [plans, canViewAdmin, user?.id, deals, month, today, name],
+    [plans, canViewAdmin, user?.id, deals, verbals, month, today, name],
   );
 
   if (summaries.length === 0) return null;
@@ -56,7 +57,8 @@ export function PayThisMonthCard() {
     <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
       Commission is paid on first-month cash, in the month it is paid: nothing on the first $18k of retainer cash, then 15%
       to $28k, 18% to $38k, 21% to $48k and 25% above, each dollar at the rate of its bracket; one-off and project cash earns
-      5%. Base accrues daily. A sale counts once its first payment is marked paid.
+      5%. Base accrues daily. A sale counts once its first payment is marked paid. Grey on the bar is loaded: first-month
+      retainer still owed on closed deals plus the retainer on verbal yeses from the last 30 days.
     </p>
   );
 
@@ -66,7 +68,7 @@ export function PayThisMonthCard() {
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Setter pay · {monthLabel(month)}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Commission, base to date and what is still waiting on payment, per setter.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Commission, base to date and what is loaded (owed or verbal), per setter.</p>
           </div>
           <Link to="/insights?tab=tracker" className="text-xs font-medium text-primary underline-offset-2 hover:underline">
             Commission by sale and Mark paid
@@ -82,7 +84,7 @@ export function PayThisMonthCard() {
                 <TableHead>Level</TableHead>
                 <TableHead className="text-right">Base to date</TableHead>
                 <TableHead className="text-right">Pay to date</TableHead>
-                <TableHead className="text-right">Waiting on payment</TableHead>
+                <TableHead className="text-right">Loaded</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -95,12 +97,12 @@ export function PayThisMonthCard() {
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold tabular-nums">{money(p.commission)}</TableCell>
                   <TableCell>
-                    <LevelUpBar retainerPaid={p.retainerPaid} compact />
+                    <LevelUpBar retainerPaid={p.retainerPaid} loaded={p.loadedTotal} compact />
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{money(p.baseToDate)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{money(p.payToDate)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
-                    {p.awaiting.length > 0 ? `${p.awaiting.length} · ${money(p.awaitingTotal)}` : "-"}
+                    {p.loaded.length > 0 ? `${p.loaded.length} · ${money(p.loadedTotal)}` : "-"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -119,7 +121,7 @@ export function PayThisMonthCard() {
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">My pay · {monthLabel(month)}</h3>
         <p className="mt-1 text-sm text-muted-foreground">Commission on first-month cash paid this month, plus base so far.</p>
       </div>
-      <LevelUpBar retainerPaid={p.retainerPaid} celebrateKey={`pay-level-${p.setterId}-${month}`} />
+      <LevelUpBar retainerPaid={p.retainerPaid} loaded={p.loadedTotal} celebrateKey={`pay-level-${p.setterId}-${month}`} />
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile label="Commission" value={money(p.commission)} sub={`now earning ${pct(p.currentRate)} on the next retainer dollar`} highlight />
         <Tile
@@ -148,16 +150,20 @@ export function PayThisMonthCard() {
           )}
         </div>
         <div>
-          <div className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">Waiting on payment</div>
-          {p.awaiting.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Every sale you set has its first month paid.</p>
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">Loaded · coming next</div>
+          {p.loaded.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nothing owed or verbal right now. Book the next one.</p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border text-xs">
-              {p.awaiting.map((a) => (
-                <li key={a.deal_id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                  <span className="truncate">{a.business_name || "Client"}</span>
-                  <span className="shrink-0 text-muted-foreground">sold {fmtDay(a.start_date)}</span>
-                  <span className="shrink-0 font-mono tabular-nums">{money(a.outstanding)} owed</span>
+            <ul className="divide-y divide-border rounded-lg border border-dashed border-border bg-muted/40 text-xs">
+              {p.loaded.map((l) => (
+                <li key={l.key} className="flex items-center justify-between gap-2 px-3 py-1.5">
+                  <span className="truncate">{l.business_name || "Client"}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {l.kind === "owed" ? `sold ${fmtDay(l.day)}` : `verbal ${fmtDay(l.day)}`}
+                  </span>
+                  <span className="shrink-0 font-mono tabular-nums">
+                    {l.amount == null ? "value not entered" : l.kind === "owed" ? `${money(l.amount)} owed` : `${money(l.amount)}/mo`}
+                  </span>
                 </li>
               ))}
             </ul>
