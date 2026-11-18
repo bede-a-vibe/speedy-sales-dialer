@@ -24,7 +24,7 @@ function rangeDates(range: Range, today: string): { from: string; to: string } {
  * The signed-in person's own numbers, the same views as Insights > Setters and
  * Closing but locked to them. The Tracker's funnel and P&L stay admin-only.
  */
-export function MyNumbers() {
+export function MyNumbers({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const [range, setRange] = useState<Range>("this_month");
   const [view, setView] = useState("setting");
@@ -38,12 +38,16 @@ export function MyNumbers() {
 
   if (!user) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className={embedded ? "" : "rounded-xl border border-border bg-card p-5"}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">My numbers</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Your setting and closing, day by day, the same way the team reports are worked out.</p>
-        </div>
+        {embedded ? (
+          <span />
+        ) : (
+          <div>
+            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">My numbers</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Your setting and closing, day by day, the same way the team reports are worked out.</p>
+          </div>
+        )}
         <Select value={range} onValueChange={(v) => setRange(v as Range)}>
           <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Date range">
             <SelectValue />

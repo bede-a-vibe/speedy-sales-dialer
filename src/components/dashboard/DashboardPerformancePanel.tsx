@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
-import { BarChart3, CalendarCheck2, Clock3, PhoneCall, Target } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BarChart3, Clock3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange } from "@/hooks/usePipelineItems";
@@ -55,27 +53,9 @@ export function DashboardPerformancePanel() {
 
   return (
     <section className="rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Today's Performance Snapshot</h3>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Quick reporting view for your dialer, booking, and show-up progress today.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link to="/targets">
-              <Target className="h-4 w-4" />
-              Targets
-            </Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link to="/reports">Open reports</Link>
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-primary" />
+        <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">Today</h3>
       </div>
 
       {isLoading ? (
@@ -105,41 +85,18 @@ export function DashboardPerformancePanel() {
             />
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-lg border border-border bg-background p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <PhoneCall className="h-4 w-4" />
-                <p className="text-[10px] uppercase tracking-widest">Dialer quality</p>
-              </div>
-              <p className="mt-2 text-sm text-foreground">
-                {metrics.dialer.pickUpToFollowUpRate}% of answered calls became follow ups, with {metrics.bookingsMade.pickUpsToBookingRate}% converting into bookings.
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CalendarCheck2 className="h-4 w-4" />
-                <p className="text-[10px] uppercase tracking-widest">Setter outcomes</p>
-              </div>
-              <p className="mt-2 text-sm text-foreground">
-                {setter.pendingOutcome} past appointments still need outcomes, and {setter.rescheduled} were rescheduled today.
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock3 className="h-4 w-4" />
-                <p className="text-[10px] uppercase tracking-widest">Focus next</p>
-              </div>
-              <p className="mt-2 text-sm text-foreground">
-                {metrics.dialer.pickUps === 0
-                  ? "No pick ups yet. Stay on volume and try to generate the first live conversations."
-                  : setter.pendingOutcome > 0
-                    ? "Record missing appointment outcomes so reporting stays trustworthy."
-                    : metrics.bookingsMade.totalBookingsMade === 0
-                      ? "You&apos;re getting conversations. Push for the first booking next."
-                      : "Good momentum. Keep stacking qualified conversations and protect show quality."}
-              </p>
-            </div>
-          </div>
+          <p className="mt-3 flex items-start gap-2 text-sm text-foreground">
+            <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>
+              {metrics.dialer.pickUps === 0
+                ? "No pick-ups yet. Stay on volume and get the first live conversation."
+                : setter.pendingOutcome > 0
+                  ? `${setter.pendingOutcome} past ${setter.pendingOutcome === 1 ? "meeting needs" : "meetings need"} an outcome recorded.`
+                  : metrics.bookingsMade.totalBookingsMade === 0
+                    ? "You're getting conversations. Push for the first booking."
+                    : "Good momentum. Keep stacking qualified conversations."}
+            </span>
+          </p>
         </>
       )}
     </section>
