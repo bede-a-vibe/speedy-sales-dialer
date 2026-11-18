@@ -8,6 +8,7 @@ import { DashboardQuickStats } from "@/components/dashboard/DashboardQuickStats"
 import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerformancePanel";
 import { MyNumbers } from "@/components/dashboard/MyNumbers";
 import { PayThisMonthCard } from "@/components/dashboard/PayThisMonthCard";
+import { DashboardFold } from "@/components/dashboard/DashboardFold";
 import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
@@ -51,7 +52,7 @@ export default function DashboardPage() {
         {/* Row 2: Quick Stats */}
         <DashboardQuickStats />
 
-        {/* Row 3: Today: progress ring + reporting snapshot */}
+        {/* Row 3: Today: progress ring + today's numbers */}
         <div className="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-6">
           <DailyProgressRing />
           <DashboardPerformancePanel />
@@ -60,24 +61,30 @@ export default function DashboardPage() {
         {/* Row 4: Pay this month (own for setters on a plan; every setter for admins) */}
         <PayThisMonthCard />
 
-        {/* Row 5: My numbers: Setter tracker and Closing, locked to the signed-in rep */}
-        <MyNumbers />
-
-        {/* Row 6: My Sales (lifetime) and goals */}
-        <MySalesPanel />
-        <DashboardTargetsOverview />
-
-        {/* Row 7: Daily achievements */}
-        <DailyAchievements data={achievementData} />
-
-        {/* Row 8: Leaderboard + Activity Feed */}
+        {/* Row 5: Leaderboard + Activity Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TeamLeaderboard />
           <LiveActivityFeed />
         </div>
 
-        {/* Row 9: Long-term achievements */}
-        <LongTermAchievements data={achievementData} />
+        {/* Row 6: everything else, one line each until opened */}
+        <div className="space-y-3">
+          <DashboardFold id="my-numbers" title="My numbers" summary="Your setting and closing, day by day">
+            <MyNumbers embedded />
+          </DashboardFold>
+          <DashboardFold id="my-goals" title="My goals" summary="Today's setter and closer targets">
+            <DashboardTargetsOverview />
+          </DashboardFold>
+          <DashboardFold id="my-sales" title="My sales" summary="Closes you've booked, all time">
+            <MySalesPanel />
+          </DashboardFold>
+          <DashboardFold id="achievements" title="Achievements" summary="Daily, weekly and lifetime badges">
+            <div className="space-y-6">
+              <DailyAchievements data={achievementData} />
+              <LongTermAchievements data={achievementData} />
+            </div>
+          </DashboardFold>
+        </div>
       </div>
     </AppLayout>
   );
