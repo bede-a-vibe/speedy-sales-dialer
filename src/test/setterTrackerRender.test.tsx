@@ -34,7 +34,7 @@ describe("Setters tab, All setters", () => {
       <SetterTracker
         dateFrom="2026-11-16"
         dateTo="2026-11-17"
-        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c"), log("bede", "d")] as never}
+        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c"), ...Array.from({ length: 10 }, (_, i) => log("bede", `d${i}`)), log("test", "t")] as never}
         bookings={[]}
         reps={[{ user_id: "ben", display_name: "Ben", email: null }, { user_id: "lachlan", display_name: "Lachlan", email: null }, { user_id: "bede", display_name: "Bede", email: null }] as never}
       />,
@@ -47,7 +47,8 @@ describe("Setters tab, All setters", () => {
     const headers = screen.getAllByRole("columnheader").filter((h) => !h.hasAttribute("colspan") && h.textContent !== "Day");
     const dialsCol = headers.findIndex((h) => h.textContent === "Dials") + 1;
     const dayRow = screen.getByText("Tue 17 Nov").closest("tr")!;
-    expect(within(dayRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("4");
+    // 2 + 1 + 10; Test User's single dial is not a setter.
+    expect(within(dayRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("13");
     // The two lines right after the day row are Ben (2) and Lachlan (1).
     const benRow = dayRow.nextElementSibling as HTMLElement;
     const lachRow = benRow.nextElementSibling as HTMLElement;

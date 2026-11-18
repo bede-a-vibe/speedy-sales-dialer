@@ -169,6 +169,8 @@ function writeOpenState(state: Record<string, boolean>) {
 }
 
 const ALL = "__all";
+/** Dials in the range before someone who is not on a setter pay plan is listed as a setter. */
+const MIN_DIALS_TO_LIST = 10;
 const NO_CLIENTS: never[] = [];
 const NO_INPUTS: never[] = [];
 const NO_HOURS = new Map<string, Map<string, number>>();
@@ -185,7 +187,10 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   // (Bede sets too). Paid setters first, then the rest, each by name.
   const setters = useMemo(() => {
     const paid = new Set(compPlans.filter((p) => p.role === "setter").map((p) => p.user_id));
-    const ids = new Set([...paid, ...callLogs.map((l) => l.user_id).filter((x): x is string => !!x)]);
+    // Someone not on a pay plan needs a real day's dialling in the range to show (not a test dial).
+    const dials = new Map<string, number>();
+    for (const l of callLogs) if (l.user_id) dials.set(l.user_id, (dials.get(l.user_id) ?? 0) + 1);
+    const ids = new Set([...paid, ...[...dials].filter(([, n]) => n >= MIN_DIALS_TO_LIST).map(([id]) => id)]);
     return [...ids]
       .map((id) => ({ id, name: repName.get(id) ?? id.slice(0, 8), paid: paid.has(id) }))
       .sort((a, b) => Number(b.paid) - Number(a.paid) || a.name.localeCompare(b.name));
