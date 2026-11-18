@@ -1,5 +1,10 @@
 import type { Tables } from "@/integrations/supabase/types";
-import { getTalkTimeSeconds, bucketOf, type ReportBookingItem } from "@/lib/reportMetrics";
+import { ANSWERED_OUTCOMES, getTalkTimeSeconds, bucketOf, type ReportBookingItem } from "@/lib/reportMetrics";
+import { callStagesOf } from "@/lib/callStages";
+
+/** A conversation past the intro, as on the Setters tab: an answered call that reached the intro stage. */
+const pastIntro = (l: { outcome: string | null; reached_connection?: boolean | null; reached_problem_awareness?: boolean | null; reached_solution_awareness?: boolean | null; reached_commitment?: boolean | null }) =>
+  ANSWERED_OUTCOMES.has(l.outcome as never) && callStagesOf(l).intro;
 
 type CallLogRow = Pick<
   Tables<"call_logs">,
@@ -127,7 +132,7 @@ export function getSegmentRows(
     const k = String((l.contacts?.[dim] as unknown) ?? "Unknown");
     const r = get(k);
     r.dials += 1;
-    if (l.reached_connection) r.conversations += 1;
+    if (pastIntro(l)) r.conversations += 1;
   }
 
   for (const b of bookingsInRange) {
@@ -199,7 +204,7 @@ export function getMonthlyTrend(
     if (!inRange(l.created_at, from, to)) continue;
     const p = ensure(l.created_at);
     p.dials += 1;
-    if (l.reached_connection) p.conversations += 1;
+    if (pastIntro(l)) p.conversations += 1;
   }
 
   for (const b of bookings) {
@@ -314,7 +319,7 @@ export function getRepPerformance(
     // Bookings made: first meetings only, so the rows add up to the team's bookings made.
     const repBookings = bookings.filter((b) => b.created_by === repId && !b.is_follow_up && inRange(b.created_at, from, to));
     const dials = repLogs.length;
-    const conversations = repLogs.filter((l) => l.reached_connection).length;
+    const conversations = repLogs.filter((l) => pastIntro(l)).length;
     const talkTime = repLogs.reduce((s, l) => s + getTalkTimeSeconds(l as never), 0);
     const bookingsCount = repBookings.length;
 
@@ -406,7 +411,7 @@ export function getDailyActivity(
     if (!inRange(l.created_at, from, to)) continue;
     const p = ensure(toDateKey(l.created_at));
     p.dials += 1;
-    if (l.reached_connection) p.conversations += 1;
+    if (pastIntro(l)) p.conversations += 1;
   }
   for (const b of bookings) {
     if (!inRange(b.created_at, from, to)) continue;

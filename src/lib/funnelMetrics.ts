@@ -1,7 +1,7 @@
 import type { Tables } from "@/integrations/supabase/types";
 import { CONVERSATION_TAGGING_LAUNCH_DATE } from "@/data/constants";
 import { callStagesOf } from "@/lib/callStages";
-import { toDateKey } from "@/lib/reportMetrics";
+import { ANSWERED_OUTCOMES, toDateKey } from "@/lib/reportMetrics";
 
 type CallLogRow = Pick<
   Tables<"call_logs">,
@@ -29,11 +29,11 @@ export type FunnelStageKey =
   | "booked";
 
 export const FUNNEL_STAGE_LABELS: Record<FunnelStageKey, string> = {
-  connection: "Connected (>15s)",
-  problem_awareness: "Problem Awareness",
-  solution_awareness: "Solution Awareness",
-  commitment: "Call Commitment",
-  booked: "Meeting Booked",
+  connection: "Past intro",
+  problem_awareness: "Problem aware",
+  solution_awareness: "Solution aware",
+  commitment: "Got to the ask",
+  booked: "Booked on the call",
 };
 
 // ========== NEPQ-aligned per-stage exit reasons ==========
@@ -168,7 +168,9 @@ export function computeFunnel(logs: CallLogRow[]): FunnelMetrics {
   // any earlier row defaults to false. Clamp stage counts so the funnel doesn't
   // collapse when the date range includes pre-launch dates.
   const launchDate = CONVERSATION_TAGGING_LAUNCH_DATE;
-  const eligible = logs.filter((l) => toDateKey(l.created_at) >= launchDate);
+  // Answered calls only, so the stages match the Setters tab: an unanswered call
+  // can't have reached the decision maker, whatever got ticked.
+  const eligible = logs.filter((l) => toDateKey(l.created_at) >= launchDate && ANSWERED_OUTCOMES.has(l.outcome as never));
   const scoped = eligible.length !== logs.length;
   const totalBooked = logs.filter((l) => l.outcome === "booked").length;
   // Every booking passed through every earlier stage, and a later stage implies
