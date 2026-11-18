@@ -33,6 +33,30 @@ export interface RepPaySummary {
   payToDate: number;
   awaiting: AwaitingPayment[];
   awaitingTotal: number;
+  /**
+   * Coming next: first-month retainer still owed on closed deals plus the
+   * expected retainer on verbal yeses. Grey on the level-up bar. One-off cash
+   * is left out because it does not move the brackets.
+   */
+  loaded: LoadedDeal[];
+  loadedTotal: number;
+}
+
+export interface LoadedDeal {
+  key: string;
+  business_name: string | null;
+  kind: "owed" | "verbal";
+  day: string;
+  /** Retainer dollars that will count toward the brackets once paid; null = verbal with no value entered. */
+  amount: number | null;
+}
+
+export interface VerbalDealInput {
+  contact_id: string;
+  business_name: string | null;
+  setter_id: string;
+  verbal_on: string;
+  retainer: number | null;
 }
 
 export function repPayThisMonth(
@@ -41,6 +65,7 @@ export function repPayThisMonth(
   setterId: string,
   month: string,
   today: string,
+  verbals: VerbalDealInput[] = [],
 ): RepPaySummary {
   const plan = plans.find((p) => p.user_id === setterId);
   const sales = saleCommissions(paidCommissionCash(deals), plans, setterId).filter((s) => s.month === month);
@@ -61,6 +86,20 @@ export function repPayThisMonth(
   }
 
   const awaiting = awaitingPayment(deals, plans, setterId);
+  const loaded: LoadedDeal[] = [
+    ...awaiting
+      .filter((a) => a.billing_period !== "one_off")
+      .map((a) => ({ key: a.deal_id, business_name: a.business_name, kind: "owed" as const, day: a.start_date, amount: a.outstanding })),
+    ...verbals
+      .filter((v) => v.setter_id === setterId)
+      .map((v) => ({
+        key: `verbal-${v.contact_id}`,
+        business_name: v.business_name,
+        kind: "verbal" as const,
+        day: v.verbal_on,
+        amount: v.retainer != null && v.retainer > 0 ? v.retainer : null,
+      })),
+  ];
   return {
     setterId,
     retainerPaid,
@@ -73,5 +112,7 @@ export function repPayThisMonth(
     payToDate: baseToDate + commission,
     awaiting,
     awaitingTotal: awaiting.reduce((t, a) => t + a.outstanding, 0),
+    loaded,
+    loadedTotal: loaded.reduce((t, l) => t + (l.amount ?? 0), 0),
   };
 }

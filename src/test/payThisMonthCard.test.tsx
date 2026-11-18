@@ -18,6 +18,12 @@ vi.mock("@/hooks/useFunnelTracker", () => ({
         ]
       : [{ user_id: "ben", role: "setter", base_annual: 36_500, plan_key: "setter_2026_marginal", active_from: null }],
   }),
+  useSetterVerbalDeals: () => ({
+    data: [
+      { contact_id: "v", business_name: "Verbal Sparky", setter_id: "ben", verbal_on: "2026-11-11", retainer: 4_000, upfront: null },
+      { contact_id: "w", business_name: "Unvalued Sparky", setter_id: "ben", verbal_on: "2026-11-12", retainer: null, upfront: null },
+    ],
+  }),
   useSetterFirstDeals: () => ({
     data: [
       { deal_id: "a", contact_id: "a", business_name: "Paid Sparky", setter_id: "ben", billing_period: "monthly", amount: 20_000, start_date: "2026-11-02", status: "active", payments: [{ id: "p", paid_on: "2026-11-03", amount: 20_000, note: null }] },
@@ -49,6 +55,11 @@ describe("Pay this month", () => {
     expect(screen.getByText("Level up!")).toBeInTheDocument();
     expect(screen.getByText("Paid Sparky")).toBeInTheDocument();
     expect(screen.getByText("Owing Sparky")).toBeInTheDocument();
+    // Loaded: $4k owed + $4k verbal = $8k, which lands Level 2 at $28k.
+    expect(screen.getByText("Verbal Sparky")).toBeInTheDocument();
+    expect(screen.getByText("$4,000/mo")).toBeInTheDocument();
+    expect(screen.getByText("value not entered")).toBeInTheDocument();
+    expect(screen.getByText("$8,000 loaded: once paid you hit Level 2 (18%)")).toBeInTheDocument();
     // Base: $100 a day for 18 days.
     expect(screen.getByText(/\$1,800 base \+ \$300 commission/)).toBeInTheDocument();
   });

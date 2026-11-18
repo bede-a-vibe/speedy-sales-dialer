@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { LevelUpBar, levelOf } from "@/components/dashboard/LevelUpBar";
+import { LevelUpBar, levelOf, loadedLine } from "@/components/dashboard/LevelUpBar";
 
 describe("Level-up bar", () => {
   beforeEach(() => window.localStorage.clear());
@@ -30,5 +30,17 @@ describe("Level-up bar", () => {
   it("shows the max level at the top bracket", () => {
     render(<LevelUpBar retainerPaid={50_000} />);
     expect(screen.getByText("Max level: 25% on every retainer dollar")).toBeInTheDocument();
+  });
+
+  it("shows loaded (owed or verbal) retainer in grey and what it does for the level", () => {
+    expect(loadedLine(6_000, 0)).toBeNull();
+    expect(loadedLine(6_000, 14_000)).toBe("$14,000 loaded: once paid you hit Level 1 (15%)");
+    expect(loadedLine(6_000, 4_000)).toBe("$4,000 loaded: $8,000 more to Level 1");
+    render(<LevelUpBar retainerPaid={6_000} loaded={14_000} />);
+    expect(screen.getByText("$14,000 loaded: once paid you hit Level 1 (15%)")).toBeInTheDocument();
+    // Grey runs from 0 to paid + loaded ($20k of a $58k track).
+    expect(screen.getByTestId("level-loaded").style.width).toBe(`${(20_000 / 58_000) * 100}%`);
+    // The progress value is still paid cash only.
+    expect(screen.getByRole("progressbar", { name: "Level-up progress" })).toHaveAttribute("aria-valuenow", "6000");
   });
 });

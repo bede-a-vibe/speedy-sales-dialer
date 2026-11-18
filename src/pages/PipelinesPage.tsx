@@ -517,8 +517,8 @@ export default function PipelinesPage() {
           ...extraFields,
           ...(outcome === "disqualified" || outcome === "showed_no_close" ? { deal_stage: "lost" as const } : {}),
           ...(outcome === "showed_closed" ? { deal_stage: "won" as const } : {}),
-          ...(outcome === "showed_closed" && dealValue != null ? { deal_value: dealValue } : {}),
-          ...(outcome === "showed_closed" && monthlyValue != null ? { monthly_recurring_value: monthlyValue } : {}),
+          ...((outcome === "showed_closed" || outcome === "showed_verbal_commitment") && dealValue != null ? { deal_value: dealValue } : {}),
+          ...((outcome === "showed_closed" || outcome === "showed_verbal_commitment") && monthlyValue != null ? { monthly_recurring_value: monthlyValue } : {}),
         });
 
         toast.success(`Appointment marked ${getAppointmentOutcomeLabel(outcome)}.`);

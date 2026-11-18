@@ -41,16 +41,55 @@ function writeSeen(key: string, level: number) {
   }
 }
 
+/** What the loaded (coming, not yet paid) retainer does for the setter's level. */
+export function loadedLine(retainerPaid: number, loaded: number) {
+  if (loaded <= 0) return null;
+  const level = levelOf(retainerPaid);
+  const landed = levelOf(retainerPaid + loaded);
+  const next = PAY_LEVELS[level + 1];
+  if (landed > level) return `${money(loaded)} loaded: once paid you hit ${PAY_LEVELS[landed].name} (${pct(PAY_LEVELS[landed].rate)})`;
+  if (next) return `${money(loaded)} loaded: ${money(next.from - retainerPaid - loaded)} more to ${next.name}`;
+  return `${money(loaded)} loaded`;
+}
+
 /**
  * Commission as a level-up bar: the bar fills with first-month retainer cash
- * paid this month and each bracket is a level. With `celebrateKey` (one per
- * setter per month) it fires confetti the first time a new level is seen.
+ * paid this month and each bracket is a level. `loaded` is retainer that is
+ * coming but not paid (closed and owed, or a verbal yes) and shows in grey
+ * after the fill, so a setter can see what will push them up. With
+ * `celebrateKey` (one per setter per month) it fires confetti the first time a
+ * new level is seen.
  */
-export function LevelUpBar({ retainerPaid, compact = false, celebrateKey }: { retainerPaid: number; compact?: boolean; celebrateKey?: string }) {
+export function LevelUpBar({
+  retainerPaid,
+  loaded = 0,
+  compact = false,
+  celebrateKey,
+}: {
+  retainerPaid: number;
+  loaded?: number;
+  compact?: boolean;
+  celebrateKey?: string;
+}) {
   const level = levelOf(retainerPaid);
   const current = PAY_LEVELS[level];
   const next = PAY_LEVELS[level + 1];
   const fill = Math.min(retainerPaid, TRACK_MAX) / TRACK_MAX;
+  const loadedFill = Math.max(0, Math.min(retainerPaid + loaded, TRACK_MAX) / TRACK_MAX - fill);
+  const landed = levelOf(retainerPaid + Math.max(0, loaded));
+  const loadedText = loadedLine(retainerPaid, loaded);
+  const loadedSegment = (
+    <div
+      className="absolute left-0 top-0 h-full rounded-full bg-muted-foreground/35 transition-all"
+      style={{
+        // Runs from 0 under the paid fill, so the grey reads as one piece after it.
+        width: `${(fill + loadedFill) * 100}%`,
+        backgroundImage: "repeating-linear-gradient(135deg, transparent 0 4px, hsl(var(--background) / 0.35) 4px 8px)",
+      }}
+      data-testid="level-loaded"
+      aria-hidden="true"
+    />
+  );
   const [celebrate, setCelebrate] = useState(false);
 
   useEffect(() => {
@@ -70,12 +109,14 @@ export function LevelUpBar({ retainerPaid, compact = false, celebrateKey }: { re
   if (compact) {
     return (
       <div className="min-w-[180px]">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${fill * 100}%` }} />
+        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          {loadedFill > 0 ? loadedSegment : null}
+          <div className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all" style={{ width: `${fill * 100}%` }} />
         </div>
         <div className="mt-1 text-[11px] text-muted-foreground">
           <span className="font-medium text-foreground">{current.name}</span> · {status}
         </div>
+        {loadedText ? <div className="text-[11px] text-muted-foreground">{loadedText}</div> : null}
       </div>
     );
   }
@@ -95,7 +136,8 @@ export function LevelUpBar({ retainerPaid, compact = false, celebrateKey }: { re
         <span className="text-xs text-muted-foreground">{status}</span>
       </div>
       <div className="relative mt-3 h-3 w-full rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={TRACK_MAX} aria-valuenow={Math.round(retainerPaid)} aria-label="Level-up progress">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${fill * 100}%` }} />
+        {loadedFill > 0 ? loadedSegment : null}
+        <div className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all" style={{ width: `${fill * 100}%` }} />
         {PAY_LEVELS.slice(1).map((l) => (
           <div key={l.from} className="absolute top-0 h-full w-0.5 bg-background" style={{ left: `${(l.from / TRACK_MAX) * 100}%` }} aria-hidden="true" />
         ))}
@@ -104,7 +146,10 @@ export function LevelUpBar({ retainerPaid, compact = false, celebrateKey }: { re
         {PAY_LEVELS.slice(1).map((l, i) => (
           <div
             key={l.from}
-            className={cn("absolute -translate-x-1/2 text-center leading-tight", level >= i + 1 && "font-semibold text-primary")}
+            className={cn(
+              "absolute -translate-x-1/2 text-center leading-tight",
+              level >= i + 1 ? "font-semibold text-primary" : landed >= i + 1 && "font-semibold text-foreground/70",
+            )}
             style={{ left: `${(l.from / TRACK_MAX) * 100}%` }}
           >
             {pct(l.rate)}
@@ -113,6 +158,12 @@ export function LevelUpBar({ retainerPaid, compact = false, celebrateKey }: { re
           </div>
         ))}
       </div>
+      {loadedText ? (
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-block h-2.5 w-4 rounded-sm bg-muted-foreground/35" aria-hidden="true" />
+          <span>{loadedText}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
