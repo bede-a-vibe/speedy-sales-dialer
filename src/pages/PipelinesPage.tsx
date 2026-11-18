@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
+import { closeStartDate } from "@/lib/closeStartDate";
 import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -553,7 +554,7 @@ export default function PipelinesPage() {
               const perService = Object.entries(extras?.streamAmounts ?? {}).filter(([, v]) => (v ?? 0) > 0);
               if (perService.length > 1) {
                 // Several services sold: one revenue record per service, each with its own amount.
-                const start = (item.scheduled_for ? new Date(item.scheduled_for) : new Date()).toISOString().slice(0, 10);
+                const start = closeStartDate(item.scheduled_for);
                 const { error: dealError } = await supabase.from("client_deals").insert(
                   perService.map(([sv, v]) => ({
                     contact_id: item.contact_id,
@@ -582,9 +583,7 @@ export default function PipelinesPage() {
                   status: "active",
                   // The meeting date is when it was won; billing starts there
                   // unless someone corrects it on the Clients page.
-                  start_date: (item.scheduled_for ? new Date(item.scheduled_for) : new Date())
-                    .toISOString()
-                    .slice(0, 10),
+                  start_date: closeStartDate(item.scheduled_for),
                   gst: false,
                   created_by: user?.id ?? null,
                   notes: `Opened automatically when the meeting was marked closed on ${new Date().toLocaleDateString("en-AU")}.`,
