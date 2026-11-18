@@ -94,6 +94,11 @@ afterEach(() => vi.useRealTimers());
 // that neither a stranger ringing in nor the previous call's record is shown
 // as this call.
 describe("ContactCallDock wiring", () => {
+  it("never takes Dialpad's current tab just by opening, so a dialer tab keeps the phone", () => {
+    setup(vi.fn(async () => ({ callId: "c", state: "calling" })));
+    expect(fakeCti.props?.claimTabOnLoad).toBe(false);
+  });
+
   it("falls back to the server when Dialpad is signed out, then Hang Up cancels that call by id", async () => {
     const onServerPlace = vi.fn(async () => ({ callId: "call-1", state: "calling" }));
     const { ref, onStateChange } = setup(onServerPlace);

@@ -121,11 +121,13 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
   const [hangingUp, setHangingUp] = useState(false);
   const [ctiAuthed, setCtiAuthed] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  // Claim Dialpad's "current tab" on load only when this tab is the one the rep
-  // is looking at. A contact opened into a background tab must not take the
-  // call events away from a dialer tab mid-session; placing a call from here
-  // claims the tab at that moment anyway.
-  const [claimTabOnLoad] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
+  // Never claim Dialpad's "current tab" just by opening a contact. Reps open a
+  // contact in a second tab to listen to a recording while the dialer runs in
+  // the first; claiming on load took the phone off the dialer tab and the
+  // dialer stopped working until it was reloaded (Ben, 18 Nov). Placing a call
+  // from here claims the tab at that moment (initiate_call sends
+  // enable_current_tab), which is the only time this page needs it.
+  const claimTabOnLoad = false;
 
   const statusMutation = useDialpadCallStatus();
   const cancelMutation = useCancelDialpadCall();
