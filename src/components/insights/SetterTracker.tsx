@@ -181,11 +181,14 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   const { data: compPlans = [] } = useRepCompPlans();
   const repName = useMemo(() => new Map(reps.map((r) => [r.user_id, r.display_name || r.email || "Unnamed"])), [reps]);
 
-  // Setters: everyone on a setter pay plan; without access to pay plans, anyone who dialled in the range.
+  // Setters: everyone on a setter pay plan, plus anyone who dialled in the range
+  // (Bede sets too). Paid setters first, then the rest, each by name.
   const setters = useMemo(() => {
-    const fromPlans = compPlans.filter((p) => p.role === "setter").map((p) => p.user_id);
-    const ids = fromPlans.length > 0 ? fromPlans : [...new Set(callLogs.map((l) => l.user_id).filter((x): x is string => !!x))];
-    return ids.map((id) => ({ id, name: repName.get(id) ?? id.slice(0, 8) })).sort((a, b) => a.name.localeCompare(b.name));
+    const paid = new Set(compPlans.filter((p) => p.role === "setter").map((p) => p.user_id));
+    const ids = new Set([...paid, ...callLogs.map((l) => l.user_id).filter((x): x is string => !!x)]);
+    return [...ids]
+      .map((id) => ({ id, name: repName.get(id) ?? id.slice(0, 8), paid: paid.has(id) }))
+      .sort((a, b) => Number(b.paid) - Number(a.paid) || a.name.localeCompare(b.name));
   }, [compPlans, callLogs, repName]);
   const [picked, setPicked] = useState<string | null>(null);
   const selected = activeRepId ?? picked ?? setters[0]?.id ?? ALL;

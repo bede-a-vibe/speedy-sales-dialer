@@ -34,18 +34,20 @@ describe("Setters tab, All setters", () => {
       <SetterTracker
         dateFrom="2026-11-16"
         dateTo="2026-11-17"
-        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c")] as never}
+        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c"), log("bede", "d")] as never}
         bookings={[]}
-        reps={[{ user_id: "ben", display_name: "Ben", email: null }, { user_id: "lachlan", display_name: "Lachlan", email: null }] as never}
+        reps={[{ user_id: "ben", display_name: "Ben", email: null }, { user_id: "lachlan", display_name: "Lachlan", email: null }, { user_id: "bede", display_name: "Bede", email: null }] as never}
       />,
     );
     // Ben is the default; one setter shows no per-setter rows.
     expect(screen.queryAllByRole("cell", { name: "Lachlan" })).toHaveLength(0);
+    // Bede dialled, so he is in the picker too, after the paid setters.
+    expect(screen.getAllByRole("button").map((b) => b.textContent).filter((t) => ["Ben", "Lachlan", "Bede", "All setters"].includes(t ?? ""))).toEqual(["Ben", "Lachlan", "Bede", "All setters"]);
     fireEvent.click(screen.getByRole("button", { name: "All setters" }));
     const headers = screen.getAllByRole("columnheader").filter((h) => !h.hasAttribute("colspan") && h.textContent !== "Day");
     const dialsCol = headers.findIndex((h) => h.textContent === "Dials") + 1;
     const dayRow = screen.getByText("Tue 17 Nov").closest("tr")!;
-    expect(within(dayRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("3");
+    expect(within(dayRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("4");
     // The two lines right after the day row are Ben (2) and Lachlan (1).
     const benRow = dayRow.nextElementSibling as HTMLElement;
     const lachRow = benRow.nextElementSibling as HTMLElement;
