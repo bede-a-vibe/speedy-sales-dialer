@@ -29,35 +29,44 @@ describe("Setters tab, All setters", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("puts each setter's own line under the day and the totals", () => {
+  it("opens on All setters, shows setter lines only inside an open row, and only for setters who did something", () => {
+    const octLog = { ...log("ben", "z"), created_at: "2026-10-30T01:00:00Z" };
     render(
       <SetterTracker
-        dateFrom="2026-11-16"
+        dateFrom="2026-10-29"
         dateTo="2026-11-17"
-        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c"), ...Array.from({ length: 10 }, (_, i) => log("bede", `d${i}`)), log("test", "t")] as never}
+        callLogs={[log("ben", "a"), log("ben", "b"), log("lachlan", "c"), ...Array.from({ length: 10 }, (_, i) => log("bede", `d${i}`)), log("test", "t"), octLog] as never}
         bookings={[]}
         reps={[{ user_id: "ben", display_name: "Ben", email: null }, { user_id: "lachlan", display_name: "Lachlan", email: null }, { user_id: "bede", display_name: "Bede", email: null }] as never}
       />,
     );
-    // Ben is the default; one setter shows no per-setter rows.
-    expect(screen.queryAllByRole("cell", { name: "Lachlan" })).toHaveLength(0);
-    // Bede dialled, so he is in the picker too, after the paid setters.
-    expect(screen.getAllByRole("button").map((b) => b.textContent).filter((t) => ["Ben", "Lachlan", "Bede", "All setters"].includes(t ?? ""))).toEqual(["Ben", "Lachlan", "Bede", "All setters"]);
-    fireEvent.click(screen.getByRole("button", { name: "All setters" }));
+    // A dropdown, set to All setters by default.
+    expect(screen.getByRole("combobox", { name: "Setter" })).toHaveTextContent("All setters");
     const headers = screen.getAllByRole("columnheader").filter((h) => !h.hasAttribute("colspan") && h.textContent !== "Day");
     const dialsCol = headers.findIndex((h) => h.textContent === "Dials") + 1;
-    const dayRow = screen.getByText("Tue 17 Nov").closest("tr")!;
-    // 2 + 1 + 10; Test User's single dial is not a setter.
-    expect(within(dayRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("13");
-    // The two lines right after the day row are Ben (2) and Lachlan (1).
-    const benRow = dayRow.nextElementSibling as HTMLElement;
-    const lachRow = benRow.nextElementSibling as HTMLElement;
-    expect(within(benRow).getAllByRole("cell")[0]).toHaveTextContent("Ben");
-    expect(within(benRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("2");
-    expect(within(lachRow).getAllByRole("cell")[0]).toHaveTextContent("Lachlan");
-    expect(within(lachRow).getAllByRole("cell")[dialsCol]).toHaveTextContent("1");
-    // Mon 16 Nov had nothing: no per-setter rows under it.
-    const mon = screen.getByText("Mon 16 Nov").closest("tr")!;
-    expect(within(mon.nextElementSibling as HTMLElement).getAllByRole("cell")[0]).toHaveTextContent("Tue 17 Nov");
+    const cell = (row: Element, i: number) => within(row as HTMLElement).getAllByRole("cell")[i];
+
+    // Range total and October are closed: one line each, no setter lines under them.
+    const range = screen.getByRole("button", { name: "Range total" }).closest("tr")!;
+    expect(cell(range, dialsCol)).toHaveTextContent("14");
+    expect(cell(range.nextElementSibling!, 0)).toHaveTextContent("Oct 2026 total");
+    const oct = screen.getByRole("button", { name: "Oct 2026 total" }).closest("tr")!;
+    expect(cell(oct.nextElementSibling!, 0)).toHaveTextContent("Nov 2026 total");
+
+    // November is open (current month): setter lines under it, only those who dialled, Test User (1 dial) never.
+    const nov = screen.getByRole("button", { name: "Nov 2026 total" }).closest("tr")!;
+    const names = [nov.nextElementSibling!, nov.nextElementSibling!.nextElementSibling!, nov.nextElementSibling!.nextElementSibling!.nextElementSibling!].map((r) => cell(r, 0).textContent);
+    expect(names).toEqual(["Ben", "Lachlan", "Bede"]);
+
+    // The day row lists each setter's dials.
+    const day = screen.getByText("Tue 17 Nov").closest("tr")!;
+    expect(cell(day, dialsCol)).toHaveTextContent("13");
+    expect(cell(day.nextElementSibling!, dialsCol)).toHaveTextContent("2");
+
+    // Opening the range total shows the setters' range lines; Ben's includes his October dial.
+    fireEvent.click(screen.getByRole("button", { name: "Range total" }));
+    const benRange = range.nextElementSibling!;
+    expect(cell(benRange, 0)).toHaveTextContent("Ben");
+    expect(cell(benRange, dialsCol)).toHaveTextContent("3");
   });
 });
