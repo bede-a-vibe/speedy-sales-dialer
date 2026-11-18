@@ -58,6 +58,9 @@ export default function DashboardPage() {
           <DashboardPerformancePanel />
         </div>
 
+        {/* Row 3.5: Today's achievements: the game stays front and centre */}
+        <DailyAchievements data={achievementData} />
+
         {/* Row 4: Pay this month (own for setters on a plan; every setter for admins) */}
         <PayThisMonthCard />
 
@@ -78,11 +81,8 @@ export default function DashboardPage() {
           <DashboardFold id="my-sales" title="My sales" summary="Closes you've booked, all time">
             <MySalesPanel />
           </DashboardFold>
-          <DashboardFold id="achievements" title="Achievements" summary="Daily, weekly and lifetime badges">
-            <div className="space-y-6">
-              <DailyAchievements data={achievementData} />
-              <LongTermAchievements data={achievementData} />
-            </div>
+          <DashboardFold id="achievements" title="Weekly and lifetime badges" summary="Streaks, big weeks and all-time milestones">
+            <LongTermAchievements data={achievementData} />
           </DashboardFold>
         </div>
       </div>
