@@ -328,7 +328,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
     >
       <div className="mb-2 flex flex-wrap items-center gap-3">
         {activeRepId ? (
-          <span className="text-xs text-muted-foreground">Showing {selectedName} (from the rep filter).</span>
+          <span className="text-xs text-muted-foreground">Showing {selectedName}.</span>
         ) : (
           <Select value={selected} onValueChange={setPicked}>
             <SelectTrigger className="h-8 w-[200px] text-xs" aria-label="Setter">
