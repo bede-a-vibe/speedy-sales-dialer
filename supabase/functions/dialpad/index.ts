@@ -5992,6 +5992,92 @@ async function relinkDialpadCalls(params: {
   return { ok: true as const, ...stats };
 }
 
+// ── Caller ID rotation: set the rep's Dialpad caller ID ──
+// Dialpad ignores the per-call outbound_caller_id the embedded CTI sends
+// (verified 18 Nov 2026 from call records: every call went out on the rep's
+// main number). So the rotation sets the rep's own Dialpad caller ID with
+// POST /users/{id}/caller_id, which Dialpad applies to every call they place.
+// Keep in step with CALLER_ID_ROTATION_INTERVAL in src/lib/callerIdRotation.ts.
+const CALLER_ID_ROTATION_INTERVAL = 40;
+
+type RepCallerIdResult = {
+  user_id: string;
+  ok: boolean;
+  changed: boolean;
+  caller_id: string | null;
+  previous: string | null;
+  dial_count?: number;
+  pool_size?: number;
+  index?: number;
+  reason?: string;
+  error?: unknown;
+};
+
+async function syncRepCallerIds(params: {
+  adminClient: ReturnType<typeof createClient>;
+  apiKey: string;
+  userId?: string | null;
+  force?: boolean;
+}): Promise<RepCallerIdResult[]> {
+  const { adminClient, apiKey, userId, force } = params;
+  let settingsQuery = adminClient
+    .from("dialpad_settings")
+    .select("user_id, dialpad_user_id, rotation_dial_count, active_caller_id")
+    .eq("is_active", true);
+  if (userId) settingsQuery = settingsQuery.eq("user_id", userId);
+  const { data: settingsRows, error: settingsError } = await settingsQuery;
+  if (settingsError) {
+    return [{ user_id: userId ?? "*", ok: false, changed: false, caller_id: null, previous: null, error: settingsError.message }];
+  }
+
+  const results: RepCallerIdResult[] = [];
+  for (const row of (settingsRows ?? []) as Array<Record<string, unknown>>) {
+    const repId = String(row.user_id);
+    const previous = typeof row.active_caller_id === "string" ? row.active_caller_id : null;
+    const count = Number(row.rotation_dial_count ?? 0);
+    const { data: poolRows } = await adminClient
+      .from("caller_id_pool")
+      .select("phone_number, position")
+      .eq("user_id", repId)
+      .eq("is_active", true)
+      .eq("owned_attested", true)
+      .order("position", { ascending: true });
+    const pool = ((poolRows ?? []) as Array<{ phone_number: string }>).map((p) => p.phone_number);
+    // One number or none: nothing to rotate, leave the rep's Dialpad setting alone.
+    if (pool.length < 2 || !row.dialpad_user_id) {
+      results.push({ user_id: repId, ok: true, changed: false, caller_id: previous, previous, dial_count: count, pool_size: pool.length, reason: "pool has fewer than 2 numbers" });
+      continue;
+    }
+    const index = Math.floor(Math.max(0, count) / CALLER_ID_ROTATION_INTERVAL) % pool.length;
+    const target = pool[index];
+    if (!force && target === previous) {
+      results.push({ user_id: repId, ok: true, changed: false, caller_id: target, previous, dial_count: count, pool_size: pool.length, index, reason: "already set" });
+      continue;
+    }
+    const res = await fetch(`${DIALPAD_BASE}/users/${row.dialpad_user_id}/caller_id`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ caller_id: target }),
+    });
+    const payload = await res.json().catch(() => null);
+    const now = new Date().toISOString();
+    if (!res.ok) {
+      await adminClient
+        .from("dialpad_settings")
+        .update({ caller_id_error: `Dialpad ${res.status}: ${JSON.stringify(payload).slice(0, 400)}`, caller_id_checked_at: now })
+        .eq("user_id", repId);
+      results.push({ user_id: repId, ok: false, changed: false, caller_id: previous, previous, dial_count: count, pool_size: pool.length, index, error: payload });
+      continue;
+    }
+    await adminClient
+      .from("dialpad_settings")
+      .update({ active_caller_id: target, caller_id_set_at: now, caller_id_checked_at: now, caller_id_error: null })
+      .eq("user_id", repId);
+    results.push({ user_id: repId, ok: true, changed: true, caller_id: target, previous, dial_count: count, pool_size: pool.length, index });
+  }
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -6069,6 +6155,14 @@ Deno.serve(async (req) => {
       const limit = coerceBoundedLimit(body.limit, 100, 1, 500);
       const result = await requeueFailedPendingGhlPushes({ adminClient, limit });
       return jsonResponse({ ok: true, ...result }, 200);
+    }
+    if (action === "sync_rep_caller_ids") {
+      const results = await syncRepCallerIds({
+        adminClient,
+        apiKey: DIALPAD_API_KEY,
+        userId: typeof body.user_id === "string" ? body.user_id : null,
+      });
+      return jsonResponse({ ok: results.every((r) => r.ok), results }, 200);
     }
     if (action === "process_pending_transcript_syncs") {
       const limit = coerceBoundedLimit(body.limit, 25, 1, 100);
@@ -6486,7 +6580,8 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({
                 phone_number: normalizedPhone,
-                ...(params.caller_id ? { caller_id: params.caller_id } : {}),
+                // Dialpad's initiate_call field is outbound_caller_id (caller_id is ignored).
+                ...(params.caller_id ? { outbound_caller_id: params.caller_id } : {}),
                 custom_data: params.contact_id ? JSON.stringify({ contact_id: params.contact_id, user_id: user.id }) : undefined,
               }),
             });
@@ -6513,7 +6608,7 @@ Deno.serve(async (req) => {
                 phone_number: normalizedPhone,
                 user_id: dialpadUserId,
               };
-              if (params.caller_id) fallbackBody.caller_id = params.caller_id;
+              if (params.caller_id) fallbackBody.outbound_caller_id = params.caller_id;
               if (params.contact_id) {
                 fallbackBody.custom_data = JSON.stringify({ contact_id: params.contact_id, user_id: user.id });
               }
@@ -6623,6 +6718,35 @@ Deno.serve(async (req) => {
           }
         }
         break;
+      }
+
+      case "sync_rep_caller_ids": {
+        if (!isAdmin) return jsonResponse({ error: "Admin access required" }, 403);
+        const results = await syncRepCallerIds({
+          adminClient,
+          apiKey: DIALPAD_API_KEY,
+          userId: typeof params.user_id === "string" && params.user_id ? params.user_id : null,
+          force: params.force === true,
+        });
+        return jsonResponse({ ok: results.every((r) => r.ok), results });
+      }
+
+      case "get_rep_caller_id": {
+        if (!isAdmin) return jsonResponse({ error: "Admin access required" }, 403);
+        const repId = typeof params.user_id === "string" ? params.user_id : "";
+        if (!repId) return jsonResponse({ error: "user_id is required" }, 400);
+        const { data: repSettings } = await adminClient
+          .from("dialpad_settings")
+          .select("dialpad_user_id")
+          .eq("user_id", repId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (!repSettings?.dialpad_user_id) return jsonResponse({ error: "That rep has no active Dialpad user configured" }, 400);
+        const res = await fetch(`${DIALPAD_BASE}/users/${repSettings.dialpad_user_id}/caller_id`, {
+          headers: { Authorization: `Bearer ${DIALPAD_API_KEY}`, Accept: "application/json" },
+        });
+        const payload = await res.json().catch(() => null);
+        return jsonResponse({ ok: res.ok, status: res.status, dialpad: payload }, res.ok ? 200 : res.status);
       }
 
       case "get_caller_ids": {
