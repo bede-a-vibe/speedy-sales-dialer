@@ -5519,7 +5519,12 @@ async function syncDialpadCallHistory(params: {
       .maybeSingle();
     const lastMs = state?.last_synced_at ? Date.parse(state.last_synced_at as string) : NaN;
     if (Number.isFinite(lastMs)) {
-      sinceMs = lastMs - 10 * 60 * 1000; // 10-min overlap
+      // 2-hour overlap. Dialpad lists a call only once it has ended, and we query by
+      // start time, so a 10-minute overlap silently dropped every call longer than
+      // about 12 minutes (nothing over 720s was stored from Oct to 18 Nov 2026, and
+      // 23% of booked calls had no Dialpad record). Rows already stored are upserted,
+      // so the wider overlap only costs a longer list from Dialpad.
+      sinceMs = lastMs - 120 * 60 * 1000;
     } else {
       const win = params.windowMinutes ?? 24 * 60;
       sinceMs = nowMs - win * 60 * 1000;
@@ -6216,6 +6221,10 @@ Deno.serve(async (req) => {
         sinceOverrideMs,
         untilOverrideMs,
         hardCap,
+        // Historical backfill from cron/SQL: connected calls only, never overwrites,
+        // never moves the live sync cursor.
+        backfill: body.backfill === true,
+        onlyDialpadUserId: typeof body.only_dialpad_user_id === "string" ? body.only_dialpad_user_id : null,
       });
       return jsonResponse(result, result.ok ? 200 : 502);
     }
