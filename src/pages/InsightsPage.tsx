@@ -105,7 +105,10 @@ export default function InsightsPage({ defaultTab = "overview" }: InsightsPagePr
   // made "today" yesterday and left this morning's dials out of the default range.
   const today = todayDateKey();
   const thirtyDaysAgo = shiftDateKey(today, -30);
-  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
+  // Opening straight on the Tracker starts on its year-so-far range. Starting
+  // on 30 days and switching after the first render loaded the call logs,
+  // bookings and reschedules twice (19 Nov).
+  const [dateFrom, setDateFrom] = useState(() => (activeTab === "tracker" ? trackerDefaultFrom(today) : thirtyDaysAgo));
   const [dateTo, setDateTo] = useState(today);
   const [selectedRepId, setSelectedRepId] = useState(ALL_REPS_VALUE);
 
