@@ -147,6 +147,44 @@ export async function fetchProductiveHoursByDay(
   fromDay: string,
   toDay: string,
 ): Promise<Map<string, Map<string, number>>> {
+  // Fast path: the database adds it up per user per Melbourne day, one request
+  // (~80 ms for the year). The browser used to page every call row, 1,000 a
+  // request, one after another: 26 requests for the year so far (19 Nov).
+  const { data, error } = await (supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: unknown }>)("get_productive_activity_by_day", { _from_day: fromDay, _to_day: toDay });
+  if (!error && Array.isArray(data)) return productiveHoursFromActivity(data as ProductiveActivityRow[]);
+  return fetchProductiveHoursByDayFromRows(fromDay, toDay);
+}
+
+export interface ProductiveActivityRow {
+  user_id: string;
+  day: string;
+  dials: number;
+  talk_seconds: number | string;
+  bookings: number;
+}
+
+/** Rows from get_productive_activity_by_day into hours per user per day. */
+export function productiveHoursFromActivity(rows: ProductiveActivityRow[]): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    let days = out.get(r.user_id);
+    if (!days) {
+      days = new Map();
+      out.set(r.user_id, days);
+    }
+    days.set(r.day, productiveDiallingHours(Number(r.dials) || 0, Number(r.talk_seconds) || 0, Number(r.bookings) || 0));
+  }
+  return out;
+}
+
+/** Fallback when the database function is unavailable: page the raw rows. */
+async function fetchProductiveHoursByDayFromRows(
+  fromDay: string,
+  toDay: string,
+): Promise<Map<string, Map<string, number>>> {
   // Pad a day each side for the UTC/Melbourne offset; the day key decides.
   const since = new Date(new Date(`${fromDay}T00:00:00Z`).getTime() - 86_400_000).toISOString();
   const until = new Date(new Date(`${toDay}T00:00:00Z`).getTime() + 2 * 86_400_000).toISOString();
