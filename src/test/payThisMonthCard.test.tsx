@@ -41,7 +41,12 @@ describe("Pay this month", () => {
     expect(screen.getByText(/My pay · November 2026/)).toBeInTheDocument();
     // $20k paid: $2k at 15% = $300.
     expect(screen.getAllByText("$300").length).toBeGreaterThan(0);
-    expect(screen.getByText("$8,000 more paid to reach 18%")).toBeInTheDocument();
+    // Level-up bar: $20k paid is Level 1 (15%), $8k to Level 2 (18%).
+    expect(screen.getByText("Level 1")).toBeInTheDocument();
+    expect(screen.getByText("$8,000 to Level 2 (18%)")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Level-up progress" })).toHaveAttribute("aria-valuenow", "20000");
+    // First time this month at a new level: Level up!
+    expect(screen.getByText("Level up!")).toBeInTheDocument();
     expect(screen.getByText("Paid Sparky")).toBeInTheDocument();
     expect(screen.getByText("Owing Sparky")).toBeInTheDocument();
     // Base: $100 a day for 18 days.

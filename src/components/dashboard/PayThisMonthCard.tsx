@@ -6,8 +6,9 @@ import { useAdminAccess } from "@/hooks/useUserRole";
 import { useRepCompPlans, useSetterFirstDeals } from "@/hooks/useFunnelTracker";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { dayKeyOf, monthOf } from "@/lib/funnelTracker";
-import { repPayThisMonth, type RepPaySummary } from "@/lib/repPay";
+import { repPayThisMonth } from "@/lib/repPay";
 import { cn } from "@/lib/utils";
+import { LevelUpBar } from "@/components/dashboard/LevelUpBar";
 
 const money = (v: number) => `$${Math.round(v).toLocaleString("en-AU")}`;
 const pct = (r: number) => `${Math.round(r * 100)}%`;
@@ -15,11 +16,6 @@ const fmtDay = (k: string) =>
   new Date(`${k}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "UTC" });
 const monthLabel = (m: string) =>
   new Date(`${m}T12:00:00Z`).toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
-
-function nextBracketText(p: RepPaySummary) {
-  if (!p.nextBracket) return "Top bracket: 25% on every retainer dollar";
-  return `${money(p.nextBracket.toGo)} more paid to reach ${pct(p.nextBracket.rate)}`;
-}
 
 function Tile({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
   return (
@@ -83,7 +79,7 @@ export function PayThisMonthCard() {
                 <TableHead>Setter</TableHead>
                 <TableHead className="text-right">First-month cash paid</TableHead>
                 <TableHead className="text-right">Commission</TableHead>
-                <TableHead>Next bracket</TableHead>
+                <TableHead>Level</TableHead>
                 <TableHead className="text-right">Base to date</TableHead>
                 <TableHead className="text-right">Pay to date</TableHead>
                 <TableHead className="text-right">Waiting on payment</TableHead>
@@ -98,7 +94,9 @@ export function PayThisMonthCard() {
                     {p.oneOffPaid > 0 ? <span className="text-muted-foreground"> + {money(p.oneOffPaid)} one-off</span> : null}
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold tabular-nums">{money(p.commission)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{nextBracketText(p)}</TableCell>
+                  <TableCell>
+                    <LevelUpBar retainerPaid={p.retainerPaid} compact />
+                  </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{money(p.baseToDate)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{money(p.payToDate)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
@@ -121,14 +119,14 @@ export function PayThisMonthCard() {
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground">My pay · {monthLabel(month)}</h3>
         <p className="mt-1 text-sm text-muted-foreground">Commission on first-month cash paid this month, plus base so far.</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <LevelUpBar retainerPaid={p.retainerPaid} celebrateKey={`pay-level-${p.setterId}-${month}`} />
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile label="Commission" value={money(p.commission)} sub={`now earning ${pct(p.currentRate)} on the next retainer dollar`} highlight />
         <Tile
           label="First-month cash paid"
           value={money(p.retainerPaid)}
           sub={p.oneOffPaid > 0 ? `+ ${money(p.oneOffPaid)} one-off · ${p.sales.length} paid` : `${p.sales.length} paid this month`}
         />
-        <Tile label="Next bracket" value={p.nextBracket ? money(p.nextBracket.toGo) : "Top"} sub={nextBracketText(p)} />
         <Tile label="Pay to date" value={money(p.payToDate)} sub={`${money(p.baseToDate)} base + ${money(p.commission)} commission`} highlight />
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
