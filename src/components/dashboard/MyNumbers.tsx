@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
 import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
 import { addDayKeys, dayKeyOf, lastDayOfMonth, monthOf } from "@/lib/funnelTracker";
+import { dashboardWindow } from "@/lib/dashboardWindow";
 
 type Range = "this_month" | "last_month" | "last_90";
 
@@ -31,9 +32,11 @@ export function MyNumbers({ embedded = false }: { embedded?: boolean } = {}) {
   const today = dayKeyOf(new Date().toISOString());
   const { from, to } = useMemo(() => rangeDates(range, today), [range, today]);
 
-  const { data: callLogs = [], isLoading } = useCallLogsByDateRange(from, to);
-  const { data: bookings = [] } = useBookedAppointmentsByDateRange(from, to);
-  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(from, to);
+  // This month shares one load with My goals' week (dashboardWindow); other ranges load their own.
+  const shared = useMemo(() => (range === "this_month" ? dashboardWindow() : undefined), [range, today]);
+  const { data: callLogs = [], isLoading } = useCallLogsByDateRange(from, to, shared);
+  const { data: bookings = [] } = useBookedAppointmentsByDateRange(from, to, shared);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(from, to, shared);
   const { data: reps = [] } = useSalesReps();
 
   if (!user) return null;

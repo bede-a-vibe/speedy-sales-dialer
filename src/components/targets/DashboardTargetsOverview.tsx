@@ -9,6 +9,7 @@ import { TargetSection } from "@/components/targets/TargetSection";
 import { buildTargetProgressItems, deriveAllTargets, getPerformanceActualMetrics } from "@/lib/performanceTargets";
 import { getReportMetrics } from "@/lib/reportMetrics";
 import { cn } from "@/lib/utils";
+import { dashboardWindow } from "@/lib/dashboardWindow";
 
 export function DashboardTargetsOverview() {
   const { user } = useAuth();
@@ -20,11 +21,13 @@ export function DashboardTargetsOverview() {
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
 
   const { data: dailyCallLogs = [], isLoading: dailyCallsLoading } = useCallLogsByDateRange(today, today);
-  const { data: weeklyCallLogs = [], isLoading: weeklyCallsLoading } = useCallLogsByDateRange(weekStart, weekEnd);
+  // The week shares one load with My numbers (this month): see dashboardWindow.
+  const shared = useMemo(() => dashboardWindow(), [today]);
+  const { data: weeklyCallLogs = [], isLoading: weeklyCallsLoading } = useCallLogsByDateRange(weekStart, weekEnd, shared);
   const { data: dailyBookedAppointments = [], isLoading: dailyBookingsLoading } = useBookedAppointmentsByDateRange(today, today);
-  const { data: weeklyBookedAppointments = [], isLoading: weeklyBookingsLoading } = useBookedAppointmentsByDateRange(weekStart, weekEnd);
+  const { data: weeklyBookedAppointments = [], isLoading: weeklyBookingsLoading } = useBookedAppointmentsByDateRange(weekStart, weekEnd, shared);
   // One fetch for the week; getReportMetrics keeps only the slots inside each range.
-  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(weekStart, weekEnd);
+  const { data: rescheduleSlots = [] } = useRescheduleSlotsByDateRange(weekStart, weekEnd, shared);
 
   const myDailyMetrics = useMemo(
     () => getReportMetrics({ callLogs: dailyCallLogs, bookedItems: dailyBookedAppointments, rescheduleSlots, from: today, to: today, repUserId: user?.id }),
