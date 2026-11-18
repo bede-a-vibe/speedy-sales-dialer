@@ -683,6 +683,39 @@ export type Database = {
           },
         ]
       }
+      client_errors: {
+        Row: {
+          created_at: string
+          detail: Json | null
+          id: string
+          kind: string
+          message: string | null
+          path: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          kind: string
+          message?: string | null
+          path?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          kind?: string
+          message?: string | null
+          path?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_meetings: {
         Row: {
           contact_id: string
@@ -2040,6 +2073,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dialpad_backfill_days: {
+        Row: {
+          day: string
+          requested_at: string | null
+        }
+        Insert: {
+          day: string
+          requested_at?: string | null
+        }
+        Update: {
+          day?: string
+          requested_at?: string | null
+        }
+        Relationships: []
       }
       dialpad_calls: {
         Row: {
@@ -5966,6 +6014,17 @@ export type Database = {
           setter_id: string
           start_date: string
           status: string
+        }[]
+      }
+      get_setter_verbal_deals: {
+        Args: never
+        Returns: {
+          business_name: string
+          contact_id: string
+          retainer: number
+          setter_id: string
+          upfront: number
+          verbal_on: string
         }[]
       }
       get_source_funnel: {
