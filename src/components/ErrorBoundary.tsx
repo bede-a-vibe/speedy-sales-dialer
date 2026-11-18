@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isChunkLoadError, recoverChunkLoad } from "@/lib/chunkRecovery";
+import { reportClientError } from "@/lib/errorReporter";
 
 interface Props {
   children: ReactNode;
@@ -25,6 +26,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("[ErrorBoundary]", error, errorInfo);
+    reportClientError("error_screen", error?.message ?? "Unknown error", {
+      stack: String(error?.stack ?? "").slice(0, 3000),
+      componentStack: String(errorInfo?.componentStack ?? "").slice(0, 3000),
+      title: this.props.fallbackTitle ?? null,
+    });
     try {
       recoverChunkLoad(error, window.sessionStorage, () => window.location.reload());
     } catch {

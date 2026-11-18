@@ -2776,18 +2776,36 @@ Deno.serve(async (req) => {
       case "list_pipeline_opportunities": {
         const pid = String(body.pipelineId ?? "");
         if (!pid) return json({ error: "Missing pipelineId" }, 400);
-        const all: unknown[] = [];
-        let page = 1;
-        for (; page <= 20; page++) {
-          const r = await ghlFetch("/opportunities/search", GHL_API_KEY, {
+        // Page 1 tells us the total, then the rest of the pages are fetched
+        // side by side. Fetching them one after another took ~25s for the
+        // Sales pipeline and left the Pipelines board on "Loading" (19 Nov).
+        type OppPage = { opportunities?: unknown[]; meta?: { total?: number } };
+        const fetchPage = (page: number) =>
+          ghlFetch("/opportunities/search", GHL_API_KEY, {
             method: "GET",
             params: { location_id: GHL_LOCATION_ID, pipeline_id: pid, status: "all", limit: "100", page: String(page) },
-          }) as { opportunities?: unknown[] };
-          const batch = r?.opportunities ?? [];
-          all.push(...batch);
-          if (batch.length < 100) break;
+          }) as Promise<OppPage>;
+        const [first, pipes] = await Promise.all([
+          fetchPage(1),
+          getPipelines(GHL_API_KEY, GHL_LOCATION_ID) as Promise<{ pipelines?: Array<{ id: string; stages?: unknown[] }> }>,
+        ]);
+        const all: unknown[] = [...(first?.opportunities ?? [])];
+        const total = Number(first?.meta?.total);
+        if (Number.isFinite(total) && total > all.length) {
+          const pages = Math.min(20, Math.ceil(total / 100));
+          for (let start = 2; start <= pages; start += 5) {
+            // Five at a time keeps us well under GHL's burst limit.
+            const chunk = Array.from({ length: Math.min(5, pages - start + 1) }, (_, i) => fetchPage(start + i));
+            for (const r of await Promise.all(chunk)) all.push(...(r?.opportunities ?? []));
+          }
+        } else if ((first?.opportunities ?? []).length >= 100) {
+          // No total in the response: fall back to walking the pages.
+          for (let page = 2; page <= 20; page++) {
+            const batch = (await fetchPage(page))?.opportunities ?? [];
+            all.push(...batch);
+            if (batch.length < 100) break;
+          }
         }
-        const pipes = await getPipelines(GHL_API_KEY, GHL_LOCATION_ID) as { pipelines?: Array<{ id: string; stages?: unknown[] }> };
         const pipeline = (pipes?.pipelines ?? []).find((x) => x.id === pid) ?? null;
         result = { opportunities: all, stages: pipeline?.stages ?? [] };
         break;

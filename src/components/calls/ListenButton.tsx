@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { noteListen, reportClientError } from "@/lib/errorReporter";
 
 /**
  * Fetches the Dialpad recording share link on demand and plays it inline.
@@ -14,9 +15,15 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Free the downloaded recording when the player goes away.
+  useEffect(() => () => {
+    if (audioUrl?.startsWith("blob:")) URL.revokeObjectURL(audioUrl);
+  }, [audioUrl]);
+
   const load = async () => {
     setLoading(true);
     setError(null);
+    noteListen(`load ${dialpadCallId}`);
     try {
       const { data, error: fnError } = await supabase.functions.invoke("dialpad", {
         body: { action: "get_call_recording", dialpad_call_id: dialpadCallId },
@@ -33,11 +40,14 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
         if (proxyErr || !bytes) throw proxyErr ?? new Error("empty");
         const blob = bytes instanceof Blob ? bytes : new Blob([bytes as ArrayBuffer]);
         setAudioUrl(URL.createObjectURL(new Blob([blob], { type: "audio/mpeg" })));
-      } catch {
+      } catch (proxyFailure) {
+        reportClientError("recording_proxy_failed", String((proxyFailure as Error)?.message ?? proxyFailure), { dialpadCallId });
         setAudioUrl(data.access_link as string);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load the recording.");
+      const msg = e instanceof Error ? e.message : "Couldn't load the recording.";
+      reportClientError("recording_load_failed", msg, { dialpadCallId });
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -46,7 +56,25 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
   if (audioUrl) {
     return (
       <div className={className ?? "mb-3 flex flex-wrap items-center gap-2"}>
-        <audio controls autoPlay={autoPlay} src={audioUrl} className="h-9 w-full min-w-[260px] max-w-md" />
+        <audio
+          controls
+          autoPlay={autoPlay}
+          src={audioUrl}
+          className="h-9 w-full min-w-[260px] max-w-md"
+          // One recording at a time: starting this one pauses any other player on the page.
+          onPlay={(e) => {
+            noteListen(`play ${dialpadCallId}`);
+            document.querySelectorAll("audio").forEach((a) => {
+              if (a !== e.currentTarget && !a.paused) a.pause();
+            });
+          }}
+          onError={(e) =>
+            reportClientError("recording_playback_failed", `audio error ${e.currentTarget.error?.code ?? "?"}`, {
+              dialpadCallId,
+              blob: audioUrl.startsWith("blob:"),
+            })
+          }
+        />
         <a href={shareUrl ?? audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
           Open recording <ExternalLink className="h-3 w-3" />
         </a>
