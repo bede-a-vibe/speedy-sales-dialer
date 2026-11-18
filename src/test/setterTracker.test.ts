@@ -81,3 +81,35 @@ describe("setter tracker", () => {
     expect(t.firstDial).toBeNull();
   });
 });
+
+describe("setter tracker: call stages, tiers, talk per set", () => {
+  it("makes the stages add up call by call: a booked call reached them all, a later stage implies the earlier ones", async () => {
+    const { callStagesOf } = await import("@/lib/callStages");
+    expect(callStagesOf({ outcome: "booked" })).toEqual({ intro: true, problem: true, solution: true, ask: true, booked: true });
+    expect(callStagesOf({ outcome: "not_interested", reached_solution_awareness: true })).toEqual({ intro: true, problem: true, solution: true, ask: false, booked: false });
+    expect(callStagesOf({ outcome: "not_interested", reached_connection: true })).toEqual({ intro: true, problem: false, solution: false, ask: false, booked: false });
+  });
+
+  it("stage counts step down, tier sets split, and talk time per set uses all talk", () => {
+    const logs = [
+      call({ contact_id: "a", outcome: "booked", dialpad_talk_time_seconds: 600 }), // no ticks at all
+      call({ contact_id: "b", outcome: "not_interested", dialpad_talk_time_seconds: 120, reached_connection: true, reached_problem_awareness: true }),
+      call({ contact_id: "c", outcome: "follow_up", dialpad_talk_time_seconds: 180, reached_commitment: true }),
+      call({ contact_id: "d", outcome: "no_answer", dialpad_talk_time_seconds: 0 }),
+    ];
+    const items = [
+      booking({ booking_tier: "tier_1" } as Partial<TrackerItem>),
+      booking({ booking_tier: null, contacts: { team_size: 1 } } as Partial<TrackerItem>), // Tier 2 from the contact
+      booking({}),
+    ];
+    const d = buildSetterDailyStats({
+      days: ["2026-11-10"], setterIds: new Set([BEN]), callLogs: logs, items, newClients: [], inputs: [], productiveHours: new Map(),
+    }).get("2026-11-10")!;
+    expect([d.answers, d.convos, d.problem, d.solution, d.qualified, d.bookedCalls]).toEqual([3, 3, 3, 2, 2, 1]);
+    expect(d.bookedTalkSeconds).toBe(600);
+    expect(d.talkSeconds).toBe(900);
+    expect(d.sets).toBe(3);
+    expect(d.setsT1).toBe(1);
+    expect(d.setsT2).toBe(1);
+  });
+});
