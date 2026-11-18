@@ -11,9 +11,9 @@ import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Radio, RotateCcw, RefreshCw,
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "@/lib/callingCompliance";
+import { CALLER_ID_ROTATION_INTERVAL as ROTATION_INTERVAL, rotationIndex } from "@/lib/callerIdRotation";
 
 const MAX_POOL_SIZE = 8;
-const ROTATION_INTERVAL = 50;
 
 function deriveAreaCode(e164: string): AuAreaCode | null {
   if (/^\+614/.test(e164)) return "04";
@@ -103,9 +103,7 @@ export function CallerIdRotationManager({ profiles }: { profiles: Profile[] }) {
     [pool],
   );
   const rotationCount = settings?.rotation_dial_count ?? 0;
-  const activeIndex = activePool.length > 0
-    ? Math.floor(rotationCount / ROTATION_INTERVAL) % activePool.length
-    : 0;
+  const activeIndex = Math.max(0, rotationIndex(rotationCount, activePool.length));
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["caller-id-pool-admin", selectedUserId] });

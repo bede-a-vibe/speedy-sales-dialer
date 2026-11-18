@@ -17,6 +17,7 @@ import { CallerIdRotationManager } from "@/components/admin/CallerIdRotationMana
 import { DialpadSyncHealth } from "@/components/admin/DialpadSyncHealth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { Radio } from "lucide-react";
+import { CALLER_ID_ROTATION_INTERVAL } from "@/lib/callerIdRotation";
 
 export default function DialpadSettingsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const Shell = embedded ? EmbeddedShell : AppLayout;
@@ -318,7 +319,7 @@ export default function DialpadSettingsPage({ embedded = false }: { embedded?: b
                 Caller ID Rotation
               </h2>
               <p className="text-sm text-muted-foreground">
-                Assign up to 8 outbound caller ID numbers per rep. The dialer rotates every 50 dials so no single number gets spam-flagged. Inert until at least one number is added.
+                Assign up to 8 outbound caller ID numbers per rep. The dialer rotates every {CALLER_ID_ROTATION_INTERVAL} dials so no single number gets spam-flagged. Inert until at least one number is added.
               </p>
             </div>
             <div className="bg-card border border-border rounded-lg p-4">

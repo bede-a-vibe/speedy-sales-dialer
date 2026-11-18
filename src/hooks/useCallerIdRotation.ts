@@ -2,13 +2,18 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { deriveLeadAreaCode, AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "@/lib/callingCompliance";
+import { CALLER_ID_ROTATION_INTERVAL, dialsUntilNextRotation, rotationIndex } from "@/lib/callerIdRotation";
 
 /**
  * Caller ID rotation.
  *
  * Every rep can be assigned a pool of up to 8 outbound caller ID numbers.
- * The dialer rotates which one is used every 50 dials so no single number
- * gets spam-flagged as the team scales.
+ * The dialer rotates which one is used every CALLER_ID_ROTATION_INTERVAL
+ * dials (src/lib/callerIdRotation.ts) so no single number gets spam-flagged.
+ *
+ * COUNTING: a database trigger on dialpad_calls bumps
+ * dialpad_settings.rotation_dial_count for every new outbound call, whichever
+ * path placed it. The browser only reads the count (refreshCount).
  *
  * LOCAL PRESENCE: when the CURRENT lead has a derivable AU area code, we
  * prefer to rotate among owned pool numbers that MATCH that area code
@@ -19,7 +24,7 @@ import { deriveLeadAreaCode, AREA_CODE_TO_REGION_LABEL, type AuAreaCode } from "
  * eligible for rotation — no blank / unattested CLI.
  *
  * Formula (per candidate subset):
- *   subset[floor(rotation_dial_count / 50) % subset.length]
+ *   subset[floor(rotation_dial_count / CALLER_ID_ROTATION_INTERVAL) % subset.length]
  *
  * If the pool is empty this hook returns `activeNumber = null` and the dialer
  * falls back to its existing single-number behaviour (`selectedCallerId` /
@@ -40,7 +45,6 @@ export interface CallerIdPoolEntry {
   attested_at: string | null;
 }
 
-const ROTATION_INTERVAL = 50;
 
 export type CallerIdSelectionReason = "local" | "rotation" | "fallback";
 
@@ -78,7 +82,9 @@ export function useCallerIdRotation(userId: string | undefined) {
   const countQuery = useQuery({
     queryKey: ["caller-id-rotation-count", userId],
     enabled: !!userId,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    // Backstop: the dialer also refreshes on every new lead.
+    refetchInterval: 30_000,
     queryFn: async () => {
       if (!userId) return 0;
       const { data, error } = await supabase
@@ -100,7 +106,7 @@ export function useCallerIdRotation(userId: string | undefined) {
     if (pool.length === 0) {
       return { number: null, entry: null, reason: "fallback", areaCode: null, regionLabel: null, poolSubsetSize: 0, activeIndex: 0 };
     }
-    const idx = Math.floor(count / ROTATION_INTERVAL) % pool.length;
+    const idx = rotationIndex(count, pool.length);
     return {
       number: pool[idx]?.phone_number ?? null,
       entry: pool[idx] ?? null,
@@ -126,7 +132,7 @@ export function useCallerIdRotation(userId: string | undefined) {
     if (leadAreaCode) {
       const local = pool.filter((p) => p.area_code === leadAreaCode);
       if (local.length > 0) {
-        const idx = Math.floor(count / ROTATION_INTERVAL) % local.length;
+        const idx = rotationIndex(count, local.length);
         return {
           number: local[idx].phone_number,
           entry: local[idx],
@@ -141,21 +147,11 @@ export function useCallerIdRotation(userId: string | undefined) {
     return defaultSelection;
   }, [pool, count, defaultSelection]);
 
-  const incrementCounter = useCallback(async () => {
+  // Re-read the dial counter. The database trigger does the counting, so this
+  // never writes.
+  const refreshCount = useCallback(() => {
     if (!userId) return;
-    try {
-      // Fire-and-forget: never block the dialer on this.
-      const { data } = await supabase.rpc("increment_rotation_dial_count", {
-        _user_id: userId,
-      });
-      if (typeof data === "number") {
-        qc.setQueryData(["caller-id-rotation-count", userId], data);
-      } else {
-        qc.invalidateQueries({ queryKey: ["caller-id-rotation-count", userId] });
-      }
-    } catch {
-      // Silent — rotation counter is non-critical.
-    }
+    void qc.invalidateQueries({ queryKey: ["caller-id-rotation-count", userId] });
   }, [userId, qc]);
 
   return {
@@ -166,10 +162,10 @@ export function useCallerIdRotation(userId: string | undefined) {
     defaultSelection,
     pickForContact,
     rotationCount: count,
-    rotationInterval: ROTATION_INTERVAL,
-    dialsUntilNext: pool.length > 1 ? ROTATION_INTERVAL - (count % ROTATION_INTERVAL) : null,
+    rotationInterval: CALLER_ID_ROTATION_INTERVAL,
+    dialsUntilNext: dialsUntilNextRotation(count, pool.length),
     hasPool: pool.length > 0,
     isLoading: poolQuery.isLoading || countQuery.isLoading,
-    incrementCounter,
+    refreshCount,
   };
 }

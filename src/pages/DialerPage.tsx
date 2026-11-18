@@ -39,7 +39,7 @@ import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialerSession } from "@/hooks/useDialerSession";
 import { useDialerDialpad } from "@/hooks/useDialerDialpad";
-import { useCallerIdRotation } from "@/hooks/useCallerIdRotation";
+import { useCallerIdRotation, type CallerIdSelection } from "@/hooks/useCallerIdRotation";
 import { evaluateCallingWindow, describeWindowReason } from "@/lib/callingCompliance";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -724,10 +724,30 @@ export default function DialerPage() {
   const callerIdRotation = useCallerIdRotation(myDialpadSettingsEarly?.user_id);
   // Local-presence-aware selection for the CURRENT lead. Prefers a pool
   // number whose AU area code matches the lead's, else full-pool rotation.
-  const callerIdSelection = useMemo(
-    () => callerIdRotation.pickForContact(session.currentContact),
-    [callerIdRotation, session.currentContact],
-  );
+  //
+  // The number is frozen per lead: once a lead has a caller ID it keeps it
+  // until the next lead, even if the dial counter refreshes mid-call. A caller
+  // ID change re-runs the place-call effect, so letting it move mid-lead could
+  // ring the same lead twice. A refreshed count applies from the next lead.
+  const liveCallerIdSelection = callerIdRotation.pickForContact(session.currentContact);
+  const frozenCallerIdRef = useRef<{ contactId: string; selection: CallerIdSelection } | null>(null);
+  const currentContactIdForCallerId = session.currentContact?.id ?? null;
+  const callerIdSelection: CallerIdSelection = (() => {
+    if (!currentContactIdForCallerId) {
+      frozenCallerIdRef.current = null;
+      return liveCallerIdSelection;
+    }
+    const frozen = frozenCallerIdRef.current;
+    if (frozen && frozen.contactId === currentContactIdForCallerId && frozen.selection.number) {
+      return frozen.selection;
+    }
+    // Wait for the pool and count to load before freezing, so the first lead
+    // of a session doesn't lock in the fallback number.
+    if (!callerIdRotation.isLoading) {
+      frozenCallerIdRef.current = { contactId: currentContactIdForCallerId, selection: liveCallerIdSelection };
+    }
+    return liveCallerIdSelection;
+  })();
   // If a pool exists, its rotated number OVERRIDES the manual selector.
   const effectiveCallerId = callerIdSelection.number ?? selectedCallerId;
 
@@ -778,16 +798,14 @@ export default function DialerPage() {
     isOnline, dialpad.hasDialpadAssignment, dialpad.dialNumber, canDialCurrent, complianceWindow,
   ]);
 
-  // Bump the per-rep rotation counter whenever a new call is actually placed.
-  const lastIncrementedCallIdRef = useRef<string | null>(null);
+  // The database counts every outbound call (trigger on dialpad_calls), so the
+  // dialer only re-reads the count. Refresh on each new lead so the next lead
+  // picks up the latest count.
+  const refreshCallerIdCount = callerIdRotation.refreshCount;
   useEffect(() => {
-    if (!callerIdRotation.hasPool) return;
-    const callId = dialpad.activeDialpadCallId;
-    if (!callId) return;
-    if (lastIncrementedCallIdRef.current === callId) return;
-    lastIncrementedCallIdRef.current = callId;
-    void callerIdRotation.incrementCounter();
-  }, [dialpad.activeDialpadCallId, callerIdRotation]);
+    if (!currentContactIdForCallerId) return;
+    refreshCallerIdCount();
+  }, [currentContactIdForCallerId, refreshCallerIdCount]);
 
   const rotationBadge = callerIdRotation.hasPool ? (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] font-mono text-primary">
@@ -2932,7 +2950,6 @@ export default function DialerPage() {
                           dialpad_user_id: dialpad.myDialpadSettings.dialpad_user_id,
                           caller_id: effectiveCallerId || undefined,
                         });
-                        if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                         toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                         setManualOpen(false);
                         setManualPhone("");
@@ -2956,7 +2973,6 @@ export default function DialerPage() {
                         dialpad_user_id: dialpad.myDialpadSettings!.dialpad_user_id,
                         caller_id: effectiveCallerId || undefined,
                       });
-                      if (callerIdRotation.hasPool) void callerIdRotation.incrementCounter();
                       toast.success(`Calling ${manualPhone.trim()} through Dialpad`);
                       setManualOpen(false);
                       setManualPhone("");
