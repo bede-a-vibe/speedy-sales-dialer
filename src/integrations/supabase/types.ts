@@ -1937,6 +1937,39 @@ export type Database = {
         }
         Relationships: []
       }
+      contacts_tier_backup_20261118: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          monthly_revenue: number | null
+          monthly_revenue_evidence: string | null
+          monthly_revenue_set_at: string | null
+          monthly_revenue_source: string | null
+          team_size: number | null
+          team_size_evidence: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          monthly_revenue?: number | null
+          monthly_revenue_evidence?: string | null
+          monthly_revenue_set_at?: string | null
+          monthly_revenue_source?: string | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          monthly_revenue?: number | null
+          monthly_revenue_evidence?: string | null
+          monthly_revenue_set_at?: string | null
+          monthly_revenue_source?: string | null
+          team_size?: number | null
+          team_size_evidence?: string | null
+        }
+        Relationships: []
+      }
       deal_audit: {
         Row: {
           changed_at: string
@@ -2112,6 +2145,10 @@ export type Database = {
       }
       dialpad_settings: {
         Row: {
+          active_caller_id: string | null
+          caller_id_checked_at: string | null
+          caller_id_error: string | null
+          caller_id_set_at: string | null
           created_at: string
           dialpad_phone_number: string | null
           dialpad_user_id: string
@@ -2122,6 +2159,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_caller_id?: string | null
+          caller_id_checked_at?: string | null
+          caller_id_error?: string | null
+          caller_id_set_at?: string | null
           created_at?: string
           dialpad_phone_number?: string | null
           dialpad_user_id: string
@@ -2132,6 +2173,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_caller_id?: string | null
+          caller_id_checked_at?: string | null
+          caller_id_error?: string | null
+          caller_id_set_at?: string | null
           created_at?: string
           dialpad_phone_number?: string | null
           dialpad_user_id?: string
@@ -5427,6 +5472,10 @@ export type Database = {
           last_sign_in_at: string
           user_id: string
         }[]
+      }
+      admin_set_person_active: {
+        Args: { _active: boolean; _ghl_user_id: string; _user_id: string }
+        Returns: undefined
       }
       advance_contact_lifecycle: {
         Args: { _contact_id: string; _reason?: string; _target: string }
