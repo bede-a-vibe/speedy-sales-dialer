@@ -209,6 +209,32 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   );
   const total = useCallback((days: string[]) => sumSetterStats(days.map((d) => daily.get(d)!).filter(Boolean)), [daily]);
 
+  // All setters: each setter's own numbers too, shown as a row under every
+  // day, week, month and range line so they can be compared with each other.
+  const perSetter = useMemo(() => {
+    if (selected !== ALL) return [];
+    const days = months.flatMap((m) => m.days);
+    const items = [...bookings, ...rescheduleSlots] as TrackerItem[];
+    return setters.map((st) => ({
+      id: st.id,
+      name: st.name,
+      daily: buildSetterDailyStats({ days, setterIds: new Set([st.id]), callLogs, items, inputs, productiveHours, newClients }),
+    }));
+  }, [selected, setters, months, callLogs, bookings, rescheduleSlots, inputs, productiveHours, newClients]);
+  const setterRows = (days: string[], level: Level, combined: SetterStats) => {
+    if (perSetter.length === 0) return null;
+    // Nothing happened (no dials, sets, meetings or sales): no per-setter rows.
+    if (combined.dials === 0 && combined.sets === 0 && combined.onCal === 0 && combined.sold === 0) return null;
+    return perSetter.map((st) => (
+      <tr key={`${level}-${days[0]}-${st.id}`} className="hover:bg-muted/30">
+        <td className={cn("sticky left-0 z-10 border-b border-r border-border bg-card px-2 py-0.5 whitespace-nowrap text-[11px] text-muted-foreground", level === "day" ? "pl-6" : "pl-7")}>
+          {st.name}
+        </td>
+        {cells(sumSetterStats(days.map((d) => st.daily.get(d)!).filter(Boolean)), level, true)}
+      </tr>
+    ));
+  };
+
   const today = dayKeyOf(new Date().toISOString());
   const currentMonth = monthOf(today);
   const [openState, setOpenState] = useState<Record<string, boolean>>(readOpenState);
@@ -236,7 +262,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
     return out;
   }, []);
 
-  const cells = (s: SetterStats, level: Level) =>
+  const cells = (s: SetterStats, level: Level, sub = false) =>
     COLS.map((c) => {
       const v = c.value(s, level);
       const empty = v == null || v === 0;
@@ -246,7 +272,8 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           className={cn(
             "border-b border-border px-1.5 py-1 text-center font-mono tabular-nums whitespace-nowrap",
             sectionStart.has(c.key) && "border-l",
-            level !== "day" && "font-semibold",
+            level !== "day" && !sub && "font-semibold",
+            sub && "py-0.5 text-[11px]",
             empty && c.fmt !== "worked" ? "text-muted-foreground/50" : "text-foreground",
             c.fmt === "worked" && level === "day" && v === 0 && "text-muted-foreground/50",
             c.key === "discrepancy" && v != null && v < -0.5 && "text-red-600 dark:text-red-400",
@@ -263,7 +290,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
   return (
     <ReportSection
       title="Setter tracker"
-      description={`${selectedName}: one row per day, week and month totals that collapse. Calls count by the day dialled, sets by the day booked, meetings by the day they were due, and units sold by the day the first deal starts (credited to the setter of the lead's first booking).`}
+      description={`${selectedName}: one row per day, week and month totals that collapse${selected === ALL ? ", with each setter's own line under every row" : ""}. Calls count by the day dialled, sets by the day booked, meetings by the day they were due, and units sold by the day the first deal starts (credited to the setter of the lead's first booking).`}
       className="overflow-hidden"
     >
       <div className="mb-2 flex flex-wrap items-center gap-3">
@@ -333,6 +360,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                 {cells(total(months.flatMap((m) => m.days)), "range")}
               </tr>
             ) : null}
+            {months.length > 1 ? setterRows(months.flatMap((m) => m.days), "range", total(months.flatMap((m) => m.days))) : null}
             {months.map((m) => {
               const mOpen = monthOpen(m.month);
               return (
@@ -347,6 +375,7 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                     </td>
                     {cells(total(m.days), "month")}
                   </tr>
+                  {setterRows(m.days, "month", total(m.days))}
                   {mOpen
                     ? m.weeks.map((w) => {
                         const wOpen = weekOpen(w, m.weeks.length);
@@ -361,9 +390,11 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                               </td>
                               {cells(total(w), "week")}
                             </tr>
+                            {setterRows(w, "week", total(w))}
                             {wOpen
                               ? w.map((d) => (
-                                  <tr key={d} className="hover:bg-muted/30">
+                                  <Fragment key={d}>
+                                  <tr className="hover:bg-muted/30">
                                     <td
                                       className={cn(
                                         stickyDay,
@@ -375,6 +406,8 @@ export function SetterTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
                                     </td>
                                     {cells(daily.get(d)!, "day")}
                                   </tr>
+                                  {setterRows([d], "day", daily.get(d)!)}
+                                  </Fragment>
                                 ))
                               : null}
                           </Fragment>
