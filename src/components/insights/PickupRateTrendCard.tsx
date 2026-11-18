@@ -117,7 +117,8 @@ export function PickupRateTrendCard({ dateFrom, dateTo, callLogs, activeRepId, s
       description={`${totalPickUps.toLocaleString()} pick-ups from ${totalDials.toLocaleString()} dials (${(overallRate * 100).toFixed(1)}%)${activeRepId ? ` for ${selectedRepLabel}` : " across all reps"}.`}
     >
       <div className="mb-4 flex items-center gap-1">
-        {(["hourly", "daily", "weekly"] as const).map((g) => (
+        {/* Hourly lives in the Dial clock above; this card is the trend over time. */}
+        {(["daily", "weekly"] as const).map((g) => (
           <Button
             key={g}
             size="sm"

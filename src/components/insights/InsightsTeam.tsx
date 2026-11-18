@@ -76,20 +76,18 @@ const COLUMNS: { key: SortKey; label: string; hint?: string; format: (r: RepPerf
   { key: "dialsPerHour", label: "Dials/Hr", format: (r) => (r.activeHours > 0 ? r.dialsPerHour.toFixed(1) : "—") },
   { key: "activeHours", label: "Active Hrs", format: (r) => (r.activeHours > 0 ? r.activeHours : "—") },
   { key: "talkTimeSeconds", label: "Talk", format: (r) => formatDurationSeconds(r.talkTimeSeconds) },
-  { key: "conversations", label: "Conv", format: (r) => r.conversations },
-  { key: "bookings", label: "Book", hint: "First meetings booked in the range (setter). Second meetings left out.", format: (r) => r.bookings },
+  { key: "conversations", label: "Past intro", hint: "Answered calls that reached the decision maker: the same count as Past intro on the Setter tracker.", format: (r) => r.conversations },
+  { key: "bookings", label: "Sets", hint: "First meetings booked in the range. Second meetings left out.", format: (r) => r.bookings },
   { key: "showed", label: "Showed (first mtg)", hint: "First meetings this rep set that sat, by meeting day.", format: (r) => r.showed },
   { key: "closed", label: "Closed (setter)", hint: "Closes credited to whoever made the lead's first booking.", format: (r) => r.closed },
   { key: "dialToCloseRate", label: "Dial→Close", format: (r) => `${r.dialToCloseRate}%` },
   { key: "dialsPerClose", label: "Dials/Close", format: (r) => (r.closed > 0 ? r.dialsPerClose : "—") },
   { key: "revenuePerDial", label: "$/Dial (first coll.)", hint: "First collection on the setter's closes ÷ dials.", format: (r) => audP(r.revenuePerDial) },
-  { key: "setupRevenue", label: "Setup $", format: (r) => aud(r.setupRevenue) },
-  { key: "mrr", label: "MRR $", format: (r) => aud(r.mrr) },
-  { key: "firstCollection", label: "First collection $", hint: "One-off / setup fee plus the first retainer month.", format: (r) => aud(r.firstCollection) },
-  { key: "closerSat", label: "Sat (closer)", hint: "Meetings this rep ran (assigned closer) that sat, first and second.", format: (r) => r.closerSat },
-  { key: "closerClosed", label: "Closed (closer)", hint: "Closes on meetings this rep ran.", format: (r) => r.closerClosed },
-  { key: "closerMrr", label: "MRR (closer)", hint: "MRR won on meetings this rep ran.", format: (r) => aud(r.closerMrr) },
+  { key: "firstCollection", label: "First collection $", hint: "One-off / setup fee plus the first retainer month, on the setter's closes.", format: (r) => aud(r.firstCollection) },
 ];
+
+/** A rep shows on the setter views once they have a real day's dialling in the range (same rule as the Setter tracker). */
+const MIN_DIALS_TO_SHOW = 10;
 
 function RepLeaderboard({ rows, repName }: { rows: RepPerformanceRow[]; repName: Map<string, string> }) {
   const [sortKey, setSortKey] = useState<SortKey>("dials");
@@ -187,12 +185,9 @@ export function InsightsTeam({ callLogs, bookings, reps, dateFrom, dateTo, activ
     if (activeRepId) {
       return [computeRepCoachingScorecard(activeRepId, callLogs as never, windowBookings)];
     }
-    const repIds = Array.from(
-      new Set([
-        ...callLogs.map((l) => l.user_id).filter(Boolean),
-        ...windowBookings.map((b) => b.created_by).filter(Boolean),
-      ]),
-    );
+    const dialsByRep = new Map<string, number>();
+    for (const l of callLogs) if (l.user_id) dialsByRep.set(l.user_id, (dialsByRep.get(l.user_id) ?? 0) + 1);
+    const repIds = [...dialsByRep].filter(([, n]) => n >= MIN_DIALS_TO_SHOW).map(([id]) => id);
     return computeAllRepScorecards(repIds, callLogs as never, windowBookings);
   }, [activeRepId, callLogs, windowBookings]);
 
@@ -217,7 +212,7 @@ export function InsightsTeam({ callLogs, bookings, reps, dateFrom, dateTo, activ
 
   const leaderboardRows = useMemo(() => {
     const rows = getRepPerformance(callLogs, bookings, dateFrom, dateTo, firstSetterByContact);
-    return activeRepId ? rows.filter((r) => r.repUserId === activeRepId) : rows;
+    return activeRepId ? rows.filter((r) => r.repUserId === activeRepId) : rows.filter((r) => r.dials >= MIN_DIALS_TO_SHOW);
   }, [callLogs, bookings, dateFrom, dateTo, firstSetterByContact, activeRepId]);
 
   const repName = useMemo(
@@ -232,7 +227,7 @@ export function InsightsTeam({ callLogs, bookings, reps, dateFrom, dateTo, activ
         description={
           activeRepId
             ? `${selectedRepLabel ?? "Selected rep"} only, in the selected range.`
-            : "All reps: sortable outbound performance per rep in the selected range."
+            : "Setters with 10+ dials in the range. Click a column to sort. Closer results live on the Closing tab."
         }
       >
         <RepLeaderboard rows={leaderboardRows} repName={repName} />
@@ -243,7 +238,7 @@ export function InsightsTeam({ callLogs, bookings, reps, dateFrom, dateTo, activ
         description={
           activeRepId
             ? `Where ${selectedRepLabel ?? "this rep"}'s calls fall apart, plus best pick-up and booking windows.`
-            : "One scorecard per rep: biggest funnel leak, top exit reason, and timing intelligence. Sorted by dial volume."
+            : "One scorecard per setter: where calls fall apart (same stages as the Setter tracker), the top exit reason, and their best hours (30+ dials an hour to count). Sorted by dials."
         }
       >
         <RepCoachingPanel scorecards={repScorecards} repNameMap={repNameMap} expanded={!!activeRepId} />

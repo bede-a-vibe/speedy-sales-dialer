@@ -128,7 +128,7 @@ function RepScorecard({
             <h4 className="text-[10px] uppercase tracking-widest text-muted-foreground">Best Pick-Up Hours</h4>
           </div>
           {bestPickupHours.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Not enough volume yet (need 5+ dials/hour).</p>
+            <p className="text-xs text-muted-foreground">Not enough volume yet (an hour needs 30+ dials).</p>
           ) : (
             <ul className="space-y-1">
               {bestPickupHours.map((h) => (

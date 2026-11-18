@@ -34,8 +34,8 @@ interface Props {
 const NO_SLOTS: BookedAppointmentReportItem[] = [];
 
 /**
- * Insights → Timing: every time-of-day view in one place —
- * talk-time heat map, pickup-rate + booking heat maps, hourly drilldown.
+ * Insights → Setters → Timing, in four groups: when to dial, number health,
+ * conversations, and meetings by time slot; then a one-day hourly drilldown.
  */
 export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = NO_SLOTS, activeRepId, selectedRepLabel }: Props) {
   // Local date: toISOString() is the UTC date, so before 10 or 11am Melbourne
@@ -64,50 +64,59 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, reschedul
   );
 
   return (
-    <div className="space-y-5">
-      <DialClockCard
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        activeRepId={activeRepId}
-        selectedRepLabel={selectedRepLabel}
-      />
-      <OpenerSurvivalCard dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
-      <PickupRateTrendCard
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        callLogs={callLogs}
-        activeRepId={activeRepId}
-        selectedRepLabel={selectedRepLabel}
-      />
-      <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
+    <div className="space-y-8">
+      <TimingGroup title="When to dial" description="Which hours and days pick up, and when sets actually get made.">
+        <DialClockCard
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          activeRepId={activeRepId}
+          selectedRepLabel={selectedRepLabel}
+        />
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <ReportSection title="Pick-up rate by day and hour" description={`Pick-ups ÷ dials${activeRepId ? ` for ${selectedRepLabel}` : ""}. A cell needs 30+ dials to count.`}>
+            <PickupHeatMap cells={pickupHeatMapCells} minDials={30} />
+          </ReportSection>
+          <ReportSection title="Sets by day and hour" description="First meetings booked in this range, by the day and hour they were booked. Second meetings left out.">
+            <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
+          </ReportSection>
+        </div>
+      </TimingGroup>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <ReportSection title="Pick-Up Rate Heat Map" description={`Pickup % intensity by day of week and hour${activeRepId ? ` for ${selectedRepLabel}` : ""}.`}>
-          <PickupHeatMap cells={pickupHeatMapCells} />
-        </ReportSection>
-        <ReportSection title="Booking Heat Map" description="Bookings made in this date range, by the day and hour they were made. Second meetings excluded.">
-          <BookingHeatMap cells={heatMapCells} repLabel={activeRepId ? selectedRepLabel : undefined} />
-        </ReportSection>
-      </div>
+      <TimingGroup title="Number health" description="Pick-up rate over time and talk time. A falling pick-up rate on steady dials usually means numbers are getting flagged.">
+        <PickupRateTrendCard
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          callLogs={callLogs}
+          activeRepId={activeRepId}
+          selectedRepLabel={selectedRepLabel}
+        />
+        <TalkTimePanel dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
+      </TimingGroup>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <ReportSection
-          title="Show-Up Rate Heat Map"
-          description={`Share of first meetings that sat, by the day and hour the meeting was scheduled for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. Showed ÷ (showed + no-show + cancelled + rescheduled), same as Show-Up Rate; a moved meeting counts as rescheduled at its old time. Follow-ups, pending and upcoming excluded.`}
-        >
-          <RateHeatMap cells={showUpHeatMapCells} hitLabel="showed" baseLabel="slots" emptyMessage="No resolved meetings in this date range." />
-        </ReportSection>
-        <ReportSection
-          title="Close Rate Heat Map"
-          description={`Closed ÷ pitched meetings by the day and hour of the pitch${activeRepId ? `, closed by ${selectedRepLabel}` : ""}. Pitched as recorded by the closer; first or second meeting; not-qualified leads excluded.`}
-        >
-          <RateHeatMap cells={closeRateHeatMapCells} minSlots={2} hitLabel="closed" baseLabel="pitched" emptyMessage="No pitched meetings in this date range." />
-        </ReportSection>
-      </div>
+      <TimingGroup title="Conversations" description="Whether pick-ups turn into real conversations. Where calls fall apart stage by stage is on the Setter tracker and Team.">
+        <OpenerSurvivalCard dateFrom={dateFrom} dateTo={dateTo} activeRepId={activeRepId} />
+      </TimingGroup>
+
+      <TimingGroup title="Meetings by time slot" description="How the meeting time affects whether it sits and closes.">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <ReportSection
+            title="Show rate by meeting slot"
+            description={`First meetings that sat ÷ resolved slots (showed, no-show, cancelled, rescheduled), by the day and hour the meeting was set for${activeRepId ? `, sets by ${selectedRepLabel}` : ""}. A moved meeting counts as rescheduled at its old time. A cell needs 5+ slots to count.`}
+          >
+            <RateHeatMap cells={showUpHeatMapCells} minSlots={5} hitLabel="showed" baseLabel="slots" emptyMessage="No resolved meetings in this date range." />
+          </ReportSection>
+          <ReportSection
+            title="Close rate by meeting slot"
+            description={`Closed ÷ pitched meetings by the day and hour of the pitch${activeRepId ? `, closed by ${selectedRepLabel}` : ""}. First or second meeting; not-qualified leads left out. A cell needs 4+ pitches to count.`}
+          >
+            <RateHeatMap cells={closeRateHeatMapCells} minSlots={4} hitLabel="closed" baseLabel="pitched" emptyMessage="No pitched meetings in this date range." />
+          </ReportSection>
+        </div>
+      </TimingGroup>
 
       <ReportSection
-        title="Hourly Breakdown"
-        description={`Hour-by-hour activity for ${hourlyDate}${activeRepId ? ` (${selectedRepLabel})` : " across all reps"}.`}
+        title="Hour by hour, one day"
+        description={`Each hour of ${hourlyDate}${activeRepId ? ` (${selectedRepLabel})` : " across all reps"}.`}
         collapsible
         defaultOpen={false}
       >
@@ -124,5 +133,18 @@ export function InsightsTiming({ dateFrom, dateTo, callLogs, bookings, reschedul
         <HourlyBreakdownTable rows={hourlyRows} />
       </ReportSection>
     </div>
+  );
+}
+
+/** A labelled group of Timing panels. */
+function TimingGroup({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3" aria-label={title}>
+      <div>
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{title}</h2>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-5">{children}</div>
+    </section>
   );
 }

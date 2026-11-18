@@ -107,6 +107,25 @@ interface Props {
   selectedRepLabel?: string;
 }
 
+/**
+ * The scorer writes each blocker as free text, so the same reason arrives in
+ * many wordings. Common themes are grouped; anything else keeps its own text.
+ * Placeholders ("booked", "none", "n/a") are not blockers.
+ */
+export function blockerTheme(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim();
+  if (!t) return null;
+  const l = t.toLowerCase();
+  if (/^(booked|none|n\/a|na|-|no blocker)\.?$/.test(l)) return null;
+  if (/(shut|cut) (down|off) the (call|pitch|conversation)|brush[- ]?off|no need for marketing|not interested|hung up/.test(l)) return "Brushed off early (no need / not interested)";
+  if (/disconnect|dropped|call (cut|ended) (out|before)|before any conversation/.test(l)) return "Call dropped before a conversation";
+  if (/retir|shut down|closed down|clos(ed|ing) the business|no longer (operat|trading|in business)|out of business|ceased trading|sold the business|business (has )?closed/.test(l)) return "Business closed, sold or owner retired";
+  if (/too busy|flat out|enough work|fully booked|booked out/.test(l)) return "Too busy / enough work";
+  if (/already (has|have|uses|using|with)|existing (agency|provider)|another agency/.test(l)) return "Already has an agency or provider";
+  if (/gatekeeper|not the (owner|decision)|decision maker (not|unavailable)/.test(l)) return "Didn't reach the decision maker";
+  return t;
+}
+
 export function TeamCoachingPanel({ dateFrom, dateTo, activeRepId, selectedRepLabel }: Props) {
   const query = useQuery({
     queryKey: ["team-coaching-nepq", dateFrom, dateTo, activeRepId ?? "all"],
@@ -253,11 +272,12 @@ export function TeamCoachingPanel({ dateFrom, dateTo, activeRepId, selectedRepLa
       };
     }).sort((a, b) => (b.calls - a.calls));
 
-    // Booking blockers among not-booked
+    // Booking blockers among not-booked, grouped into themes so five wordings of
+    // "the business closed" count once, and placeholder text ("booked") is dropped.
     const blockerCounts = new Map<string, number>();
     for (const r of rows) {
       if (r.booked) continue;
-      const b = (r.bookingBlocker ?? "").trim();
+      const b = blockerTheme(r.bookingBlocker);
       if (!b) continue;
       blockerCounts.set(b, (blockerCounts.get(b) ?? 0) + 1);
     }

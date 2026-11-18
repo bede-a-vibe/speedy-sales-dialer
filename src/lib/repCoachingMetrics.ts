@@ -63,7 +63,10 @@ const HOUR_LABELS = (h: number) => {
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function bestPickupHours(logs: FullCallLog[], minDials = 5, take = 3): HourPickupRow[] {
+/** An hour needs this many dials before it can be called a best hour (6pm on 6 dials is noise). */
+export const MIN_DIALS_PER_HOUR = 30;
+
+function bestPickupHours(logs: FullCallLog[], minDials = MIN_DIALS_PER_HOUR, take = 3): HourPickupRow[] {
   const dials = new Array<number>(24).fill(0);
   const picks = new Array<number>(24).fill(0);
   for (const l of logs) {
@@ -103,7 +106,7 @@ function bestBookingHours(
     bookings: books[h],
     conversionPct: dials[h] > 0 ? Math.round((books[h] / dials[h]) * 100) : 0,
   }))
-    .filter((r) => r.bookings >= 1)
+    .filter((r, h) => r.bookings >= 1 && dials[h] >= MIN_DIALS_PER_HOUR)
     .sort((a, b) => b.bookings - a.bookings || b.conversionPct - a.conversionPct)
     .slice(0, take);
 }
