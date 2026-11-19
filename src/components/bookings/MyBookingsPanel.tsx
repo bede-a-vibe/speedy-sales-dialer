@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import { useMyBookings, useRateBooking, useSalesReps } from "@/hooks/usePipelineItems";
+import { useRepCompPlans } from "@/hooks/useFunnelTracker";
 import { monthlyShowRate, showRateByRating, tally, toBookingRows, type BookingShow, type MyBookingRow, type ShowTally } from "@/lib/bookingTracker";
 import { dayKeyOf } from "@/lib/funnelTracker";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,13 @@ const TALLY_HEADS = ["Booked", "Shows", "No-shows", "Cancelled", "Pending", "Res
 export function MyBookingsPanel() {
   const { user } = useAuth();
   const { canViewAdmin } = useAdminAccess();
-  const { data: reps = [] } = useSalesReps();
+  const { data: allReps = [] } = useSalesReps();
+  const { data: plans = [] } = useRepCompPlans();
+  // Setters on a pay plan, plus you: not every login (test users, former staff).
+  const reps = useMemo(() => {
+    const setters = new Set(plans.filter((p) => p.role === "setter").map((p) => p.user_id));
+    return allReps.filter((r) => setters.has(r.user_id) || r.user_id === user?.id);
+  }, [allReps, plans, user?.id]);
   const [picked, setPicked] = useState<string | null>(null);
   const setterId = picked ?? user?.id;
   const own = setterId === user?.id;
