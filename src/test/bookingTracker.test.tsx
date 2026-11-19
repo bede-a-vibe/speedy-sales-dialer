@@ -47,6 +47,7 @@ const mutate = vi.fn();
 const state = vi.hoisted(() => ({ me: "ben" }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: state.me } }) }));
 vi.mock("@/hooks/useUserRole", () => ({ useAdminAccess: () => ({ canViewAdmin: false }) }));
+vi.mock("@/hooks/useFunnelTracker", () => ({ useRepCompPlans: () => ({ data: [] }) }));
 vi.mock("@/hooks/usePipelineItems", () => ({
   useSalesReps: () => ({ data: [] }),
   useRateBooking: () => ({ mutate }),
