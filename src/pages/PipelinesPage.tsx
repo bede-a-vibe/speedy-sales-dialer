@@ -18,6 +18,7 @@ import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/
 import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
 import { closeStartDate } from "@/lib/closeStartDate";
+import { MyBookingsPanel } from "@/components/bookings/MyBookingsPanel";
 import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -330,6 +331,7 @@ export default function PipelinesPage() {
     tabParam === "rebook" ? "rebook" :
     tabParam === "closing" ? "closing" :
     tabParam === "meetings" ? "meetings" :
+    tabParam === "mine" ? "mine" :
     "board";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
@@ -925,12 +927,16 @@ export default function PipelinesPage() {
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
+            <TabsTrigger value="mine">My bookings</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="rebook">Rebook{rebookItems.length > 0 ? ` (${rebookItems.length})` : ""}</TabsTrigger>
             <TabsTrigger value="history">Completed</TabsTrigger>
             <TabsTrigger value="closing">Close tracking</TabsTrigger>
             <TabsTrigger value="meetings">All meetings</TabsTrigger>
           </TabsList>
+          <TabsContent value="mine" className="mt-4">
+            <MyBookingsPanel />
+          </TabsContent>
           <TabsContent value="closing" className="mt-4">
             <CloseTrackingPanel reps={reps} />
           </TabsContent>

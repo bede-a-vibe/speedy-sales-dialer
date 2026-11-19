@@ -9,6 +9,7 @@ import { DashboardPerformancePanel } from "@/components/dashboard/DashboardPerfo
 import { MyNumbers } from "@/components/dashboard/MyNumbers";
 import { PayThisMonthCard } from "@/components/dashboard/PayThisMonthCard";
 import { DashboardFold } from "@/components/dashboard/DashboardFold";
+import { MyBookingsSection } from "@/components/dashboard/MyBookingsSection";
 import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
@@ -72,6 +73,7 @@ export default function DashboardPage() {
 
         {/* Row 6: everything else, one line each until opened */}
         <div className="space-y-3">
+          <MyBookingsSection />
           <DashboardFold id="my-numbers" title="My numbers" summary="Your setting and closing, day by day">
             <MyNumbers embedded />
           </DashboardFold>
