@@ -812,3 +812,54 @@ export function useUpdatePipelineItem() {
     },
   });
 }
+
+/** Every booking a setter made in the last 12 months, with their own ratings (booking tracker). */
+export function useMyBookings(setterId?: string) {
+  return useQuery({
+    queryKey: ["my-bookings", setterId],
+    enabled: !!setterId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 366 * 86_400_000).toISOString();
+      const items: import("@/lib/bookingTracker").MyBookingSource[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase
+          .from("pipeline_items")
+          .select("id, contact_id, created_at, scheduled_for, resolved_bucket, reschedule_count, move_count, contacts:contacts!pipeline_items_contact_id_fkey(business_name, contact_person)")
+          .eq("pipeline_type", "booked")
+          .eq("created_by", setterId!)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(offset, offset + 999);
+        if (error) throw error;
+        items.push(...((data ?? []) as unknown as import("@/lib/bookingTracker").MyBookingSource[]));
+        if (!data || data.length < 1000) break;
+      }
+      const { data: ratingRows, error: ratingError } = await (supabase.from as unknown as (t: string) => {
+        select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ pipeline_item_id: string; rating: number }> | null; error: unknown }> };
+      })("booking_ratings").select("pipeline_item_id, rating").eq("user_id", setterId!);
+      if (ratingError) throw ratingError;
+      const ratings = new Map((ratingRows ?? []).map((r) => [r.pipeline_item_id, Number(r.rating)] as const));
+      return { items, ratings };
+    },
+  });
+}
+
+/** Set (1 to 5) or clear (null) the signed-in setter's rating of one of their bookings. */
+export function useRateBooking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pipelineItemId, rating }: { pipelineItemId: string; rating: number | null }) => {
+      const table = (supabase.from as unknown as (t: string) => {
+        upsert: (r: unknown, o: unknown) => Promise<{ error: unknown }>;
+        delete: () => { eq: (k: string, v: string) => Promise<{ error: unknown }> };
+      })("booking_ratings");
+      const { error } = rating == null
+        ? await table.delete().eq("pipeline_item_id", pipelineItemId)
+        : await table.upsert({ pipeline_item_id: pipelineItemId, rating, updated_at: new Date().toISOString() }, { onConflict: "pipeline_item_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-bookings"] }),
+  });
+}
