@@ -10,8 +10,12 @@ import { getOutcomeReasonLabel } from "@/lib/appointments";
 import { SHOWED_BUCKETS, hasRecording, hasSetAudio, useCallLibrary, type LibraryBucket, type LibraryCall } from "@/hooks/useCallLibrary";
 import { cn } from "@/lib/utils";
 
-/** Ben's first day. Everything the setter can learn from starts here. */
-const LIBRARY_SINCE = "2026-09-27T14:00:00.000Z";
+/**
+ * From Bede's first cold-call bookings in March, so his own setting calls and
+ * the closes that came from them sit alongside Ben's and Lachlan's (20 Nov).
+ * It started at Ben's first day (28 Sep) before that.
+ */
+const LIBRARY_SINCE = "2026-02-28T13:00:00.000Z";
 
 type Filter = "showed" | "closed" | "verbal" | "no_close" | "dq" | "second_meeting" | "no_show" | "cancelled" | "all";
 
@@ -135,7 +139,7 @@ function CallRow({ call }: { call: LibraryCall }) {
 }
 
 /**
- * Every booked slot since Ben started that has something to hear: the cold call that
+ * Every booked slot since March that has something to hear: the cold call that
  * set it, the meeting recording, or both. Filter by how the slot ended and compare: the
  * sets that held against the sets that didn't, the sittings that closed against the ones
  * that were disqualified. Slots with neither recording are hidden (Bede, 31 Oct 2026) and
@@ -181,7 +185,7 @@ export function CallLibrary() {
           Call library
         </CardTitle>
         <CardDescription className="text-xs">
-          Every booked slot since 28 Sep with something to hear: the cold call that set it, the meeting recording, or
+          Every booked slot since March with something to hear: the cold call that set it, the meeting recording, or
           both. Flip between Showed and No-show to hear what a set that holds sounds like against one that doesn't, then
           between Closed and DQ to hear the difference in the sitting.
         </CardDescription>
