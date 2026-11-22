@@ -113,3 +113,30 @@ describe("setter tracker: call stages, tiers, talk per set", () => {
     expect(d.setsT2).toBe(1);
   });
 });
+
+describe("setter tracker: qualified live calls", () => {
+  const booking = (over: Partial<TrackerItem>) =>
+    ({
+      id: Math.random().toString(36), contact_id: Math.random().toString(36), created_at: "2026-11-10T01:00:00Z", created_by: "ben", assigned_user_id: "bede",
+      scheduled_for: "2026-11-12T01:00:00Z", appointment_outcome: "showed_no_close", outcome_recorded_at: null, status: "completed", deal_value: null,
+      monthly_recurring_value: null, reschedule_count: 0, move_count: 0, resolved_bucket: "showed", is_follow_up: false, ...over,
+    }) as TrackerItem;
+
+  it("counts live calls marked qualified and not qualified, leaving unmarked ones out of the rate", () => {
+    const stats = buildSetterDailyStats({
+      days: ["2026-11-12"], setterIds: new Set(["ben"]), callLogs: [], newClients: [], inputs: [], productiveHours: new Map(),
+      items: [
+        booking({ is_qualified: true } as Partial<TrackerItem>),
+        booking({ is_qualified: false, appointment_outcome: "disqualified" } as Partial<TrackerItem>),
+        booking({ is_qualified: null } as Partial<TrackerItem>),
+        // A no-show is never a live call, whatever its mark.
+        booking({ is_qualified: true, resolved_bucket: "noshow", appointment_outcome: "no_show" } as Partial<TrackerItem>),
+      ],
+    });
+    const d = stats.get("2026-11-12")!;
+    expect(d.live).toBe(3);
+    expect(d.liveQualified).toBe(1);
+    expect(d.liveNotQualified).toBe(1);
+    expect(sumSetterStats([d]).liveQualified).toBe(1);
+  });
+});
