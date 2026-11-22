@@ -98,6 +98,516 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_client_deals_20261119: {
+        Row: {
+          amount: number | null
+          billing_period: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          end_date: string | null
+          first_month_amount: number | null
+          gst: boolean | null
+          id: string | null
+          notes: string | null
+          paused_at: string | null
+          start_date: string | null
+          status: string | null
+          stream: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          billing_period?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          first_month_amount?: number | null
+          gst?: boolean | null
+          id?: string | null
+          notes?: string | null
+          paused_at?: string | null
+          start_date?: string | null
+          status?: string | null
+          stream?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          billing_period?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          first_month_amount?: number | null
+          gst?: boolean | null
+          id?: string | null
+          notes?: string | null
+          paused_at?: string | null
+          start_date?: string | null
+          status?: string | null
+          stream?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      backup_contacts_source_20261119: {
+        Row: {
+          business_name: string | null
+          id: string | null
+          lead_channel: string | null
+          lead_source: string | null
+          lead_type: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          id?: string | null
+          lead_channel?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          id?: string | null
+          lead_channel?: string | null
+          lead_source?: string | null
+          lead_type?: string | null
+        }
+        Relationships: []
+      }
+      backup_is_qualified_20261123: {
+        Row: {
+          appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          backed_up_at: string | null
+          dq_reason: string | null
+          id: string | null
+          is_qualified: boolean | null
+        }
+        Insert: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          backed_up_at?: string | null
+          dq_reason?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+        }
+        Update: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          backed_up_at?: string | null
+          dq_reason?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+        }
+        Relationships: []
+      }
+      backup_pipeline_item_2w_20261123: {
+        Row: {
+          appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id: string | null
+          billing_start_date: string | null
+          booking_method: string | null
+          booking_tier: string | null
+          booking_tier_source: string | null
+          churn_date: string | null
+          churn_reason: string | null
+          client_deal_id: string | null
+          closed_at: string | null
+          commitment_type: string | null
+          competing_agency: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          deal_stage: string | null
+          deal_type: string | null
+          deal_value: number | null
+          decision_makers_involved: number | null
+          dq_reason: string | null
+          expected_close_date: string | null
+          follow_up_method: string | null
+          ghl_stage_synced_at: string | null
+          ghl_sync_error: string | null
+          id: string | null
+          is_qualified: boolean | null
+          meeting_format: string | null
+          meeting_ghl_opportunity_id: string | null
+          meeting_ghl_stage_id: string | null
+          minimum_term_months: number | null
+          monthly_recurring_value: number | null
+          notes: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
+          outcome_recorded_at: string | null
+          phone_recording_url: string | null
+          pipeline_type: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched: boolean | null
+          proposal_sent_date: string | null
+          proposal_status: string | null
+          proposed_mrr: number | null
+          recording_url: string | null
+          reschedule_count: number | null
+          rescheduled_from_id: string | null
+          scheduled_for: string | null
+          service_stream: string | null
+          setup_fee: number | null
+          source_call_log_id: string | null
+          status: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          billing_start_date?: string | null
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_format?: string | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched?: boolean | null
+          proposal_sent_date?: string | null
+          proposal_status?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          billing_start_date?: string | null
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_format?: string | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched?: boolean | null
+          proposal_sent_date?: string | null
+          proposal_status?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      backup_setup_split_20261119: {
+        Row: {
+          amount: number | null
+          billing_period: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          end_date: string | null
+          first_month_amount: number | null
+          gst: boolean | null
+          id: string | null
+          notes: string | null
+          paid_on: string | null
+          paused_at: string | null
+          pay_amount: number | null
+          pay_id: string | null
+          pay_note: string | null
+          start_date: string | null
+          status: string | null
+          stream: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          billing_period?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          first_month_amount?: number | null
+          gst?: boolean | null
+          id?: string | null
+          notes?: string | null
+          paid_on?: string | null
+          paused_at?: string | null
+          pay_amount?: number | null
+          pay_id?: string | null
+          pay_note?: string | null
+          start_date?: string | null
+          status?: string | null
+          stream?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          billing_period?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          first_month_amount?: number | null
+          gst?: boolean | null
+          id?: string | null
+          notes?: string | null
+          paid_on?: string | null
+          paused_at?: string | null
+          pay_amount?: number | null
+          pay_id?: string | null
+          pay_note?: string | null
+          start_date?: string | null
+          status?: string | null
+          stream?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      backup_srr_close_20261119: {
+        Row: {
+          appointment_outcome:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id: string | null
+          billing_start_date: string | null
+          booking_method: string | null
+          booking_tier: string | null
+          booking_tier_source: string | null
+          churn_date: string | null
+          churn_reason: string | null
+          client_deal_id: string | null
+          closed_at: string | null
+          commitment_type: string | null
+          competing_agency: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          deal_stage: string | null
+          deal_type: string | null
+          deal_value: number | null
+          decision_makers_involved: number | null
+          dq_reason: string | null
+          expected_close_date: string | null
+          follow_up_method: string | null
+          ghl_stage_synced_at: string | null
+          ghl_sync_error: string | null
+          id: string | null
+          is_qualified: boolean | null
+          meeting_format: string | null
+          meeting_ghl_opportunity_id: string | null
+          meeting_ghl_stage_id: string | null
+          minimum_term_months: number | null
+          monthly_recurring_value: number | null
+          notes: string | null
+          outcome_notes: string | null
+          outcome_reason: string | null
+          outcome_recorded_at: string | null
+          phone_recording_url: string | null
+          pipeline_type: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched: boolean | null
+          proposal_sent_date: string | null
+          proposal_status: string | null
+          proposed_mrr: number | null
+          recording_url: string | null
+          reschedule_count: number | null
+          rescheduled_from_id: string | null
+          scheduled_for: string | null
+          service_stream: string | null
+          setup_fee: number | null
+          source_call_log_id: string | null
+          status: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          billing_start_date?: string | null
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_format?: string | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched?: boolean | null
+          proposal_sent_date?: string | null
+          proposal_status?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_outcome?:
+            | Database["public"]["Enums"]["appointment_outcome"]
+            | null
+          assigned_user_id?: string | null
+          billing_start_date?: string | null
+          booking_method?: string | null
+          booking_tier?: string | null
+          booking_tier_source?: string | null
+          churn_date?: string | null
+          churn_reason?: string | null
+          client_deal_id?: string | null
+          closed_at?: string | null
+          commitment_type?: string | null
+          competing_agency?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          deal_stage?: string | null
+          deal_type?: string | null
+          deal_value?: number | null
+          decision_makers_involved?: number | null
+          dq_reason?: string | null
+          expected_close_date?: string | null
+          follow_up_method?: string | null
+          ghl_stage_synced_at?: string | null
+          ghl_sync_error?: string | null
+          id?: string | null
+          is_qualified?: boolean | null
+          meeting_format?: string | null
+          meeting_ghl_opportunity_id?: string | null
+          meeting_ghl_stage_id?: string | null
+          minimum_term_months?: number | null
+          monthly_recurring_value?: number | null
+          notes?: string | null
+          outcome_notes?: string | null
+          outcome_reason?: string | null
+          outcome_recorded_at?: string | null
+          phone_recording_url?: string | null
+          pipeline_type?: Database["public"]["Enums"]["pipeline_type"] | null
+          pitched?: boolean | null
+          proposal_sent_date?: string | null
+          proposal_status?: string | null
+          proposed_mrr?: number | null
+          recording_url?: string | null
+          reschedule_count?: number | null
+          rescheduled_from_id?: string | null
+          scheduled_for?: string | null
+          service_stream?: string | null
+          setup_fee?: number | null
+          source_call_log_id?: string | null
+          status?: Database["public"]["Enums"]["pipeline_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       benchmark_segments: {
         Row: {
           color: string | null
@@ -127,6 +637,35 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      booking_ratings: {
+        Row: {
+          pipeline_item_id: string
+          rating: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          pipeline_item_id: string
+          rating: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          pipeline_item_id?: string
+          rating?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_ratings_pipeline_item_id_fkey"
+            columns: ["pipeline_item_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       call_coaching: {
         Row: {
@@ -5303,6 +5842,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tracker_share_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          last_viewed_at: string | null
+          revoked_at: string | null
+          token: string
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_viewed_at?: string | null
+          revoked_at?: string | null
+          token?: string
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_viewed_at?: string | null
+          revoked_at?: string | null
+          token?: string
+          view_count?: number
+        }
+        Relationships: []
+      }
       tracker_targets: {
         Row: {
           funnel: string
@@ -5970,6 +6539,16 @@ export type Database = {
           mrr: number
           one_off: number
           source: string
+        }[]
+      }
+      get_productive_activity_by_day: {
+        Args: { _from_day: string; _to_day: string }
+        Returns: {
+          bookings: number
+          day: string
+          dials: number
+          talk_seconds: number
+          user_id: string
         }[]
       }
       get_rep_eod_metrics: {
