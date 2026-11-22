@@ -319,6 +319,19 @@ describe("tracker rows", () => {
       days, funnel: "cold", tier: "all", callLogs, items, inputs: [], productiveHours: new Map(), newClients: [], compPlans: [], ...over,
     });
 
+  it("counts qualified and not-qualified live calls, unmarked in neither", () => {
+    const d = build({
+      items: [
+        ...items,
+        booking({ scheduled_for: "2026-11-04T14:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "disqualified", is_qualified: false }),
+        booking({ scheduled_for: "2026-11-04T15:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_no_close", is_qualified: null }),
+      ],
+    }).get("2026-11-04")!;
+    expect(d.live).toBe(3);
+    expect(d.qualifiedLive).toBe(1);
+    expect(d.notQualifiedLive).toBe(1);
+  });
+
   it("missed by us is its own count, not a no-show", () => {
     const d = build().get("2026-11-04")!;
     expect(d.noShows).toBe(1);
