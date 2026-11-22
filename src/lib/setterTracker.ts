@@ -61,6 +61,9 @@ export interface SetterStats {
   missedByUs: number;
   pending: number;
   dqLive: number;
+  /** Live calls the closer marked qualified, and not qualified (unmarked ones are in neither). */
+  liveQualified: number;
+  liveNotQualified: number;
   sold: number;
   cash: number;
 }
@@ -70,14 +73,14 @@ export function emptySetterStats(): SetterStats {
     daysWorked: 0, dials: 0, leads: new Set(), answers: 0, convos: 0, problem: 0, solution: 0, hangups: 0, fdqs: 0, qualified: 0, bookedCalls: 0,
     talkSeconds: 0, bookedTalkSeconds: 0, firstDial: null, lastDial: null, rosteredHours: 0, productiveHours: 0,
     sets: 0, manualSets: 0, dbs: 0, setsT1: 0, setsT2: 0,
-    onCal: 0, live: 0, noShows: 0, reschedules: 0, cancels: 0, missedByUs: 0, pending: 0, dqLive: 0, sold: 0, cash: 0,
+    onCal: 0, live: 0, noShows: 0, reschedules: 0, cancels: 0, missedByUs: 0, pending: 0, dqLive: 0, liveQualified: 0, liveNotQualified: 0, sold: 0, cash: 0,
   };
 }
 
 const SUMMED: (keyof SetterStats)[] = [
   "daysWorked", "dials", "answers", "convos", "problem", "solution", "hangups", "fdqs", "qualified", "bookedCalls", "talkSeconds", "bookedTalkSeconds",
   "rosteredHours", "productiveHours", "sets", "manualSets", "dbs", "setsT1", "setsT2",
-  "onCal", "live", "noShows", "reschedules", "cancels", "missedByUs", "pending", "dqLive", "sold", "cash",
+  "onCal", "live", "noShows", "reschedules", "cancels", "missedByUs", "pending", "dqLive", "liveQualified", "liveNotQualified", "sold", "cash",
 ];
 
 /** Week / month / range total = sum of the days. Unique leads are a union; clock times are day-only. */
@@ -171,6 +174,8 @@ export function buildSetterDailyStats(args: BuildSetterArgs): Map<string, Setter
       if (bucket === "live") {
         s.live += 1;
         if (i.appointment_outcome === "disqualified") s.dqLive += 1;
+        if (i.is_qualified === true) s.liveQualified += 1;
+        else if (i.is_qualified === false) s.liveNotQualified += 1;
       } else if (bucket === "noshow") s.noShows += 1;
       else if (bucket === "missed_by_us") s.missedByUs += 1;
       else if (bucket === "cancelled") s.cancels += 1;
