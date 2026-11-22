@@ -296,3 +296,20 @@ describe("Team coaching: one score per call (finding 7)", () => {
     expect(latest.map((r) => r.v).sort()).toEqual([2, 3]);
   });
 });
+
+describe("Closing tracker: qualified live calls", () => {
+  it("counts marked sittings only, so an unmarked one never counts against the rate", () => {
+    const s = computeStats(
+      [
+        item({ resolved_bucket: "showed", appointment_outcome: "showed_closed", is_qualified: true }),
+        item({ resolved_bucket: "showed", appointment_outcome: "disqualified", is_qualified: false }),
+        item({ resolved_bucket: "showed", appointment_outcome: "showed_no_close", is_qualified: null }),
+        item({ resolved_bucket: "noshow", appointment_outcome: "no_show", is_qualified: true }),
+      ],
+      DAYS,
+      new Map(),
+    );
+    expect(s.qualifiedLive).toBe(1);
+    expect(s.notQualifiedLive).toBe(1);
+  });
+});

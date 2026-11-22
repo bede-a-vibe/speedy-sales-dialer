@@ -140,6 +140,8 @@ interface Stats {
   doubleBooked: number;
   meetingMinutes: number;
   qualifiedLive: number;
+  /** Sat and marked not qualified. Unmarked sittings are in neither count. */
+  notQualifiedLive: number;
   pitched: number;
   pitchedFirst: number;
   pitchedFollow: number;
@@ -171,7 +173,7 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
@@ -243,6 +245,7 @@ export function computeStats(
     // Recorded sittings only: a recording linked to a no-show is not meeting time.
     if (bucket === "showed") s.meetingMinutes += minutesByItem.get(i.id) ?? 0;
     if (SHOWED.has(outcome) && i.is_qualified === true) s.qualifiedLive += 1;
+    if (SHOWED.has(outcome) && i.is_qualified === false) s.notQualifiedLive += 1;
     const pitchedHere = bucket === "showed" && wasPitched(i);
     if (pitchedHere) {
       s.pitched += 1;
@@ -389,7 +392,13 @@ function buildSections(repFiltered = false): SectionDef[] {
       title: "Live calls and offers",
       rows: [
         { label: "Qualified live calls", fmt: "n", hint: "sat and marked qualified", value: (s) => s.qualifiedLive },
-        { label: "Qualified live call rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.qualifiedLive, s.showed) },
+        {
+          label: "Qualified live call rate",
+          fmt: "pct",
+          // Same rule as the Setters tab: a sitting nobody has judged yet is left out, not counted against it.
+          hint: "qualified ÷ live calls marked qualified or not; unmarked ones are left out",
+          value: (s) => pct(s.qualifiedLive, s.qualifiedLive + s.notQualifiedLive),
+        },
         { label: "Offers made (pitched)", fmt: "n", hint: "closer marked Pitched, or a close decision recorded on older meetings", value: (s) => s.pitched, emphasis: true },
         { label: "Offer rate", fmt: "pct", hint: "pitched ÷ showed", value: (s) => pct(s.pitched, s.showed) },
         { label: "Proposals sent", fmt: "n", hint: "sittings marked Proposal sent, by meeting day", value: (s) => s.proposalsSent },
