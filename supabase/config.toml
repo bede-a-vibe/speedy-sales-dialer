@@ -18,3 +18,7 @@ verify_jwt = false
 # Invoked by the pg_cron job `ghl-calls-sync-daily`, which posts without a JWT.
 [functions.ghl-calls-sync]
 verify_jwt = false
+
+# View-only tracker links: the page calls it without a login; the token is the key.
+[functions.tracker-share]
+verify_jwt = false

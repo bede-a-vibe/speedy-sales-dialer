@@ -1,3 +1,5 @@
+// Must run before anything creates the Supabase client (view-only tracker links).
+import "./lib/trackerShareFetch";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { installPreloadErrorRecovery } from "./lib/chunkRecovery";

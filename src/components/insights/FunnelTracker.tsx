@@ -71,6 +71,8 @@ interface Props {
   reps: SalesRepOption[];
   activeRepId?: string;
   selectedRepLabel?: string;
+  /** View-only link: no editing, no daily inputs, no setter pay. */
+  readOnly?: boolean;
 }
 
 type Fmt = "n" | "dec" | "pct" | "money" | "hours" | "x" | "check";
@@ -680,11 +682,13 @@ function AwaitingPaymentTable({ rows, repName }: { rows: AwaitingPayment[]; repN
   );
 }
 
-export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = [], reps, activeRepId, selectedRepLabel }: Props) {
+export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, rescheduleSlots = [], reps, activeRepId, selectedRepLabel, readOnly = false }: Props) {
   const [funnel, setFunnel] = useState<TrackerFunnel>("cold");
   const [tier, setTier] = useState<TierFilter>("all");
   const [inputsOpen, setInputsOpen] = useState(false);
-  const { canViewAdmin } = useAdminAccess();
+  const { canViewAdmin: isAdminOrCoach } = useAdminAccess();
+  // A shared link is view only even for an admin who opens it.
+  const canViewAdmin = isAdminOrCoach && !readOnly;
 
   const days = useMemo(() => (dateFrom && dateTo && dateFrom <= dateTo ? daysBetween(dateFrom, dateTo) : []), [dateFrom, dateTo]);
   const firstMonth = dateFrom ? monthOf(dateFrom) : undefined;
@@ -876,9 +880,11 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           {toggle<TierFilter>("tier_2", tier, setTier, "Tier 2")}
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setInputsOpen(true)}>
-            Daily inputs
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" variant="outline" size="sm" onClick={() => setInputsOpen(true)}>
+              Daily inputs
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" onClick={() => setAllOpen(!allOpen)} disabled={months.length === 0}>
             {allOpen ? "Collapse all" : "Expand all"}
           </Button>
@@ -901,7 +907,11 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
         </p>
       ) : null}
       {plHidden ? (
-        <p className="mb-2 text-[11px] text-muted-foreground">Setter pay is visible to admins and coaches only, so costs here leave it out.</p>
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          {readOnly
+            ? "Setter pay is left out of shared links, so costs here leave it out."
+            : "Setter pay is visible to admins and coaches only, so costs here leave it out."}
+        </p>
       ) : null}
 
       <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
@@ -955,7 +965,7 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           </tbody>
         </table>
       </div>
-      {funnel === "cold" && !plHidden ? <CommissionBySale sales={sales} awaiting={awaiting} repName={repName} /> : null}
+      {funnel === "cold" && !plHidden && !readOnly ? <CommissionBySale sales={sales} awaiting={awaiting} repName={repName} /> : null}
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
         Hover a column name for its definition. "-" means nothing to divide by. Tier comes from the booking (team size on the
         tools including the owner and monthly revenue at booking), else the contact's details; older bookings with neither are
@@ -967,13 +977,15 @@ export function FunnelTracker({ dateFrom, dateTo, callLogs, bookings, reschedule
           : null}
       </p>
 
-      <TrackerDailyInputsDialog
-        open={inputsOpen}
-        onOpenChange={setInputsOpen}
-        defaultDay={dateTo && dateTo < today ? dateTo : today}
-        reps={reps}
-        compPlans={compPlans}
-      />
+      {readOnly ? null : (
+        <TrackerDailyInputsDialog
+          open={inputsOpen}
+          onOpenChange={setInputsOpen}
+          defaultDay={dateTo && dateTo < today ? dateTo : today}
+          reps={reps}
+          compPlans={compPlans}
+        />
+      )}
     </ReportSection>
   );
 }

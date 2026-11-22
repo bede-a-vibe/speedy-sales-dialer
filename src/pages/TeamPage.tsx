@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppLayout } from "@/components/AppLayout";
 import DialpadSettingsPage from "@/pages/DialpadSettingsPage";
 import { PeopleDirectory } from "@/components/team/PeopleDirectory";
+import { TrackerShareLink } from "@/components/team/TrackerShareLink";
 
 /**
  * Team & settings: People (everyone, their access, login links, meeting
@@ -17,6 +18,9 @@ export default function TeamPage() {
 
   return (
     <AppLayout title="Team & settings">
+      <div className="mx-auto mb-4 max-w-6xl">
+        <TrackerShareLink />
+      </div>
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })} className="mx-auto max-w-6xl space-y-4">
         <TabsList>
           <TabsTrigger value="people">People</TabsTrigger>
