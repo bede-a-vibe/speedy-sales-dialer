@@ -168,7 +168,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "pending", section: "Closing calendar", label: "Pending", fmt: "n", hint: "upcoming or no result logged yet", value: (s) => s.pending },
   { key: "addsUp", section: "Closing calendar", label: "Adds up?", fmt: "check", hint: "live + cancels + no-shows + reschedules + missed + pending = bookings on calendar", value: (s) => addsUp(s) },
   { key: "qualifiedLive", section: "Closing calendar", label: "Qualified live calls", fmt: "n", hint: "live calls marked qualified", value: (s) => s.qualifiedLive },
-  { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls", value: (s) => pctOf(s.qualifiedLive, s.live) },
+  { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls marked qualified or not; unmarked ones are left out", value: (s) => pctOf(s.qualifiedLive, s.qualifiedLive + s.notQualifiedLive) },
   { key: "costPerQualified", section: "Closing calendar", label: "Cost per qualified live call", fmt: "money", hint: "total cost ÷ qualified live calls", value: (s) => ratio(totalCost(s), s.qualifiedLive) },
 
   // Closing results
@@ -181,6 +181,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "leadToClose", section: "Closing results", label: "Lead-to-close", fmt: "pct", value: (s, c) => pctOf(s.newClients, leadsFor(s, c.funnel)) },
   { key: "bookingToClose", section: "Closing results", label: "Booking-to-close", fmt: "pct", hint: "new clients ÷ total sets", value: (s) => pctOf(s.newClients, s.totalSets) },
   { key: "liveToClose", section: "Closing results", label: "Live-call-to-close", fmt: "pct", value: (s) => pctOf(s.newClients, s.live) },
+  { key: "qualifiedToClose", section: "Closing results", label: "Qualified live-call-to-close", fmt: "pct", hint: "new clients ÷ qualified live calls", value: (s) => pctOf(s.newClients, s.qualifiedLive) },
 
   // Tier split (All tiers only): Tier 1 vs Tier 2 side by side. Unknown tier is in neither.
   ...tierPair("live", "Live calls", "n", (t) => t.live, "first-meeting sittings of that tier"),

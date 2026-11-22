@@ -147,6 +147,8 @@ interface Stats {
   pitchedFollow: number;
   pitchedQualified: number;
   closedQualified: number;
+  /** Closed on a sitting marked qualified, pitched or not (a close is always pitched in practice). */
+  closedQualifiedLive: number;
   satNotPitched: number;
   proposalsSent: number;
   proposalsOwed: number;
@@ -173,7 +175,7 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, closedQualifiedLive: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
@@ -244,7 +246,10 @@ export function computeStats(
     }
     // Recorded sittings only: a recording linked to a no-show is not meeting time.
     if (bucket === "showed") s.meetingMinutes += minutesByItem.get(i.id) ?? 0;
-    if (SHOWED.has(outcome) && i.is_qualified === true) s.qualifiedLive += 1;
+    if (SHOWED.has(outcome) && i.is_qualified === true) {
+      s.qualifiedLive += 1;
+      if (outcome === "showed_closed") s.closedQualifiedLive += 1;
+    }
     if (SHOWED.has(outcome) && i.is_qualified === false) s.notQualifiedLive += 1;
     const pitchedHere = bucket === "showed" && wasPitched(i);
     if (pitchedHere) {
@@ -439,7 +444,7 @@ function buildSections(repFiltered = false): SectionDef[] {
         { label: "Total bookings close rate", fmt: "pct", hint: "÷ bookings made", value: (s) => pct(s.closed, s.booked) },
         { label: "Bookings-due close rate", fmt: "pct", hint: "÷ bookings due", value: (s) => pct(s.closed, s.due) },
         { label: "Live call close rate", fmt: "pct", hint: "÷ showed", value: (s) => pct(s.closed, s.showed), emphasis: true },
-        { label: "Qualified live call close rate", fmt: "pct", hint: "qualified closes ÷ pitched and marked qualified", value: (s) => pct(s.closedQualified, s.pitchedQualified), emphasis: true },
+        { label: "Qualified live call close rate", fmt: "pct", hint: "closes ÷ live calls marked qualified", value: (s) => pct(s.closedQualifiedLive, s.qualifiedLive), emphasis: true },
         { label: "Offer-to-close rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.closed, s.pitched) },
         { label: "Verbal commitment rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.verbal, s.pitched) },
       ],

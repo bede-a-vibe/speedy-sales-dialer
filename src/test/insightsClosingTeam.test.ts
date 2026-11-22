@@ -311,5 +311,7 @@ describe("Closing tracker: qualified live calls", () => {
     );
     expect(s.qualifiedLive).toBe(1);
     expect(s.notQualifiedLive).toBe(1);
+    // The close came from a qualified sitting: 1 of 1 qualified live calls closed.
+    expect(s.closedQualifiedLive).toBe(1);
   });
 });

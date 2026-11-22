@@ -195,6 +195,8 @@ export interface TrackerStats {
   missedByUs: number;
   pending: number;
   qualifiedLive: number;
+  /** Live calls marked not qualified. Unmarked ones are in neither count. */
+  notQualifiedLive: number;
   // Closing results
   newClients: number;
   cash: number;
@@ -217,7 +219,7 @@ export function emptyTrackerStats(): TrackerStats {
     adSpend: 0, clicks: 0, leads: 0, tier1Leads: 0, dbsCreated: 0, bookingRequests: 0,
     dials: 0, answers: 0, leadsDialled: new Set(), rosteredHours: 0, productiveHours: 0, manualSets: 0, confirmedDbs: 0, totalSets: 0,
     setsT1: 0, setsT2: 0, setsUnknownTier: 0,
-    availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0,
+    availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0, notQualifiedLive: 0,
     newClients: 0, cash: 0,
     bookingsOnCalT1: 0, bookingsOnCalT2: 0, liveT1: 0, liveT2: 0, newClientsT1: 0, newClientsT2: 0, cashT1: 0, cashT2: 0,
     setterBase: 0, commission: 0,
@@ -228,7 +230,7 @@ const SUMMED: (keyof TrackerStats)[] = [
   "adSpend", "clicks", "leads", "tier1Leads", "dbsCreated", "bookingRequests",
   "dials", "answers", "rosteredHours", "productiveHours", "manualSets", "confirmedDbs", "totalSets",
   "setsT1", "setsT2", "setsUnknownTier",
-  "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive",
+  "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive", "notQualifiedLive",
   "newClients", "cash",
   "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2",
   "setterBase", "commission",
@@ -381,6 +383,7 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
       if (t === "tier_1") s.liveT1 += 1;
       else if (t === "tier_2") s.liveT2 += 1;
       if (i.is_qualified === true) s.qualifiedLive += 1;
+      else if (i.is_qualified === false) s.notQualifiedLive += 1;
     } else if (bucket === "cancelled") s.cancels += 1;
     else if (bucket === "noshow") s.noShows += 1;
     else if (bucket === "missed_by_us") s.missedByUs += 1;
