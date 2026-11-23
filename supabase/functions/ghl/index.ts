@@ -939,6 +939,8 @@ async function drainGhlNamePushQueue(
  * that number is only linked, never renamed or edited. No tags (they start
  * automations), no opportunities, no conversations.
  * kind "fields": industry, tier and Google reviews, filling blanks only.
+ * kind "industry": correct a wrong Industry, only where GHL is blank or still
+ * holds the old value (carried in new_number). Anything else is left alone.
  * kind "phone": swap a removed mobile for the new one, on the main phone and
  * the Decision Maker Phone field, only where GHL still holds the old number.
  */
@@ -1047,6 +1049,27 @@ async function drainGhlContactPushQueue(
         await finish(customFields.length ? "updated" : "nothing_to_change", {
           ghl_contact_id: ghlId,
           detail: JSON.stringify({ filled: customFields.length }),
+        });
+      } else if (row.kind === "industry") {
+        const INDUSTRY_FIELD = "6kXGFWZjVGnutFGl4EfB";
+        const ghlId = String(c.ghl_contact_id ?? "");
+        const wanted = String(c.industry ?? "").trim();
+        const oldValue = String(row.new_number ?? "").trim();
+        if (!ghlId || !wanted || !oldValue) { await finish("skipped"); continue; }
+        const gc = ((await ghlFetch(`/contacts/${ghlId}`, apiKey))?.contact ?? {}) as Record<string, any>;
+        const field = (Array.isArray(gc.customFields) ? gc.customFields : [])
+          .find((f: Record<string, unknown>) => f.id === INDUSTRY_FIELD) as Record<string, unknown> | undefined;
+        const current = String(field?.value ?? field?.field_value ?? "").trim();
+        const replace = current !== wanted && (current === "" || current === oldValue);
+        if (replace) {
+          await ghlFetch(`/contacts/${ghlId}`, apiKey, {
+            method: "PUT",
+            body: { customFields: [{ id: INDUSTRY_FIELD, field_value: wanted }] },
+          });
+        }
+        await finish(replace ? "updated" : current === wanted ? "nothing_to_change" : "conflict", {
+          ghl_contact_id: ghlId,
+          detail: JSON.stringify({ was: current, now: replace ? wanted : current }),
         });
       } else {
         const ghlId = String(c.ghl_contact_id ?? "");
