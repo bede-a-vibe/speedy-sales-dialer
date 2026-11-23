@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Pause, Play, RefreshCw, Loader2, RotateCcw } from "lucide-react";
-import { AppLayout } from "@/components/AppLayout";
 import { GhlCutoverCard } from "@/components/ghl/GhlCutoverCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -355,8 +354,7 @@ export default function GhlSyncPage() {
   };
 
   return (
-    <AppLayout>
-      <div className="container mx-auto p-6 space-y-6 max-w-5xl">
+      <div className="max-w-5xl space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">GHL Sync</h1>
           <p className="text-sm text-muted-foreground">
@@ -687,7 +685,6 @@ export default function GhlSyncPage() {
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
   );
 }
 

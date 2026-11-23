@@ -124,33 +124,6 @@ export function FathomConnectCard() {
   );
 }
 
-/** Manager overview: who has Fathom connected. */
-export function FathomTeamStatus() {
-  const { data } = useQuery({
-    queryKey: ["fathom-team"],
-    queryFn: async () => {
-      const [{ data: roles }, { data: conns }, { data: profiles }] = await Promise.all([
-        supabase.from("user_roles").select("user_id"),
-        supabase.from("fathom_connections").select("user_id, status, last_synced_at"),
-        supabase.from("profiles").select("user_id, display_name, email"),
-      ]);
-      const ids = new Set((roles ?? []).map((r) => r.user_id));
-      return (profiles ?? []).filter((p) => ids.has(p.user_id)).map((p) => ({ ...p, conn: (conns ?? []).find((c) => c.user_id === p.user_id) }));
-    },
-  });
-  if (!data?.length) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3 text-xs">
-      <span className="font-medium uppercase tracking-widest text-muted-foreground">Fathom</span>
-      {data.map((p) => (
-        <Badge key={p.user_id} variant={p.conn ? (p.conn.status === "error" ? "destructive" : "secondary") : "outline"} className="font-normal">
-          {p.display_name?.trim() || p.email}: {p.conn ? (p.conn.status === "error" ? "problem" : p.conn.last_synced_at ? `synced ${formatDistanceToNow(new Date(p.conn.last_synced_at))} ago` : "connected") : "not connected"}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
 /** Inside an appointment: matched Fathom meeting, or pick one. */
 export function FathomMatch({ itemId, closerId, scheduledFor, outcome }: { itemId: string; closerId: string; scheduledFor: string | null; outcome: string | null }) {
   const qc = useQueryClient();

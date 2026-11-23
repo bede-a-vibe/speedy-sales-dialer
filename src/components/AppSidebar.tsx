@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, CalendarCheck, UsersRound, ClipboardCheck, Link2, Target } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, CalendarPlus, GraduationCap, Briefcase, UsersRound, ClipboardCheck, Database, Link2, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { LazyQuickBookDialog } from "@/components/LazyMount";
 import { Button } from "@/components/ui/button";
-import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
+import { useCanViewAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnseenLoomCount } from "@/hooks/useLoomReviews";
 import { useUnseenReviewCount } from "@/hooks/useManager";
@@ -36,6 +36,7 @@ const mainItems = [
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
   { title: "Goals & KPIs", url: "/goals", icon: Target },
   { title: "Training", url: "/training", icon: GraduationCap },
+  // Managers get their own Fathom connection on Team & settings instead.
   { title: "Connectors", url: "/connectors", icon: Link2 },
 ];
 
@@ -44,11 +45,7 @@ const adminItems = [
   { title: "Insights", url: "/insights", icon: BarChart3 },
   { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Team & settings", url: "/admin/team", icon: UsersRound },
-  { title: "GHL Sync", url: "/admin/ghl-sync", icon: RefreshCw },
-  { title: "Enrichment", url: "/admin/enrichment", icon: Sparkles },
-];
-
-const adminOnlyItems = [
+  { title: "Lead data", url: "/admin/lead-data", icon: Database },
 ];
 
 export function AppSidebar() {
@@ -59,7 +56,6 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const canViewAdmin = useCanViewAdmin();
   const isCoach = useIsCoach();
-  const isAdmin = useIsAdmin();
   const [quickBookOpen, setQuickBookOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -112,7 +108,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
+              {mainItems.filter((item) => !canViewAdmin || item.url !== "/connectors").map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className="h-9">
                     <NavLink
@@ -154,21 +150,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild className="h-9">
-                      <NavLink
-                        to={item.url}
-                        end
-                        className={navLinkBase}
-                        activeClassName={navLinkActive}
-                      >
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-                {isAdmin && adminOnlyItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild className="h-9">
                       <NavLink

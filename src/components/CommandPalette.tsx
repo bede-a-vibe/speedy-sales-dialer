@@ -117,9 +117,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           { title: "Insights · Funnel", to: "/insights?tab=funnel", icon: BarChart3 },
           { title: "Insights · Setters · Team", to: "/insights?tab=setters&view=team", icon: BarChart3 },
           { title: "Insights · Paid ads funnel", to: "/insights?tab=funnel&source=ads", icon: BarChart3 },
-          { title: "KPIs & targets", to: "/admin/manager", icon: BarChart3 },
-          { title: "GHL Sync", to: "/admin/ghl-sync", icon: RefreshCw },
-          { title: "Enrichment", to: "/admin/enrichment", icon: Sparkles },
+          { title: "Manager · Call reviews", to: "/admin/manager?tab=review", icon: BarChart3 },
+          { title: "Manager · KPIs & targets", to: "/admin/manager?tab=kpis", icon: BarChart3 },
+          { title: "Lead data · GHL sync", to: "/admin/lead-data?tab=ghl", icon: RefreshCw },
+          { title: "Lead data · Enrichment", to: "/admin/lead-data?tab=enrichment", icon: Sparkles },
+          { title: "Lead data · Number checks", to: "/admin/lead-data?tab=numbers", icon: Phone },
           { title: "Dialpad Settings", to: "/dialpad-settings", icon: Settings },
         ]
       : [];
