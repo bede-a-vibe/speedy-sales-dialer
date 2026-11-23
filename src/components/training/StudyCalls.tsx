@@ -82,11 +82,11 @@ function StudyRow({ call, note, name }: { call: StudyCall; note: StudyNote | und
             </pre>
           )}
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1.5 text-xs text-muted-foreground">
+            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
               What moved the call forward, and what cost it?
               <Textarea value={worked} onChange={(e) => setWorked(e.target.value)} rows={3} maxLength={4000} placeholder="The line or the moment, not a summary." className="text-foreground" />
             </label>
-            <label className="space-y-1.5 text-xs text-muted-foreground">
+            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
               What will you use on your next call?
               <Textarea value={useNext} onChange={(e) => setUseNext(e.target.value)} rows={3} maxLength={4000} placeholder={`One thing of ${name}'s, in your words.`} className="text-foreground" />
             </label>
