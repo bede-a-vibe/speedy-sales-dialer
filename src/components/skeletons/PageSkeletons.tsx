@@ -72,7 +72,7 @@ export function DealBoardSkeleton({ columns = 4, cards = 3 }: { columns?: number
   );
 }
 
-/** Vertically stacked list rows — for FollowUpsPage / Pipeline history. */
+/** Vertically stacked list rows — for Follow-ups / Pipeline history. */
 export function ListRowsSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div className="divide-y rounded-lg border border-border bg-card">
