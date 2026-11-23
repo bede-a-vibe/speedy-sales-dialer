@@ -26,7 +26,6 @@ const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
-const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
@@ -143,7 +142,7 @@ function ProtectedRoutes() {
         <Route path="/goals" element={<GoalsPage />} />
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />
-        <Route path="/eod" element={<EodReportPage />} />
+        <Route path="/eod" element={<Navigate to="/goals?tab=eod" replace />} />
         <Route path="/classroom" element={<ClassroomRedirect />} />
         <Route path="/playbook" element={<ClassroomRedirect />} />
         <Route path="/security" element={<SecurityPage />} />

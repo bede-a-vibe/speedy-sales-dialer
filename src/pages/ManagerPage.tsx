@@ -12,7 +12,7 @@ import { TeamKpis } from "@/components/targets/TeamKpis";
 import { MeetingRevenuePipeline } from "@/components/manager/MeetingRevenuePipeline";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
-import { TeamReview } from "@/pages/EodReportPage";
+import { TeamReview } from "@/components/eod/EndOfDay";
 import { NumberChecks } from "@/components/manager/NumberChecks";
 import { EarningsProjection } from "@/components/manager/EarningsProjection";
 import { useAuth } from "@/hooks/useAuth";

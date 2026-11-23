@@ -295,7 +295,7 @@ export function LogCallPanel({
               checked={emailFlag}
               icon={<Mail className="h-3.5 w-3.5 shrink-0" />}
               label="Worth an email tonight"
-              hint="Flagged leads get a draft on the End of Day page"
+              hint="Flagged leads get a draft in your End of day report"
               onClick={() => onEmailFlagChange(!emailFlag)}
             />
           )}

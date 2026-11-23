@@ -9,8 +9,8 @@ import {
   Pencil,
   Save,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -683,38 +683,38 @@ export function TeamReview({ managerId }: { managerId: string }) {
   );
 }
 
-export default function EodReportPage() {
-  const { user } = useAuth();
+/**
+ * The End of day tab on Goals & KPIs. Reps and closers file their own report;
+ * admins and coaches open on the team's reports and can switch to their own.
+ */
+export function EndOfDay({ userId }: { userId: string }) {
   const { canViewAdmin } = useAdminAccess();
+  const [params, setParams] = useSearchParams();
 
-  if (!user) return null;
+  if (!canViewAdmin) return <RepView userId={userId} />;
+
+  const view = params.get("view") === "mine" ? "mine" : "team";
+  const setView = (next: string) =>
+    setParams((p) => { if (next === "mine") p.set("view", "mine"); else p.delete("view"); return p; }, { replace: true });
 
   return (
-    <AppLayout title="End of Day">
-      <div className="max-w-4xl mx-auto">
-        {canViewAdmin ? (
-          <Tabs defaultValue="my-report" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="my-report">
-                <NotebookPen className="mr-1.5 h-3.5 w-3.5" />
-                My Report
-              </TabsTrigger>
-              <TabsTrigger value="team-review">
-                <ListChecks className="mr-1.5 h-3.5 w-3.5" />
-                Team Review
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="my-report">
-              <RepView userId={user.id} />
-            </TabsContent>
-            <TabsContent value="team-review">
-              <TeamReview managerId={user.id} />
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <RepView userId={user.id} />
-        )}
-      </div>
-    </AppLayout>
+    <Tabs value={view} onValueChange={setView} className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="team">
+          <ListChecks className="mr-1.5 h-3.5 w-3.5" />
+          Team review
+        </TabsTrigger>
+        <TabsTrigger value="mine">
+          <NotebookPen className="mr-1.5 h-3.5 w-3.5" />
+          My report
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="team">
+        <TeamReview managerId={userId} />
+      </TabsContent>
+      <TabsContent value="mine">
+        <RepView userId={userId} />
+      </TabsContent>
+    </Tabs>
   );
 }

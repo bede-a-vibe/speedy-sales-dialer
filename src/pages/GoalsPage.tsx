@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { CommissionSales } from "@/components/goals/CommissionSales";
@@ -13,18 +13,20 @@ import { useRepFunnelByDay, useRepGoals } from "@/hooks/useEarningsPlan";
 import { useRepCompPlans, useSetterFirstDeals, useSetterVerbalDeals } from "@/hooks/useFunnelTracker";
 import { useTeamTargets } from "@/hooks/useKpiSettings";
 import { useSalesReps } from "@/hooks/usePipelineItems";
-import { useCanViewAdmin } from "@/hooks/useUserRole";
+import { useAdminAccess } from "@/hooks/useUserRole";
 import { clientsInWindow, EARNINGS_WINDOW_DAYS } from "@/lib/earningsPlan";
 import { addDayKeys, dayKeyOf, monthOf, paidCommissionCash, saleCommissions, type CompPlanRow } from "@/lib/funnelTracker";
 import { mondayOf, sumFunnel, type RepGoal } from "@/lib/repGoals";
 import { repPayThisMonth } from "@/lib/repPay";
 import { DEFAULT_CONFIG, targetsFor } from "@/lib/teamTargets";
 
-const TABS = ["targets", "what-if", "sales"] as const;
+const EndOfDay = lazy(() => import("@/components/eod/EndOfDay").then((m) => ({ default: m.EndOfDay })));
+
+const TABS = ["targets", "what-if", "sales", "eod"] as const;
 type GoalTab = (typeof TABS)[number];
 const NO_GOAL: RepGoal = { monthly: null, kpis: {} };
 
-function RepGoals({ plan, plans, name, own, tab, setTab }: { plan: CompPlanRow; plans: CompPlanRow[]; name: string; own: boolean; tab: GoalTab; setTab: (t: GoalTab) => void }) {
+function RepGoals({ plan, plans, name, own }: { plan: CompPlanRow; plans: CompPlanRow[]; name: string; own: boolean }) {
   const userId = plan.user_id;
   const today = dayKeyOf(new Date().toISOString());
   const thisMonth = monthOf(today);
@@ -47,12 +49,7 @@ function RepGoals({ plan, plans, name, own, tab, setTab }: { plan: CompPlanRow; 
   if (!observed || !goals.data || !byDay.data || !pay) return <Skeleton className="h-96 w-full" />;
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(v as GoalTab)}>
-      <TabsList className="mb-4">
-        <TabsTrigger value="targets">Targets</TabsTrigger>
-        <TabsTrigger value="what-if">What if I improve</TabsTrigger>
-        <TabsTrigger value="sales">Commission & sales</TabsTrigger>
-      </TabsList>
+    <>
       <TabsContent value="targets">
         <GoalTargets userId={userId} name={name} goal={goal} canEdit={own} observed={observed} month={month} baseAnnual={plan.base_annual} managerTargets={targetsFor(team, userId).t} days={byDay.data} today={today} windowDays={EARNINGS_WINDOW_DAYS} />
       </TabsContent>
@@ -62,15 +59,15 @@ function RepGoals({ plan, plans, name, own, tab, setTab }: { plan: CompPlanRow; 
       <TabsContent value="sales">
         <CommissionSales plan={plan} pay={pay} sales={sales} goal={goal} thisMonth={thisMonth} />
       </TabsContent>
-    </Tabs>
+    </>
   );
 }
 
-/** Goals & KPIs: a rep's own targets, what improving them pays, and their commission and sales. */
+/** Goals & KPIs: a rep's own targets, what improving them pays, their commission and sales, and their end of day report. */
 export default function GoalsPage() {
   const { user } = useAuth();
-  const canViewAll = useCanViewAdmin();
-  const { data: plans = [], isLoading } = useRepCompPlans();
+  const { canViewAdmin: canViewAll, isLoading: rolesLoading } = useAdminAccess();
+  const { data: plans = [], isLoading: plansLoading } = useRepCompPlans();
   const { data: reps = [] } = useSalesReps();
   const [params, setParams] = useSearchParams();
   const [picked, setPicked] = useState<string | null>(null);
@@ -83,14 +80,20 @@ export default function GoalsPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [plans, reps, canViewAll, user?.id]);
   const current = setters.find((s) => s.plan.user_id === picked) ?? setters.find((s) => s.plan.user_id === user?.id) ?? setters[0];
+  const isLoading = plansLoading || rolesLoading;
   const raw = params.get("tab");
-  const tab: GoalTab = TABS.find((t) => t === raw) ?? "targets";
+  // Closers and anyone else with no setter plan still file an end of day report.
+  const eodOnly = !isLoading && !current;
+  const tab: GoalTab = eodOnly ? "eod" : TABS.find((t) => t === raw) ?? "targets";
+  // Once opened, the report stays mounted so checking a target does not wipe a half-written one.
+  const [eodOpened, setEodOpened] = useState(false);
+  if (tab === "eod" && !eodOpened) setEodOpened(true);
   const setTab = (t: GoalTab) => setParams((p) => { p.set("tab", t); return p; }, { replace: true });
 
   return (
     <AppLayout title="Goals & KPIs">
       <div className="mx-auto max-w-6xl space-y-4">
-        {canViewAll && setters.length > 1 && current ? (
+        {tab !== "eod" && canViewAll && setters.length > 1 && current ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Rep</span>
             <Select value={current.plan.user_id} onValueChange={setPicked}>
@@ -99,13 +102,30 @@ export default function GoalsPage() {
             </Select>
           </div>
         ) : null}
-        {isLoading ? (
-          <Skeleton className="h-96 w-full" />
-        ) : current ? (
-          <RepGoals key={current.plan.user_id} plan={current.plan} plans={plans} name={current.name} own={current.plan.user_id === user?.id} tab={tab} setTab={setTab} />
-        ) : (
-          <p className="py-10 text-center text-sm text-muted-foreground">Goals are for setters on a commission plan. You are not on one yet.</p>
-        )}
+        <Tabs value={tab} onValueChange={(v) => setTab(v as GoalTab)}>
+          {eodOnly ? null : (
+            <TabsList className="mb-4 h-auto flex-wrap justify-start">
+              <TabsTrigger value="targets">Targets</TabsTrigger>
+              <TabsTrigger value="what-if">What if I improve</TabsTrigger>
+              <TabsTrigger value="sales">Commission & sales</TabsTrigger>
+              <TabsTrigger value="eod">End of day</TabsTrigger>
+            </TabsList>
+          )}
+          {tab === "eod" ? null : isLoading || !current ? (
+            <Skeleton className="h-96 w-full" />
+          ) : (
+            <RepGoals key={current.plan.user_id} plan={current.plan} plans={plans} name={current.name} own={current.plan.user_id === user?.id} />
+          )}
+          <TabsContent value="eod" forceMount={eodOpened || undefined} className="data-[state=inactive]:hidden">
+            {user ? (
+              <div className="max-w-4xl">
+                <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+                  <EndOfDay userId={user.id} />
+                </Suspense>
+              </div>
+            ) : null}
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

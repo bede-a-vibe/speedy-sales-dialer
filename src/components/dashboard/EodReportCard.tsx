@@ -43,7 +43,7 @@ export function EodReportCard() {
       ? { text: yesterdayReport.manager_comment, when: "yesterday" }
       : null;
 
-  const go = () => navigate("/eod");
+  const go = () => navigate("/goals?tab=eod&view=mine");
 
   return (
     <div
