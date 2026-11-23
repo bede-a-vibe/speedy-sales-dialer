@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Target } from "lucide-react";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, CalendarCheck, UsersRound, ClipboardCheck, Link2, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { LazyQuickBookDialog } from "@/components/LazyMount";
@@ -36,7 +36,6 @@ const mainItems = [
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
   { title: "Goals & KPIs", url: "/goals", icon: Target },
   { title: "Training", url: "/training", icon: GraduationCap },
-  { title: "End of Day", url: "/eod", icon: NotebookPen },
   { title: "Connectors", url: "/connectors", icon: Link2 },
 ];
 
