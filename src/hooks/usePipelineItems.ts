@@ -81,6 +81,10 @@ export interface PipelineItemWithRelations {
   ghl_stage_synced_at?: string | null;
   booking_tier?: string | null;
   booking_method?: string | null;
+  /** Qualified verdict on the meeting (null = not marked). */
+  is_qualified?: boolean | null;
+  /** Why a sitting was disqualified, when logged outside outcome_reason. */
+  dq_reason?: string | null;
   created_at: string;
   updated_at: string;
   contacts: {
@@ -208,6 +212,8 @@ export function usePipelineItems(type: PipelineType, status: PipelineStatus = "o
           ghl_stage_synced_at,
           booking_tier,
           booking_method,
+          is_qualified,
+          dq_reason,
           created_at,
           updated_at,
           contacts:contacts!pipeline_items_contact_id_fkey (
