@@ -7,6 +7,7 @@ import { fetchGhlLocationId } from "@/lib/ghlUrls";
 import { PageTransition } from "@/components/PageTransition";
 import { FullPageLoading } from "@/components/FullPageLoading";
 import { useSessionPolicy } from "@/hooks/useSessionPolicy";
+import { legacyClassroomSearch } from "@/lib/trainingTabs";
 
 // Every route is lazy, including the dashboard, so opening /dialer directly
 // does not download the dashboard first. The busiest routes are prefetched
@@ -26,7 +27,6 @@ const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
 const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
-const ClassroomPage = lazy(() => import("@/pages/ClassroomPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
@@ -64,10 +64,10 @@ function AdminOnlyRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Old /playbook links (bookmarks, coach deep-links) land on the Classroom with their query intact. */
-function LegacyRedirect({ to }: { to: string }) {
+/** Old /classroom and /playbook links (bookmarks, coach deep-links) land on Training's Classroom tab with their query intact. */
+function ClassroomRedirect() {
   const loc = useLocation();
-  return <Navigate to={{ pathname: to, search: loc.search }} replace />;
+  return <Navigate to={{ pathname: "/training", search: legacyClassroomSearch(loc.search) }} replace />;
 }
 
 /** Keeps the global demo-mode flag in sync with the current user's role. */
@@ -144,8 +144,8 @@ function ProtectedRoutes() {
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />
         <Route path="/eod" element={<EodReportPage />} />
-        <Route path="/classroom" element={<ClassroomPage />} />
-        <Route path="/playbook" element={<LegacyRedirect to="/classroom" />} />
+        <Route path="/classroom" element={<ClassroomRedirect />} />
+        <Route path="/playbook" element={<ClassroomRedirect />} />
         <Route path="/security" element={<SecurityPage />} />
         <Route
           path="/insights"

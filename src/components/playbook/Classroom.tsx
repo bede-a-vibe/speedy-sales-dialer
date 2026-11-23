@@ -470,6 +470,7 @@ export function Classroom() {
 
   const set = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
+    next.set("tab", "classroom"); // stay on this Training tab once the course is cleared
     for (const [k, v] of Object.entries(patch)) { if (v === null) next.delete(k); else next.set(k, v); }
     setParams(next, { replace: true });
   };
