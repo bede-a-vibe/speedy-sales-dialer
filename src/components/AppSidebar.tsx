@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnseenReviewCount } from "@/hooks/useManager";
-import { useOverdueFollowUpCount } from "@/hooks/useOverdueFollowUpCount";
+import { useTodoCount } from "@/hooks/useTodoList";
 import {
   Sidebar,
   SidebarContent,
@@ -62,7 +62,7 @@ export function AppSidebar() {
   const [quickBookOpen, setQuickBookOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { data: overdueFollowUps = 0 } = useOverdueFollowUpCount(user?.id);
+  const { data: todoCount = 0 } = useTodoCount(user?.id);
   const email = user?.email ?? "";
   const displayName =
     (user?.user_metadata?.full_name as string | undefined) ||
@@ -123,18 +123,18 @@ export function AppSidebar() {
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                       {!collapsed && item.url === "/training" && unseenReviews > 0 && <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{unseenReviews} new</span>}
-                      {!collapsed && item.url === "/pipelines" && overdueFollowUps > 0 && (
+                      {!collapsed && item.url === "/pipelines" && todoCount > 0 && (
                         <span
                           className="ml-auto rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground"
-                          title="Open your overdue follow-ups"
+                          title="Open your To do list"
                           onClick={(event) => {
-                            // Inside the Pipelines link: the badge goes straight to the Follow-ups tab.
+                            // Inside the Pipelines link: the badge goes straight to the To do list.
                             event.preventDefault();
                             event.stopPropagation();
-                            navigate("/pipelines?tab=followups");
+                            navigate("/pipelines?tab=todo");
                           }}
                         >
-                          {overdueFollowUps} overdue
+                          {todoCount} to do
                         </span>
                       )}
                     </NavLink>

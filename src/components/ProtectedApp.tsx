@@ -138,7 +138,7 @@ function ProtectedRoutes() {
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/contacts/:id" element={<ContactDetailPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
-        <Route path="/follow-ups" element={<Navigate to="/pipelines?tab=followups" replace />} />
+        <Route path="/follow-ups" element={<Navigate to="/pipelines?tab=todo" replace />} />
         <Route path="/meetings" element={<MeetingsPage />} />
         <Route path="/goals" element={<GoalsPage />} />
         <Route path="/training" element={<TrainingPage />} />

@@ -42,7 +42,7 @@ export function TwoPipelineGuide({
             <Link to="/pipelines?tab=booked">Booked pipeline</Link>
           </Button>
           <Button asChild variant={currentView === "followups" ? "default" : "outline"} size="sm">
-            <Link to="/pipelines?tab=followups">Follow-ups</Link>
+            <Link to="/pipelines?tab=todo">To do</Link>
           </Button>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function TwoPipelineGuide({
             <p className="text-sm font-semibold">Follow-ups</p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Used when a dialer outcome is <span className="font-medium text-foreground">Follow Up</span> or when a booked appointment outcome creates another task. Reps work these from the Follow-ups tab on Pipelines.
+            Used when a dialer outcome is <span className="font-medium text-foreground">Follow Up</span> or when a booked appointment outcome creates another task. Reps work these from the To do list on Pipelines.
           </p>
           <div className="mt-3 space-y-1 text-xs text-muted-foreground">
             <p>
