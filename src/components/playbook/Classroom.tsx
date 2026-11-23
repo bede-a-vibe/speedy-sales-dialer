@@ -16,6 +16,8 @@ import { useCanViewAdmin } from "@/hooks/useUserRole";
 import { usePlaybookLocks, industryLockKey, courseLockKey } from "@/hooks/usePlaybookLocks";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COMPONENTS } from "@/components/playbook/lessonComponents";
+import { ReviewedCalls } from "@/components/loom/ReviewedCalls";
+import { useLoomReview } from "@/hooks/useLoomReviews";
 import {
   useLmsCourses, useLmsLessons, useMyLessonProgress, useSetLessonProgress,
   useUpsertCourse, useUpsertLesson, useDeleteLesson, toEmbedUrl,
@@ -299,6 +301,12 @@ function CourseEditor({ course, onClose }: { course: LmsCourse | null; onClose: 
   );
 }
 
+/** The calls attached to a lesson that came from a Loom review. */
+function LessonReviewedCalls({ reviewId }: { reviewId: string }) {
+  const { data: review } = useLoomReview(reviewId);
+  return review ? <ReviewedCalls calls={review.calls} /> : null;
+}
+
 /* ---------- course view ---------- */
 function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick }: {
   course: LmsCourse; lessons: LmsLesson[]; done: Set<string>; isManager: boolean; lessonId: string | null;
@@ -412,6 +420,7 @@ function CourseView({ course, lessons, done, isManager, lessonId, onBack, onPick
                 )}
 
                 {active.body && <Notes text={active.body} />}
+                {active.loom_review_id && <LessonReviewedCalls reviewId={active.loom_review_id} />}
                 {active.component && COMPONENTS[active.component]?.render()}
 
                 {active.resources.length > 0 && (

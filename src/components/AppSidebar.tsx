@@ -7,6 +7,7 @@ import { LazyQuickBookDialog } from "@/components/LazyMount";
 import { Button } from "@/components/ui/button";
 import { useCanViewAdmin, useIsAdmin, useIsCoach } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnseenLoomCount } from "@/hooks/useLoomReviews";
 import { useUnseenReviewCount } from "@/hooks/useManager";
 import { useTodoCount } from "@/hooks/useTodoList";
 import {
@@ -53,7 +54,9 @@ const adminOnlyItems = [
 ];
 
 export function AppSidebar() {
-  const { data: unseenReviews = 0 } = useUnseenReviewCount();
+  const { data: unseenCallReviews = 0 } = useUnseenReviewCount();
+  const { data: unseenLooms = 0 } = useUnseenLoomCount();
+  const unseenReviews = unseenCallReviews + unseenLooms;
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const canViewAdmin = useCanViewAdmin();
