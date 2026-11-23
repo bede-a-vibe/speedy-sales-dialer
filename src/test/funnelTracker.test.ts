@@ -590,3 +590,13 @@ describe("month stacking", () => {
     expect(defaultMonthOpen("2026-10-01", "2026-11-01", 1)).toBe(true);
   });
 });
+
+describe("booking qualifier is required", () => {
+  it("needs both team size and monthly revenue", async () => {
+    const { qualifierMissing } = await import("@/components/pipelines/BookingQualifierFields");
+    const base = { teamSize: "", monthlyRevenue: "", tierOverride: null, method: "manual_set" as const };
+    expect(qualifierMissing(base)).toBe("Enter the team size and monthly revenue to book the meeting.");
+    expect(qualifierMissing({ ...base, teamSize: "2" })).toBe("Enter the monthly revenue to book the meeting.");
+    expect(qualifierMissing({ ...base, teamSize: "4", monthlyRevenue: "$60,000" })).toBeNull();
+  });
+});

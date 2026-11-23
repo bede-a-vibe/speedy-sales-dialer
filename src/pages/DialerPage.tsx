@@ -92,7 +92,7 @@ import { useIsCoach } from "@/hooks/useUserRole";
 import { CoachTour, type CoachStep } from "@/components/coach/CoachTour";
 import { ScenarioMode } from "@/components/coach/ScenarioMode";
 import { GraduationCap, Sparkles } from "lucide-react";
-import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, qualifierMissing, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 
 const COACH_TOUR_STORAGE_KEY = "dialer:coach-tour:v1";
 
@@ -1639,6 +1639,13 @@ export default function DialerPage() {
     if (outcomeToLog === "booked" && !session.followUpTime) {
       toast.error("Choose an appointment time.");
       return;
+    }
+    if (outcomeToLog === "booked") {
+      const missing = qualifierMissing(bookingQualifier);
+      if (missing) {
+        toast.error(missing);
+        return;
+      }
     }
     const needsPipelineAssignment = shouldCreatePipelineItemForOutcome(outcomeToLog);
     if (needsPipelineAssignment && !session.assignedRepId) {

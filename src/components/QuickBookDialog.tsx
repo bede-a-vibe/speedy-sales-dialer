@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useUserRole";
 import { useCreateContact } from "@/hooks/useContacts";
-import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, qualifierMissing, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 import { useCreateCallLog } from "@/hooks/useCallLogs";
 import { useSalesReps, useCreatePipelineItem, useDefaultCloser, type FollowUpMethod } from "@/hooks/usePipelineItems";
 import { FollowUpMethodSelector } from "@/components/pipelines/FollowUpMethodSelector";
@@ -457,8 +457,8 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
     () => !!selectedContact
       && !!assignedRepId
       && !!scheduledDate
-      && (pipelineType !== "booked" || (!!ghlCalendarId && !!ghlPipelineId && !!ghlStageId)),
-    [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId, ghlPipelineId, ghlStageId],
+      && (pipelineType !== "booked" || (!!ghlCalendarId && !!ghlPipelineId && !!ghlStageId && !qualifierMissing(bookingQualifier))),
+    [selectedContact, assignedRepId, scheduledDate, pipelineType, ghlCalendarId, ghlPipelineId, ghlStageId, bookingQualifier],
   );
 
   const quickScheduleOptions = useMemo(() => {
