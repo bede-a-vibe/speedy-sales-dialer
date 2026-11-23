@@ -332,9 +332,9 @@ describe("Closing tracker: why they didn't close", () => {
       DAYS,
       new Map(),
     );
-    // The second meeting is still in play, not a no-close.
-    expect(s.didntClose).toBe(4);
-    expect(s.why).toEqual({ price_budget: 1, timing: 1, not_qualified: 1, unrecorded: 1 });
+    // The second meeting is still in play, not a no-close. The DQ-reason no-close is in the DQ pile.
+    expect(s.didntClose).toBe(3);
+    expect(s.why).toEqual({ price_budget: 1, timing: 1, unrecorded: 1 });
     expect(s.stillInPlay).toBe(1);
     expect(s.nextStep).toEqual({ think_partner: 1 });
   });

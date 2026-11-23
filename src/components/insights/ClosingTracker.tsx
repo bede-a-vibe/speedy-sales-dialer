@@ -18,6 +18,7 @@ import {
   defaultWeekOpen,
   matchesTier,
   monthOf,
+  isNotQualifiedSitting,
   supersededSecondMeetings,
   weekKey,
   weeksOf,
@@ -161,7 +162,7 @@ interface Stats {
   obj: Record<string, number>;
   /** Every sitting that didn't close (no close, follow-up, second meeting booked), pitched or not. */
   didntClose: number;
-  /** didntClose by objection: OBJ_LABEL keys, "not_qualified" (a DQ reason on a no-close), or UNMAPPED. */
+  /** didntClose by objection: OBJ_LABEL keys, "unrecorded", or UNMAPPED. Not-qualified sittings are left out (DQ pile). */
   why: Record<string, number>;
   /** Sittings that ended with a second meeting booked: still in the funnel, not a no-close. */
   stillInPlay: number;
@@ -293,16 +294,15 @@ export function computeStats(
     }
     if (bucket === "showed" && (DIDNT_CLOSE.has(outcome) || outcome === "second_meeting_booked")) {
       const r = i.outcome_reason || "unrecorded";
-      // A DQ reason on a no-close is one "Not qualified" line here; the DQ detail
-      // lives once, under Live calls and offers.
-      const k = hasLabel(OBJ_LABEL, r) ? r : r.startsWith("dq_") ? "not_qualified" : UNMAPPED;
+      const k = hasLabel(OBJ_LABEL, r) ? r : UNMAPPED;
       if (outcome === "second_meeting_booked") {
         // Once the next meeting has happened, the deal counts once, by that meeting.
         if (!superseded.has(i.id)) {
           s.stillInPlay += 1;
           s.nextStep[k] = (s.nextStep[k] ?? 0) + 1;
         }
-      } else {
+      } else if (!isNotQualifiedSitting(i)) {
+        // Not qualified = the DQ pile (Not qualified live calls), never a didn't-close.
         s.didntClose += 1;
         s.why[k] = (s.why[k] ?? 0) + 1;
       }
@@ -380,7 +380,6 @@ const WHY_ROWS: [string, string][] = [
   ["agency_trust", "Has an agency / trust"],
   ["fear", "Fear / risk"],
   ["other", "Other (incl. never pitched)"],
-  ["not_qualified", "Not qualified (follow-up kept)"],
   ["unrecorded", "No objection recorded"],
   [UNMAPPED, "Unmapped reason"],
 ];
@@ -439,6 +438,7 @@ function buildSections(repFiltered = false): SectionDef[] {
       title: "Live calls and offers",
       rows: [
         { label: "Qualified live calls", fmt: "n", hint: "sat and marked qualified", value: (s) => s.qualifiedLive },
+        { label: "Not qualified live calls", fmt: "n", hint: "sat and marked not qualified: the DQ pile, kept out of Why they didn't close", value: (s) => s.notQualifiedLive },
         {
           label: "Qualified live call rate",
           fmt: "pct",
@@ -464,7 +464,7 @@ function buildSections(repFiltered = false): SectionDef[] {
         {
           label: "Didn't close",
           fmt: "n",
-          hint: "sat and marked No close or No close follow-up. A second meeting booked is still in play (next section), verbal yeses are under Closes, DQs under Live calls and offers",
+          hint: "sat, qualified and marked No close or No close follow-up. Not qualified ones are under Live calls and offers, a second meeting booked is still in play (next section), verbal yeses are under Closes",
           value: (s) => s.didntClose,
           emphasis: true,
         },

@@ -22,6 +22,7 @@ import {
   trackerDefaultFrom,
   weeksOf,
   type CompPlanRow,
+  objectionsAddUp,
   type NewClientWithCredit,
   type SetterFirstDeal,
   type TrackerItem,
@@ -342,9 +343,25 @@ describe("tracker rows", () => {
         booking({ scheduled_for: "2026-11-04T18:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment" }),
       ],
     }).get("2026-11-04")!;
-    expect(d.didntClose).toBe(3);
+    // The dq_too_small no-close is in the DQ pile, not in didn't close.
+    expect(d.didntClose).toBe(2);
     expect(d.stillInPlay).toBe(1);
-    expect([d.whyPrice, d.whyFear, d.whyNotQualified, d.whyBlank, d.whyTiming]).toEqual([1, 0, 1, 1, 0]);
+    expect([d.whyPrice, d.whyFear, d.whyBlank, d.whyTiming]).toEqual([1, 0, 1, 0]);
+    expect(objectionsAddUp(d)).toBe(false);
+  });
+
+  it("keeps not-qualified sittings out of didn't close, and ticks when every objection is logged", () => {
+    const d = build({
+      items: [
+        booking({ scheduled_for: "2026-11-04T14:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_no_close", outcome_reason: "timing", is_qualified: true }),
+        booking({ scheduled_for: "2026-11-04T15:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: "price_budget", is_qualified: false }),
+      ],
+    }).get("2026-11-04")!;
+    expect(d.notQualifiedLive).toBe(1);
+    expect(d.didntClose).toBe(1);
+    expect(d.whyTiming).toBe(1);
+    expect(d.whyPrice).toBe(0);
+    expect(objectionsAddUp(d)).toBe(true);
   });
 
   it("missed by us is its own count, not a no-show", () => {

@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useFunnelTracker";
 import {
   addsUp,
+  objectionsAddUp,
   awaitingPayment,
   bracketLabel,
   paidCommissionCash,
@@ -168,18 +169,19 @@ const COLUMNS: ColumnDef[] = [
   { key: "pending", section: "Closing calendar", label: "Pending", fmt: "n", hint: "upcoming or no result logged yet", value: (s) => s.pending },
   { key: "addsUp", section: "Closing calendar", label: "Adds up?", fmt: "check", hint: "live + cancels + no-shows + reschedules + missed + pending = bookings on calendar", value: (s) => addsUp(s) },
   { key: "qualifiedLive", section: "Closing calendar", label: "Qualified live calls", fmt: "n", hint: "live calls marked qualified", value: (s) => s.qualifiedLive },
+  { key: "notQualifiedLive", section: "Closing calendar", label: "Not qualified live calls", fmt: "n", hint: "live calls marked not qualified: the DQ pile, kept out of Why they didn't close", value: (s) => s.notQualifiedLive },
   { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls marked qualified or not; unmarked ones are left out", value: (s) => pctOf(s.qualifiedLive, s.qualifiedLive + s.notQualifiedLive) },
   { key: "costPerQualified", section: "Closing calendar", label: "Cost per qualified live call", fmt: "money", hint: "total cost ÷ qualified live calls", value: (s) => ratio(totalCost(s), s.qualifiedLive) },
   { key: "stillInPlay", section: "Why they didn't close", label: "Second meeting booked", fmt: "n", hint: "didn't close on the day but the next meeting is booked: still in the funnel, not counted below", value: (s) => s.stillInPlay },
-  { key: "didntClose", section: "Why they didn't close", label: "Didn't close", fmt: "n", hint: "live calls marked No close or No close follow-up", value: (s) => s.didntClose },
+  { key: "didntClose", section: "Why they didn't close", label: "Didn't close", fmt: "n", hint: "qualified live calls marked No close or No close follow-up. Not-qualified ones are in the DQ pile (Not qualified live calls)", value: (s) => s.didntClose },
   { key: "whyPrice", section: "Why they didn't close", label: "Price / budget", fmt: "n", value: (s) => s.whyPrice },
   { key: "whyThink", section: "Why they didn't close", label: "Needs to think / partner", fmt: "n", value: (s) => s.whyThink },
   { key: "whyTiming", section: "Why they didn't close", label: "Timing", fmt: "n", value: (s) => s.whyTiming },
   { key: "whyAgency", section: "Why they didn't close", label: "Has an agency / trust", fmt: "n", value: (s) => s.whyAgency },
   { key: "whyFear", section: "Why they didn't close", label: "Fear / risk", fmt: "n", value: (s) => s.whyFear },
   { key: "whyOther", section: "Why they didn't close", label: "Other (incl. never pitched)", fmt: "n", value: (s) => s.whyOther },
-  { key: "whyNotQualified", section: "Why they didn't close", label: "Not qualified", fmt: "n", hint: "a DQ reason logged on a no-close", value: (s) => s.whyNotQualified },
-  { key: "whyBlank", section: "Why they didn't close", label: "No objection recorded", fmt: "n", value: (s) => s.whyBlank },
+  { key: "whyBlank", section: "Why they didn't close", label: "No objection recorded", fmt: "n", hint: "find them in Pipelines > Completed: filter Didn't close + No reason recorded", value: (s) => s.whyBlank },
+  { key: "objectionsAddUp", section: "Why they didn't close", label: "Objections add up?", fmt: "check", hint: "price + think + timing + agency + fear + other = didn't close. A cross means some have no objection recorded", value: (s) => objectionsAddUp(s) },
 
   // Closing results
   { key: "newClients", section: "Closing results", label: "New clients", fmt: "n", hint: "first deal starts that day (revenue records, same as Won on Overview)", value: (s) => s.newClients, target: { metric: "new_clients", better: "higher" } },

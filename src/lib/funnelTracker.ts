@@ -197,7 +197,7 @@ export interface TrackerStats {
   qualifiedLive: number;
   /** Live calls marked not qualified. Unmarked ones are in neither count. */
   notQualifiedLive: number;
-  /** Live calls that didn't close on the day (no close, follow-up, second meeting booked), by objection. */
+  /** Qualified (or unmarked) live calls marked No close or No close follow-up, by objection. Not-qualified ones are in notQualifiedLive only. */
   didntClose: number;
   /** Second meeting booked: still in the funnel, kept out of the didn't-close objections. */
   stillInPlay: number;
@@ -207,7 +207,6 @@ export interface TrackerStats {
   whyAgency: number;
   whyFear: number;
   whyOther: number;
-  whyNotQualified: number;
   whyBlank: number;
   // Closing results
   newClients: number;
@@ -232,7 +231,7 @@ export function emptyTrackerStats(): TrackerStats {
     dials: 0, answers: 0, leadsDialled: new Set(), rosteredHours: 0, productiveHours: 0, manualSets: 0, confirmedDbs: 0, totalSets: 0,
     setsT1: 0, setsT2: 0, setsUnknownTier: 0,
     availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0, notQualifiedLive: 0,
-    didntClose: 0, stillInPlay: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyNotQualified: 0, whyBlank: 0,
+    didntClose: 0, stillInPlay: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyBlank: 0,
     newClients: 0, cash: 0,
     bookingsOnCalT1: 0, bookingsOnCalT2: 0, liveT1: 0, liveT2: 0, newClientsT1: 0, newClientsT2: 0, cashT1: 0, cashT2: 0,
     setterBase: 0, commission: 0,
@@ -244,7 +243,7 @@ const SUMMED: (keyof TrackerStats)[] = [
   "dials", "answers", "rosteredHours", "productiveHours", "manualSets", "confirmedDbs", "totalSets",
   "setsT1", "setsT2", "setsUnknownTier",
   "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive", "notQualifiedLive",
-  "didntClose", "stillInPlay", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyNotQualified", "whyBlank",
+  "didntClose", "stillInPlay", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyBlank",
   "newClients", "cash",
   "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2",
   "setterBase", "commission",
@@ -295,8 +294,8 @@ export function supersededSecondMeetings(
 /** Sat and didn't close on the day: each carries an objection (required on the meeting card). */
 const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 
-type WhyKey = "whyPrice" | "whyThink" | "whyTiming" | "whyAgency" | "whyFear" | "whyOther" | "whyNotQualified" | "whyBlank";
-/** The tracker column an objection counts in. A DQ reason on a no-close counts as not qualified. */
+type WhyKey = "whyPrice" | "whyThink" | "whyTiming" | "whyAgency" | "whyFear" | "whyOther" | "whyBlank";
+/** The tracker column an objection counts in. */
 export function whyKeyOf(reason: string | null | undefined): WhyKey {
   switch (reason) {
     case "price_budget": return "whyPrice";
@@ -305,8 +304,21 @@ export function whyKeyOf(reason: string | null | undefined): WhyKey {
     case "agency_trust": return "whyAgency";
     case "fear": return "whyFear";
     case null: case undefined: case "": return "whyBlank";
-    default: return reason.startsWith("dq_") ? "whyNotQualified" : "whyOther";
+    default: return "whyOther";
   }
+}
+
+/**
+ * A sitting that wasn't qualified sits in the DQ pile, never in "didn't close":
+ * marked not qualified, or a DQ reason logged on the no-close (Bede, 23 Nov).
+ */
+export function isNotQualifiedSitting(i: { is_qualified?: boolean | null; outcome_reason?: string | null }): boolean {
+  return i.is_qualified === false || (i.outcome_reason ?? "").startsWith("dq_");
+}
+
+/** Every didn't-close has a named objection, so the objection columns add up to Didn't close. */
+export function objectionsAddUp(s: Pick<TrackerStats, "didntClose" | "whyPrice" | "whyThink" | "whyTiming" | "whyAgency" | "whyFear" | "whyOther">): boolean {
+  return s.whyPrice + s.whyThink + s.whyTiming + s.whyAgency + s.whyFear + s.whyOther === s.didntClose;
 }
 
 export function calendarBucketOf(item: Pick<TrackerItem, "resolved_bucket" | "outcome_reason" | "is_reschedule_slot">): CalendarBucket {
@@ -446,7 +458,7 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
       if (i.is_qualified === true) s.qualifiedLive += 1;
       else if (i.is_qualified === false) s.notQualifiedLive += 1;
       if (i.appointment_outcome === "second_meeting_booked" && !superseded.has(i.id)) s.stillInPlay += 1;
-      if (DIDNT_CLOSE.has(i.appointment_outcome ?? "")) {
+      if (DIDNT_CLOSE.has(i.appointment_outcome ?? "") && !isNotQualifiedSitting(i)) {
         s.didntClose += 1;
         s[whyKeyOf(i.outcome_reason)] += 1;
       }
