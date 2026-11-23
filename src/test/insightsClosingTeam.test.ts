@@ -315,3 +315,24 @@ describe("Closing tracker: qualified live calls", () => {
     expect(s.closedQualifiedLive).toBe(1);
   });
 });
+
+describe("Closing tracker: why they didn't close", () => {
+  it("counts every sitting that didn't close by its objection, pitched or not, and keeps verbal yeses and DQs out", () => {
+    const s = computeStats(
+      [
+        item({ resolved_bucket: "showed", appointment_outcome: "showed_no_close", outcome_reason: "price_budget" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", outcome_reason: "think_partner" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: "timing" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: "dq_too_small" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: null }),
+        item({ resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "disqualified", dq_reason: "dq_wrong_fit" }),
+        item({ resolved_bucket: "showed", appointment_outcome: "showed_closed" }),
+      ],
+      DAYS,
+      new Map(),
+    );
+    expect(s.didntClose).toBe(5);
+    expect(s.why).toEqual({ price_budget: 1, think_partner: 1, timing: 1, dq_too_small: 1, unrecorded: 1 });
+  });
+});

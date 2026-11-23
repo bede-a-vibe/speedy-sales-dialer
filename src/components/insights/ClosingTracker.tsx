@@ -60,6 +60,8 @@ function wasPitched(i: Item) {
 const NO_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 /** Pitched, not closed, and the next step is still open: no objection is recorded on these. */
 const VERBAL_OR_SECOND = new Set(["showed_verbal_commitment", "second_meeting_booked"]);
+/** Sat and didn't close on the day: each carries an objection (required on the card since 23 Nov). */
+const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up", "second_meeting_booked"]);
 /** Bucket for reason keys that have no label, so the breakdown rows add up to their total. */
 export const UNMAPPED = "__unmapped";
 const hasLabel = (labels: Record<string, string>, key: string) => Object.prototype.hasOwnProperty.call(labels, key);
@@ -156,6 +158,10 @@ interface Stats {
   /** Pitched, not closed, verbal commitment or second meeting booked (no objection on these). */
   notClosedVerbal: number;
   obj: Record<string, number>;
+  /** Every sitting that didn't close (no close, follow-up, second meeting booked), pitched or not. */
+  didntClose: number;
+  /** didntClose by objection: OBJ_LABEL and DQ_LABEL keys, "unrecorded", or UNMAPPED. */
+  why: Record<string, number>;
   dq: number;
   dqReasons: Record<string, number>;
   closed: number;
@@ -175,7 +181,7 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, closedQualifiedLive: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, closedQualifiedLive: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, didntClose: 0, why: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
@@ -279,6 +285,12 @@ export function computeStats(
         s.obj[UNMAPPED] = (s.obj[UNMAPPED] ?? 0) + 1;
       }
     }
+    if (bucket === "showed" && DIDNT_CLOSE.has(outcome)) {
+      s.didntClose += 1;
+      const r = i.outcome_reason || "unrecorded";
+      const k = hasLabel(OBJ_LABEL, r) || hasLabel(DQ_LABEL, r) ? r : UNMAPPED;
+      s.why[k] = (s.why[k] ?? 0) + 1;
+    }
     if (outcome === "disqualified") {
       s.dq += 1;
       const r = i.dq_reason || "unrecorded";
@@ -343,6 +355,22 @@ const DQ_LABEL: Record<string, string> = {
   dq_no_capacity: "No capacity for more work",
   unrecorded: "No reason recorded",
 };
+
+/** Objections in the order Bede reads them, then the DQ reasons a no-close can carry, then blanks. */
+const WHY_ROWS: [string, string][] = [
+  ["price_budget", "Price / budget"],
+  ["think_partner", "Needs to think / partner"],
+  ["timing", "Timing"],
+  ["agency_trust", "Has an agency / trust"],
+  ["fear", "Fear / risk"],
+  ["other", "Other (incl. never pitched)"],
+  ["dq_too_small", "Not qualified: too small"],
+  ["dq_wrong_fit", "Not qualified: wrong fit"],
+  ["dq_not_dm", "Not qualified: not decision maker"],
+  ["dq_no_capacity", "Not qualified: no capacity"],
+  ["unrecorded", "No objection recorded"],
+  [UNMAPPED, "Unmapped reason"],
+];
 
 function buildSections(repFiltered = false): SectionDef[] {
   const slotsHint = "9:00 to 18:30 Mon to Fri (less the Mon and Thu directors' hour), 9:00 to 13:00 Sat";
@@ -418,15 +446,20 @@ function buildSections(repFiltered = false): SectionDef[] {
       ],
     },
     {
-      title: "Not closed",
+      title: "Why they didn't close",
       rows: [
-        { label: "Total not closed", fmt: "n", hint: "pitched − closed", value: (s) => s.notClosed, emphasis: true },
-        { label: "  Verbal / second meeting booked", fmt: "n", hint: "pitched, next step still open, no objection recorded", value: (s) => s.notClosedVerbal },
-        { label: "  Verbal / second meeting booked rate", fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.notClosedVerbal, s.pitched) },
-        ...[...Object.entries(OBJ_LABEL), [UNMAPPED, "Other / unmapped"] as [string, string]].flatMap<RowDef>(([k, label]) => [
-          { label: `  ${label}`, fmt: "n", hint: k === UNMAPPED ? "a reason with no label here, or a pitched meeting with no close decision" : undefined, value: (s) => s.obj[k] ?? 0 },
-          { label: `  ${label} rate`, fmt: "pct", hint: "÷ pitched", value: (s) => pct(s.obj[k] ?? 0, s.pitched) },
+        {
+          label: "Didn't close",
+          fmt: "n",
+          hint: "sat and didn't close on the day: no close, no close follow-up, second meeting booked. Verbal yeses and DQs are counted separately",
+          value: (s) => s.didntClose,
+          emphasis: true,
+        },
+        ...WHY_ROWS.flatMap<RowDef>(([k, label]) => [
+          { label: `  ${label}`, fmt: "n", value: (s) => s.why[k] ?? 0 },
+          { label: `  ${label} %`, fmt: "pct", hint: "÷ didn't close", value: (s) => pct(s.why[k] ?? 0, s.didntClose) },
         ]),
+        { label: "Verbal yes, not signed yet", fmt: "n", hint: "said yes on the call; not an objection", value: (s) => s.verbal },
       ],
     },
     {
