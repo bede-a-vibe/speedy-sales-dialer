@@ -9,21 +9,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ListenButton } from "@/components/calls/ListenButton";
 import { useToast } from "@/hooks/use-toast";
-import { useIsManagerUser, useMyStudyNotes, useSaveStudyNote, useStudyCalls, type StudyCall, type StudyNote } from "@/hooks/useCallStudy";
+import { useMyStudyNotes, useSaveStudyNote, useStudyCalls, type StudyCall, type StudyNote } from "@/hooks/useCallStudy";
 import { useCallTranscript } from "@/hooks/useLoomReviews";
 import { fmtTalk } from "@/lib/loom";
 import { cn } from "@/lib/utils";
 
-type Filter = "winning" | "closed" | "booked" | "not_booked" | "all";
+type Filter = "winning" | "closed" | "showed";
 const FILTERS: Array<{ key: Filter; label: string; hint: string }> = [
-  { key: "winning", label: "Winning", hint: "closed, or sat and qualified" },
-  { key: "closed", label: "Closed", hint: "booked, sat and signed" },
-  { key: "booked", label: "All booked", hint: "every call that booked a meeting" },
-  { key: "not_booked", label: "Didn't book", hint: "a minute or more, no meeting" },
-  { key: "all", label: "All", hint: "every call" },
+  { key: "winning", label: "All winning", hint: "closed, or sat and qualified" },
+  { key: "closed", label: "Showed and closed", hint: "sat and signed" },
+  { key: "showed", label: "Showed, no close", hint: "sat, qualified, not signed" },
 ];
-const inFilter = (c: StudyCall, f: Filter) =>
-  f === "all" ? true : f === "winning" ? c.winning : f === "booked" ? c.result !== "not_booked" : c.result === f;
+const inFilter = (c: StudyCall, f: Filter) => f === "winning" || (f === "closed") === (c.result === "closed");
 
 const RESULT_BADGE: Record<StudyCall["result"], { label: string; cls: string }> = {
   closed: { label: "Closed", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
@@ -103,10 +100,8 @@ function StudyRow({ call, note, name }: { call: StudyCall; note: StudyNote | und
 /** Someone else's calls, for a rep to listen to and review. */
 export function StudyCalls({ sourceId, name }: { sourceId: string; name: string }) {
   const { data: allCalls = [], isLoading, isError } = useStudyCalls([sourceId]);
-  // Another rep's calls are here to learn from, so only the ones that won.
-  const { data: fromManager = false, isLoading: roleLoading } = useIsManagerUser(sourceId);
-  const calls = useMemo(() => (fromManager ? allCalls : allCalls.filter((c) => c.winning)), [allCalls, fromManager]);
-  const filters = fromManager ? FILTERS : FILTERS.slice(0, 2);
+  // Someone else's calls are here to learn from, so only the ones that won.
+  const calls = useMemo(() => allCalls.filter((c) => c.winning), [allCalls]);
   const { data: notes } = useMyStudyNotes();
   const [filter, setFilter] = useState<Filter>("winning");
   const [search, setSearch] = useState("");
@@ -127,12 +122,12 @@ export function StudyCalls({ sourceId, name }: { sourceId: string; name: string 
           <Headphones className="h-5 w-5 text-primary" /> Review {name}'s calls
           {calls.length > 0 && <Badge variant="outline" className="font-mono text-[10px]">{reviewed} of {calls.length} reviewed</Badge>}
         </CardTitle>
-        <CardDescription>{fromManager ? "Every booked call, and every conversation over a minute." : "The calls that set a meeting that closed, or where a qualified prospect sat."} Listen, then write what moved it and the one thing you'll use. Your manager reads these.</CardDescription>
+        <CardDescription>The calls that set a meeting that closed, or where a qualified prospect sat. Listen, then write what moved it and the one thing you'll use. Your manager reads these.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => { if (v) { setFilter(v as Filter); setLimit(STEP); } }} className="flex-wrap justify-start">
-            {filters.map((f) => (
+            {FILTERS.map((f) => (
               <ToggleGroupItem key={f.key} value={f.key} title={f.hint} className="h-7 gap-1 px-2 text-xs">
                 {f.label} <span className="font-mono text-[10px] text-muted-foreground">{counts.get(f.key) ?? 0}</span>
               </ToggleGroupItem>
@@ -143,7 +138,7 @@ export function StudyCalls({ sourceId, name }: { sourceId: string; name: string 
             <Input value={search} onChange={(e) => { setSearch(e.target.value); setLimit(STEP); }} placeholder="Business name" className="h-8 pl-8 text-xs" />
           </div>
         </div>
-        {isLoading || roleLoading || !notes ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
+        {isLoading || !notes ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
           : isError ? <p className="py-6 text-center text-sm text-destructive">Couldn't load the calls. Refresh to try again.</p>
           : list.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No calls match.</p>
           : list.slice(0, limit).map((c) => <StudyRow key={c.id} call={c} note={notes.get(c.id)} name={name} />)}
