@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { DashboardFold } from "@/components/dashboard/DashboardFold";
 import { EarningsPlanner } from "@/components/earnings/EarningsPlanner";
 import { useObservedEarnings } from "@/components/earnings/useObservedEarnings";
@@ -31,7 +32,10 @@ function Planner({ userId, plan, plans }: { userId: string; plan: CompPlanRow; p
   return (
     <DashboardFold id="my-earnings" title="My earnings plan" summary={summary}>
       {observed ? (
-        <EarningsPlanner userId={userId} observed={observed} baseAnnual={plan.base_annual} pay={pay} target={target} canEditTarget windowDays={EARNINGS_WINDOW_DAYS} />
+        <div className="space-y-3">
+          <EarningsPlanner userId={userId} observed={observed} baseAnnual={plan.base_annual} pay={pay} target={target} canEditTarget windowDays={EARNINGS_WINDOW_DAYS} />
+          <Link to="/goals?tab=what-if" className="inline-block text-xs font-medium text-accent-foreground underline-offset-4 hover:underline">Set KPI targets and see the graph</Link>
+        </div>
       ) : (
         <p className="text-xs text-muted-foreground">{failed ? "Refresh to try again." : "Loading..."}</p>
       )}

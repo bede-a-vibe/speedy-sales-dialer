@@ -23,6 +23,7 @@ const PipelinesPage = lazy(loadPipelines);
 const InsightsPage = lazy(() => import("@/pages/InsightsPage"));
 const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
+const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
 const EodReportPage = lazy(() => import("@/pages/EodReportPage"));
@@ -140,6 +141,7 @@ function ProtectedRoutes() {
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/meetings" element={<MeetingsPage />} />
+        <Route path="/goals" element={<GoalsPage />} />
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />
         <Route path="/eod" element={<EodReportPage />} />

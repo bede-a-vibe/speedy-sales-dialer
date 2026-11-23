@@ -19,6 +19,7 @@ import {
   Moon,
   Building2,
   Sparkles,
+  Target,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -105,6 +106,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { title: "Contacts", to: "/contacts", icon: Users },
       { title: "Pipelines", to: "/pipelines", icon: CalendarClock },
       { title: "My Work / Follow-ups", to: "/follow-ups", icon: CalendarClock },
+      { title: "Goals & KPIs", to: "/goals", icon: Target },
       { title: "Classroom", to: "/classroom", icon: GraduationCap },
       { title: "Training", to: "/training", icon: GraduationCap },
     ];

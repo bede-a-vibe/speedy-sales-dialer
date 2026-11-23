@@ -25,6 +25,7 @@
 
     --accent: 197 76% 94%;
     --accent-foreground: 195 100% 35%;
+    --chart-accent: 195 100% 35%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -83,6 +84,7 @@
 
     --accent: 200 60% 22%;
     --accent-foreground: 193 100% 75%;
+    --chart-accent: 194 80% 40%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
