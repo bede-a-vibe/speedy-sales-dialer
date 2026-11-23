@@ -933,6 +933,142 @@ async function drainGhlNamePushQueue(
 }
 
 /**
+ * Drain ghl_contact_push_queue, filled by hand for one-off list loads.
+ *
+ * kind "create": put an unlinked dialer lead in GHL. Someone already in GHL on
+ * that number is only linked, never renamed or edited. No tags (they start
+ * automations), no opportunities, no conversations.
+ * kind "phone": swap a removed mobile for the new one, on the main phone and
+ * the Decision Maker Phone field, only where GHL still holds the old number.
+ */
+async function drainGhlContactPushQueue(
+  apiKey: string,
+  locationId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 40,
+) {
+  const MAIN_LOCATION_ID = "N6ZNHc1OmVcRne4Sprhq";
+  const DM_PHONE_FIELD = "6OndJoC6WKbN9Ffq4WRp";
+  if (locationId !== MAIN_LOCATION_ID) return { error: "not the main Odin Digital location" };
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const digits9 = (v: unknown) => {
+    const d = String(v ?? "").replace(/\D/g, "");
+    return d.length >= 9 ? d.slice(-9) : "";
+  };
+  const findByNumber = async (e164: string): Promise<Record<string, any> | null> => {
+    const r = await ghlFetch("/contacts/search/duplicate", apiKey, { params: { locationId, number: e164 } });
+    return r?.contact?.id ? r.contact : null;
+  };
+
+  const { data: rows, error } = await supabase
+    .from("ghl_contact_push_queue")
+    .select("contact_id, kind, old_numbers, new_number, attempts, contacts!inner(ghl_contact_id, phone_e164, business_name, contact_person, website, state, postal_code, is_dnc, is_archived)")
+    .eq("status", "pending")
+    .order("contact_id", { ascending: true })
+    .limit(Math.min(Math.max(batchSize, 1), 60));
+  if (error) throw new Error(`Failed to read contact push queue: ${error.message}`);
+
+  const counts: Record<string, number> = {};
+  const startedMs = Date.now();
+  for (const row of (rows ?? []) as Array<Record<string, any>>) {
+    if (Date.now() - startedMs > 45_000) break;
+    const c = row.contacts ?? {};
+    const contactId = String(row.contact_id);
+    const finish = async (status: string, extra: Record<string, unknown> = {}) => {
+      counts[status] = (counts[status] ?? 0) + 1;
+      await supabase
+        .from("ghl_contact_push_queue")
+        .update({ status, done_at: new Date().toISOString(), ...extra })
+        .eq("contact_id", contactId);
+    };
+
+    try {
+      if (row.kind === "create") {
+        if (c.ghl_contact_id) { await finish("already_linked", { ghl_contact_id: c.ghl_contact_id }); continue; }
+        if (!c.phone_e164 || c.is_dnc || c.is_archived) { await finish("skipped"); continue; }
+
+        const existing = await findByNumber(String(c.phone_e164));
+        let ghlId: string | null = existing?.id ?? null;
+        let status = "linked_existing";
+        if (!ghlId) {
+          const person = String(c.contact_person ?? "").trim();
+          const parts = person ? person.split(/\s+/) : [];
+          const body: Record<string, unknown> = {
+            locationId,
+            phone: c.phone_e164,
+            country: "AU",
+            source: "Speedy Sales Dialer",
+            companyName: c.business_name,
+            firstName: parts[0] ?? c.business_name,
+            customFields: [{ id: DIALER_CONTACT_ID_FIELD, field_value: contactId }],
+          };
+          if (parts.length > 1) body.lastName = parts.slice(1).join(" ");
+          if (c.website) body.website = c.website;
+          if (c.state) body.state = c.state;
+          if (c.postal_code) body.postalCode = c.postal_code;
+          const created = await ghlFetch("/contacts/", apiKey, { method: "POST", body });
+          ghlId = created?.contact?.id ?? null;
+          status = "created";
+        }
+        if (!ghlId) throw new Error("GHL returned no contact id");
+        const { error: upErr } = await supabase
+          .from("contacts").update({ ghl_contact_id: ghlId }).eq("id", contactId).is("ghl_contact_id", null);
+        if (upErr) throw new Error(`Link save failed for GHL ${ghlId}: ${upErr.message}`);
+        await finish(status, {
+          ghl_contact_id: ghlId,
+          ...(existing
+            ? { detail: JSON.stringify({ name: existing.contactName ?? existing.firstName ?? null, company: existing.companyName ?? null, dnd: existing.dnd ?? null, tags: existing.tags ?? [], added: existing.dateAdded ?? null }) }
+            : {}),
+        });
+      } else {
+        const ghlId = String(c.ghl_contact_id ?? "");
+        const oldSet = new Set(((row.old_numbers ?? []) as string[]).map(digits9).filter(Boolean));
+        const fresh = digits9(row.new_number);
+        if (!ghlId || !fresh || oldSet.size === 0) { await finish("skipped"); continue; }
+        const gc = ((await ghlFetch(`/contacts/${ghlId}`, apiKey))?.contact ?? {}) as Record<string, any>;
+        const done: string[] = [];
+        let conflict = "";
+
+        if (oldSet.has(digits9(gc.phone))) {
+          const other = await findByNumber(String(row.new_number));
+          if (other && other.id !== ghlId) conflict = String(other.id);
+          else {
+            await ghlFetch(`/contacts/${ghlId}`, apiKey, { method: "PUT", body: { phone: row.new_number } });
+            done.push("phone");
+          }
+        }
+        const dmField = (Array.isArray(gc.customFields) ? gc.customFields : [])
+          .find((f: Record<string, unknown>) => f.id === DM_PHONE_FIELD) as Record<string, unknown> | undefined;
+        if (dmField && oldSet.has(digits9(dmField.value ?? dmField.field_value))) {
+          await ghlFetch(`/contacts/${ghlId}`, apiKey, {
+            method: "PUT",
+            body: { customFields: [{ id: DM_PHONE_FIELD, field_value: row.new_number }] },
+          });
+          done.push("dm_phone");
+        }
+        await finish(conflict ? "conflict" : done.length ? "updated" : "nothing_to_change", {
+          ghl_contact_id: ghlId,
+          detail: JSON.stringify({ done, conflict, was: gc.phone ?? null, dm_was: dmField?.value ?? null }),
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      counts.failed = (counts.failed ?? 0) + 1;
+      const attempts = Number(row.attempts ?? 0) + 1;
+      await supabase
+        .from("ghl_contact_push_queue")
+        .update({ attempts, detail: message.slice(0, 500), status: attempts >= 3 ? "failed" : "pending" })
+        .eq("contact_id", contactId);
+      if (message.includes("429")) break;
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return counts;
+}
+
+/**
  * Push dialer field data UP to GHL for already-linked contacts.
  * Only ever PUTs customFields — never tags, never opportunities.
  * DND is only ever set for genuine opt-outs (contacts.is_dnc = true).
@@ -2386,6 +2522,7 @@ Deno.serve(async (req) => {
         "sync_ghl_appointments",
         "drain_contact_note_syncs",
         "drain_ghl_name_push",
+        "drain_ghl_contact_push",
       ]);
       if (!allowedCronActions.has(cronBody.action)) {
         return json({ error: "Unsupported cron action" }, 400);
@@ -2412,6 +2549,12 @@ Deno.serve(async (req) => {
       if (cronBody.action === "drain_ghl_name_push") {
         const nameResult = await drainGhlNamePushQueue(GHL_API_KEY, supabaseUrl, svcKey, Number(cronBody.batchSize) || 40);
         return json(nameResult);
+      }
+      if (cronBody.action === "drain_ghl_contact_push") {
+        const pushResult = await drainGhlContactPushQueue(
+          GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, Number(cronBody.batchSize) || 40,
+        );
+        return json(pushResult);
       }
       if (cronBody.action === "drain_contact_note_syncs") {
         const drainResult = await drainContactNoteSyncs(GHL_API_KEY, GHL_LOCATION_ID, supabaseUrl, svcKey, {
