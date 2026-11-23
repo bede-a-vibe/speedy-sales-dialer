@@ -4,16 +4,14 @@ import { AlertTriangle, TrendingDown, TrendingUp, Minus, BarChart3, Zap } from "
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useSalesReps } from "@/hooks/usePipelineItems";
-import { STAGE_LABELS } from "@/hooks/useCallCoaching";
+import { useBookedAppointmentsByDateRange, useRescheduleSlotsByDateRange, useSalesReps } from "@/hooks/usePipelineItems";
+import { STAGE_LABELS, type CoachingJson } from "@/hooks/useCallCoaching";
+import { useCallLogsByDateRange } from "@/hooks/useCallLogs";
+import { pct, setterShowRate, statsFor, type CoachRow, type RoundRow } from "@/lib/managerMetrics";
+import { shiftDateKey, todayDateKey } from "@/lib/reportMetrics";
 
-const ANSWERED = ["booked", "not_interested", "follow_up", "dnc", "gatekeeper"];
 const DAY = 86_400_000;
-
-interface LogRow { user_id: string; outcome: string; talk: number | null; created_at: string }
-interface ApptRow { assigned_user_id: string | null; appointment_outcome: string | null; scheduled_for: string | null }
-interface CoachRow { user_id: string; stage: string | null; pillars: Record<string, number | null> | null; created_at: string }
-interface RoundRow { user_id: string; mode: string; passed: boolean | null; created_at: string }
+const PAGE = 1000;
 
 interface InboundLead { id: string; created_at: string; firstDialAt: string | null }
 
@@ -47,56 +45,41 @@ function useSpeedToLead() {
   });
 }
 
-function useManagerData() {
+/** Every row: the API returns at most 1,000 a request, so a single select silently drops the rest. */
+async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw error;
+    const got = (data ?? []) as T[];
+    rows.push(...got);
+    if (got.length < PAGE) return rows;
+  }
+}
+
+function useCoachingData() {
   return useQuery({
-    queryKey: ["manager-metrics"],
+    queryKey: ["manager-coaching"],
     staleTime: 60_000,
     queryFn: async () => {
-      const since14 = new Date(Date.now() - 14 * DAY).toISOString();
-      const since28 = new Date(Date.now() - 28 * DAY).toISOString();
-      const [logs, appts, coaching, rounds] = await Promise.all([
-        supabase.from("call_logs").select("user_id, outcome, dialpad_talk_time_seconds, created_at").gte("created_at", since14),
-        supabase.from("pipeline_items").select("assigned_user_id, appointment_outcome, scheduled_for").gte("scheduled_for", since28).not("scheduled_for", "is", null),
-        supabase.from("call_coaching").select("user_id, coaching, created_at").gte("created_at", since14),
-        supabase.from("roleplay_rounds").select("user_id, mode, passed, created_at").gte("created_at", since14),
+      const since = new Date(Date.now() - 14 * DAY).toISOString();
+      const [coaching, rounds] = await Promise.all([
+        allRows<{ user_id: string; coaching: CoachingJson | null; created_at: string }>((a, b) =>
+          supabase.from("call_coaching").select("user_id, coaching, created_at").gte("created_at", since).order("created_at").order("id").range(a, b)),
+        allRows<RoundRow>((a, b) =>
+          supabase.from("roleplay_rounds").select("user_id, mode, passed, created_at").gte("created_at", since).order("created_at").order("id").range(a, b)),
       ]);
-      if (logs.error) throw logs.error;
-      if (appts.error) throw appts.error;
-      if (coaching.error) throw coaching.error;
-      if (rounds.error) throw rounds.error;
       return {
-        logs: (logs.data ?? []).map((r: any): LogRow => ({ user_id: r.user_id, outcome: r.outcome, talk: r.dialpad_talk_time_seconds, created_at: r.created_at })),
-        appts: (appts.data ?? []) as ApptRow[],
-        coaching: (coaching.data ?? []).map((r: any): CoachRow => ({
+        coaching: coaching.map((r): CoachRow => ({
           user_id: r.user_id,
           stage: r.coaching?.first_broken_stage ?? null,
           pillars: r.coaching?.pillar_scores ?? null,
           created_at: r.created_at,
         })),
-        rounds: (rounds.data ?? []) as RoundRow[],
+        rounds,
       };
     },
   });
-}
-
-interface WindowStats { dials: number; pickups: number; conv2: number; bookings: number }
-
-function statsFor(logs: LogRow[], userId: string | null, fromMs: number, toMs: number): WindowStats {
-  const s: WindowStats = { dials: 0, pickups: 0, conv2: 0, bookings: 0 };
-  for (const l of logs) {
-    if (userId && l.user_id !== userId) continue;
-    const t = new Date(l.created_at).getTime();
-    if (t < fromMs || t >= toMs) continue;
-    s.dials += 1;
-    if (ANSWERED.includes(l.outcome)) s.pickups += 1;
-    if ((l.talk ?? 0) >= 120) s.conv2 += 1;
-    if (l.outcome === "booked") s.bookings += 1;
-  }
-  return s;
-}
-
-function pct(n: number, d: number): number | null {
-  return d > 0 ? Math.round((100 * n) / d) : null;
 }
 
 function Delta({ now, prev }: { now: number | null; prev: number | null }) {
@@ -113,7 +96,20 @@ function Delta({ now, prev }: { now: number | null; prev: number | null }) {
  * (the absolute 60% bar is an inbound-calibrated number, not cold-call reality).
  */
 export function ManagerMetrics() {
-  const { data, isLoading } = useManagerData();
+  // The same loaders Insights uses: every call in the window and the one attendance rule.
+  const today = todayDateKey();
+  const showFrom = shiftDateKey(today, -27);
+  const logsQuery = useCallLogsByDateRange(shiftDateKey(today, -14), today);
+  const bookingsQuery = useBookedAppointmentsByDateRange(showFrom, today);
+  const slotsQuery = useRescheduleSlotsByDateRange(showFrom, today);
+  const coachingQuery = useCoachingData();
+  const queries = [logsQuery, bookingsQuery, slotsQuery, coachingQuery];
+  const isError = queries.some((q) => q.isError);
+  const isLoading = !isError && queries.some((q) => q.isLoading);
+  const logs = logsQuery.data;
+  const bookings = bookingsQuery.data;
+  const slots = slotsQuery.data;
+  const data = coachingQuery.data;
   const { data: reps = [] } = useSalesReps();
   const { data: inboundLeads = [] } = useSpeedToLead();
 
@@ -134,10 +130,11 @@ export function ManagerMetrics() {
     };
   }, [inboundLeads]);
 
-  const now = Date.now();
+  // Fixed per load of the calls, so the rolling windows don't rebuild the model on every render.
+  const now = logsQuery.dataUpdatedAt;
   const model = useMemo(() => {
-    if (!data) return null;
-    const { logs, appts, coaching, rounds } = data;
+    if (!data || !logs || !bookings || !slots) return null;
+    const { coaching, rounds } = data;
 
     const pillarAvg = (userId: string, fromMs: number, toMs: number): number | null => {
       const scores: number[] = [];
@@ -161,10 +158,7 @@ export function ManagerMetrics() {
       const cur = statsFor(logs, rep.user_id, now - 7 * DAY, now);
       const prev = statsFor(logs, rep.user_id, now - 14 * DAY, now - 7 * DAY);
 
-      const myAppts = appts.filter((a) => a.assigned_user_id === rep.user_id && a.appointment_outcome);
-      const showed = myAppts.filter((a) => a.appointment_outcome!.startsWith("showed")).length;
-      const noShow = myAppts.filter((a) => a.appointment_outcome === "no_show").length;
-      const showRate = pct(showed, showed + noShow);
+      const show = setterShowRate(bookings, slots, rep.user_id, showFrom, today);
 
       // Recert triggers (manager playbook §recert)
       const flags: string[] = [];
@@ -185,8 +179,8 @@ export function ManagerMetrics() {
       if (last5.bookings === 0 && last5.dials >= 300) {
         flags.push(`0 bookings in 5 days despite ${last5.dials} dials`);
       }
-      if (showRate != null && showed + noShow >= 4 && showRate < 50) {
-        flags.push(`Show rate ${showRate}% over the last 4 weeks`);
+      if (show.rate != null && show.resolved >= 4 && show.rate < 50) {
+        flags.push(`Show rate ${show.rate}% over the last 4 weeks (${show.showed} of ${show.resolved})`);
       }
 
       const drillDays = new Set(
@@ -205,8 +199,8 @@ export function ManagerMetrics() {
         prevConvRate: pct(prev.conv2, prev.pickups),
         bookPer100: cur.dials >= 20 ? Math.round((100 * cur.bookings) / cur.dials * 10) / 10 : null,
         prevBookPer100: prev.dials >= 20 ? Math.round((100 * prev.bookings) / prev.dials * 10) / 10 : null,
-        showRate,
-        showN: showed + noShow,
+        showRate: show.rate,
+        showN: show.resolved,
         pillarNow: pillarAvg(rep.user_id, now - 7 * DAY, now),
         pillarPrev: pillarAvg(rep.user_id, now - 14 * DAY, now - 7 * DAY),
         drillDays: drillDays.size,
@@ -216,7 +210,7 @@ export function ManagerMetrics() {
     }).sort((a, b) => (b.bookPer100 ?? -1) - (a.bookPer100 ?? -1));
 
     return { rows, teamConvRate };
-  }, [data, reps, now]);
+  }, [data, logs, bookings, slots, reps, showFrom, today, now]);
 
   return (
     <div className="space-y-3">
@@ -258,13 +252,14 @@ export function ManagerMetrics() {
             <BarChart3 className="h-4 w-4 text-primary" /> The three weekly numbers
           </CardTitle>
           <CardDescription>
-            Per rep, last 7 days vs the 7 before. Ranked on bookings per 100 dials — the ranking metric. Show rate uses a
-            4-week window (appointments are sparse). Keep this table private: reps should see their own numbers and the
+            Per rep, last 7 days vs the 7 before. Ranked on bookings per 100 dials — the ranking metric. Show rate is
+            first meetings they set that sat, over 4 weeks, with no-shows, cancellations and moved meetings counted against it. Keep this table private: reps should see their own numbers and the
             team average, not each other's.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading && <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isError && <p className="py-4 text-center text-sm text-destructive">Couldn't load all the numbers. Refresh to try again.</p>}
           {model && model.rows.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">No calls in the last 14 days.</p>
           )}
