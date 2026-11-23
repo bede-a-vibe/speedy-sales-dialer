@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchStudyMeetingLinks } from "@/lib/studyMeetings";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 /** How a booked slot ended, collapsed to what a rep wants to compare. */
@@ -159,7 +160,7 @@ export function useCallLibrary(sinceIso: string) {
       const itemIds = rows.map((r) => r.id);
       const userIds = [...new Set(rows.flatMap((r) => [r.created_by, r.assigned_user_id]).filter(Boolean))];
 
-      const [callsRes, fathomRes, historyRes, profilesRes] = await Promise.all([
+      const [callsRes, fathomRes, historyRes, profilesRes, studyLinks] = await Promise.all([
         supabase
           .from("call_logs")
           .select("id, contact_id, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, dialpad_summary")
@@ -174,6 +175,7 @@ export function useCallLibrary(sinceIso: string) {
           .eq("pipeline_type", "booked")
           .in("contact_id", contactIds),
         supabase.from("profiles").select("user_id, display_name, email").in("user_id", userIds),
+        fetchStudyMeetingLinks(),
       ]);
       if (callsRes.error) throw callsRes.error;
       if (fathomRes.error) throw fathomRes.error;
@@ -194,7 +196,10 @@ export function useCallLibrary(sinceIso: string) {
       const dialpadById = new Map((dialpadRows.error ? [] : dialpadRows.data ?? []).map((d) => [d.dialpad_call_id, d]));
 
       const nameByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.display_name || p.email?.split("@")[0] || null]));
-      const fathomByItem = new Map((fathomRes.data ?? []).map((f) => [f.pipeline_item_id as string, f.share_url as string | null]));
+      const fathomByItem = new Map<string, string | null>([
+        ...studyLinks,
+        ...(fathomRes.data ?? []).map((f) => [f.pipeline_item_id as string, f.share_url as string | null] as const),
+      ]);
 
       // The booking call is the last "booked" call before the slot; fall back to the earliest.
       const callsByContact = new Map<string, NonNullable<typeof callsRes.data>>();
