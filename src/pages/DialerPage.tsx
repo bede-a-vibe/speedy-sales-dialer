@@ -506,8 +506,14 @@ export default function DialerPage() {
   // phone is still ringing and after they pick up.
   const [incomingCallNumber, setIncomingCallNumber] = useState<string | null>(null);
   const [dialpadCTIAuthed, setDialpadCTIAuthed] = useState(false);
+  // Simple view: the lead, the phone and the outcome buttons, nothing else. Built for a
+  // half-width window with the script open beside it. Persisted per browser.
+  const [simpleMode, setSimpleModeState] = useState<boolean>(() => {
+    try { return localStorage.getItem("speedy:dialer-mode") === "simple"; } catch { return false; }
+  });
   // Progressive disclosure: capture card starts collapsed (fast for the ~70% no-answer case)
-  // and auto-expands when the call connects (connected outcome or conversation reached).
+  // and auto-expands when the call connects (connected outcome or conversation reached),
+  // except in simple view, where only the rep opens it.
   const [captureOpen, setCaptureOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<DialerFilterPreset>(() => storedFilters?.selectedPreset ?? "all");
 
@@ -1585,8 +1591,9 @@ export default function DialerPage() {
       || conversationProgress.reachedProblem
       || conversationProgress.reachedSolution
       || conversationProgress.reachedCommitment;
-    if (outcomeConnected || stageReached) setCaptureOpen(true);
-  }, [session.selectedOutcome, conversationProgress]);
+    // Simple view stays lean: the rep opens it by hand if they want it.
+    if (!simpleMode && (outcomeConnected || stageReached)) setCaptureOpen(true);
+  }, [session.selectedOutcome, conversationProgress, simpleMode]);
 
   // Keep an EXISTING GHL link fresh when a lead is presented. We deliberately
   // do NOT create a GHL contact just because we dialled someone — cold
@@ -2239,11 +2246,6 @@ export default function DialerPage() {
     setAutoNoAnswerEnabledState(v);
     try { localStorage.setItem("speedy:auto-no-answer", v ? "on" : "off"); } catch { /* ignore */ }
   }, []);
-  // Simple view: the lead, the phone and the outcome buttons, nothing else. Built for a
-  // half-width window with the script open beside it. Persisted per browser.
-  const [simpleMode, setSimpleModeState] = useState<boolean>(() => {
-    try { return localStorage.getItem("speedy:dialer-mode") === "simple"; } catch { return false; }
-  });
   const setSimpleMode = useCallback((v: boolean) => {
     setSimpleModeState(v);
     try { localStorage.setItem("speedy:dialer-mode", v ? "simple" : "full"); } catch { /* ignore */ }
@@ -3252,7 +3254,7 @@ export default function DialerPage() {
               <div data-coach-step="decision-maker-capture">
               <CollapsiblePanel
                 title="Capture details"
-                subtitle={captureOpen ? "Decision maker, qualification, marketing and more" : "Open when the call connects"}
+                subtitle={captureOpen || simpleMode ? "Decision maker, qualification, marketing and more" : "Open when the call connects"}
                 icon={<UserCheck className="h-4 w-4" />}
                 badge={
                   (session.currentContact as any).dm_name
