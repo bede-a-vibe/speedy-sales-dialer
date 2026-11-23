@@ -9,15 +9,16 @@ const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
 const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
 
 const TABS = [
-  { value: "enrichment", label: "Enrichment" },
-  { value: "ghl", label: "GHL sync" },
+  // Number checks is the default: one query. Enrichment runs 20 exact counts every 45 seconds.
   { value: "numbers", label: "Number checks" },
+  { value: "ghl", label: "GHL sync" },
+  { value: "enrichment", label: "Enrichment" },
 ] as const;
 
 /** Lead data: how leads get filled in, kept in step with GHL and their numbers checked. */
 export default function LeadDataPage() {
   const [params, setParams] = useSearchParams();
-  const tab = TABS.find((t) => t.value === params.get("tab"))?.value ?? "enrichment";
+  const tab = TABS.find((t) => t.value === params.get("tab"))?.value ?? TABS[0].value;
 
   return (
     <AppLayout title="Lead data">
