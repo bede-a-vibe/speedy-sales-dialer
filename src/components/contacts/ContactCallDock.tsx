@@ -25,21 +25,31 @@ export interface ServerPlacement {
   state: string | null;
 }
 
+/** Who a call is to. */
+export interface CallLead {
+  contactId: string;
+  businessName: string | null;
+}
+
 export interface ContactCallDockHandle {
-  /** Place a call to this number. Uses the embedded Dialpad when it is signed in, otherwise the server. */
-  placeCall: (phone: string) => Promise<void>;
+  /**
+   * Place a call to this number. Uses the embedded Dialpad when it is signed in, otherwise the server.
+   * A page that lists many leads passes the lead; a page about one contact leaves it to the props.
+   */
+  placeCall: (phone: string, lead?: CallLead) => Promise<void>;
 }
 
 /** Which leg carries the call: the iframe in this page, or the rep's own Dialpad device via the server. */
 type PlacedVia = "cti" | "server";
 
 interface ContactCallDockProps {
-  contactId: string;
+  /** The contact this page is about. Null on a page that lists many leads and passes one to placeCall. */
+  contactId: string | null;
   businessName: string | null;
   /** The rep's Dialpad user id. Without it there is no iframe and no call tracking, only the server's own refusal. */
   dialpadUserId: string | null | undefined;
   /** Server fallback when the embedded Dialpad is not signed in. */
-  onServerPlace: (phone: string) => Promise<ServerPlacement>;
+  onServerPlace: (phone: string, contactId: string) => Promise<ServerPlacement>;
   /**
    * Reported on every change so the page can disable its call buttons mid-call.
    * `carriesAudio` is true while the call's audio runs inside this page, so
@@ -115,6 +125,10 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
   const barRef = useRef<HTMLDivElement | null>(null);
   const [callState, setCallState] = useState<NativeCallState>("idle");
   const [dialedNumber, setDialedNumber] = useState<string | null>(null);
+  // The lead on the line when placeCall was given one.
+  const [callLead, setCallLead] = useState<CallLead | null>(null);
+  const shownName = callLead ? callLead.businessName : businessName;
+  const shownContactId = callLead ? callLead.contactId : contactId;
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
   const [callId, setCallId] = useState<string | null>(null);
   const [placedVia, setPlacedVia] = useState<PlacedVia | null>(null);
@@ -315,7 +329,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
    * placement that came back without an id. Keeps trying while the call is
    * live, then says so once if it never found one.
    */
-  const resolveCallId = useCallback(async (placement: number, phone: string) => {
+  const resolveCallId = useCallback(async (placement: number, phone: string, leadId: string) => {
     const startedAt = Date.now();
     let attempt = 0;
     const abandoned = () => !stillCurrent(placement) || !isLive(currentState()) || Boolean(callIdRef.current);
@@ -327,7 +341,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
       if (!userId) return;
       try {
         const resolve = mutationsRef.current.resolve;
-        let res = await resolve.mutateAsync({ phone, dialpad_user_id: userId, contact_id: contactId });
+        let res = await resolve.mutateAsync({ phone, dialpad_user_id: userId, contact_id: leadId });
         if (abandoned()) return;
         let id = res.dialpad_call_id;
         if (!id) continue;
@@ -360,7 +374,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
     if (!abandoned()) {
       toast.warning("Dialpad isn't reporting this call to the page. Hang up from the call bar when you're done.");
     }
-  }, [assignCallId, contactId, dialpadUserIdRef, dispatch, mutationsRef]);
+  }, [assignCallId, dialpadUserIdRef, dispatch, mutationsRef]);
 
   /** Best-effort end of a call we may know only by number; the CTI leg is ended separately. */
   const endServerCall = useCallback((id: string | null, phone: string | null) => {
@@ -373,12 +387,15 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
     }
   }, [dialpadUserIdRef, mutationsRef]);
 
-  const placeCall = useCallback(async (phone: string) => {
+  const placeCall = useCallback(async (phone: string, lead?: CallLead) => {
+    const to = lead ?? (contactId ? { contactId, businessName } : null);
+    if (!to) return;
     if (isLive(currentState())) {
       toast.info("You're already on a call. Hang up first.");
       return;
     }
     const placement = ++placementRef.current;
+    setCallLead(lead ?? null);
     setDialedNumber(phone);
     dialedRef.current = phone;
     setConnectedAt(null);
@@ -393,9 +410,9 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
 
     if (authed && ctiRef.current) {
       setVia("cti");
-      ctiRef.current.initiateCall(phone, undefined, JSON.stringify({ contact_id: contactId, business_name: businessName }));
+      ctiRef.current.initiateCall(phone, undefined, JSON.stringify({ contact_id: to.contactId, business_name: to.businessName }));
       toast.success(`Calling ${phone} through Dialpad`);
-      void resolveCallId(placement, phone);
+      void resolveCallId(placement, phone, to.contactId);
       return;
     }
 
@@ -409,7 +426,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
       setRevealed(true);
     }
     try {
-      const res = await onServerPlaceRef.current(phone);
+      const res = await onServerPlaceRef.current(phone, to.contactId);
       if (!stillCurrent(placement)) {
         // A newer call has replaced this one; make sure this one is not left ringing.
         if (res.callId) endServerCall(res.callId, phone);
@@ -431,7 +448,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
             ? ""
             : " Dialpad was still loading on this page.";
       toast.success(`Calling ${phone} through Dialpad on your device.${hint}`);
-      if (!res.callId) void resolveCallId(placement, phone);
+      if (!res.callId) void resolveCallId(placement, phone, to.contactId);
     } catch (e) {
       if (!stillCurrent(placement)) return;
       clearCall();
@@ -527,7 +544,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
         headless
         claimTabOnLoad={claimTabOnLoad}
         phoneNumber={dialedNumber}
-        customData={JSON.stringify({ contact_id: contactId, business_name: businessName })}
+        customData={JSON.stringify({ contact_id: shownContactId, business_name: shownName })}
         onCallRinging={handleRinging}
         onAuthChange={handleAuthChange}
       />
@@ -539,7 +556,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
       {callState !== "idle" && (
         <div ref={barRef} className={className}>
           <NativeCallBar
-            businessName={businessName}
+            businessName={shownName}
             phoneNumber={dialedNumber}
             state={callState}
             connectedAt={connectedAt}

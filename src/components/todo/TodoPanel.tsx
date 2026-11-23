@@ -21,8 +21,7 @@ import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useAuth } from "@/hooks/useAuth";
 import type { Contact } from "@/hooks/useContacts";
-import { useDialpadCall } from "@/hooks/useDialpad";
-import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
+import type { PipelineCall } from "@/hooks/usePipelineCall";
 import type { SalesRepOption } from "@/hooks/usePipelineItems";
 import { useLastCalls, useTodoActions, useTodoDetail, useTodoList } from "@/hooks/useTodoList";
 import { useAdminAccess } from "@/hooks/useUserRole";
@@ -112,12 +111,17 @@ function Details({ item, reps, onReassign, canReassign }: {
   );
 }
 
-function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, onBook, onLater, onPickDate, onDone, onNotInterested, onDoNotCall, onReassign }: {
+function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, openInNewTab, canReassign, onCall, onBook, onLater, onPickDate, onDone, onNotInterested, onDoNotCall, onReassign }: {
   item: TodoItem;
   lastCall: string | undefined;
   ownerName: string | null;
   reps: SalesRepOption[];
   busy: boolean;
+  /** Any call is live, so no row can start another. */
+  callBusy: boolean;
+  onThisCall: boolean;
+  /** Leaving the page would drop the call, so the contact opens beside it. */
+  openInNewTab: boolean;
   canReassign: boolean;
   onCall: () => void;
   onBook: () => void;
@@ -138,7 +142,7 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, o
   const calledSince = Boolean(lastCall && item.at && lastCall > item.at);
 
   return (
-    <li className="rounded-lg border border-border bg-card p-3" data-testid="todo-row">
+    <li className={cn("rounded-lg border bg-card p-3", onThisCall ? "border-primary ring-1 ring-primary" : "border-border")} data-testid="todo-row">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <button type="button" className="min-w-0 flex-1 basis-64 text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
           <div className="flex flex-wrap items-center gap-2">
@@ -162,8 +166,8 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, o
         </button>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button size="sm" onClick={onCall} disabled={!number || busy} title={number ?? "No phone number"}>
-            <Phone className="h-3.5 w-3.5" />Call
+          <Button size="sm" onClick={onCall} disabled={!number || busy || callBusy} title={number ?? "No phone number"}>
+            <Phone className="h-3.5 w-3.5" />{onThisCall ? "On call" : "Call"}
           </Button>
           {item.kind !== "moved" ? (
             <>
@@ -195,7 +199,7 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, o
               <Button size="icon" variant="ghost" className="h-9 w-9" aria-label="More"><MoreHorizontal className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild><Link to={`/contacts/${c.id}`}>Open contact</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to={`/contacts/${c.id}`} target={openInNewTab ? "_blank" : undefined} rel={openInNewTab ? "noopener" : undefined}>Open contact</Link></DropdownMenuItem>
               {item.kind !== "moved" ? (
                 <>
                   <DropdownMenuItem onClick={onNotInterested} disabled={busy}>
@@ -245,7 +249,9 @@ function Section({ title, hint, items, render, startOpen = true }: {
   );
 }
 
-export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: SalesRepOption[]; repMap: Map<string, string>; initialFilter?: Filter }) {
+export function TodoPanel({ reps, repMap, call: pipelineCall, initialFilter = "all" }: {
+  reps: SalesRepOption[]; repMap: Map<string, string>; call: PipelineCall; initialFilter?: Filter;
+}) {
   const { user } = useAuth();
   const { canViewAdmin, canWrite } = useAdminAccess();
   const [rep, setRep] = useState("me");
@@ -260,8 +266,6 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
   const ownerId = rep === "all" ? null : rep === "me" ? user?.id : rep;
   const { data: items = [], isLoading, isError, refetch } = useTodoList(ownerId);
   const actions = useTodoActions(user?.id);
-  const dialpadCall = useDialpadCall();
-  const { data: dialpad } = useMyDialpadSettings();
 
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -305,13 +309,7 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
     if (!number) return toast.error("No phone number on this lead.");
     const window = evaluateCallingWindow(item.contact.state ?? null);
     if (!window.allowed) return toast.error(describeWindowReason(window, item.contact.state ?? null));
-    if (!dialpad?.dialpad_user_id) return toast.error("Connect your Dialpad number in Dialpad Settings first.");
-    try {
-      await dialpadCall.mutateAsync({ phone: number, dialpad_user_id: dialpad.dialpad_user_id, contact_id: item.contact.id });
-      toast.success(`Calling ${name(item)} on your Dialpad.`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't start the call.");
-    }
+    await pipelineCall.place(number, { contactId: item.contact.id, businessName: item.contact.business_name });
   };
 
   const book = async (item: TodoItem) => {
@@ -340,7 +338,10 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
       lastCall={lastCalls?.get(item.contact.id)}
       ownerName={rep === "all" ? repMap.get(item.ownerId) ?? null : null}
       reps={reps}
-      busy={actions.busy || dialpadCall.isPending || !canWrite}
+      busy={actions.busy || !canWrite}
+      callBusy={pipelineCall.live}
+      onThisCall={pipelineCall.live && pipelineCall.contactId === item.contact.id}
+      openInNewTab={pipelineCall.carriesAudio}
       canReassign={canViewAdmin && canWrite}
       onCall={() => void call(item)}
       onBook={() => void book(item)}

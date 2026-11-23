@@ -103,7 +103,7 @@ describe("ContactCallDock wiring", () => {
     const onServerPlace = vi.fn(async () => ({ callId: "call-1", state: "calling" }));
     const { ref, onStateChange } = setup(onServerPlace);
     await act(async () => { await ref.current!.placeCall(PHONE); });
-    expect(onServerPlace).toHaveBeenCalledWith(PHONE);
+    expect(onServerPlace).toHaveBeenCalledWith(PHONE, "c-1");
     expect(fakeCti.initiateCall).not.toHaveBeenCalled();
     expect(bar()).toContain(PHONE);
     // The server said "calling", so the page is told the call is live, and that its audio is not in this page.
@@ -112,6 +112,31 @@ describe("ContactCallDock wiring", () => {
     await waitFor(() => expect(mutations.cancel).toHaveBeenCalledWith({ call_id: "call-1" }));
     await waitFor(() => expect(bar()).toContain("Call ended"));
     expect(onStateChange).toHaveBeenLastCalledWith("ended", false);
+  });
+
+  it("on a list of leads, each call carries its own lead and Hang Up ends it", async () => {
+    fakeCti.authed = true;
+    const ref = createRef<ContactCallDockHandle>();
+    render(<ContactCallDock ref={ref} contactId={null} businessName={null} dialpadUserId="dp-user" onServerPlace={vi.fn()} />);
+    await act(async () => { await ref.current!.placeCall(PHONE); });
+    // No lead on a list page: nothing is rung.
+    expect(fakeCti.initiateCall).not.toHaveBeenCalled();
+
+    await act(async () => { await ref.current!.placeCall(PHONE, { contactId: "c-7", businessName: "Lead Seven" }); });
+    expect(fakeCti.initiateCall).toHaveBeenLastCalledWith(PHONE, undefined, JSON.stringify({ contact_id: "c-7", business_name: "Lead Seven" }));
+    expect(bar()).toContain("Lead Seven");
+    // One call at a time.
+    await act(async () => { await ref.current!.placeCall("+61400000001", { contactId: "c-8", businessName: "Lead Eight" }); });
+    expect(fakeCti.initiateCall).toHaveBeenCalledTimes(1);
+    expect(bar()).toContain("Lead Seven");
+
+    fireEvent.click(hangUpButton());
+    expect(fakeCti.hangUpAll).toHaveBeenCalled();
+    expect(bar()).toContain("Call ended");
+    await act(async () => { await ref.current!.placeCall("+61400000001", { contactId: "c-8", businessName: "Lead Eight" }); });
+    expect(bar()).toContain("Lead Eight");
+    // Same phone throughout, so a second lead never reloads Dialpad.
+    expect(fakeCti.mounted).toBe(1);
   });
 
   it("hanging up while the server is still placing the call ends that call once its id arrives", async () => {
@@ -271,7 +296,7 @@ describe("ContactCallDock wiring", () => {
     expect(screen.queryByTestId("fake-cti")).toBeNull();
     await act(async () => { await ref.current!.placeCall(PHONE); });
     // No grace wait: the server was asked without any timers advancing.
-    expect(onServerPlace).toHaveBeenCalledWith(PHONE);
+    expect(onServerPlace).toHaveBeenCalledWith(PHONE, "c-1");
     expect(bar()).toContain("Ringing");
   });
 
@@ -285,7 +310,7 @@ describe("ContactCallDock wiring", () => {
       await vi.advanceTimersByTimeAsync(3100);
       await placing;
     });
-    expect(onServerPlace).toHaveBeenCalledWith(PHONE);
+    expect(onServerPlace).toHaveBeenCalledWith(PHONE, "c-1");
     expect(toastMock.success).toHaveBeenCalledWith(expect.stringContaining("still loading"));
     expect(toastMock.success).not.toHaveBeenCalledWith(expect.stringContaining("Sign in"));
   });
