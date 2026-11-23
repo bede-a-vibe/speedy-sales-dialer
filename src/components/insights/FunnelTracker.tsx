@@ -170,6 +170,15 @@ const COLUMNS: ColumnDef[] = [
   { key: "qualifiedLive", section: "Closing calendar", label: "Qualified live calls", fmt: "n", hint: "live calls marked qualified", value: (s) => s.qualifiedLive },
   { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls marked qualified or not; unmarked ones are left out", value: (s) => pctOf(s.qualifiedLive, s.qualifiedLive + s.notQualifiedLive) },
   { key: "costPerQualified", section: "Closing calendar", label: "Cost per qualified live call", fmt: "money", hint: "total cost ÷ qualified live calls", value: (s) => ratio(totalCost(s), s.qualifiedLive) },
+  { key: "didntClose", section: "Why they didn't close", label: "Didn't close", fmt: "n", hint: "live calls that didn't close on the day: no close, no close follow-up, second meeting booked", value: (s) => s.didntClose },
+  { key: "whyPrice", section: "Why they didn't close", label: "Price / budget", fmt: "n", value: (s) => s.whyPrice },
+  { key: "whyThink", section: "Why they didn't close", label: "Needs to think / partner", fmt: "n", value: (s) => s.whyThink },
+  { key: "whyTiming", section: "Why they didn't close", label: "Timing", fmt: "n", value: (s) => s.whyTiming },
+  { key: "whyAgency", section: "Why they didn't close", label: "Has an agency / trust", fmt: "n", value: (s) => s.whyAgency },
+  { key: "whyFear", section: "Why they didn't close", label: "Fear / risk", fmt: "n", value: (s) => s.whyFear },
+  { key: "whyOther", section: "Why they didn't close", label: "Other (incl. never pitched)", fmt: "n", value: (s) => s.whyOther },
+  { key: "whyNotQualified", section: "Why they didn't close", label: "Not qualified", fmt: "n", hint: "a DQ reason logged on a no-close", value: (s) => s.whyNotQualified },
+  { key: "whyBlank", section: "Why they didn't close", label: "No objection recorded", fmt: "n", value: (s) => s.whyBlank },
 
   // Closing results
   { key: "newClients", section: "Closing results", label: "New clients", fmt: "n", hint: "first deal starts that day (revenue records, same as Won on Overview)", value: (s) => s.newClients, target: { metric: "new_clients", better: "higher" } },

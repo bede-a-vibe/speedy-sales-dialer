@@ -332,6 +332,20 @@ describe("tracker rows", () => {
     expect(d.notQualifiedLive).toBe(1);
   });
 
+  it("breaks live calls that didn't close down by objection", () => {
+    const d = build({
+      items: [
+        booking({ scheduled_for: "2026-11-04T14:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_no_close", outcome_reason: "price_budget" }),
+        booking({ scheduled_for: "2026-11-04T15:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", outcome_reason: "fear" }),
+        booking({ scheduled_for: "2026-11-04T16:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: "dq_too_small" }),
+        booking({ scheduled_for: "2026-11-04T17:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: null }),
+        booking({ scheduled_for: "2026-11-04T18:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment" }),
+      ],
+    }).get("2026-11-04")!;
+    expect(d.didntClose).toBe(4);
+    expect([d.whyPrice, d.whyFear, d.whyNotQualified, d.whyBlank, d.whyTiming]).toEqual([1, 1, 1, 1, 0]);
+  });
+
   it("missed by us is its own count, not a no-show", () => {
     const d = build().get("2026-11-04")!;
     expect(d.noShows).toBe(1);
