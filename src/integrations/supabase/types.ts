@@ -5335,6 +5335,57 @@ export type Database = {
         }
         Relationships: []
       }
+      lms_lessons_backup_20261123: {
+        Row: {
+          body: string | null
+          component: string | null
+          course_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          loom_review_id: string | null
+          published: boolean | null
+          resources: Json | null
+          section: string | null
+          sort: number | null
+          title: string | null
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          loom_review_id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          loom_review_id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       loom_review_calls: {
         Row: {
           call_log_id: string | null
@@ -7137,6 +7188,36 @@ export type Database = {
           website_quality?: string | null
           work_type?: string | null
           years_in_business?: number | null
+        }
+        Relationships: []
+      }
+      matteo_industry_plan_20261124: {
+        Row: {
+          applied_at: string | null
+          contact_id: string | null
+          industry: string
+          old_industry: string | null
+          old_trade_type: string | null
+          p: string
+          trade_type: string
+        }
+        Insert: {
+          applied_at?: string | null
+          contact_id?: string | null
+          industry: string
+          old_industry?: string | null
+          old_trade_type?: string | null
+          p: string
+          trade_type: string
+        }
+        Update: {
+          applied_at?: string | null
+          contact_id?: string | null
+          industry?: string
+          old_industry?: string | null
+          old_trade_type?: string | null
+          p?: string
+          trade_type?: string
         }
         Relationships: []
       }
