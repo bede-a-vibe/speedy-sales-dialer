@@ -1620,6 +1620,62 @@ export type Database = {
           },
         ]
       }
+      call_study_notes: {
+        Row: {
+          call_log_id: string
+          created_at: string
+          updated_at: string
+          use_next: string | null
+          user_id: string
+          worked: string | null
+        }
+        Insert: {
+          call_log_id: string
+          created_at?: string
+          updated_at?: string
+          use_next?: string | null
+          user_id?: string
+          worked?: string | null
+        }
+        Update: {
+          call_log_id?: string
+          created_at?: string
+          updated_at?: string
+          use_next?: string | null
+          user_id?: string
+          worked?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_study_notes_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_study_sources: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          rep_user_id: string
+          source_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          rep_user_id: string
+          source_user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          rep_user_id?: string
+          source_user_id?: string
+        }
+        Relationships: []
+      }
       caller_id_pool: {
         Row: {
           area_code: string | null
@@ -9869,6 +9925,13 @@ export type Database = {
           source: string
           total_amount: number
           upcoming: number
+        }[]
+      }
+      get_study_meeting_links: {
+        Args: never
+        Returns: {
+          pipeline_item_id: string
+          share_url: string
         }[]
       }
       ghl_event_closer: {
