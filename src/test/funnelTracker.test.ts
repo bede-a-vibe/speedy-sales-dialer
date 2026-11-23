@@ -23,6 +23,7 @@ import {
   weeksOf,
   type CompPlanRow,
   objectionsAddUp,
+  liveCallsAddUp,
   type NewClientWithCredit,
   type SetterFirstDeal,
   type TrackerItem,
@@ -348,6 +349,28 @@ describe("tracker rows", () => {
     expect(d.stillInPlay).toBe(1);
     expect([d.whyPrice, d.whyFear, d.whyBlank, d.whyTiming]).toEqual([1, 0, 1, 0]);
     expect(objectionsAddUp(d)).toBe(false);
+  });
+
+  it("follows each live call to where the lead ended, and adds up to live calls", () => {
+    const d = build({
+      items: [
+        // A: second meeting, then closed on the follow-up. Counts once, as closed.
+        booking({ contact_id: "A", scheduled_for: "2026-11-04T10:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", is_qualified: true }),
+        booking({ contact_id: "A", scheduled_for: "2026-11-06T10:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_closed", is_qualified: true, is_follow_up: true }),
+        // B: verbal, then the decision call didn't close on timing.
+        booking({ contact_id: "B", scheduled_for: "2026-11-04T11:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment", is_qualified: true }),
+        booking({ contact_id: "B", scheduled_for: "2026-11-05T11:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "no_close_follow_up", outcome_reason: "timing", is_qualified: true, is_follow_up: true }),
+        // C: second meeting still ahead.
+        booking({ contact_id: "C", scheduled_for: "2026-11-04T12:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", is_qualified: true }),
+        // D: verbal. E: not qualified.
+        booking({ contact_id: "D", scheduled_for: "2026-11-04T13:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment", is_qualified: true }),
+        booking({ contact_id: "E", scheduled_for: "2026-11-04T14:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "disqualified", is_qualified: false }),
+      ],
+    }).get("2026-11-04")!;
+    expect(d.live).toBe(5);
+    expect([d.endedClosed, d.endedVerbal, d.didntClose, d.stillInPlay, d.endedNotQualified, d.endedUnlogged]).toEqual([1, 1, 1, 1, 1, 0]);
+    expect(d.whyTiming).toBe(1);
+    expect(liveCallsAddUp(d)).toBe(true);
   });
 
   it("keeps not-qualified sittings out of didn't close, and ticks when every objection is logged", () => {

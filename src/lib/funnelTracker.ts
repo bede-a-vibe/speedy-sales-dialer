@@ -197,7 +197,16 @@ export interface TrackerStats {
   qualifiedLive: number;
   /** Live calls marked not qualified. Unmarked ones are in neither count. */
   notQualifiedLive: number;
-  /** Qualified (or unmarked) live calls marked No close or No close follow-up, by objection. Not-qualified ones are in notQualifiedLive only. */
+  /**
+   * Where each live call ended, following the lead to its latest sitting (a
+   * second meeting that later closed counts as closed). These plus didntClose
+   * and stillInPlay add up to live.
+   */
+  endedClosed: number;
+  endedVerbal: number;
+  endedNotQualified: number;
+  endedUnlogged: number;
+  /** Ended qualified with no close (no close or no close follow-up on the latest sitting), by objection. */
   didntClose: number;
   /** Second meeting booked: still in the funnel, kept out of the didn't-close objections. */
   stillInPlay: number;
@@ -231,7 +240,7 @@ export function emptyTrackerStats(): TrackerStats {
     dials: 0, answers: 0, leadsDialled: new Set(), rosteredHours: 0, productiveHours: 0, manualSets: 0, confirmedDbs: 0, totalSets: 0,
     setsT1: 0, setsT2: 0, setsUnknownTier: 0,
     availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0, notQualifiedLive: 0,
-    didntClose: 0, stillInPlay: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyBlank: 0,
+    endedClosed: 0, endedVerbal: 0, endedNotQualified: 0, endedUnlogged: 0, didntClose: 0, stillInPlay: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyBlank: 0,
     newClients: 0, cash: 0,
     bookingsOnCalT1: 0, bookingsOnCalT2: 0, liveT1: 0, liveT2: 0, newClientsT1: 0, newClientsT2: 0, cashT1: 0, cashT2: 0,
     setterBase: 0, commission: 0,
@@ -243,7 +252,7 @@ const SUMMED: (keyof TrackerStats)[] = [
   "dials", "answers", "rosteredHours", "productiveHours", "manualSets", "confirmedDbs", "totalSets",
   "setsT1", "setsT2", "setsUnknownTier",
   "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive", "notQualifiedLive",
-  "didntClose", "stillInPlay", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyBlank",
+  "endedClosed", "endedVerbal", "endedNotQualified", "endedUnlogged", "didntClose", "stillInPlay", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyBlank",
   "newClients", "cash",
   "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2",
   "setterBase", "commission",
@@ -314,6 +323,34 @@ export function whyKeyOf(reason: string | null | undefined): WhyKey {
  */
 export function isNotQualifiedSitting(i: { is_qualified?: boolean | null; outcome_reason?: string | null }): boolean {
   return i.is_qualified === false || (i.outcome_reason ?? "").startsWith("dq_");
+}
+
+export type LiveCallEnd = "closed" | "verbal" | "didnt_close" | "in_play" | "not_qualified" | "unlogged";
+
+/**
+ * Where a live first meeting ended: the lead's latest sitting from this one on
+ * decides it, so a second meeting that later closed is a close, once. Not
+ * qualified at any sitting = the DQ pile. `reason` is the latest sitting's objection.
+ */
+export function liveCallEnd(
+  first: TrackerItem,
+  showsByContact: Map<string, TrackerItem[]>,
+): { end: LiveCallEnd; reason: string | null } {
+  const chain = (showsByContact.get(first.contact_id) ?? []).filter((j) => j.scheduled_for! >= first.scheduled_for!);
+  if (!chain.includes(first)) chain.unshift(first);
+  if (chain.some((j) => isNotQualifiedSitting(j) || j.appointment_outcome === "disqualified")) return { end: "not_qualified", reason: null };
+  const last = chain[chain.length - 1];
+  const o = last.appointment_outcome ?? "";
+  if (o === "showed_closed") return { end: "closed", reason: null };
+  if (o === "showed_verbal_commitment") return { end: "verbal", reason: null };
+  if (o === "second_meeting_booked") return { end: "in_play", reason: last.outcome_reason ?? null };
+  if (DIDNT_CLOSE.has(o)) return { end: "didnt_close", reason: last.outcome_reason ?? null };
+  return { end: "unlogged", reason: null };
+}
+
+/** Closed + verbal + didn't close + still in play + not qualified + unlogged = live calls. */
+export function liveCallsAddUp(s: Pick<TrackerStats, "live" | "endedClosed" | "endedVerbal" | "didntClose" | "stillInPlay" | "endedNotQualified" | "endedUnlogged">): boolean {
+  return s.endedClosed + s.endedVerbal + s.didntClose + s.stillInPlay + s.endedNotQualified + s.endedUnlogged === s.live;
 }
 
 /** Every didn't-close has a named objection, so the objection columns add up to Didn't close. */
@@ -410,7 +447,13 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
 
   // Each booking's tier is worked out once and reused below.
   const inView: { i: TrackerItem; t: BookingTier | null }[] = [];
-  const superseded = supersededSecondMeetings(args.items);
+  // Every sitting per lead, in date order, to follow a live call to where it ended.
+  const showsByContact = new Map<string, TrackerItem[]>();
+  for (const i of args.items) {
+    if (!i.scheduled_for || calendarBucketOf(i) !== "live") continue;
+    showsByContact.set(i.contact_id, [...(showsByContact.get(i.contact_id) ?? []), i]);
+  }
+  for (const list of showsByContact.values()) list.sort((a, b) => a.scheduled_for!.localeCompare(b.scheduled_for!));
   for (const i of args.items) {
     if (!inFunnel(i.meeting_channel, funnel)) continue;
     const t = bookingTierOf(i);
@@ -457,10 +500,15 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
       else if (t === "tier_2") s.liveT2 += 1;
       if (i.is_qualified === true) s.qualifiedLive += 1;
       else if (i.is_qualified === false) s.notQualifiedLive += 1;
-      if (i.appointment_outcome === "second_meeting_booked" && !superseded.has(i.id)) s.stillInPlay += 1;
-      if (DIDNT_CLOSE.has(i.appointment_outcome ?? "") && !isNotQualifiedSitting(i)) {
+      const { end, reason } = liveCallEnd(i, showsByContact);
+      if (end === "closed") s.endedClosed += 1;
+      else if (end === "verbal") s.endedVerbal += 1;
+      else if (end === "in_play") s.stillInPlay += 1;
+      else if (end === "not_qualified") s.endedNotQualified += 1;
+      else if (end === "unlogged") s.endedUnlogged += 1;
+      else {
         s.didntClose += 1;
-        s[whyKeyOf(i.outcome_reason)] += 1;
+        s[whyKeyOf(reason)] += 1;
       }
     } else if (bucket === "cancelled") s.cancels += 1;
     else if (bucket === "noshow") s.noShows += 1;
