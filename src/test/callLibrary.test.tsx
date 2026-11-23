@@ -13,7 +13,7 @@ vi.mock("@/components/calls/ListenButton", () => ({
 }));
 
 import { CallLibrary } from "@/components/playbook/CallLibrary";
-import { dialpadCallHasAudio, hasRecording } from "@/hooks/useCallLibrary";
+import { dialpadCallHasAudio, isWinningMeeting, winningSets } from "@/hooks/useCallLibrary";
 
 function call(over: Partial<LibraryCall> & { pipelineItemId: string; businessName: string; bucket: LibraryCall["bucket"] }): LibraryCall {
   return {
@@ -33,14 +33,12 @@ function call(over: Partial<LibraryCall> & { pipelineItemId: string; businessNam
     closerName: "Bede Alexander",
     setting: null,
     daysOut: 3,
-    meetingRecordingUrl: null,
-    meetingRecordingSource: null,
     ...over,
   };
 }
 
 const setting = (dialpadCallId: string | null, transcript: string | null = null, hasAudio = true): LibraryCall["setting"] => ({
-  callLogId: "log",
+  callLogId: `log-${dialpadCallId}`,
   calledAt: "2026-10-09T00:00:00.000Z",
   dialpadCallId,
   hasAudio,
@@ -49,18 +47,7 @@ const setting = (dialpadCallId: string | null, transcript: string | null = null,
   summary: null,
 });
 
-// Bede, 31 Oct 2026: the library is for listening, so a slot with neither the
-// booking call's audio nor a meeting recording is hidden and counted.
-describe("hasRecording", () => {
-  it("counts the booking call's audio or a meeting recording, not a bare transcript", () => {
-    expect(hasRecording({ setting: setting("dp-1"), meetingRecordingUrl: null })).toBe(true);
-    expect(hasRecording({ setting: null, meetingRecordingUrl: "https://fathom.video/share/x" })).toBe(true);
-    expect(hasRecording({ setting: setting(null, "hello there"), meetingRecordingUrl: null })).toBe(false);
-    expect(hasRecording({ setting: null, meetingRecordingUrl: null })).toBe(false);
-    // A linked Dialpad call that never connected has nothing to play.
-    expect(hasRecording({ setting: setting("dp-dead", null, false), meetingRecordingUrl: null })).toBe(false);
-  });
-
+describe("dialpadCallHasAudio", () => {
   it("reads Dialpad's row: connected, talk time or recording metadata means audio; no row means assume yes", () => {
     const row = { is_connected: false, talk_time_seconds: 0, recording_id: null, recording_url: null, recording_share_link: null };
     expect(dialpadCallHasAudio(row)).toBe(false);
@@ -74,57 +61,60 @@ describe("hasRecording", () => {
   });
 });
 
+// Bede, 23 Nov 2026: winning = closed, or sat and qualified without a close.
+describe("isWinningMeeting", () => {
+  it.each([
+    ["closed", true, true], ["closed", null, true],
+    ["no_close", true, true], ["verbal", true, true], ["second_meeting", true, true],
+    ["no_close", false, false], ["second_meeting", false, false], ["no_close", null, false],
+    ["dq", true, false], ["dq", false, false], ["no_show", true, false], ["cancelled", null, false], ["pending", null, false],
+    [null, true, false],
+  ] as const)("%s, qualified %s -> %s", (b, q, want) => expect(isWinningMeeting(b, q)).toBe(want));
+});
+
 describe("CallLibrary", () => {
   const fixtures: LibraryCall[] = [
     call({ pipelineItemId: "a", businessName: "JR Dixon Electrical", bucket: "closed", setting: setting("dp-a") }),
     call({ pipelineItemId: "b", businessName: "24 Hr Test & Tag", bucket: "closed" }),
-    call({ pipelineItemId: "c", businessName: "Sparkon Electrical", bucket: "no_close", setting: setting(null, "transcript only") }),
-    call({ pipelineItemId: "d", businessName: "Matt's Thermal Scanning", bucket: "verbal", meetingRecordingUrl: "https://fathom.video/share/d", meetingRecordingSource: "fathom" }),
-    call({ pipelineItemId: "e", businessName: "Ghost Plumbing", bucket: "no_show" }),
-    // Linked to a two-second failed dial: a Listen button here would only error.
+    call({ pipelineItemId: "c", businessName: "Sparkon Electrical", bucket: "no_close", setting: setting("dp-c"), setterName: "Lachlan" }),
+    call({ pipelineItemId: "d", businessName: "Not Qualified Pty", bucket: "no_close", isQualified: false, setting: setting("dp-d") }),
+    call({ pipelineItemId: "e", businessName: "Ghost Plumbing", bucket: "no_show", setting: setting("dp-e") }),
     call({ pipelineItemId: "f", businessName: "Infuse Electrical", bucket: "closed", setting: setting("dp-dead", null, false) }),
-    // Same dead dial, but the meeting was recorded: listed, with no Listen button for the dial.
-    call({ pipelineItemId: "g", businessName: "OTOLEC", bucket: "closed", setting: setting("dp-dead-2", null, false), meetingRecordingUrl: "https://fathom.video/share/g", meetingRecordingSource: "fathom", setterName: "Lachlan" }),
+    call({ pipelineItemId: "g", businessName: "DQ Electrical", bucket: "dq", setting: setting("dp-g") }),
+    // Two meetings from one cold call: sat, then closed.
+    call({ pipelineItemId: "h1", businessName: "Twice Electrical", bucket: "second_meeting", metAt: "2026-10-10T00:00:00.000Z", setting: setting("dp-h") }),
+    call({ pipelineItemId: "h2", businessName: "Twice Electrical", bucket: "closed", metAt: "2026-10-14T00:00:00.000Z", setting: setting("dp-h") }),
   ];
 
-  it("lists only slots with something to hear and says how many it hid", () => {
+  it("lists only winning setting calls, once each, and counts the silent ones", () => {
     data.calls = fixtures;
     render(<CallLibrary />);
-    expect(screen.getByText("JR Dixon Electrical")).toBeInTheDocument();
-    expect(screen.getByText("Matt's Thermal Scanning")).toBeInTheDocument();
-    expect(screen.queryByText("24 Hr Test & Tag")).toBeNull();
-    expect(screen.queryByText("Sparkon Electrical")).toBeNull();
-    expect(screen.queryByText("Infuse Electrical")).toBeNull();
-    expect(screen.getByText("OTOLEC")).toBeInTheDocument();
-    expect(screen.getAllByText("Listen to the call")).toHaveLength(1);
-    expect(screen.getAllByText("No set audio").length).toBeGreaterThanOrEqual(2);
-    // Showed bucket: a, d and g shown; b, c and f hidden; the no-show e is in another bucket.
-    expect(screen.getByText(/3 slots · 1 with the booking call · 2 with the meeting recording · 3 slots without any recording hidden\./)).toBeInTheDocument();
-    // The bucket counts only count what the list will show.
-    const toggles = screen.getAllByRole("radio");
-    const closed = toggles.find((t) => t.textContent?.startsWith("Closed"));
-    const showed = toggles.find((t) => t.textContent?.startsWith("Showed"));
-    expect(closed?.textContent).toBe("Closed2");
-    expect(showed?.textContent).toBe("Showed3");
+    for (const name of ["JR Dixon Electrical", "Sparkon Electrical", "Twice Electrical"]) expect(screen.getAllByText(name)).toHaveLength(1);
+    for (const name of ["24 Hr Test & Tag", "Not Qualified Pty", "Ghost Plumbing", "Infuse Electrical", "DQ Electrical"]) expect(screen.queryByText(name)).toBeNull();
+    expect(screen.getAllByText("Listen to the call")).toHaveLength(3);
+    expect(screen.getByText("3 setting calls · 2 more won with no setting call recorded.")).toBeInTheDocument();
+    const labels = screen.getAllByRole("radio").map((t) => t.textContent);
+    expect(labels).toEqual(expect.arrayContaining(["All winning3", "Showed and closed2", "Showed, no close1"]));
   });
 
-  it("follows the setter filter in the list, the counts and the hidden note", () => {
+  it("splits closed from showed, and follows the setter", () => {
     data.calls = fixtures;
     render(<CallLibrary />);
-    const lachlan = screen.getAllByRole("radio").find((t) => t.textContent === "Lachlan");
-    fireEvent.click(lachlan!);
-    expect(screen.getByText("OTOLEC")).toBeInTheDocument();
+    const pick = (t: string) => fireEvent.click(screen.getAllByRole("radio").find((r) => r.textContent?.startsWith(t))!);
+    pick("Showed, no close");
+    expect(screen.getByText("Sparkon Electrical")).toBeInTheDocument();
     expect(screen.queryByText("JR Dixon Electrical")).toBeNull();
-    expect(screen.getByText(/^1 slot · 0 with the booking call · 1 with the meeting recording\.$/)).toBeInTheDocument();
+    pick("Showed and closed");
+    expect(screen.getByText("Twice Electrical")).toBeInTheDocument();
+    pick("Lachlan");
+    expect(screen.getByText("No winning calls here yet.")).toBeInTheDocument();
   });
 
-  it("explains an empty bucket when everything in it was hidden", () => {
-    data.calls = fixtures;
-    render(<CallLibrary />);
-    const noShow = screen.getAllByRole("radio").find((t) => t.textContent?.startsWith("No-show"));
-    expect(noShow?.textContent).toBe("No-show0");
-    fireEvent.click(noShow!);
-    expect(screen.getByText("Nothing with a recording in this bucket yet. 1 slot without any recording hidden.")).toBeInTheDocument();
-    expect(screen.queryByText("Ghost Plumbing")).toBeNull();
+  it("keeps a close over a later sitting of the same call", () => {
+    const { sets } = winningSets([
+      call({ pipelineItemId: "x", businessName: "X", bucket: "no_close", metAt: "2026-11-01T00:00:00.000Z", setting: setting("dp-x") }),
+      call({ pipelineItemId: "y", businessName: "X", bucket: "closed", metAt: "2026-10-01T00:00:00.000Z", setting: setting("dp-x") }),
+    ]);
+    expect(sets.map((s) => s.bucket)).toEqual(["closed"]);
   });
 });

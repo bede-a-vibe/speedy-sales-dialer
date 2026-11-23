@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { bucketFor, isWinningMeeting } from "@/hooks/useCallLibrary";
 import { supabase } from "@/integrations/supabase/client";
 
 export type WinningCallResult = "showed_closed" | "showed" | "no_show" | "pending";
@@ -21,6 +22,8 @@ export interface WinningCall {
   talkSeconds: number | null;
   transcript: string;
   result: WinningCallResult;
+  /** The meeting closed, or a qualified prospect sat. */
+  winning: boolean;
   appointmentDate: string | null;
   score: WinningCallScore | null;
   /** Dialpad REST call id — used to fetch the audio recording share link. */
@@ -55,7 +58,7 @@ export function useWinningCalls() {
       const [{ data: items, error: pErr }, { data: scores, error: sErr }] = await Promise.all([
         supabase
           .from("pipeline_items")
-          .select("contact_id, appointment_outcome, scheduled_for, created_at")
+          .select("contact_id, appointment_outcome, is_qualified, status, scheduled_for, created_at")
           .in("contact_id", contactIds),
         supabase
           .from("call_scores")
@@ -94,7 +97,7 @@ export function useWinningCalls() {
 
         let result: WinningCallResult = "pending";
         if (item?.appointment_outcome === "showed_closed") result = "showed_closed";
-        else if (item?.appointment_outcome === "showed_no_close" || item?.appointment_outcome === "showed_verbal_commitment") result = "showed";
+        else if (["showed_no_close", "showed_verbal_commitment", "no_close_follow_up", "second_meeting_booked"].includes(item?.appointment_outcome)) result = "showed";
         else if (item?.appointment_outcome === "no_show") result = "no_show";
 
         return {
@@ -107,6 +110,8 @@ export function useWinningCalls() {
           talkSeconds: r.dialpad_talk_time_seconds,
           transcript: r.dialpad_transcript as string,
           result,
+          // Any meeting after the call counts, so a close on the second sitting is still a win.
+          winning: candidates.some((it) => isWinningMeeting(bucketFor(it.appointment_outcome, it.status, it.scheduled_for), it.is_qualified)),
           appointmentDate: item?.scheduled_for ?? null,
           score: scoreByLog.get(r.id) ?? null,
           dialpadCallId: (r.dialpad_call_id as string | null) ?? null,

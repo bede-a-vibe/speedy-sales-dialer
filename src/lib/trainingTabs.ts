@@ -1,4 +1,4 @@
-export const TRAINING_TABS = ["reviews", "classroom", "library", "practice", "start"] as const;
+export const TRAINING_TABS = ["reviews", "classroom", "library", "practice"] as const;
 export type TrainingTab = (typeof TRAINING_TABS)[number];
 
 /**
