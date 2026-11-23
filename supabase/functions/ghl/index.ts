@@ -938,6 +938,7 @@ async function drainGhlNamePushQueue(
  * kind "create": put an unlinked dialer lead in GHL. Someone already in GHL on
  * that number is only linked, never renamed or edited. No tags (they start
  * automations), no opportunities, no conversations.
+ * kind "fields": industry, tier and Google reviews, filling blanks only.
  * kind "phone": swap a removed mobile for the new one, on the main phone and
  * the Decision Maker Phone field, only where GHL still holds the old number.
  */
@@ -964,7 +965,7 @@ async function drainGhlContactPushQueue(
 
   const { data: rows, error } = await supabase
     .from("ghl_contact_push_queue")
-    .select("contact_id, kind, old_numbers, new_number, attempts, contacts!inner(ghl_contact_id, phone_e164, business_name, contact_person, website, state, postal_code, is_dnc, is_archived)")
+    .select("contact_id, kind, old_numbers, new_number, attempts, contacts!inner(ghl_contact_id, phone_e164, business_name, contact_person, website, state, postal_code, is_dnc, is_archived, industry, prospect_tier, google_rating, google_review_count)")
     .eq("status", "pending")
     .order("contact_id", { ascending: true })
     .limit(Math.min(Math.max(batchSize, 1), 60));
@@ -1021,6 +1022,31 @@ async function drainGhlContactPushQueue(
           ...(existing
             ? { detail: JSON.stringify({ name: existing.contactName ?? existing.firstName ?? null, company: existing.companyName ?? null, dnd: existing.dnd ?? null, tags: existing.tags ?? [], added: existing.dateAdded ?? null }) }
             : {}),
+        });
+      } else if (row.kind === "fields") {
+        const ghlId = String(c.ghl_contact_id ?? "");
+        if (!ghlId) { await finish("skipped"); continue; }
+        const gc = ((await ghlFetch(`/contacts/${ghlId}`, apiKey))?.contact ?? {}) as Record<string, any>;
+        const filled = new Set(
+          (Array.isArray(gc.customFields) ? gc.customFields : [])
+            .filter((f: Record<string, unknown>) => String(f.value ?? f.field_value ?? "").trim() !== "")
+            .map((f: Record<string, unknown>) => f.id),
+        );
+        const wanted: Array<[string, unknown]> = [
+          ["6kXGFWZjVGnutFGl4EfB", c.industry],
+          ["tj6IENIKIjrRNOwAlQrH", c.prospect_tier],
+          ["tURFlUlaFptokRxVtTnY", c.google_rating],
+          ["zFL0ugGivKLRaT66Rb2z", c.google_review_count],
+        ];
+        const customFields = wanted
+          .filter(([id, v]) => v !== null && v !== undefined && v !== "" && !filled.has(id))
+          .map(([id, v]) => ({ id, field_value: v }));
+        if (customFields.length) {
+          await ghlFetch(`/contacts/${ghlId}`, apiKey, { method: "PUT", body: { customFields } });
+        }
+        await finish(customFields.length ? "updated" : "nothing_to_change", {
+          ghl_contact_id: ghlId,
+          detail: JSON.stringify({ filled: customFields.length }),
         });
       } else {
         const ghlId = String(c.ghl_contact_id ?? "");
