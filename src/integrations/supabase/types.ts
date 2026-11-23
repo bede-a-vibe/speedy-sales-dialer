@@ -1441,6 +1441,7 @@ export type Database = {
           dm_name: string | null
           dm_phone: string | null
           dm_phone_blocklist: string[]
+          dm_phone_preferred: string | null
           dm_phone_type: string | null
           dm_phone_verified: boolean
           dm_phone_verified_at: string | null
@@ -1623,6 +1624,7 @@ export type Database = {
           dm_name?: string | null
           dm_phone?: string | null
           dm_phone_blocklist?: string[]
+          dm_phone_preferred?: string | null
           dm_phone_type?: string | null
           dm_phone_verified?: boolean
           dm_phone_verified_at?: string | null
@@ -1805,6 +1807,7 @@ export type Database = {
           dm_name?: string | null
           dm_phone?: string | null
           dm_phone_blocklist?: string[]
+          dm_phone_preferred?: string | null
           dm_phone_type?: string | null
           dm_phone_verified?: boolean
           dm_phone_verified_at?: string | null

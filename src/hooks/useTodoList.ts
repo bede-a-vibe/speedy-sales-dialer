@@ -7,7 +7,7 @@ import {
 } from "@/lib/todoList";
 
 const CONTACT_FULL =
-  "id, business_name, contact_person, dm_name, phone, phone_type, dm_phone, dm_phone_verified, industry, city, state, status, is_dnc, key_quote";
+  "id, business_name, contact_person, dm_name, phone, phone_type, dm_phone, dm_phone_verified, dm_phone_preferred, industry, city, state, status, is_dnc, key_quote";
 const CONTACT_SLIM = "id, status, is_dnc";
 const PAGE = 1000;
 

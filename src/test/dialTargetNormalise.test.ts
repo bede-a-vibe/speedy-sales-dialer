@@ -27,3 +27,20 @@ describe("resolveDialTarget dials a normalised number", () => {
     expect(t.isDmDirect).toBe(true);
   });
 });
+
+describe("resolveDialTarget preferred owner mobile", () => {
+  const lead = { phone: "+61 411 690 236", phone_type: "mobile", dm_phone: "+61412174299" };
+  it("rings the preferred mobile ahead of a mobile main line", () => {
+    const t = resolveDialTarget({ ...lead, dm_phone_preferred: "0412 174 299" });
+    expect(t.number).toBe("+61412174299");
+    expect(t.isDmDirect).toBe(true);
+  });
+  it("stops applying once the DM number is changed or removed by hand", () => {
+    expect(resolveDialTarget({ ...lead, dm_phone: "0400 111 222", dm_phone_preferred: "+61412174299" }).number).toBe("+61411690236");
+    expect(resolveDialTarget({ ...lead, dm_phone: null, dm_phone_preferred: "+61412174299" }).number).toBe("+61411690236");
+    expect(resolveDialTarget({ ...lead, dm_phone: "0400 111 222", dm_phone_verified: true, dm_phone_preferred: "+61412174299" }).number).toBe("+61400111222");
+  });
+  it("leaves an ordinary scraped DM number on a mobile main line undialled", () => {
+    expect(resolveDialTarget(lead).number).toBe("+61411690236");
+  });
+});

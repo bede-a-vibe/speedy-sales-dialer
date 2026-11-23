@@ -15,6 +15,9 @@
  *    switchboard (landline / 1300 / 1800), where a direct mobile is the only
  *    way past reception.
  *  - A rep-confirmed DM number is always trusted, whatever the main line is.
+ *  - A number marked preferred (Matteo's owner mobiles, 23 Nov 2026) rings
+ *    first on any main line, but only while it is still the dm_phone: once
+ *    someone changes the DM number by hand, the rules above apply again.
  *  - A "DM number" identical to the main number is enrichment noise, ignored.
  */
 
@@ -23,6 +26,8 @@ export interface DialTargetContact {
   phone_type?: string | null;
   dm_phone?: string | null;
   dm_phone_verified?: boolean | null;
+  /** A mobile we chose to ring first; only applies while it is still the dm_phone. */
+  dm_phone_preferred?: string | null;
 }
 
 export interface DialTarget {
@@ -70,6 +75,15 @@ export function resolveDialTarget(contact: DialTargetContact | null | undefined)
 
   if (contact?.dm_phone_verified) {
     return { number: dm, isDmDirect: true, reason: "Confirmed direct line for the decision maker." };
+  }
+
+  const preferred = last9(toDialableAU(contact?.dm_phone_preferred));
+  if (preferred && preferred === last9(dm)) {
+    return {
+      number: dm,
+      isDmDirect: true,
+      reason: "Owner mobile found for this lead, so we try it first. Confirm or reject it on the call.",
+    };
   }
 
   if (isSwitchboardNumber(contact?.phone_type)) {
