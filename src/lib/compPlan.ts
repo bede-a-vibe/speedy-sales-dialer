@@ -3,6 +3,9 @@
  * 26 Sep 2026. Commission is paid on month-one revenue, cash collected, and only once
  * the month clears the threshold. A tier is reached on deals OR its revenue equivalent,
  * whichever is met first, and the higher tier applies.
+ *
+ * Not what pay runs on: the live plan is setter_2026_marginal below. Do not show
+ * a rep money from these tiers (23 Nov 2026: the manager projection did).
  */
 export interface CommissionTier {
   minDeals: number;

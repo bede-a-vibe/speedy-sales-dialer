@@ -10,6 +10,7 @@ import { MyNumbers } from "@/components/dashboard/MyNumbers";
 import { PayThisMonthCard } from "@/components/dashboard/PayThisMonthCard";
 import { DashboardFold } from "@/components/dashboard/DashboardFold";
 import { MyBookingsSection } from "@/components/dashboard/MyBookingsSection";
+import { MyEarningsSection } from "@/components/dashboard/MyEarningsSection";
 import { MySalesPanel } from "@/components/dashboard/MySalesPanel";
 import { DailyAchievements, LongTermAchievements } from "@/components/dashboard/AchievementBadges";
 import { DailyProgressRing } from "@/components/dashboard/DailyProgressRing";
@@ -64,6 +65,9 @@ export default function DashboardPage() {
 
         {/* Row 4: Pay this month (own for setters on a plan; every setter for admins) */}
         <PayThisMonthCard />
+
+        {/* Row 4.5: what the setter is on pace to earn, and their own target */}
+        <MyEarningsSection />
 
         {/* Row 5: Leaderboard + Activity Feed */}
         <div className="grid grid-cols-1 items-start lg:grid-cols-2 gap-6">
