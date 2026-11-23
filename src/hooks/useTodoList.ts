@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateContactCaches } from "@/hooks/useContacts";
 import {
-  buildTodo, dueCount, DROP_NOTE_PREFIX, TODO_LOOKBACK_DAYS,
+  backToDialer, buildTodo, dueCount, DROP_NOTE_PREFIX,
   type TodoBookingRow, type TodoFollowUpRow, type TodoItem,
 } from "@/lib/todoList";
 
 const CONTACT_FULL =
-  "id, business_name, contact_person, dm_name, phone, phone_type, dm_phone, dm_phone_verified, dm_phone_preferred, industry, city, state, status, is_dnc, key_quote";
-const CONTACT_SLIM = "id, status, is_dnc";
+  "id, business_name, contact_person, dm_name, phone, phone_type, dm_phone, dm_phone_verified, dm_phone_preferred, industry, city, state, status, is_dnc, lifecycle_stage, meeting_booked_date, key_quote";
+const CONTACT_SLIM = "id, status, is_dnc, lifecycle_stage, meeting_booked_date";
 const PAGE = 1000;
 
 /** PostgREST caps a response at 1,000 rows, so page until a short one comes back. */
@@ -25,7 +25,6 @@ async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data
 
 async function fetchTodo(ownerId: string | null, slim: boolean): Promise<TodoItem[]> {
   const contact = slim ? CONTACT_SLIM : CONTACT_FULL;
-  const since = new Date(Date.now() - TODO_LOOKBACK_DAYS * 86_400_000).toISOString();
   const [bookings, followUps] = await Promise.all([
     allRows<TodoBookingRow>((from, to) =>
       supabase
@@ -34,7 +33,6 @@ async function fetchTodo(ownerId: string | null, slim: boolean): Promise<TodoIte
           `id, contact_id, status, scheduled_for, appointment_outcome, outcome_reason, outcome_recorded_at, reschedule_count, created_by, created_at${slim ? "" : ", outcome_notes"}, contacts:contacts!pipeline_items_contact_id_fkey(${contact})`,
         )
         .eq("pipeline_type", "booked")
-        .gte("scheduled_for", since)
         .order("scheduled_for", { ascending: false })
         .order("id")
         .range(from, to)),
@@ -52,16 +50,16 @@ async function fetchTodo(ownerId: string | null, slim: boolean): Promise<TodoIte
     }),
   ]);
 
-  const { data: drops, error } = await supabase
-    .from("contact_notes")
-    .select("contact_id, created_at")
-    .like("content", `${DROP_NOTE_PREFIX}%`)
-    .gte("created_at", since)
-    .order("created_at", { ascending: false })
-    .limit(1000);
-  if (error) throw error;
+  const drops = await allRows<{ contact_id: string; created_at: string }>((from, to) =>
+    supabase
+      .from("contact_notes")
+      .select("contact_id, created_at")
+      .like("content", `${DROP_NOTE_PREFIX}%`)
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to));
   const droppedAt = new Map<string, string>();
-  for (const d of drops ?? []) if (!droppedAt.has(d.contact_id)) droppedAt.set(d.contact_id, d.created_at);
+  for (const d of drops) if (!droppedAt.has(d.contact_id)) droppedAt.set(d.contact_id, d.created_at);
 
   return buildTodo({ bookings, followUps, droppedAt, ownerId });
 }
@@ -201,48 +199,70 @@ export function useTodoActions(userId: string | undefined) {
     onSettled: () => refresh(),
   });
 
-  const notInterested = useMutation({
-    mutationFn: async ({ item }: { item: TodoItem }): Promise<Undo> => {
-      if (!userId) throw new Error("Not signed in.");
-      const contactId = item.contact.id;
-      const before = item.contact.status ?? null;
-      const undo: Undo[] = [];
-      const rollback: Undo = async () => {
-        for (const u of undo.reverse()) await u();
-      };
-      try {
-        const note = await supabase
+  /**
+   * Takes a lead off the list for good: close its follow-up, set the contact,
+   * and (for a no) leave a note. All or nothing, and it can be put back.
+   */
+  const closeOut = async (item: TodoItem, patch: Record<string, unknown>, note: string | null): Promise<Undo> => {
+    if (!userId) throw new Error("Not signed in.");
+    const contactId = item.contact.id;
+    const undo: Undo[] = [];
+    const rollback: Undo = async () => {
+      for (const u of [...undo].reverse()) await u();
+    };
+    try {
+      // Read what is there now, so undo restores every field this changes.
+      const was = await supabase.from("contacts").select([...Object.keys(patch), "lifecycle_stage", "lifecycle_reason"].filter((k, i, all) => all.indexOf(k) === i).join(", ")).eq("id", contactId).single();
+      if (was.error) throw was.error;
+
+      if (note) {
+        const added = await supabase
           .from("contact_notes")
-          .insert({ contact_id: contactId, created_by: userId, source: "manual", content: `${DROP_NOTE_PREFIX} marked not interested from the To do list.` } as never)
+          .insert({ contact_id: contactId, created_by: userId, source: "manual", content: note } as never)
           .select("id")
           .single();
-        if (note.error) throw note.error;
-        const noteId = (note.data as { id: string }).id;
+        if (added.error) throw added.error;
+        const noteId = (added.data as { id: string }).id;
         undo.push(async () => {
           const { error } = await supabase.from("contact_notes").delete().eq("id", noteId);
           if (error) throw error;
         });
-
-        const f = item.followUp;
-        if (f) {
-          await updateFollowUp(f.id, { status: "completed", completed_at: new Date().toISOString() });
-          undo.push(() => updateFollowUp(f.id, { status: "open", completed_at: null }));
-        }
-
-        const { data, error } = await supabase.from("contacts").update({ status: "not_interested" } as never).eq("id", contactId).select("id");
-        if (error) throw error;
-        if (!data?.length) throw new Error("You can't change this contact.");
-        undo.push(async () => {
-          const back = await supabase.from("contacts").update({ status: before } as never).eq("id", contactId);
-          if (back.error) throw back.error;
-        });
-        return rollback;
-      } catch (e) {
-        // Never leave a lead half dropped.
-        await rollback().catch(() => {});
-        throw e;
       }
-    },
+
+      const f = item.followUp;
+      if (f) {
+        await updateFollowUp(f.id, { status: "completed", completed_at: new Date().toISOString() });
+        undo.push(() => updateFollowUp(f.id, { status: "open", completed_at: null }));
+      }
+
+      const { data, error } = await supabase.from("contacts").update(patch as never).eq("id", contactId).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("You can't change this contact.");
+      undo.push(async () => {
+        const back = await supabase.from("contacts").update(was.data as never).eq("id", contactId);
+        if (back.error) throw back.error;
+      });
+      return rollback;
+    } catch (e) {
+      // Never leave a lead half done.
+      await rollback().catch(() => {});
+      throw e;
+    }
+  };
+
+  /** A no-show or cancellation goes back to the dialer queue. A follow-up is closed as not interested. */
+  const notInterested = useMutation({
+    mutationFn: ({ item }: { item: TodoItem }) =>
+      item.kind === "follow_up"
+        ? closeOut(item, { status: "not_interested" }, `${DROP_NOTE_PREFIX} said not interested.`)
+        : closeOut(item, backToDialer, `${DROP_NOTE_PREFIX} said not interested. Back in the dialer queue.`),
+    onSettled: (_d, _e, v) => refresh(v.item.contact.id),
+  });
+
+  /** They asked not to be called. Never back to the dialer. */
+  const doNotCall = useMutation({
+    mutationFn: ({ item }: { item: TodoItem }) =>
+      closeOut(item, { status: "dnc", is_dnc: true, dnc_reason: "requested_removal" }, null),
     onSettled: (_d, _e, v) => refresh(v.item.contact.id),
   });
 
@@ -256,5 +276,5 @@ export function useTodoActions(userId: string | undefined) {
     onSettled: () => refresh(),
   });
 
-  return { later, done, notInterested, reassign, refresh, busy: later.isPending || done.isPending || notInterested.isPending || reassign.isPending };
+  return { later, done, notInterested, doNotCall, reassign, refresh, busy: later.isPending || done.isPending || notInterested.isPending || doNotCall.isPending || reassign.isPending };
 }

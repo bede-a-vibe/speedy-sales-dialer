@@ -5,6 +5,10 @@
  * Ownership: a no-show or a cancellation belongs to whoever SET the meeting,
  * because the setter rebooks it. A follow-up belongs to whoever it is assigned
  * to. A lead that is both shows once, as the no-show or cancellation.
+ *
+ * A no-show or cancellation stays due, however old, until the lead rebooks or
+ * says no. A no sends it back to the dialer queue (backToDialer), so a lead is
+ * in one place or the other and never both.
  */
 
 export type TodoKind = "no_show" | "cancelled" | "moved" | "follow_up";
@@ -25,6 +29,8 @@ export interface TodoContact {
   state?: string | null;
   status?: string | null;
   is_dnc?: boolean | null;
+  lifecycle_stage?: string | null;
+  meeting_booked_date?: string | null;
   key_quote?: string | null;
 }
 
@@ -71,7 +77,7 @@ export interface TodoItem {
   followUp: TodoFollowUpRow | null;
 }
 
-export const TODO_LOOKBACK_DAYS = 60;
+/** Follow-ups this late drop out of the due count. No-shows and cancellations never do. */
 export const TODO_OLD_DAYS = 30;
 const DAY = 86_400_000;
 
@@ -81,6 +87,26 @@ export const DROP_NOTE_PREFIX = "Not chasing:";
 const DEAD = new Set(["closed", "client", "dnc", "do_not_call", "disqualified", "lost"]);
 const REAL_NO = new Set(["cx_not_interested", "cx_competitor"]);
 
+/** The claim rules the dialer queue applies to status, meeting date and stage. */
+export function inDialerQueue(c: Pick<TodoContact, "status" | "lifecycle_stage" | "meeting_booked_date">): boolean {
+  return c.status === "uncalled" && !c.meeting_booked_date && !["won", "lost", "booked"].includes(c.lifecycle_stage ?? "");
+}
+
+/**
+ * The contact fields that make a lead claimable again. All of them are needed:
+ * the queue skips a lead with a meeting date or a booked/lost stage, whatever
+ * its status. Writing the stage in the same update also stops the database's
+ * status trigger moving it to "lost".
+ */
+export const backToDialer = {
+  status: "uncalled",
+  lifecycle_stage: "connected",
+  lifecycle_reason: null,
+  meeting_booked_date: null,
+  next_followup_date: null,
+  follow_up_note: null,
+} as const;
+
 /**
  * Logging a meeting as Cancelled makes the database mark the contact
  * "not_interested", so that status alone does not mean the lead said no. A
@@ -88,11 +114,12 @@ const REAL_NO = new Set(["cx_not_interested", "cx_competitor"]);
  */
 export function rebookKind(
   latest: Pick<TodoBookingRow, "status" | "scheduled_for" | "appointment_outcome" | "outcome_reason" | "reschedule_count">,
-  contact: Pick<TodoContact, "status" | "is_dnc">,
+  contact: Pick<TodoContact, "status" | "is_dnc" | "lifecycle_stage" | "meeting_booked_date">,
   now: number,
 ): Exclude<TodoKind, "follow_up"> | null {
   const status = String(contact.status ?? "").toLowerCase();
   if (contact.is_dnc || DEAD.has(status)) return null;
+  if (inDialerQueue(contact)) return null;
   if (latest.status === "canceled" || latest.appointment_outcome === "cancelled") {
     if (REAL_NO.has(latest.outcome_reason ?? "")) return null;
     // Only the dialer's Cancelled outcome sets not_interested by itself. A GHL
@@ -168,11 +195,7 @@ export function buildTodo({
     const mine = liveBy.get(b.contact_id) ?? [];
     const followUp = mine.find((f) => !isUntouchedAuto(f)) ?? mine[0] ?? null;
     const pushed = followUp?.scheduled_for && !isUntouchedAuto(followUp) ? followUp.scheduled_for : null;
-    const slot = b.scheduled_for ? Date.parse(b.scheduled_for) : now;
-    // Being pushed to a date and that date arriving makes an old one due again.
-    const reference = pushed ? Date.parse(pushed) : slot;
-    const when: TodoWhen =
-      kind === "moved" || (pushed && Date.parse(pushed) > tonight) ? "later" : reference < oldBefore ? "old" : "due";
+    const when: TodoWhen = kind === "moved" || (pushed && Date.parse(pushed) > tonight) ? "later" : "due";
     items.push({
       key: `b:${b.id}`, kind, when, contact: b.contacts, ownerId: b.created_by,
       at: b.scheduled_for, dueAt: pushed, booking: b, followUp,

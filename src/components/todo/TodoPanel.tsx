@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { CalendarPlus, Check, ChevronDown, Clock3, MoreHorizontal, Phone, Plus, Search, ThumbsDown, UserRoundCheck } from "lucide-react";
+import { CalendarPlus, Check, ChevronDown, Clock3, MoreHorizontal, Phone, PhoneOff, Plus, Search, ThumbsDown, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useAuth } from "@/hooks/useAuth";
 import type { Contact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
@@ -108,7 +112,7 @@ function Details({ item, reps, onReassign, canReassign }: {
   );
 }
 
-function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, onBook, onLater, onPickDate, onDone, onNotInterested, onReassign }: {
+function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, onBook, onLater, onPickDate, onDone, onNotInterested, onDoNotCall, onReassign }: {
   item: TodoItem;
   lastCall: string | undefined;
   ownerName: string | null;
@@ -121,6 +125,7 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, o
   onPickDate: () => void;
   onDone: () => void;
   onNotInterested: () => void;
+  onDoNotCall: () => void;
   onReassign: (to: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -192,9 +197,14 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, canReassign, onCall, o
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild><Link to={`/contacts/${c.id}`}>Open contact</Link></DropdownMenuItem>
               {item.kind !== "moved" ? (
-                <DropdownMenuItem onClick={onNotInterested} disabled={busy} className="text-destructive focus:text-destructive">
-                  <ThumbsDown className="mr-2 h-3.5 w-3.5" />Not interested
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={onNotInterested} disabled={busy}>
+                    <ThumbsDown className="mr-2 h-3.5 w-3.5" />{isRebook ? "Not interested, back to dialer" : "Not interested"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDoNotCall} disabled={busy} className="text-destructive focus:text-destructive">
+                    <PhoneOff className="mr-2 h-3.5 w-3.5" />Asked not to be called
+                  </DropdownMenuItem>
+                </>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -243,6 +253,8 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
   const [search, setSearch] = useState("");
   const [bookContact, setBookContact] = useState<Contact | null>(null);
   const [newTask, setNewTask] = useState(false);
+  const [dnc, setDnc] = useState<TodoItem | null>(null);
+  const { pushDNC } = useGHLContactSync();
   const [dating, setDating] = useState<TodoItem | null>(null);
 
   const ownerId = rep === "all" ? null : rep === "me" ? user?.id : rep;
@@ -308,6 +320,19 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
     setBookContact(data as Contact);
   };
 
+  // Do not disturb in GHL cannot be cleanly taken back, so this asks first and has no Undo.
+  const doNotCall = async (item: TodoItem) => {
+    try {
+      await actions.doNotCall.mutateAsync({ item });
+      toast.success(`${name(item)} will not be called again.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "That did not save. Try again.");
+      return;
+    }
+    const { data } = await supabase.from("contacts").select("ghl_contact_id").eq("id", item.contact.id).maybeSingle();
+    if (data?.ghl_contact_id) void pushDNC({ ghlContactId: data.ghl_contact_id, contactId: item.contact.id });
+  };
+
   const renderRow = (item: TodoItem) => (
     <TodoRow
       key={item.key}
@@ -322,7 +347,11 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
       onLater={(at) => void pushLater(item, at)}
       onPickDate={() => setDating(item)}
       onDone={() => void run(`${name(item)} done.`, () => actions.done.mutateAsync({ item }))}
-      onNotInterested={() => void run(`${name(item)} marked not interested.`, () => actions.notInterested.mutateAsync({ item }))}
+      onNotInterested={() => void run(
+        item.kind === "follow_up" ? `${name(item)} marked not interested.` : `${name(item)} is back in the dialer.`,
+        () => actions.notInterested.mutateAsync({ item }),
+      )}
+      onDoNotCall={() => setDnc(item)}
       onReassign={(to) => void run(`${name(item)} handed over.`, () => actions.reassign.mutateAsync({ item, to }))}
     />
   );
@@ -376,11 +405,11 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
               {search ? "Nothing matches that search." : "All clear. Nothing to chase right now."}
             </div>
           ) : null}
-          <Section title="Rebook: no-shows" hint="Call while the reason is fresh" items={visibleDue.filter((i) => i.kind === "no_show")} render={renderRow} />
-          <Section title="Rebook: cancelled" hint="Get the real reason, offer two new times" items={visibleDue.filter((i) => i.kind === "cancelled")} render={renderRow} />
+          <Section title="Rebook: no-shows" hint="Keep calling until they rebook or say no" items={visibleDue.filter((i) => i.kind === "no_show")} render={renderRow} />
+          <Section title="Rebook: cancelled" hint="Keep calling until they rebook or say no" items={visibleDue.filter((i) => i.kind === "cancelled")} render={renderRow} />
           <Section title="Follow-ups due" items={visibleDue.filter((i) => i.kind === "follow_up")} render={renderRow} />
           <Section title="Coming up" items={later} render={renderRow} startOpen={Boolean(search)} key={`later:${Boolean(search)}`} />
-          <Section title={`Older than ${TODO_OLD_DAYS} days`} items={old} render={renderRow} startOpen={Boolean(search)} key={`old:${Boolean(search)}`} />
+          <Section title={`Follow-ups over ${TODO_OLD_DAYS} days late`} items={old} render={renderRow} startOpen={Boolean(search)} key={`old:${Boolean(search)}`} />
         </div>
       )}
 
@@ -396,6 +425,18 @@ export function TodoPanel({ reps, repMap, initialFilter = "all" }: { reps: Sales
         initialPipelineType="booked"
       />
       <NewTaskDialog open={newTask} onOpenChange={(open) => { setNewTask(open); if (!open) actions.refresh(); }} />
+      <AlertDialog open={dnc !== null} onOpenChange={(open) => { if (!open) setDnc(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Never call {dnc ? name(dnc) : "this lead"} again?</AlertDialogTitle>
+            <AlertDialogDescription>Only if they asked not to be called. It takes them out of the dialer and sets do not disturb in GHL.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (dnc) void doNotCall(dnc); }}>Do not call</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog open={dating !== null} onOpenChange={(open) => { if (!open) setDating(null); }}>
         <DialogContent className="w-auto">
           <DialogHeader><DialogTitle>Back on the list</DialogTitle></DialogHeader>

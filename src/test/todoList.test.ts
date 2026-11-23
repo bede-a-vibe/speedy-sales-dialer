@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTodo, dueCount, isUntouchedAuto, workingMorning, type TodoBookingRow, type TodoFollowUpRow } from "@/lib/todoList";
+import { backToDialer, buildTodo, dueCount, inDialerQueue, isUntouchedAuto, workingMorning, type TodoBookingRow, type TodoFollowUpRow } from "@/lib/todoList";
 
 const now = new Date(2026, 10, 23, 10, 0).getTime(); // Mon 23 Nov 2026
 const d = (days: number) => new Date(now + days * 86_400_000).toISOString();
@@ -75,8 +75,23 @@ describe("buildTodo", () => {
       follow("next", "c", { scheduled_for: d(3) }), follow("ancient", "e", { scheduled_for: d(-90) }),
     ]);
     const when = Object.fromEntries(items.map((i) => [i.key, i.when]));
-    expect(when).toEqual({ "b:z": "old", "f:today": "due", "f:late": "due", "f:next": "later", "f:ancient": "old" });
-    expect(dueCount(items)).toBe(2);
+    expect(when).toEqual({ "b:z": "due", "f:today": "due", "f:late": "due", "f:next": "later", "f:ancient": "old" });
+    expect(dueCount(items)).toBe(3);
+  });
+
+  it("keeps a no-show or cancellation due however old it is", () => {
+    const ancient = { scheduled_for: d(-200), outcome_recorded_at: d(-200), created_at: d(-210) };
+    expect(build([booking("a", ancient), booking("b", { ...ancient, appointment_outcome: "cancelled" })]).map((i) => i.when)).toEqual(["due", "due"]);
+  });
+
+  it("a no puts the lead in the dialer queue and off the list, so it is never in both", () => {
+    const before = contact("a", { status: "follow_up", lifecycle_stage: "booked", meeting_booked_date: d(-3) });
+    expect(inDialerQueue(before)).toBe(false);
+    const after = { ...before, ...backToDialer };
+    expect(inDialerQueue(after)).toBe(true);
+    expect(build([booking("a", { contacts: after })])).toEqual([]);
+    // "uncalled" alone is not claimable: a booked stage keeps it out of the queue, so it stays on the list.
+    expect(build([booking("a", { contacts: contact("a", { status: "uncalled", lifecycle_stage: "booked" }) })])).toHaveLength(1);
   });
 
   it("puts no-shows first, then cancelled, then follow-ups", () => {
