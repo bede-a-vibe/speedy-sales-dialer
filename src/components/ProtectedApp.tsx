@@ -26,8 +26,7 @@ const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
-const GhlSyncPage = lazy(() => import("@/pages/GhlSyncPage"));
-const EnrichmentPage = lazy(() => import("@/pages/EnrichmentPage"));
+const LeadDataPage = lazy(() => import("@/pages/LeadDataPage"));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage"));
 const SecurityPage = lazy(() => import("@/pages/SecurityPage"));
 const TeamPage = lazy(() => import("@/pages/TeamPage"));
@@ -157,24 +156,18 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Navigate to="/insights?tab=overview" replace />} />
         <Route path="/reports/funnel" element={<Navigate to="/insights?tab=funnel" replace />} />
         <Route path="/analytics" element={<Navigate to="/insights?tab=overview" replace />} />
-        <Route path="/targets" element={<Navigate to="/admin/manager" replace />} />
+        <Route path="/targets" element={<Navigate to="/admin/manager?tab=kpis" replace />} />
         <Route path="/dialpad-settings" element={<Navigate to="/admin/team?tab=dialpad" replace />} />
         <Route
-          path="/admin/ghl-sync"
+          path="/admin/lead-data"
           element={(
             <AdminRoute>
-              <GhlSyncPage />
+              <LeadDataPage />
             </AdminRoute>
           )}
         />
-        <Route
-          path="/admin/enrichment"
-          element={(
-            <AdminRoute>
-              <EnrichmentPage />
-            </AdminRoute>
-          )}
-        />
+        <Route path="/admin/ghl-sync" element={<Navigate to="/admin/lead-data?tab=ghl" replace />} />
+        <Route path="/admin/enrichment" element={<Navigate to="/admin/lead-data?tab=enrichment" replace />} />
         <Route
           path="/clients"
           element={(

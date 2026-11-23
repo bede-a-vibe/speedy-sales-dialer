@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import type { ComponentType } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallReviewQueue } from "@/components/manager/CallReviewQueue";
@@ -9,97 +9,74 @@ import { PlaybookLocks } from "@/components/manager/PlaybookLocks";
 import { OneOnOnePanel } from "@/components/manager/OneOnOnePanel";
 import { RoleplayResults } from "@/components/manager/RoleplayResults";
 import { TeamKpis } from "@/components/targets/TeamKpis";
-import { MeetingRevenuePipeline } from "@/components/manager/MeetingRevenuePipeline";
 import { ManagerMetrics } from "@/components/training/ManagerMetrics";
 import { ManagerPlaybook } from "@/components/training/ManagerPlaybook";
-import { TeamReview } from "@/components/eod/EndOfDay";
-import { NumberChecks } from "@/components/manager/NumberChecks";
-import { EarningsProjection } from "@/components/manager/EarningsProjection";
-import { useAuth } from "@/hooks/useAuth";
-import { FathomTeamStatus } from "@/components/fathom/FathomConnect";
+import { MANAGER_TABS, managerViewFor, movedManagerTab, type ManagerView } from "@/lib/managerTabs";
 
-const TABS = [
-  { value: "review", label: "Call review" },
-  { value: "loom", label: "Loom reviews" },
-  { value: "study", label: "Call study" },
-  { value: "eod", label: "EOD reports" },
-  { value: "kpis", label: "KPIs & targets" },
-  { value: "revenue", label: "Meetings → revenue" },
-  { value: "flags", label: "Coaching flags" },
-  { value: "oneonones", label: "1:1s" },
-  { value: "roleplay", label: "Roleplay" },
-  { value: "playbook", label: "Setter access" },
-  { value: "numbers", label: "Number checks" },
-  { value: "earnings", label: "Earnings" },
-] as const;
+function CoachingFlags() {
+  return (
+    <div className="space-y-4">
+      <ManagerMetrics />
+      <ManagerPlaybook />
+    </div>
+  );
+}
 
-type ManagerTab = (typeof TABS)[number]["value"];
-
-const TITLES: Record<ManagerTab, string> = {
-  review: "Manager · Call review",
-  loom: "Manager · Loom reviews",
-  study: "Manager · Call study",
-  eod: "Manager · EOD reports",
-  kpis: "Manager · KPIs & targets",
-  revenue: "Manager · Meetings → revenue",
-  flags: "Manager · Coaching flags",
-  oneonones: "Manager · 1:1s",
-  roleplay: "Manager · Roleplay",
-  playbook: "Manager · Setter access",
-  numbers: "Manager · Number checks",
-  earnings: "Manager · Earnings projection",
+const VIEWS: Record<ManagerView, ComponentType> = {
+  review: CallReviewQueue,
+  loom: LoomReviews,
+  study: StudyReviews,
+  kpis: TeamKpis,
+  flags: CoachingFlags,
+  oneonones: OneOnOnePanel,
+  roleplay: RoleplayResults,
+  playbook: PlaybookLocks,
 };
 
 export default function ManagerPage() {
-  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // Tab lives in the URL, as it does on Insights and the Classroom. With nine
-  // tabs, losing your place on every refresh is the difference between a tool
-  // you work out of and one you re-navigate each time — and it makes a tab
-  // linkable when you want a coach to look at the same screen.
   const urlTab = searchParams.get("tab");
-  const activeTab: ManagerTab = useMemo(
-    () => (TABS.some((t) => t.value === urlTab) ? (urlTab as ManagerTab) : "review"),
-    [urlTab],
-  );
+  const moved = movedManagerTab(urlTab);
+  const { tab, view } = managerViewFor(urlTab);
 
-  const handleChange = (value: string) => {
+  if (moved) return <Navigate to={moved} replace />;
+
+  // The view lives in the URL so a refresh keeps your place and a screen can be
+  // linked. A tab's own name is never written: it opens on its first view.
+  const open = (value: string) => {
     const next = new URLSearchParams(searchParams);
-    next.set("tab", value);
+    next.set("tab", managerViewFor(value).view);
     setSearchParams(next, { replace: true });
   };
 
   return (
-    <AppLayout title={TITLES[activeTab]}>
-      <div className="mx-auto max-w-7xl space-y-5">
-        <Tabs value={activeTab} onValueChange={handleChange}>
-          {/* h-auto + flex-wrap: nine tabs overflow a single fixed-height row
-              on anything narrower than a wide desktop, and the default
-              TabsList clips rather than wraps. */}
-          <TabsList className="mb-4 h-auto flex-wrap gap-1">
-            {TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
-                {t.label}
-              </TabsTrigger>
+    <AppLayout title={`Manager · ${tab.label}`}>
+      <div className="mx-auto max-w-7xl">
+        <Tabs value={tab.value} onValueChange={open}>
+          <TabsList className="mb-4 h-auto flex-wrap justify-start gap-1">
+            {MANAGER_TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
             ))}
           </TabsList>
-
-          <TabsContent value="review"><CallReviewQueue /></TabsContent>
-          <TabsContent value="loom"><LoomReviews /></TabsContent>
-          <TabsContent value="study"><StudyReviews /></TabsContent>
-          <TabsContent value="eod">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
-          <TabsContent value="kpis" className="space-y-4"><FathomTeamStatus /><TeamKpis /></TabsContent>
-          <TabsContent value="revenue"><MeetingRevenuePipeline /></TabsContent>
-          <TabsContent value="flags" className="space-y-4">
-            <ManagerMetrics />
-            <ManagerPlaybook />
-          </TabsContent>
-          <TabsContent value="oneonones"><OneOnOnePanel /></TabsContent>
-          <TabsContent value="roleplay"><RoleplayResults /></TabsContent>
-          <TabsContent value="playbook"><PlaybookLocks /></TabsContent>
-          <TabsContent value="numbers"><NumberChecks /></TabsContent>
-          <TabsContent value="earnings"><EarningsProjection /></TabsContent>
+          {MANAGER_TABS.map((t) => {
+            if (t.views.length === 1) {
+              const Only = VIEWS[t.views[0].value];
+              return <TabsContent key={t.value} value={t.value}><Only /></TabsContent>;
+            }
+            return (
+              <TabsContent key={t.value} value={t.value}>
+                <Tabs value={view} onValueChange={open}>
+                  <TabsList className="mb-4 h-auto flex-wrap justify-start gap-1" aria-label={`${t.label} views`}>
+                    {t.views.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
+                  </TabsList>
+                  {t.views.map((v) => {
+                    const View = VIEWS[v.value];
+                    return <TabsContent key={v.value} value={v.value}><View /></TabsContent>;
+                  })}
+                </Tabs>
+              </TabsContent>
+            );
+          })}
         </Tabs>
       </div>
     </AppLayout>

@@ -10,7 +10,6 @@ import {
   Info,
   Brain,
 } from "lucide-react";
-import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -305,8 +304,7 @@ export default function EnrichmentPage() {
   const deepEtaHours = stages ? stages.deep.pending / DEEP_THROUGHPUT_PER_HOUR : 0;
 
   return (
-    <AppLayout>
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -469,6 +467,5 @@ export default function EnrichmentPage() {
           </p>
         </div>
       </div>
-    </AppLayout>
   );
 }

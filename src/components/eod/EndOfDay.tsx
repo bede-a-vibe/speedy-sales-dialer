@@ -606,7 +606,7 @@ function TeamReportCard({
   );
 }
 
-export function TeamReview({ managerId }: { managerId: string }) {
+function TeamReview({ managerId }: { managerId: string }) {
   const today = melbourneTodayIso();
   const [date, setDate] = useState(today);
   const { data: reps = [] } = useSalesReps();
