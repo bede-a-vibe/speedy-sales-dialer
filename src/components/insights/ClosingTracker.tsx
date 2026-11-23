@@ -18,6 +18,7 @@ import {
   defaultWeekOpen,
   matchesTier,
   monthOf,
+  supersededSecondMeetings,
   weekKey,
   weeksOf,
   type TierFilter,
@@ -202,6 +203,7 @@ export function computeStats(
   bookedItems: Item[] = items,
 ): Stats {
   const s = emptyStats();
+  const superseded = supersededSecondMeetings(items);
   for (const d of days) s.availableSlots += availableSlotsForDay(d);
   const dueAll = items.filter((i) => i.scheduled_for && days.has(dayKey(i.scheduled_for)));
   const due = dueAll.filter((i) => !i.is_reschedule_slot);
@@ -295,8 +297,11 @@ export function computeStats(
       // lives once, under Live calls and offers.
       const k = hasLabel(OBJ_LABEL, r) ? r : r.startsWith("dq_") ? "not_qualified" : UNMAPPED;
       if (outcome === "second_meeting_booked") {
-        s.stillInPlay += 1;
-        s.nextStep[k] = (s.nextStep[k] ?? 0) + 1;
+        // Once the next meeting has happened, the deal counts once, by that meeting.
+        if (!superseded.has(i.id)) {
+          s.stillInPlay += 1;
+          s.nextStep[k] = (s.nextStep[k] ?? 0) + 1;
+        }
       } else {
         s.didntClose += 1;
         s.why[k] = (s.why[k] ?? 0) + 1;
@@ -475,7 +480,7 @@ function buildSections(repFiltered = false): SectionDef[] {
         {
           label: "Second meeting booked",
           fmt: "n",
-          hint: "sat, didn't close on the day, next meeting booked: still in the funnel, not a no-close",
+          hint: "sat, next meeting booked and not held yet: still in the funnel. Once the next meeting happens, the deal counts by that meeting's outcome",
           value: (s) => s.stillInPlay,
           emphasis: true,
         },
