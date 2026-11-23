@@ -57,6 +57,17 @@ export function resolveQualifier(q: BookingQualifier) {
   };
 }
 
+/**
+ * Team size and monthly revenue are required on every booking so each one
+ * gets a tier when it's made (Bede, 23 Nov). Returns the message to show, or
+ * null when the booking can go through.
+ */
+export function qualifierMissing(q: BookingQualifier): string | null {
+  const r = resolveQualifier(q);
+  const missing = [r.teamSize === null ? "team size" : null, r.monthlyRevenue === null ? "monthly revenue" : null].filter(Boolean);
+  return missing.length ? `Enter the ${missing.join(" and ")} to book the meeting.` : null;
+}
+
 /** Pipeline item fields for a new booking. */
 export function qualifierBookingFields(q: BookingQualifier) {
   const r = resolveQualifier(q);
@@ -108,7 +119,6 @@ export function BookingTierBadge({ tier, className }: { tier: string | null | un
 const TIER_CHOICES: { value: BookingTier | "unknown"; label: string }[] = [
   { value: "tier_1", label: "Tier 1" },
   { value: "tier_2", label: "Tier 2" },
-  { value: "unknown", label: "Unknown" },
 ];
 
 export function BookingQualifierFields({ value, onChange }: { value: BookingQualifier; onChange: (next: BookingQualifier) => void }) {
@@ -119,7 +129,7 @@ export function BookingQualifierFields({ value, onChange }: { value: BookingQual
     <div className="space-y-3 rounded-md border border-border bg-background/60 p-3" data-testid="booking-qualifier">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="booking-team-size" className={labelClass}>Team size on the tools (incl. owner)</label>
+          <label htmlFor="booking-team-size" className={labelClass}>Team size on the tools (incl. owner) *</label>
           <Input
             id="booking-team-size"
             type="number"
@@ -128,11 +138,13 @@ export function BookingQualifierFields({ value, onChange }: { value: BookingQual
             value={value.teamSize}
             onChange={(e) => onChange({ ...value, teamSize: e.target.value })}
             placeholder="e.g. 4"
-            className="border-border bg-background"
+            required
+            aria-invalid={r.teamSize === null}
+            className={cn("border-border bg-background", r.teamSize === null && "border-amber-500/70")}
           />
         </div>
         <div>
-          <label htmlFor="booking-monthly-revenue" className={labelClass}>Monthly revenue $</label>
+          <label htmlFor="booking-monthly-revenue" className={labelClass}>Monthly revenue $ *</label>
           <Input
             id="booking-monthly-revenue"
             type="number"
@@ -141,7 +153,9 @@ export function BookingQualifierFields({ value, onChange }: { value: BookingQual
             value={value.monthlyRevenue}
             onChange={(e) => onChange({ ...value, monthlyRevenue: e.target.value })}
             placeholder="e.g. 60000"
-            className="border-border bg-background"
+            required
+            aria-invalid={r.monthlyRevenue === null}
+            className={cn("border-border bg-background", r.monthlyRevenue === null && "border-amber-500/70")}
           />
         </div>
       </div>
@@ -166,7 +180,7 @@ export function BookingQualifierFields({ value, onChange }: { value: BookingQual
               </button>
             ))}
           </div>
-          <span className="text-[11px] text-muted-foreground">Tier 1 = 3+ on the tools and $50k+ a month</span>
+          <span className="text-[11px] text-muted-foreground">Tier 1 = 3+ on the tools and $50k+ a month. Team size and revenue are required to book.</span>
         </div>
       </div>
       <div>

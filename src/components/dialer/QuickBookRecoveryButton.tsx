@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDefaultCloser } from "@/hooks/usePipelineItems";
 import { cn } from "@/lib/utils";
-import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
+import { BookingQualifierFields, qualifierBookingFields, qualifierContactUpdate, qualifierFromContact, qualifierMissing, type BookingQualifier } from "@/components/pipelines/BookingQualifierFields";
 
 interface QuickBookRecoveryButtonProps {
   contactId: string;
@@ -85,6 +85,11 @@ export function QuickBookRecoveryButton({ contactId, contactName, onRecovered }:
 
     if (!callDate) {
       toast.error("Pick the call time.");
+      return;
+    }
+    const missingQualifier = qualifierMissing(bookingQualifier);
+    if (missingQualifier) {
+      toast.error(missingQualifier);
       return;
     }
     const [cHours, cMinutes] = callTime.split(":").map((n) => Number(n) || 0);
