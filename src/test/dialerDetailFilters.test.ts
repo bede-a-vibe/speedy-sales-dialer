@@ -266,7 +266,7 @@ describe("one set of captured details: the filters mirror the Intelligence tab",
       "social_media_presence", "facebook_ads_manager_id", "marketing_pain_points", "has_existing_agency", "existing_agency_services",
     ]);
     const additional = DETAIL_FIELDS.filter((f) => f.group === "Additional Info").map((f) => f.field);
-    expect(additional).toEqual(["gmb_link", "google_rating", "google_review_count", "nurture_last_email"]);
+    expect(additional).toEqual(["gmb_link", "google_rating", "google_review_count", "nurture_last_email", "google_last_review_date"]);
   });
 
   it("filters the booked date by a from/to range and drops bad dates", () => {
