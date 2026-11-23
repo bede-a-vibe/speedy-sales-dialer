@@ -4339,6 +4339,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_contact_push_log_20261123: {
+        Row: {
+          attempts: number | null
+          contact_id: string | null
+          detail: string | null
+          done_at: string | null
+          enqueued_at: string | null
+          ghl_contact_id: string | null
+          kind: string | null
+          new_number: string | null
+          old_numbers: string[] | null
+          status: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       ghl_contact_push_queue: {
         Row: {
           attempts: number
