@@ -36,6 +36,9 @@ const DIALER_MIN_BUFFER_FLOOR = 3;
 const DIALER_EMPTY_REFILL_RETRY_LIMIT = 3;
 const DIALER_EMPTY_REFILL_BACKOFF_MS = 400;
 const DIALER_EXHAUSTION_GRACE_MS = 5000;
+const DIALER_EMPTY_RETRY_INTERVAL_MS = 2000;
+const DIALER_LOW_RETRY_INTERVAL_MS = 10_000;
+const DIALER_BOUNCED_RELEASE_DELAY_MS = 5000;
 
 export type Contact = Tables<"contacts"> & {
   latest_appointment_outcome: AppointmentOutcomeValue | null;
@@ -411,6 +414,19 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
       latestTotalCount = Math.max(response.total_available_count ?? 0, mergedContacts.length);
       const newlyClaimed = (response.claimed_contacts ?? []).filter((contact) => !seenIds.has(contact.id));
 
+      // A lead this session already handled can come back (see handledIdsRef). It is not
+      // used, so hand its lock back: kept, it takes one of the rep's few slots for the
+      // whole lock time and enough of them leave every refill empty (Ben, 24 Nov 2026).
+      const bouncedIds = (response.claimed_contacts ?? [])
+        .filter((contact) => handledIdsRef.current.has(contact.id))
+        .map((contact) => contact.id);
+      if (bouncedIds.length > 0) {
+        // After a pause, so the outcome has saved and no other rep can be handed the lead.
+        window.setTimeout(() => {
+          void releaseDialerLeadLocks(activeSessionId, bouncedIds).catch(() => undefined);
+        }, DIALER_BOUNCED_RELEASE_DELAY_MS);
+      }
+
       if (newlyClaimed.length === 0) {
         // Retry once after a short delay if leads exist but none were claimed (lock contention)
         if (latestTotalCount > mergedContacts.length && mergedContacts.length === 0 && emptyRetries < 2) {
@@ -728,10 +744,23 @@ export function useRollingDialerQueue({ filters }: RollingDialerQueueOptions) {
     }
   }, []);
 
+  // Retry a low buffer on a timer. It used to retry only when reconcileQueue happened to get
+  // a new identity, so a refill that came back empty could sit on "Refilling".
+  const reconcileQueueRef = useRef(reconcileQueue);
+  useEffect(() => {
+    reconcileQueueRef.current = reconcileQueue;
+  }, [reconcileQueue]);
+
   useEffect(() => {
     if (!sessionId || contacts.length > DIALER_PREFETCH_THRESHOLD) return;
-    void reconcileQueue(contacts.length === 0 ? "buffer_empty" : "buffer_low");
-  }, [contacts.length, reconcileQueue, sessionId]);
+    const isEmpty = contacts.length === 0;
+    const run = () => {
+      void reconcileQueueRef.current(isEmpty ? "buffer_empty" : "buffer_low").catch(() => undefined);
+    };
+    run();
+    const intervalId = window.setInterval(run, isEmpty ? DIALER_EMPTY_RETRY_INTERVAL_MS : DIALER_LOW_RETRY_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [contacts.length, sessionId]);
 
   useEffect(() => {
     if (!sessionId || contacts.length === 0) return;

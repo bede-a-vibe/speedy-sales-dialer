@@ -210,6 +210,15 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
     void queue.stopSession();
   }, [callCount, queue, resetLeadState, resetSessionTimers, user?.id]);
 
+  // Refs, not effect deps, so an empty buffer is checked on a steady timer rather than
+  // whenever reconcileQueue happens to change identity.
+  const reconcileQueueRef = useRef(queue.reconcileQueue);
+  const stopSessionRef = useRef(stopSession);
+  useEffect(() => {
+    reconcileQueueRef.current = queue.reconcileQueue;
+    stopSessionRef.current = stopSession;
+  }, [queue.reconcileQueue, stopSession]);
+
   // Reconcile first, auto-stop only on confirmed exhaustion
   useEffect(() => {
     if (!isSessionActive || currentIndex === null) return;
@@ -221,20 +230,25 @@ export function useDialerSession({ filters }: UseDialerSessionOptions) {
       if (isBootstrappingSession) return;
 
       let cancelled = false;
-      void queue.reconcileQueue("buffer_empty").then((reconciliation) => {
-        if (!cancelled && reconciliation.health === "exhausted") {
-          stopSession();
-        }
-      }).catch(() => {});
+      const check = () => {
+        void reconcileQueueRef.current("buffer_empty").then((reconciliation) => {
+          if (!cancelled && reconciliation.health === "exhausted") {
+            stopSessionRef.current();
+          }
+        }).catch(() => {});
+      };
+      check();
+      const intervalId = window.setInterval(check, 2000);
 
       return () => {
         cancelled = true;
+        window.clearInterval(intervalId);
       };
     }
     if (currentIndex >= queue.contacts.length) {
       setCurrentIndex(queue.contacts.length - 1);
     }
-  }, [queue.contacts.length, queue.reconcileQueue, isBootstrappingSession, isSessionActive, currentIndex, stopSession]);
+  }, [queue.contacts.length, isBootstrappingSession, isSessionActive, currentIndex]);
 
   const recoverQueue = useCallback(async () => {
     if (!user?.id || isRecoveringQueue) return;
