@@ -19,6 +19,7 @@ export interface TodoContact {
   phone_type?: string | null;
   dm_phone?: string | null;
   dm_phone_verified?: boolean | null;
+  dm_phone_preferred?: string | null;
   industry?: string | null;
   city?: string | null;
   state?: string | null;

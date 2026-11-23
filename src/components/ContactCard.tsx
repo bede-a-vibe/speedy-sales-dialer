@@ -52,6 +52,7 @@ interface ContactCardProps {
     dm_phone?: string | null;
     dm_phone_type?: string | null;
     dm_phone_verified?: boolean | null;
+    dm_phone_preferred?: string | null;
     dm_email?: string | null;
     gatekeeper_name?: string | null;
     gatekeeper_notes?: string | null;
@@ -469,7 +470,9 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
           {contact.dm_phone && !isDmVerified && (
             <p className="text-[11px] leading-snug text-amber-800/90 dark:text-amber-200/90">
               {dmMobileRingsFirst
-                ? "Not confirmed yet. The main line is a switchboard, so the dialer tries this mobile first. Confirm or reject it on the call."
+                ? isBusinessRoutedNumber
+                  ? "Not confirmed yet. The main line is a switchboard, so the dialer tries this mobile first. Confirm or reject it on the call."
+                  : "Not confirmed yet. This owner mobile was found for this lead, so the dialer tries it first. Confirm or reject it on the call."
                 : `Not confirmed yet. The dialer calls the main line until you confirm this reaches ${contact.dm_name || "the decision maker"}.`}
             </p>
           )}
