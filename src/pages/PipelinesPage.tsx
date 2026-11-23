@@ -700,7 +700,8 @@ export default function PipelinesPage() {
           businessName: item.contacts?.business_name ?? "Meeting",
           outcome,
           reason: extras?.reason ?? null,
-          dealValue: outcome === "showed_closed" ? dealValue ?? null : null,
+          // The opportunity value is the monthly retainer, the same number the trackers use.
+          dealValue: outcome === "showed_closed" || outcome === "showed_verbal_commitment" ? monthlyValue ?? dealValue ?? null : null,
         }).then((r) => {
           if (!r.ok) toast.error(`GHL stage not updated: ${r.error}`);
         });

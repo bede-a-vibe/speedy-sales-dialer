@@ -8,14 +8,17 @@ import {
 import { getAppointmentOutcomeLabel, getOutcomeReasonLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { GHL_PIPELINE_CONTRACT } from "@/shared/ghlPipelineContract";
 
-/** Live stage ids in GHL "Sales Pipeline" (read from the GHL API 29/09/2026). */
+/**
+ * Live stage ids in GHL "Sales Pipeline" (read from the GHL API 29/09/2026).
+ * "Long Term Nurture" was removed from the pipeline on 27 Oct 2026; sending a
+ * meeting there fails with a GHL 400, so nothing maps to it any more.
+ */
 export const SALES_PIPELINE_STAGES = {
   contacted: "0b02d920-b119-4e69-9c6a-8b543aa612b0",
   discovery_complete: "7ce46a7e-f2d2-4fd1-b3f9-e8b72d7a9469",
   proposal_sent: "77a1aa21-6b29-40f2-96d4-ddadc13ac1a4",
   closed_won: "e4d4afb5-f6c1-487f-9d7b-37735922c3e0",
   closed_lost: "b6d9f3c4-faf7-4e6d-8f8c-48b05d98203c",
-  long_term_nurture: "958c370c-f1c4-40fe-bc17-4e612c89b94e",
 } as const;
 
 type GhlStatus = "open" | "won" | "lost";
@@ -32,7 +35,8 @@ export const APPOINTMENT_OUTCOME_TO_GHL_STAGE: Record<AppointmentOutcomeValue | 
   cancelled: { stageId: SALES_PIPELINE_STAGES.closed_lost, status: "lost", tag: "meeting-cancelled" },
   showed_verbal_commitment: { stageId: SALES_PIPELINE_STAGES.proposal_sent, status: "open", tag: "meeting-verbal" },
   second_meeting_booked: { stageId: SALES_PIPELINE_STAGES.discovery_complete, status: "open", tag: "meeting-second-booked" },
-  no_close_follow_up: { stageId: SALES_PIPELINE_STAGES.long_term_nurture, status: "open", tag: "meeting-no-close" },
+  // Didn't close on the day: Closed Lost with the objection as a reason tag; the follow-up lives as a GHL task (Bede, 23 Nov).
+  no_close_follow_up: { stageId: SALES_PIPELINE_STAGES.closed_lost, status: "lost", tag: "meeting-no-close" },
   showed_closed: { stageId: SALES_PIPELINE_STAGES.closed_won, status: "won", tag: "meeting-closed-won" },
   showed_no_close: { stageId: SALES_PIPELINE_STAGES.closed_lost, status: "lost", tag: "meeting-no-close" },
   disqualified: { stageId: SALES_PIPELINE_STAGES.closed_lost, status: "lost", tag: "meeting-dq" },
