@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useFunnelTracker";
 import {
   addsUp,
+  liveCallsAddUp,
   objectionsAddUp,
   awaitingPayment,
   bracketLabel,
@@ -173,6 +174,15 @@ const COLUMNS: ColumnDef[] = [
   { key: "qualifiedRate", section: "Closing calendar", label: "Qualified rate", fmt: "pct", hint: "qualified ÷ live calls marked qualified or not; unmarked ones are left out", value: (s) => pctOf(s.qualifiedLive, s.qualifiedLive + s.notQualifiedLive) },
   { key: "costPerQualified", section: "Closing calendar", label: "Cost per qualified live call", fmt: "money", hint: "total cost ÷ qualified live calls", value: (s) => ratio(totalCost(s), s.qualifiedLive) },
 
+  // Where live calls ended: each first-meeting sitting followed to the lead's latest sitting. Adds up to Live calls.
+  { key: "endedClosed", section: "Where live calls ended", label: "Closed", fmt: "n", hint: "the lead's latest sitting was a close (a second meeting that closed counts here, once)", value: (s) => s.endedClosed },
+  { key: "endedVerbal", section: "Where live calls ended", label: "Verbal yes", fmt: "n", hint: "the lead's latest sitting was a verbal yes, not signed or paid yet", value: (s) => s.endedVerbal },
+  { key: "endedDidntClose", section: "Where live calls ended", label: "Didn't close", fmt: "n", hint: "qualified, latest sitting was No close or No close follow-up (objections under Why they didn't close)", value: (s) => s.didntClose },
+  { key: "stillInPlay", section: "Where live calls ended", label: "Second meeting booked", fmt: "n", hint: "next meeting booked and not held yet: still in the funnel", value: (s) => s.stillInPlay },
+  { key: "endedNotQualified", section: "Where live calls ended", label: "Not qualified", fmt: "n", hint: "marked not qualified or DQ'd at any sitting: the DQ pile", value: (s) => s.endedNotQualified },
+  { key: "endedUnlogged", section: "Where live calls ended", label: "No result logged", fmt: "n", hint: "sat, but no outcome logged on the latest sitting", value: (s) => s.endedUnlogged },
+  { key: "liveAddsUp", section: "Where live calls ended", label: "Adds up?", fmt: "check", hint: "closed + verbal + didn't close + second meeting + not qualified + no result = live calls", value: (s) => liveCallsAddUp(s) },
+
   // Closing results
   { key: "newClients", section: "Closing results", label: "New clients", fmt: "n", hint: "first deal starts that day (revenue records, same as Won on Overview)", value: (s) => s.newClients, target: { metric: "new_clients", better: "higher" } },
   { key: "cash", section: "Closing results", label: "Cash collected", fmt: "money", hint: "first-deal monthly value + one-off", value: (s) => s.cash, target: { metric: "cash_collected", better: "higher" } },
@@ -186,8 +196,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "qualifiedToClose", section: "Closing results", label: "Qualified live-call-to-close", fmt: "pct", hint: "new clients ÷ qualified live calls", value: (s) => pctOf(s.newClients, s.qualifiedLive) },
 
   // Why they didn't close (after the results, Bede 23 Nov)
-  { key: "stillInPlay", section: "Why they didn't close", label: "Second meeting booked", fmt: "n", hint: "didn't close on the day but the next meeting is booked: still in the funnel, not counted below", value: (s) => s.stillInPlay },
-  { key: "didntClose", section: "Why they didn't close", label: "Didn't close", fmt: "n", hint: "qualified live calls marked No close or No close follow-up. Not-qualified ones are in the DQ pile (Not qualified live calls)", value: (s) => s.didntClose },
+  { key: "didntClose", section: "Why they didn't close", label: "Didn't close", fmt: "n", hint: "same as Didn't close under Where live calls ended: qualified, latest sitting No close or No close follow-up", value: (s) => s.didntClose },
   { key: "whyPrice", section: "Why they didn't close", label: "Price / budget", fmt: "n", value: (s) => s.whyPrice },
   { key: "whyThink", section: "Why they didn't close", label: "Needs to think / partner", fmt: "n", value: (s) => s.whyThink },
   { key: "whyTiming", section: "Why they didn't close", label: "Timing", fmt: "n", value: (s) => s.whyTiming },
