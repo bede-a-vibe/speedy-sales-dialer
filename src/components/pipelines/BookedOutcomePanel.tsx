@@ -42,8 +42,8 @@ const ACTION_STEP: Record<PanelAction, { title: string; reasons?: readonly { val
   showed_no_close: { title: "No close: why?", reasons: NO_CLOSE_REASONS },
   disqualified: { title: "DQ: why?", reasons: DQ_REASONS },
   no_close_follow_up: { title: "No close follow-up: why, and when to follow up", reasons: NO_CLOSE_REASONS, date: "follow_up" },
-  // Not closed on the first sitting, so it carries the objection like any no-close (23 Nov).
-  second_meeting: { title: "Second meeting: why it didn't close today, and the day and time", reasons: NO_CLOSE_REASONS, date: "second_meeting" },
+  // Still in the funnel, but it carries what the next meeting has to solve (23 Nov).
+  second_meeting: { title: "Second meeting: what the next meeting has to solve, and the day and time", reasons: NO_CLOSE_REASONS, date: "second_meeting" },
 };
 
 function DateTimePick({ date, onDate, time, onTime, placeholder }: {

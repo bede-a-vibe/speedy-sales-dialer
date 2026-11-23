@@ -342,8 +342,9 @@ describe("tracker rows", () => {
         booking({ scheduled_for: "2026-11-04T18:00:00+11:00", resolved_bucket: "showed", appointment_outcome: "showed_verbal_commitment" }),
       ],
     }).get("2026-11-04")!;
-    expect(d.didntClose).toBe(4);
-    expect([d.whyPrice, d.whyFear, d.whyNotQualified, d.whyBlank, d.whyTiming]).toEqual([1, 1, 1, 1, 0]);
+    expect(d.didntClose).toBe(3);
+    expect(d.stillInPlay).toBe(1);
+    expect([d.whyPrice, d.whyFear, d.whyNotQualified, d.whyBlank, d.whyTiming]).toEqual([1, 0, 1, 1, 0]);
   });
 
   it("missed by us is its own count, not a no-show", () => {

@@ -199,6 +199,8 @@ export interface TrackerStats {
   notQualifiedLive: number;
   /** Live calls that didn't close on the day (no close, follow-up, second meeting booked), by objection. */
   didntClose: number;
+  /** Second meeting booked: still in the funnel, kept out of the didn't-close objections. */
+  stillInPlay: number;
   whyPrice: number;
   whyThink: number;
   whyTiming: number;
@@ -230,7 +232,7 @@ export function emptyTrackerStats(): TrackerStats {
     dials: 0, answers: 0, leadsDialled: new Set(), rosteredHours: 0, productiveHours: 0, manualSets: 0, confirmedDbs: 0, totalSets: 0,
     setsT1: 0, setsT2: 0, setsUnknownTier: 0,
     availability: 0, bookingsOnCal: 0, live: 0, cancels: 0, noShows: 0, reschedules: 0, missedByUs: 0, pending: 0, qualifiedLive: 0, notQualifiedLive: 0,
-    didntClose: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyNotQualified: 0, whyBlank: 0,
+    didntClose: 0, stillInPlay: 0, whyPrice: 0, whyThink: 0, whyTiming: 0, whyAgency: 0, whyFear: 0, whyOther: 0, whyNotQualified: 0, whyBlank: 0,
     newClients: 0, cash: 0,
     bookingsOnCalT1: 0, bookingsOnCalT2: 0, liveT1: 0, liveT2: 0, newClientsT1: 0, newClientsT2: 0, cashT1: 0, cashT2: 0,
     setterBase: 0, commission: 0,
@@ -242,7 +244,7 @@ const SUMMED: (keyof TrackerStats)[] = [
   "dials", "answers", "rosteredHours", "productiveHours", "manualSets", "confirmedDbs", "totalSets",
   "setsT1", "setsT2", "setsUnknownTier",
   "availability", "bookingsOnCal", "live", "cancels", "noShows", "reschedules", "missedByUs", "pending", "qualifiedLive", "notQualifiedLive",
-  "didntClose", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyNotQualified", "whyBlank",
+  "didntClose", "stillInPlay", "whyPrice", "whyThink", "whyTiming", "whyAgency", "whyFear", "whyOther", "whyNotQualified", "whyBlank",
   "newClients", "cash",
   "bookingsOnCalT1", "bookingsOnCalT2", "liveT1", "liveT2", "newClientsT1", "newClientsT2", "cashT1", "cashT2",
   "setterBase", "commission",
@@ -262,7 +264,7 @@ export function sumTrackerStats(days: TrackerStats[]): TrackerStats {
 export type CalendarBucket = "live" | "cancelled" | "noshow" | "missed_by_us" | "rescheduled" | "pending";
 
 /** Sat and didn't close on the day: each carries an objection (required on the meeting card). */
-const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up", "second_meeting_booked"]);
+const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 
 type WhyKey = "whyPrice" | "whyThink" | "whyTiming" | "whyAgency" | "whyFear" | "whyOther" | "whyNotQualified" | "whyBlank";
 /** The tracker column an objection counts in. A DQ reason on a no-close counts as not qualified. */
@@ -413,6 +415,7 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
       else if (t === "tier_2") s.liveT2 += 1;
       if (i.is_qualified === true) s.qualifiedLive += 1;
       else if (i.is_qualified === false) s.notQualifiedLive += 1;
+      if (i.appointment_outcome === "second_meeting_booked") s.stillInPlay += 1;
       if (DIDNT_CLOSE.has(i.appointment_outcome ?? "")) {
         s.didntClose += 1;
         s[whyKeyOf(i.outcome_reason)] += 1;

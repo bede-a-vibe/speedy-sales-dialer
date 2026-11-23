@@ -61,7 +61,7 @@ const NO_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 /** Pitched, not closed, and the next step is still open: no objection is recorded on these. */
 const VERBAL_OR_SECOND = new Set(["showed_verbal_commitment", "second_meeting_booked"]);
 /** Sat and didn't close on the day: each carries an objection (required on the card since 23 Nov). */
-const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up", "second_meeting_booked"]);
+const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 /** Bucket for reason keys that have no label, so the breakdown rows add up to their total. */
 export const UNMAPPED = "__unmapped";
 const hasLabel = (labels: Record<string, string>, key: string) => Object.prototype.hasOwnProperty.call(labels, key);
@@ -162,6 +162,10 @@ interface Stats {
   didntClose: number;
   /** didntClose by objection: OBJ_LABEL keys, "not_qualified" (a DQ reason on a no-close), or UNMAPPED. */
   why: Record<string, number>;
+  /** Sittings that ended with a second meeting booked: still in the funnel, not a no-close. */
+  stillInPlay: number;
+  /** stillInPlay by what the next meeting has to solve (same keys as why). */
+  nextStep: Record<string, number>;
   dq: number;
   dqReasons: Record<string, number>;
   closed: number;
@@ -181,7 +185,7 @@ function emptyStats(): Stats {
     firstResolved: 0, firstNoShow: 0, firstCancelled: 0, firstRescheduled: 0,
     movedResolved: 0, movedShowed: 0, neverMovedResolved: 0, neverMovedShowed: 0, movedByProspect: 0, movedByUs: 0, movedPhoneCall: 0, cxReasons: {},
     followResolved: 0, doubleBooked: 0, meetingMinutes: 0,
-    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, closedQualifiedLive: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, didntClose: 0, why: {}, dq: 0, dqReasons: {},
+    qualifiedLive: 0, notQualifiedLive: 0, pitched: 0, pitchedFirst: 0, pitchedFollow: 0, pitchedQualified: 0, closedQualified: 0, closedQualifiedLive: 0, satNotPitched: 0, proposalsSent: 0, proposalsOwed: 0, notClosed: 0, notClosedVerbal: 0, obj: {}, didntClose: 0, why: {}, stillInPlay: 0, nextStep: {}, dq: 0, dqReasons: {},
     closed: 0, closedFirst: 0, closedFollow: 0, verbal: 0, retainerDeals: 0, oneOffDeals: 0, cash: 0, mrr: 0, oneOff: 0,
   };
 }
@@ -285,13 +289,18 @@ export function computeStats(
         s.obj[UNMAPPED] = (s.obj[UNMAPPED] ?? 0) + 1;
       }
     }
-    if (bucket === "showed" && DIDNT_CLOSE.has(outcome)) {
-      s.didntClose += 1;
+    if (bucket === "showed" && (DIDNT_CLOSE.has(outcome) || outcome === "second_meeting_booked")) {
       const r = i.outcome_reason || "unrecorded";
       // A DQ reason on a no-close is one "Not qualified" line here; the DQ detail
       // lives once, under Live calls and offers.
       const k = hasLabel(OBJ_LABEL, r) ? r : r.startsWith("dq_") ? "not_qualified" : UNMAPPED;
-      s.why[k] = (s.why[k] ?? 0) + 1;
+      if (outcome === "second_meeting_booked") {
+        s.stillInPlay += 1;
+        s.nextStep[k] = (s.nextStep[k] ?? 0) + 1;
+      } else {
+        s.didntClose += 1;
+        s.why[k] = (s.why[k] ?? 0) + 1;
+      }
     }
     if (outcome === "disqualified") {
       s.dq += 1;
@@ -450,7 +459,7 @@ function buildSections(repFiltered = false): SectionDef[] {
         {
           label: "Didn't close",
           fmt: "n",
-          hint: "sat and didn't close on the day: no close, no close follow-up, second meeting booked. Verbal yeses are under Closes, DQs under Live calls and offers",
+          hint: "sat and marked No close or No close follow-up. A second meeting booked is still in play (next section), verbal yeses are under Closes, DQs under Live calls and offers",
           value: (s) => s.didntClose,
           emphasis: true,
         },
@@ -458,6 +467,23 @@ function buildSections(repFiltered = false): SectionDef[] {
           { label: `  ${label}`, fmt: "n", value: (s) => s.why[k] ?? 0 },
           { label: `  ${label} %`, fmt: "pct", hint: "÷ didn't close", value: (s) => pct(s.why[k] ?? 0, s.didntClose) },
         ]),
+      ],
+    },
+    {
+      title: "Still in play: second meeting booked",
+      rows: [
+        {
+          label: "Second meeting booked",
+          fmt: "n",
+          hint: "sat, didn't close on the day, next meeting booked: still in the funnel, not a no-close",
+          value: (s) => s.stillInPlay,
+          emphasis: true,
+        },
+        ...WHY_ROWS.map<RowDef>(([k, label]) => ({
+          label: `  Next meeting has to solve: ${label}`,
+          fmt: "n",
+          value: (s) => s.nextStep[k] ?? 0,
+        })),
       ],
     },
     {
