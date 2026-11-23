@@ -263,6 +263,35 @@ export function sumTrackerStats(days: TrackerStats[]): TrackerStats {
 /** Where a first-meeting slot on the calendar ended. Every slot lands in exactly one. */
 export type CalendarBucket = "live" | "cancelled" | "noshow" | "missed_by_us" | "rescheduled" | "pending";
 
+/**
+ * Second meetings whose next meeting has already happened (closed, no close,
+ * verbal, DQ, no-show or cancelled). The deal is then counted once, by that
+ * later meeting, so these are no longer "still in play" (Bede, 23 Nov).
+ */
+export function supersededSecondMeetings(
+  items: Array<{ id: string; contact_id: string; scheduled_for: string | null; appointment_outcome?: string | null; resolved_bucket?: string | null; is_reschedule_slot?: boolean }>,
+): Set<string> {
+  const byContact = new Map<string, typeof items>();
+  for (const i of items) {
+    if (i.is_reschedule_slot || !i.scheduled_for) continue;
+    byContact.set(i.contact_id, [...(byContact.get(i.contact_id) ?? []), i]);
+  }
+  const out = new Set<string>();
+  for (const list of byContact.values()) {
+    for (const i of list) {
+      if (i.appointment_outcome !== "second_meeting_booked") continue;
+      const later = list.some(
+        (j) =>
+          j.id !== i.id &&
+          j.scheduled_for! > i.scheduled_for! &&
+          (Boolean(j.appointment_outcome) || ["showed", "noshow", "cancelled"].includes(j.resolved_bucket ?? "")),
+      );
+      if (later) out.add(i.id);
+    }
+  }
+  return out;
+}
+
 /** Sat and didn't close on the day: each carries an objection (required on the meeting card). */
 const DIDNT_CLOSE = new Set(["showed_no_close", "no_close_follow_up"]);
 
@@ -369,6 +398,7 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
 
   // Each booking's tier is worked out once and reused below.
   const inView: { i: TrackerItem; t: BookingTier | null }[] = [];
+  const superseded = supersededSecondMeetings(args.items);
   for (const i of args.items) {
     if (!inFunnel(i.meeting_channel, funnel)) continue;
     const t = bookingTierOf(i);
@@ -415,7 +445,7 @@ export function buildDailyTrackerStats(args: BuildTrackerArgs): Map<string, Trac
       else if (t === "tier_2") s.liveT2 += 1;
       if (i.is_qualified === true) s.qualifiedLive += 1;
       else if (i.is_qualified === false) s.notQualifiedLive += 1;
-      if (i.appointment_outcome === "second_meeting_booked") s.stillInPlay += 1;
+      if (i.appointment_outcome === "second_meeting_booked" && !superseded.has(i.id)) s.stillInPlay += 1;
       if (DIDNT_CLOSE.has(i.appointment_outcome ?? "")) {
         s.didntClose += 1;
         s[whyKeyOf(i.outcome_reason)] += 1;

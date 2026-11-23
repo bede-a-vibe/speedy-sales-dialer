@@ -339,3 +339,22 @@ describe("Closing tracker: why they didn't close", () => {
     expect(s.nextStep).toEqual({ think_partner: 1 });
   });
 });
+
+describe("Closing tracker: a second meeting stops counting once the next meeting happens", () => {
+  it("keeps it in play only while the next meeting is still ahead", () => {
+    const s = computeStats(
+      [
+        // Lead A: second meeting booked, then closed on the next one. Counts once, as a close.
+        item({ contact_id: "A", resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", outcome_reason: "think_partner" }),
+        item({ contact_id: "A", scheduled_for: at("2026-11-12"), resolved_bucket: "showed", appointment_outcome: "showed_closed", status: "completed" }),
+        // Lead B: second meeting booked, next meeting not held yet. Still in play.
+        item({ contact_id: "B", resolved_bucket: "showed", appointment_outcome: "second_meeting_booked", outcome_reason: "think_partner" }),
+        item({ contact_id: "B", scheduled_for: at("2026-11-20"), resolved_bucket: "upcoming", appointment_outcome: null }),
+      ],
+      DAYS,
+      new Map(),
+    );
+    expect(s.stillInPlay).toBe(1);
+    expect(s.nextStep).toEqual({ think_partner: 1 });
+  });
+});
