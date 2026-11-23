@@ -179,6 +179,8 @@ export function reasonsForOutcome(outcome: AppointmentOutcomeValue) {
   // No-close outcomes also accept DQ reasons: a lead can be not qualified
   // (e.g. no capacity right now) yet still worth a follow-up later.
   if (outcome === "showed_no_close" || outcome === "no_close_follow_up") return [...NO_CLOSE_REASONS, ...DQ_REASONS];
+  // A second meeting means it didn't close today: the objection is required like any no-close.
+  if (outcome === "second_meeting_booked") return NO_CLOSE_REASONS;
   return null;
 }
 
