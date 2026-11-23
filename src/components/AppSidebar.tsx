@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { LayoutDashboard, Phone, CalendarClock, ListTodo, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Dumbbell, Target } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { LayoutDashboard, Phone, CalendarClock, BarChart3, Users, Settings, CalendarPlus, GraduationCap, RefreshCw, ShieldCheck, BookOpen, Sparkles, Briefcase, NotebookPen, CalendarCheck, UsersRound, ClipboardCheck, Link2, Dumbbell, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import { LazyQuickBookDialog } from "@/components/LazyMount";
@@ -32,7 +33,6 @@ const mainItems = [
   { title: "Dialer", url: "/dialer", icon: Phone },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Pipelines", url: "/pipelines", icon: CalendarClock },
-  { title: "Follow-ups", url: "/follow-ups", icon: ListTodo },
   { title: "Goals & KPIs", url: "/goals", icon: Target },
   { title: "Classroom", url: "/classroom", icon: GraduationCap },
   { title: "Training", url: "/training", icon: Dumbbell },
@@ -61,6 +61,7 @@ export function AppSidebar() {
   const isAdmin = useIsAdmin();
   const [quickBookOpen, setQuickBookOpen] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: overdueFollowUps = 0 } = useOverdueFollowUpCount(user?.id);
   const email = user?.email ?? "";
   const displayName =
@@ -122,8 +123,17 @@ export function AppSidebar() {
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                       {!collapsed && item.url === "/training" && unseenReviews > 0 && <span className="ml-auto rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{unseenReviews} new</span>}
-                      {!collapsed && item.url === "/follow-ups" && overdueFollowUps > 0 && (
-                        <span className="ml-auto rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground" title="Your overdue follow-ups">
+                      {!collapsed && item.url === "/pipelines" && overdueFollowUps > 0 && (
+                        <span
+                          className="ml-auto rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground"
+                          title="Open your overdue follow-ups"
+                          onClick={(event) => {
+                            // Inside the Pipelines link: the badge goes straight to the Follow-ups tab.
+                            event.preventDefault();
+                            event.stopPropagation();
+                            navigate("/pipelines?tab=followups");
+                          }}
+                        >
                           {overdueFollowUps} overdue
                         </span>
                       )}

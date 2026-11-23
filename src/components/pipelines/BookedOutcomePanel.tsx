@@ -200,7 +200,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [proposalSentDate, setProposalSentDate] = useState<string | null>(((item as { proposal_sent_date?: string | null }).proposal_sent_date) ?? null);
   /**
    * To send: opens a follow-up task (next weekday 10am) so the proposal shows
-   * on the Follow-ups page until it goes. Sent: stamps the GHL "Proposal Sent
+   * on the Follow-ups tab until it goes. Sent: stamps the GHL "Proposal Sent
    * Date" field and closes that task.
    */
   const saveProposal = async (picked: ProposalStatus) => {

@@ -105,7 +105,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { title: "Dialer", to: "/dialer", icon: Phone },
       { title: "Contacts", to: "/contacts", icon: Users },
       { title: "Pipelines", to: "/pipelines", icon: CalendarClock },
-      { title: "My Work / Follow-ups", to: "/follow-ups", icon: CalendarClock },
+      { title: "My Work / Follow-ups", to: "/pipelines?tab=followups", icon: CalendarClock },
       { title: "Goals & KPIs", to: "/goals", icon: Target },
       { title: "Classroom", to: "/classroom", icon: GraduationCap },
       { title: "Training", to: "/training", icon: GraduationCap },
