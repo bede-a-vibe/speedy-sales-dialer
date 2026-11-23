@@ -147,6 +147,7 @@ const FILTER_META: Record<string, { kind: DetailFieldKind; label?: string; optio
   voicemail_count: { kind: "int" },
   noshow_count: { kind: "int" },
   google_review_count: { kind: "int" },
+  google_last_review_date: { kind: "date" },
   nurture_last_email: { kind: "int" },
   google_rating: { kind: "num" },
   monthly_retainer_value: { kind: "num" },
@@ -174,12 +175,14 @@ const FILTER_META: Record<string, { kind: DetailFieldKind; label?: string; optio
  * Captured columns the Intelligence tab doesn't list as their own field: the
  * team-size band (the drawer's Team size block), the Marketing capture's
  * agency answers (a boolean and an array, so the folder lists them without a
- * column), and where the call intel came from.
+ * column), the last Google review date (dialer only, not in GHL), and where the
+ * call intel came from.
  */
 const EXTRA_FIELDS: readonly { field: string; label: string; group: DetailFieldGroup }[] = [
   { field: "business_size", label: "Team size band", group: "General Info" },
   { field: "has_existing_agency", label: "Has Existing Agency", group: MARKETING_GROUP },
   { field: "existing_agency_services", label: "Existing Agency Services", group: MARKETING_GROUP },
+  { field: "google_last_review_date", label: "Last Google Review", group: "Additional Info" },
   { field: "call_intel_source", label: "Call Intel Source", group: "Dialer Activity" },
   { field: "team_size_source", label: "Team Size Source", group: "Dialer Activity" },
 ];

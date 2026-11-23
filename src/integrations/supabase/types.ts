@@ -1470,6 +1470,7 @@ export type Database = {
           gmb_link: string | null
           gmb_lookup_at: string | null
           gmb_lookup_attempted: boolean
+          google_last_review_date: string | null
           google_rating: number | null
           google_review_count: number | null
           has_existing_agency: boolean | null
@@ -1651,6 +1652,7 @@ export type Database = {
           gmb_link?: string | null
           gmb_lookup_at?: string | null
           gmb_lookup_attempted?: boolean
+          google_last_review_date?: string | null
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null
@@ -1832,6 +1834,7 @@ export type Database = {
           gmb_link?: string | null
           gmb_lookup_at?: string | null
           gmb_lookup_attempted?: boolean
+          google_last_review_date?: string | null
           google_rating?: number | null
           google_review_count?: number | null
           has_existing_agency?: boolean | null

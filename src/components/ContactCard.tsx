@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Phone, Pencil, Mail, Globe, MapPin, ExternalLink, User, MessageSquareText, Shield, UserCheck, UserX, Clock, CheckCircle2, CircleDashed, Smartphone, Landmark, Building2, AlertTriangle, PhoneOff, Star, Briefcase, Zap, Handshake } from "lucide-react";
 import { resolveDialTarget } from "@/lib/dialTarget";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
+import { formatLastReview } from "@/lib/lastReview";
 import { LIFECYCLE_STAGE_COLORS, LIFECYCLE_STAGE_LABELS, type LifecycleStage } from "@/data/constants";
 
 const PHONE_QUALITY_CONFIG: Record<string, { label: string; color: string; icon: typeof Phone }> = {
@@ -66,6 +67,7 @@ interface ContactCardProps {
     lead_source?: string | null;
     google_rating?: number | null;
     google_review_count?: number | null;
+    google_last_review_date?: string | null;
     gbp_rating?: number | null;
     review_count?: number | null;
     business_size?: string | null;
@@ -159,6 +161,7 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
   const rating = contact.google_rating ?? contact.gbp_rating ?? null;
   const reviewCount = contact.google_review_count ?? contact.review_count ?? 0;
   const hasRating = reviewCount > 0;
+  const lastReview = formatLastReview(contact.google_last_review_date);
   const agencyServices = (contact.existing_agency_services || []).filter(Boolean);
 
   return (
@@ -277,6 +280,11 @@ export function ContactCard({ contact, onAddDM, onCallDM, onConfirmDM, onRejectD
             <span className="inline-flex items-center gap-1 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono text-amber-800 dark:text-yellow-300" title={`${reviewCount} Google reviews`}>
               <Star className="h-3 w-3 fill-yellow-500 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
               {rating ? rating.toFixed(1) : "—"} ({reviewCount})
+            </span>
+          )}
+          {lastReview && (
+            <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-mono text-secondary-foreground" title="Newest Google review on their profile">
+              Last review {lastReview}
             </span>
           )}
           {contact.business_size && (

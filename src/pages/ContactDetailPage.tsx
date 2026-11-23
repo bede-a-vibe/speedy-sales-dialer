@@ -30,6 +30,7 @@ import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
 import { ghlUpdateContact } from "@/lib/ghl";
 import { formatDurationSeconds } from "@/lib/duration";
 import { getGhlContactUrl } from "@/lib/ghlUrls";
+import { formatLastReview } from "@/lib/lastReview";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -249,6 +250,7 @@ export default function ContactDetailPage() {
   const lifecycleStage = ((contact as unknown as { lifecycle_stage?: string | null })?.lifecycle_stage as LifecycleStage) || "new";
   const lifecycleReason = (contact as unknown as { lifecycle_reason?: string | null })?.lifecycle_reason ?? null;
   const prospectTier = (contact as unknown as { prospect_tier?: string | null })?.prospect_tier ?? null;
+  const lastReview = formatLastReview(contact?.google_last_review_date);
   const latestCall = allCallLogs[0];
   const latestNote = allNotes[0];
   const currentStatusValue = contact ? (contact.is_dnc ? "dnc" : contact.status) : "uncalled";
@@ -556,6 +558,9 @@ export default function ContactDetailPage() {
                 </Badge>
                 {prospectTier && (
                   <Badge variant="outline" className="text-xs uppercase tracking-wide">Tier {prospectTier}</Badge>
+                )}
+                {lastReview && (
+                  <Badge variant="outline" className="text-xs" title="Newest Google review on their profile">Last review {lastReview}</Badge>
                 )}
               </div>
               <LeadBuckets contactId={contact.id} className="mt-2" />

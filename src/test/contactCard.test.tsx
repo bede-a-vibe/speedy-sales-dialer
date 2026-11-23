@@ -35,6 +35,13 @@ describe("ContactCard header", () => {
     expect(screen.getByText("5.0 (16)")).toBeInTheDocument();
   });
 
+  it("shows the last Google review date only when there is one", () => {
+    const { rerender } = render(<ContactCard contact={base} />);
+    expect(screen.queryByText(/Last review/)).toBeNull();
+    rerender(<ContactCard contact={{ ...base, google_last_review_date: "2024-03-14" }} />);
+    expect(screen.getByText("Last review 14 Mar 2024")).toBeInTheDocument();
+  });
+
   it("puts the email in the links row only when there is one, in the same row as the header actions", () => {
     render(
       <ContactCard
