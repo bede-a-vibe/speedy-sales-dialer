@@ -12,12 +12,13 @@ import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/B
 import { Button } from "@/components/ui/button";
 import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
 import { MeetingsPanel } from "@/pages/MeetingsPage";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAppointmentOutcomeLabel, type AppointmentOutcomeValue } from "@/lib/appointments";
 import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
-import { getOutcomeReasonLabel } from "@/lib/appointments";
+import { getOutcomeReasonLabel, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS } from "@/lib/appointments";
 import { closeStartDate } from "@/lib/closeStartDate";
+import { filterCompleted } from "@/lib/completedFilter";
 import { MyBookingsPanel } from "@/components/bookings/MyBookingsPanel";
 import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
 import { useQueryClient } from "@tanstack/react-query";
@@ -96,6 +97,12 @@ function EditableHistoryCard({
           <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
             <span className="text-xs text-muted-foreground">
               Logged as <span className="font-medium text-foreground">{current}</span>
+              {item.outcome_reason ? (
+                <>
+                  {" · "}
+                  <span className="font-medium text-foreground">{getOutcomeReasonLabel(item.outcome_reason)}</span>
+                </>
+              ) : null}
             </span>
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <PencilLine className="h-3.5 w-3.5" />
@@ -320,6 +327,8 @@ export default function PipelinesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusOpen, setStatusOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  // Filter by why: the objection, DQ, no-show or cancel reason logged on the meeting.
+  const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   
@@ -417,10 +426,10 @@ export default function PipelinesPage() {
     [reps],
   );
 
-  const filteredHistory = useMemo(() => {
-    if (historyFilter === "all") return completedBooked;
-    return completedBooked.filter((item) => item.appointment_outcome === historyFilter);
-  }, [completedBooked, historyFilter]);
+  const filteredHistory = useMemo(
+    () => filterCompleted(completedBooked as Array<(typeof completedBooked)[number] & { dq_reason?: string | null }>, historyFilter, reasonFilter),
+    [completedBooked, historyFilter, reasonFilter],
+  );
 
   // Said yes on the call, no signed agreement yet. Pinned so the outcome gets updated the day the contract lands.
   const verbalCommitments = useMemo(
@@ -747,7 +756,7 @@ export default function PipelinesPage() {
             <h3 className="text-sm font-semibold text-foreground">Completed appointments</h3>
             <p className="text-xs text-muted-foreground">Review past booked outcomes and compare setter vs closer performance.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-mono text-muted-foreground">{filteredHistory.length} results</span>
             <Select value={historyFilter} onValueChange={(value) => setHistoryFilter(value as HistoryFilter)}>
               <SelectTrigger className="w-[220px] bg-background">
@@ -763,10 +772,35 @@ export default function PipelinesPage() {
                 <SelectItem value="showed_no_close">No Close</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={reasonFilter} onValueChange={setReasonFilter}>
+              <SelectTrigger className="w-[220px] bg-background" aria-label="Filter by reason">
+                <SelectValue placeholder="Any reason" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any reason</SelectItem>
+                <SelectGroup>
+                  <SelectLabel>Why it didn't close</SelectLabel>
+                  {NO_CLOSE_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Not qualified</SelectLabel>
+                  {DQ_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>No-show</SelectLabel>
+                  {NO_SHOW_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Cancelled</SelectLabel>
+                  {CANCEL_REASONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectGroup>
+                <SelectItem value="none">No reason recorded</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {historyFilter === "all" && verbalCommitments.length > 0 ? (
+        {historyFilter === "all" && reasonFilter === "all" && verbalCommitments.length > 0 ? (
           <div className="space-y-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
