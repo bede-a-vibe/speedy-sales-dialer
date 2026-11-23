@@ -39,10 +39,10 @@ export function TwoPipelineGuide({
             <Link to="/dialer">Dialer</Link>
           </Button>
           <Button asChild variant={currentView === "pipelines" ? "default" : "outline"} size="sm">
-            <Link to="/pipelines">Booked pipeline</Link>
+            <Link to="/pipelines?tab=booked">Booked pipeline</Link>
           </Button>
           <Button asChild variant={currentView === "followups" ? "default" : "outline"} size="sm">
-            <Link to="/follow-ups">Follow-ups</Link>
+            <Link to="/pipelines?tab=followups">Follow-ups</Link>
           </Button>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function TwoPipelineGuide({
             <p className="text-sm font-semibold">Follow-ups</p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Used when a dialer outcome is <span className="font-medium text-foreground">Follow Up</span> or when a booked appointment outcome creates another task. Reps work these from the Follow-Ups page.
+            Used when a dialer outcome is <span className="font-medium text-foreground">Follow Up</span> or when a booked appointment outcome creates another task. Reps work these from the Follow-ups tab on Pipelines.
           </p>
           <div className="mt-3 space-y-1 text-xs text-muted-foreground">
             <p>
@@ -95,7 +95,7 @@ export function TwoPipelineGuide({
 
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
         <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-        <span>Dialer chooses the destination, Pipelines closes booked appointments, Follow-Ups clears GHL tasks.</span>
+        <span>Dialer chooses the destination. Pipelines closes booked appointments and clears follow-ups.</span>
       </div>
     </div>
   );

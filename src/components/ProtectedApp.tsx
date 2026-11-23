@@ -21,7 +21,6 @@ const ContactsPage = lazy(loadContacts);
 const ContactDetailPage = lazy(() => import("@/pages/ContactDetailPage"));
 const PipelinesPage = lazy(loadPipelines);
 const InsightsPage = lazy(() => import("@/pages/InsightsPage"));
-const FollowUpsPage = lazy(() => import("@/pages/FollowUpsPage"));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage"));
 const TrainingPage = lazy(() => import("@/pages/TrainingPage"));
 const ManagerPage = lazy(() => import("@/pages/ManagerPage"));
@@ -138,7 +137,7 @@ function ProtectedRoutes() {
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/contacts/:id" element={<ContactDetailPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
-        <Route path="/follow-ups" element={<FollowUpsPage />} />
+        <Route path="/follow-ups" element={<Navigate to="/pipelines?tab=followups" replace />} />
         <Route path="/meetings" element={<MeetingsPage />} />
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/admin/manager" element={(<AdminRoute><ManagerPage /></AdminRoute>)} />

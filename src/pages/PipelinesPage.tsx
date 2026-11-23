@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
@@ -35,6 +35,7 @@ import {
   type SalesRepOption,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
+import { useOverdueFollowUpCount } from "@/hooks/useOverdueFollowUpCount";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useGHLFollowUpSync } from "@/hooks/ghl/useGHLFollowUpSync";
 import { useGHLOpportunityMirror } from "@/hooks/ghl/useGHLOpportunityMirror";
@@ -47,6 +48,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, PencilLine } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
+
+const FollowUpsPanel = lazy(() => import("@/components/pipelines/FollowUpsPanel"));
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -352,6 +355,7 @@ export default function PipelinesPage() {
   
   const tabParam = searchParams.get("tab");
   const activeTab =
+    tabParam === "followups" ? "followups" :
     tabParam === "history" ? "history" :
     tabParam === "booked" ? "booked" :
     tabParam === "rebook" ? "rebook" :
@@ -366,6 +370,7 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
+  const { data: overdueFollowUps = 0 } = useOverdueFollowUpCount(user?.id);
   const { pushCallNote } = useGHLContactSync();
   const { pushFollowUp } = useGHLFollowUpSync();
   const { refreshOpportunityMirror } = useGHLOpportunityMirror();
@@ -404,7 +409,16 @@ export default function PipelinesPage() {
     [booked],
   );
 
+  // Opening Follow-ups alone should not sweep every booked deal in GHL. Once
+  // any appointment tab has been viewed it stays on, so switching back and
+  // forth never repeats the sweep.
+  const [mirrorOn, setMirrorOn] = useState(activeTab !== "followups");
   useEffect(() => {
+    if (activeTab !== "followups") setMirrorOn(true);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!mirrorOn) return;
     const mirrorCandidates = bookedRef.current.filter((item) => item.ghl_opportunity_id);
     if (mirrorCandidates.length === 0) return;
 
@@ -436,7 +450,7 @@ export default function PipelinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [mirrorKey, refreshOpportunityMirror]);
+  }, [mirrorKey, mirrorOn, refreshOpportunityMirror]);
 
   const repMap = useMemo(
     () => new Map(reps.map((rep) => [rep.user_id, getRepLabel(rep.display_name, rep.email)])),
@@ -910,12 +924,12 @@ export default function PipelinesPage() {
   };
 
   return (
-    <AppLayout title="Pipelines & meetings">
+    <AppLayout title="Pipelines">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Appointment pipelines</h3>
-            <p className="text-sm text-muted-foreground">Track booked days and final appointment results. Follow-ups are now managed in GHL tasks.</p>
+            <h3 className="text-lg font-semibold text-foreground">Pipelines &amp; follow-ups</h3>
+            <p className="text-sm text-muted-foreground">Booked appointments, their results, and the follow-ups you owe, in one place.</p>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{booked.length} booked{staleCount > 0 ? ` (${staleCount} stale)` : ""}</span>
@@ -979,7 +993,7 @@ export default function PipelinesPage() {
             <p className="mt-1 text-xs text-muted-foreground">
               Completed booked outcomes that should continue in the follow-up task queue.
             </p>
-            <Link to="/follow-ups" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            <Link to="/pipelines?tab=followups" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
               Open follow-ups
             </Link>
           </div>
@@ -995,8 +1009,16 @@ export default function PipelinesPage() {
         </Collapsible>
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
-          <TabsList>
+          <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="board">Board</TabsTrigger>
+            <TabsTrigger value="followups">
+              Follow-ups
+              {overdueFollowUps > 0 && (
+                <span className="ml-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground" title="Your overdue follow-ups">
+                  {overdueFollowUps}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="mine">My bookings</TabsTrigger>
             <TabsTrigger value="booked">Booked</TabsTrigger>
             <TabsTrigger value="rebook">Rebook{rebookItems.length > 0 ? ` (${rebookItems.length})` : ""}</TabsTrigger>
@@ -1004,6 +1026,11 @@ export default function PipelinesPage() {
             <TabsTrigger value="closing">Close tracking</TabsTrigger>
             <TabsTrigger value="meetings">All meetings</TabsTrigger>
           </TabsList>
+          <TabsContent value="followups" className="mt-4">
+            <Suspense fallback={<ListRowsSkeleton rows={6} />}>
+              <FollowUpsPanel />
+            </Suspense>
+          </TabsContent>
           <TabsContent value="mine" className="mt-4">
             <MyBookingsPanel />
           </TabsContent>

@@ -97,13 +97,13 @@ export function DashboardQuickStats() {
         icon={<CalendarClock className="h-5 w-5" />}
         label="Follow-ups Today"
         value={followUpsDueToday}
-        href="/follow-ups"
+        href="/pipelines?tab=followups"
       />
       <QuickStat
         icon={<ListTodo className="h-5 w-5" />}
         label="Overdue Tasks"
         value={overdueTasks}
-        href="/follow-ups"
+        href="/pipelines?tab=followups"
         urgent
       />
       <QuickStat
