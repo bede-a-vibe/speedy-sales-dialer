@@ -19,6 +19,7 @@ import { getAppointmentOutcomeGhlSync } from "@/lib/pipelineMappings";
 import { getOutcomeReasonLabel, NO_CLOSE_REASONS, DQ_REASONS, NO_SHOW_REASONS, CANCEL_REASONS } from "@/lib/appointments";
 import { closeStartDate } from "@/lib/closeStartDate";
 import { filterCompleted } from "@/lib/completedFilter";
+import { supersededSecondMeetings } from "@/lib/funnelTracker";
 import { MyBookingsPanel } from "@/components/bookings/MyBookingsPanel";
 import { SALES_PIPELINE_STAGES, syncMeetingOutcomeToGhl } from "@/lib/ghlMeetingSync";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,8 +63,10 @@ function EditableHistoryCard({
   onAssign,
   onRecordOutcome,
   onSaveLinks,
+  nextMeetingHeld = false,
 }: {
   item: PipelineItemWithRelations;
+  nextMeetingHeld?: boolean;
   repName: string;
   setterName: string;
   reps: SalesRepOption[];
@@ -84,6 +87,10 @@ function EditableHistoryCard({
 }) {
   const [editing, setEditing] = useState(false);
   const current = item.appointment_outcome ? getAppointmentOutcomeLabel(item.appointment_outcome) : "None";
+  const reason = item.outcome_reason || item.dq_reason || null;
+  const monthly = item.monthly_recurring_value ?? null;
+  const showedUp = item.appointment_outcome && !["no_show", "cancelled"].includes(item.appointment_outcome);
+  const qualifiedLabel = !showedUp ? null : item.is_qualified === true ? "Qualified" : item.is_qualified === false ? "Not qualified" : "Qualified not marked";
   return (
     <>
       <PipelineItemCard
@@ -97,12 +104,15 @@ function EditableHistoryCard({
           <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
             <span className="text-xs text-muted-foreground">
               Logged as <span className="font-medium text-foreground">{current}</span>
-              {item.outcome_reason ? (
+              {nextMeetingHeld ? <span> (next meeting held)</span> : null}
+              {reason ? (
                 <>
                   {" · "}
-                  <span className="font-medium text-foreground">{getOutcomeReasonLabel(item.outcome_reason)}</span>
+                  <span className="font-medium text-foreground">{getOutcomeReasonLabel(reason)}</span>
                 </>
               ) : null}
+              {monthly ? <span>{" · "}${Number(monthly).toLocaleString("en-AU")}/mo</span> : null}
+              {qualifiedLabel ? <span>{" · "}{qualifiedLabel}</span> : null}
             </span>
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <PencilLine className="h-3.5 w-3.5" />
@@ -139,11 +149,17 @@ function EditableHistoryCard({
 type HistoryFilter =
   | "all"
   | "no_show"
+  | "cancelled"
   | "showed_closed"
   | "showed_no_close"
   | "showed_verbal_commitment"
   | "second_meeting_booked"
-  | "no_close_follow_up";
+  | "still_in_play"
+  | "second_done"
+  | "no_close_follow_up"
+  | "didnt_close"
+  | "disqualified";
+type QualifiedFilter = "all" | "yes" | "no" | "unmarked";
 type HistorySortKey = "repName" | "total" | "closed" | "showUpRate" | "closeRate";
 type SortDirection = "asc" | "desc";
 
@@ -329,6 +345,7 @@ export default function PipelinesPage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   // Filter by why: the objection, DQ, no-show or cancel reason logged on the meeting.
   const [reasonFilter, setReasonFilter] = useState<string>("all");
+  const [qualifiedFilter, setQualifiedFilter] = useState<QualifiedFilter>("all");
   const [setterSort, setSetterSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   const [closerSort, setCloserSort] = useState<HistorySort>(DEFAULT_HISTORY_SORT);
   
@@ -427,9 +444,10 @@ export default function PipelinesPage() {
   );
 
   const filteredHistory = useMemo(
-    () => filterCompleted(completedBooked as Array<(typeof completedBooked)[number] & { dq_reason?: string | null }>, historyFilter, reasonFilter),
-    [completedBooked, historyFilter, reasonFilter],
+    () => filterCompleted(completedBooked, historyFilter, reasonFilter, qualifiedFilter),
+    [completedBooked, historyFilter, reasonFilter, qualifiedFilter],
   );
+  const secondMeetingsDone = useMemo(() => supersededSecondMeetings(completedBooked), [completedBooked]);
 
   // Said yes on the call, no signed agreement yet. Pinned so the outcome gets updated the day the contract lands.
   const verbalCommitments = useMemo(
@@ -764,12 +782,17 @@ export default function PipelinesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All completed outcomes</SelectItem>
-                <SelectItem value="no_show">No Show</SelectItem>
-                <SelectItem value="showed_verbal_commitment">Verbal Commitment</SelectItem>
-                <SelectItem value="second_meeting_booked">Second Meeting Booked</SelectItem>
-                <SelectItem value="no_close_follow_up">No Close Follow-up</SelectItem>
                 <SelectItem value="showed_closed">Close</SelectItem>
+                <SelectItem value="showed_verbal_commitment">Verbal Commitment</SelectItem>
+                <SelectItem value="didnt_close">Didn't close (no close + follow-up)</SelectItem>
                 <SelectItem value="showed_no_close">No Close</SelectItem>
+                <SelectItem value="no_close_follow_up">No Close Follow-up</SelectItem>
+                <SelectItem value="still_in_play">Second meeting: still in play</SelectItem>
+                <SelectItem value="second_done">Second meeting: next meeting held</SelectItem>
+                <SelectItem value="second_meeting_booked">Second Meeting Booked (all)</SelectItem>
+                <SelectItem value="disqualified">Disqualified</SelectItem>
+                <SelectItem value="no_show">No Show</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
             <Select value={reasonFilter} onValueChange={setReasonFilter}>
@@ -797,10 +820,21 @@ export default function PipelinesPage() {
                 <SelectItem value="none">No reason recorded</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={qualifiedFilter} onValueChange={(value) => setQualifiedFilter(value as QualifiedFilter)}>
+              <SelectTrigger className="w-[180px] bg-background" aria-label="Filter by qualified">
+                <SelectValue placeholder="Qualified: any" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Qualified: any</SelectItem>
+                <SelectItem value="yes">Qualified</SelectItem>
+                <SelectItem value="no">Not qualified</SelectItem>
+                <SelectItem value="unmarked">Qualified not marked</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {historyFilter === "all" && reasonFilter === "all" && verbalCommitments.length > 0 ? (
+        {historyFilter === "all" && reasonFilter === "all" && qualifiedFilter === "all" && verbalCommitments.length > 0 ? (
           <div className="space-y-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -858,6 +892,7 @@ export default function PipelinesPage() {
               <EditableHistoryCard
                 key={item.id}
                 item={item}
+                nextMeetingHeld={secondMeetingsDone.has(item.id)}
                 repName={repMap.get(item.assigned_user_id) || "Unknown rep"}
                 setterName={repMap.get(item.created_by) || "Unknown rep"}
                 reps={reps}
