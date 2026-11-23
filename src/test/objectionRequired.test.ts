@@ -12,4 +12,7 @@ describe("objection on every sitting that didn't close", () => {
     expect(reasonsForOutcome("showed_closed")).toBeNull();
     expect(reasonsForOutcome("showed_verbal_commitment")).toBeNull();
   });
+  it("offers Fear as a no-close objection", () => {
+    expect(NO_CLOSE_REASONS.map((r) => r.value)).toContain("fear");
+  });
 });

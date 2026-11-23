@@ -332,6 +332,7 @@ const OBJ_LABEL: Record<string, string> = {
   think_partner: "Needs to think / partner",
   timing: "Timing",
   agency_trust: "Has an agency / trust",
+  fear: "Fear / risk",
   other: "Other reason",
   unrecorded: "No reason recorded",
 };
