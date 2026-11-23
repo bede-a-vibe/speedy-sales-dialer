@@ -49,6 +49,8 @@ export function clientsInWindow(deals: SetterFirstDeal[], setterId: string, sinc
   for (const d of deals) {
     if (d.setter_id !== setterId || d.billing_period === "one_off") continue;
     if (d.start_date < since || d.start_date > today) continue;
+    // Cancelled before paying anything: never earned a commission, so not a client here.
+    if (d.status === "churned" && d.payments.length === 0) continue;
     byContact.set(d.contact_id, (byContact.get(d.contact_id) ?? 0) + firstMonthValue(d));
   }
   const values = [...byContact.values()].filter((v) => v > 0);

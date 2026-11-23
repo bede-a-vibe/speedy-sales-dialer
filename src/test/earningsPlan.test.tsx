@@ -77,6 +77,8 @@ describe("earnings plan", () => {
         deal({ deal_id: "2", contact_id: "b", first_month_amount: 4000 }),
         deal({ deal_id: "3", contact_id: "c", billing_period: "one_off", amount: 9000 }),
         deal({ deal_id: "4", contact_id: "d", setter_id: "lachlan" }),
+        deal({ deal_id: "6", contact_id: "f", status: "churned" }),
+        deal({ deal_id: "7", contact_id: "a", amount: 0, status: "churned", payments: [{ id: "p", paid_on: "2026-11-06", amount: 1, note: null }] }),
         deal({ deal_id: "5", contact_id: "e", start_date: "2026-08-01" }),
       ],
       "ben", "2026-09-24", "2026-11-23",
