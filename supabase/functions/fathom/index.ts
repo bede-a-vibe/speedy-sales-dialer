@@ -228,13 +228,25 @@ Deno.serve(async (req) => {
     }
     if (action === "link" || action === "unlink") {
       const fathomId = String(body.fathom_id ?? "");
-      const { data: m } = await admin.from("fathom_meetings").select("user_id, share_url").eq("fathom_id", fathomId).maybeSingle();
+      const { data: m } = await admin.from("fathom_meetings").select("user_id, share_url, pipeline_item_id").eq("fathom_id", fathomId).maybeSingle();
       if (!m || (m.user_id !== userId && !isMgr)) return json({ error: "Not found" }, 404);
+      // Matching also copies the link onto the appointment, which the whole team
+      // reads. Take that copy off the appointment this meeting is leaving, unless
+      // someone has since put a different recording there.
+      const clearCopy = async () => {
+        if (!m.pipeline_item_id || !m.share_url) return;
+        const { error } = await admin.from("pipeline_items").update({ recording_url: null })
+          .eq("id", m.pipeline_item_id).eq("recording_url", m.share_url);
+        if (error) throw new Error(error.message);
+      };
       if (action === "unlink") {
-        await admin.from("fathom_meetings").update({ pipeline_item_id: null, match_confidence: "unlinked" }).eq("fathom_id", fathomId);
+        await clearCopy();
+        const { error } = await admin.from("fathom_meetings").update({ pipeline_item_id: null, match_confidence: "unlinked" }).eq("fathom_id", fathomId);
+        if (error) throw new Error(error.message);
       } else {
         const itemId = String(body.pipeline_item_id ?? "");
         if (!/^[0-9a-f-]{36}$/.test(itemId)) return json({ error: "Bad appointment id" }, 400);
+        if (m.pipeline_item_id !== itemId) await clearCopy();
         await admin.from("fathom_meetings").update({ pipeline_item_id: itemId, match_confidence: "manual" }).eq("fathom_id", fathomId);
         await admin.from("pipeline_items").update({ recording_url: m.share_url }).eq("id", itemId);
       }
