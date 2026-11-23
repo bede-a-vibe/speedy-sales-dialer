@@ -777,6 +777,7 @@ export function useCreatePipelineItem() {
       // Precise invalidation — just the two lists we touched, plus booked-range if relevant.
       queryClient.invalidateQueries({ queryKey: ["pipeline-items", payload.pipeline_type, payload.status ?? "open"] });
       queryClient.invalidateQueries({ queryKey: ["pipeline-items", "contact", payload.contact_id] });
+      queryClient.invalidateQueries({ queryKey: ["todo"] });
       if (payload.pipeline_type === "booked") {
         queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
       }
@@ -814,6 +815,7 @@ export function useUpdatePipelineItem() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+      queryClient.invalidateQueries({ queryKey: ["todo"] });
       queryClient.invalidateQueries({ queryKey: ["booked-appointments-range"] });
     },
   });

@@ -86,7 +86,7 @@ const SCENARIOS: ScenarioConfig[] = [
     tone:
       "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     summary:
-      "The prospect asked us to call back. A Follow-up pipeline item is created and shows up in Pipelines, Follow-ups on the chosen date.",
+      "The prospect asked us to call back. A Follow-up pipeline item is created and shows up on the Pipelines To do list on the chosen date.",
     systemActions: [
       "Create pipeline_items row (pipeline_type = follow_up)",
       "Assign to the rep who logged the call",
@@ -356,7 +356,7 @@ export function ScenarioMode({ open, onOpenChange }: ScenarioModeProps) {
               <p className="font-medium">Simulated result</p>
               <p className="mt-0.5 text-xs">
                 {logged === "follow_up"
-                  ? `A follow-up would now appear in Pipelines, Follow-ups for ${format(
+                  ? `A follow-up would now appear on the Pipelines To do list for ${format(
                       followUpDate,
                       "EEE, d MMM",
                     )} at ${followUpTime}.`

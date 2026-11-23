@@ -115,7 +115,7 @@ interface BookedOutcomePanelProps {
 
 /** Query roots whose data includes a booking's is_qualified verdict. */
 const QUALIFICATION_QUERY_ROOTS = new Set([
-  "pipeline-items", "booked-appointments-range", "rebook-queue", "source-funnel", "rep-meeting-stats",
+  "pipeline-items", "booked-appointments-range", "todo", "source-funnel", "rep-meeting-stats",
   "meetings-pending", "meetings-upcoming", "meetings-recent", "client-meetings", "close-tracking",
   "my-sales-closes", "session-summary-booked", "call-library",
 ]);
@@ -200,7 +200,7 @@ export function BookedOutcomePanel({ item, reps, isSaving, onAssign, onRecordOut
   const [proposalSentDate, setProposalSentDate] = useState<string | null>(((item as { proposal_sent_date?: string | null }).proposal_sent_date) ?? null);
   /**
    * To send: opens a follow-up task (next weekday 10am) so the proposal shows
-   * on the Follow-ups tab until it goes. Sent: stamps the GHL "Proposal Sent
+   * on the To do list until it goes. Sent: stamps the GHL "Proposal Sent
    * Date" field and closes that task.
    */
   const saveProposal = async (picked: ProposalStatus) => {

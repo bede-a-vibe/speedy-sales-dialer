@@ -5,8 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
-import { RebookQueue } from "@/components/pipelines/RebookQueue";
-import { useRebookQueue } from "@/hooks/useRebookQueue";
+import { TodoPanel } from "@/components/todo/TodoPanel";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
 import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,8 @@ import {
   type SalesRepOption,
 } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
-import { useOverdueFollowUpCount } from "@/hooks/useOverdueFollowUpCount";
+import { useTodoCount } from "@/hooks/useTodoList";
+import { useAdminAccess } from "@/hooks/useUserRole";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useGHLFollowUpSync } from "@/hooks/ghl/useGHLFollowUpSync";
 import { useGHLOpportunityMirror } from "@/hooks/ghl/useGHLOpportunityMirror";
@@ -46,10 +46,22 @@ import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, PencilLine } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DealBoardSkeleton, ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 
-const FollowUpsPanel = lazy(() => import("@/components/pipelines/FollowUpsPanel"));
+const GhlTasksPanel = lazy(() => import("@/components/pipelines/GhlTasksPanel"));
+
+/** Everything a rep does not need day to day. */
+const MORE_TABS = [
+  { value: "board", label: "Board" },
+  { value: "history", label: "Completed" },
+  { value: "closing", label: "Close tracking" },
+  { value: "meetings", label: "All meetings" },
+  { value: "ghltasks", label: "GHL tasks" },
+];
+const TABS = ["todo", "booked", "mine", ...MORE_TABS.map((t) => t.value)];
 
 function getRepLabel(displayName: string | null, email: string | null) {
   return displayName?.trim() || email || "Unassigned";
@@ -354,23 +366,16 @@ export default function PipelinesPage() {
   
   
   const tabParam = searchParams.get("tab");
-  const activeTab =
-    tabParam === "followups" ? "followups" :
-    tabParam === "history" ? "history" :
-    tabParam === "booked" ? "booked" :
-    tabParam === "rebook" ? "rebook" :
-    tabParam === "closing" ? "closing" :
-    tabParam === "meetings" ? "meetings" :
-    tabParam === "mine" ? "mine" :
-    "board";
+  // The old Follow-ups and Rebook tabs are both the To do list now.
+  const activeTab = tabParam && TABS.includes(tabParam) ? tabParam : "todo";
   const { data: booked = [], isLoading: bookedLoading } = usePipelineItems("booked", "open");
   const { data: completedBooked = [], isLoading: historyLoading } = usePipelineItems("booked", "completed");
   const { data: reps = [] } = useSalesReps();
-  const { data: rebookItems = [] } = useRebookQueue();
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
-  const { data: overdueFollowUps = 0 } = useOverdueFollowUpCount(user?.id);
+  const { canViewAdmin } = useAdminAccess();
+  const { data: todoCount = 0 } = useTodoCount(user?.id);
   const { pushCallNote } = useGHLContactSync();
   const { pushFollowUp } = useGHLFollowUpSync();
   const { refreshOpportunityMirror } = useGHLOpportunityMirror();
@@ -409,12 +414,12 @@ export default function PipelinesPage() {
     [booked],
   );
 
-  // Opening Follow-ups alone should not sweep every booked deal in GHL. Once
+  // Opening the To do list alone should not sweep every booked deal in GHL. Once
   // any appointment tab has been viewed it stays on, so switching back and
   // forth never repeats the sweep.
-  const [mirrorOn, setMirrorOn] = useState(activeTab !== "followups");
+  const [mirrorOn, setMirrorOn] = useState(activeTab !== "todo");
   useEffect(() => {
-    if (activeTab !== "followups") setMirrorOn(true);
+    if (activeTab !== "todo") setMirrorOn(true);
   }, [activeTab]);
 
   useEffect(() => {
@@ -923,20 +928,12 @@ export default function PipelinesPage() {
     );
   };
 
+  const moreTab = MORE_TABS.find((t) => t.value === activeTab);
+
   return (
     <AppLayout title="Pipelines">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Pipelines &amp; follow-ups</h3>
-            <p className="text-sm text-muted-foreground">Booked appointments, their results, and the follow-ups you owe, in one place.</p>
-          </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
-            <span>{booked.length} booked{staleCount > 0 ? ` (${staleCount} stale)` : ""}</span>
-            <span>{completedBooked.length} completed</span>
-          </div>
-        </div>
-
+        {canViewAdmin && activeTab !== "todo" ? (
         <Collapsible open={statusOpen} onOpenChange={setStatusOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-4 py-2.5 text-left transition-colors hover:bg-muted/40">
             <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -993,7 +990,7 @@ export default function PipelinesPage() {
             <p className="mt-1 text-xs text-muted-foreground">
               Completed booked outcomes that should continue in the follow-up task queue.
             </p>
-            <Link to="/pipelines?tab=followups" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            <Link to="/pipelines?tab=todo" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
               Open follow-ups
             </Link>
           </div>
@@ -1007,28 +1004,42 @@ export default function PipelinesPage() {
         </div>
           </CollapsibleContent>
         </Collapsible>
+        ) : null}
 
         <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
-          <TabsList className="h-auto flex-wrap justify-start">
-            <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="followups">
-              Follow-ups
-              {overdueFollowUps > 0 && (
-                <span className="ml-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground" title="Your overdue follow-ups">
-                  {overdueFollowUps}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="mine">My bookings</TabsTrigger>
-            <TabsTrigger value="booked">Booked</TabsTrigger>
-            <TabsTrigger value="rebook">Rebook{rebookItems.length > 0 ? ` (${rebookItems.length})` : ""}</TabsTrigger>
-            <TabsTrigger value="history">Completed</TabsTrigger>
-            <TabsTrigger value="closing">Close tracking</TabsTrigger>
-            <TabsTrigger value="meetings">All meetings</TabsTrigger>
-          </TabsList>
-          <TabsContent value="followups" className="mt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList className="h-auto flex-wrap justify-start">
+              <TabsTrigger value="todo">
+                To do
+                {todoCount > 0 && (
+                  <span className="ml-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground" title="Yours to chase now">
+                    {todoCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="booked">Upcoming{staleCount > 0 ? ` (${staleCount} need a result)` : ""}</TabsTrigger>
+              <TabsTrigger value="mine">My bookings</TabsTrigger>
+            </TabsList>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className={cn(moreTab && "bg-muted font-semibold")}>
+                  {moreTab?.label ?? "More"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {MORE_TABS.map((t) => (
+                  <DropdownMenuItem key={t.value} onClick={() => setSearchParams({ tab: t.value })}>{t.label}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <TabsContent value="todo" className="mt-4">
+            <TodoPanel reps={reps} repMap={repMap} initialFilter={tabParam === "followups" ? "follow_up" : "all"} />
+          </TabsContent>
+          <TabsContent value="ghltasks" className="mt-4">
             <Suspense fallback={<ListRowsSkeleton rows={6} />}>
-              <FollowUpsPanel />
+              <GhlTasksPanel />
             </Suspense>
           </TabsContent>
           <TabsContent value="mine" className="mt-4">
@@ -1070,9 +1081,6 @@ export default function PipelinesPage() {
                 />
               </>
             )}
-          </TabsContent>
-          <TabsContent value="rebook" className="mt-4">
-            <RebookQueue reps={reps} repMap={repMap} />
           </TabsContent>
           <TabsContent value="history" className="mt-4">
             {renderHistory()}
