@@ -107,7 +107,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { title: "Pipelines · Upcoming", to: "/pipelines?tab=booked", icon: CalendarClock },
       { title: "To do: follow-ups and rebooks", to: "/pipelines?tab=todo", icon: CalendarClock },
       { title: "Goals & KPIs", to: "/goals", icon: Target },
-      { title: "Classroom", to: "/classroom", icon: GraduationCap },
+      { title: "Training · Classroom", to: "/training?tab=classroom", icon: GraduationCap },
       { title: "Training", to: "/training", icon: GraduationCap },
     ];
     const admin = canViewAdmin

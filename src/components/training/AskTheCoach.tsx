@@ -1,29 +1,15 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { GraduationCap, Sparkles, Wand2, MessageSquareText, Loader2 } from "lucide-react";
-import { AppLayout } from "@/components/AppLayout";
+import { useState } from "react";
+import { Sparkles, Wand2, MessageSquareText, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { Classroom } from "@/components/playbook/Classroom";
-import { CallLibrary } from "@/components/playbook/CallLibrary";
-import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 import { OBJECTION_CATEGORY_STYLES as CATEGORY_STYLES } from "@/components/training/ObjectionBankPanel";
 
-/**
- * Classroom — everything a setter learns, organised by skill. Each skill is a
- * course; each course is lessons with a video, notes and a built-in panel
- * where one exists. Managers author it in-app. Nothing here has a status
- * except the lesson ticks — anything that needs reviewing or submitting lives
- * on Training.
- */
-
-function AskTheCoach({ onRoleplay }: { onRoleplay: (q: string) => void }) {
+export function AskTheCoach({ onRoleplay }: { onRoleplay: (q: string) => void }) {
   const { toast } = useToast();
   const [askQuestion, setAskQuestion] = useState("");
   const [askLoading, setAskLoading] = useState(false);
@@ -83,60 +69,5 @@ function AskTheCoach({ onRoleplay }: { onRoleplay: (q: string) => void }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-export default function ClassroomPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [roleplayOpen, setRoleplayOpen] = useState(false);
-  const [roleplayObjection, setRoleplayObjection] = useState("");
-
-  // Deep link from the Coach tab / drills: /classroom?drill=<scenario>
-  useEffect(() => {
-    const drill = searchParams.get("drill");
-    if (drill && !roleplayOpen) {
-      setRoleplayObjection(drill); setRoleplayOpen(true);
-      const next = new URLSearchParams(searchParams); next.delete("drill");
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  return (
-    <AppLayout>
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight"><GraduationCap className="h-6 w-6 text-primary" /> Classroom</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              One course per skill. Built from our own calls — every line came off a recording you can go back and listen to.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {[["5,573", "dials"], ["88", "meetings booked"], ["436", "calls analysed"]].map(([n, label]) => (
-              <Badge key={label} variant="outline" className="border-border bg-muted/40 font-normal">
-                <span className="font-mono font-semibold text-foreground">{n}</span><span className="ml-1 text-muted-foreground">{label}</span>
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        <Classroom />
-
-        <CallLibrary />
-
-        <AskTheCoach onRoleplay={(q) => { setRoleplayObjection(q); setRoleplayOpen(true); }} />
-      </div>
-
-      <Dialog open={roleplayOpen} onOpenChange={setRoleplayOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><MessageSquareText className="h-4 w-4 text-primary" /> Roleplay trainer</DialogTitle>
-            <DialogDescription>Five hidden tradie personas, levels 1-5, milestone grading. Pass = clean process, not "did you book".</DialogDescription>
-          </DialogHeader>
-          <RoleplayTrainer key={roleplayObjection} initialScenario={roleplayObjection} />
-        </DialogContent>
-      </Dialog>
-    </AppLayout>
   );
 }

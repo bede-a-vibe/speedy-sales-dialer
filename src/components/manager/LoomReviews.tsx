@@ -247,7 +247,7 @@ function ReviewRow({ review, reps, onEdit }: { review: LoomReview; reps: RepProf
   async function copy() {
     const path = review.recipients.length || !review.lesson?.courseSlug
       ? `/training?loom=${review.id}`
-      : `/classroom?course=${review.lesson.courseSlug}&lesson=${review.lesson.id}`;
+      : `/training?tab=classroom&course=${review.lesson.courseSlug}&lesson=${review.lesson.id}`;
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${path}`);
       toast({ title: "Link copied" });

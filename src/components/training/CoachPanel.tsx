@@ -22,7 +22,7 @@ import {
 function PracticeLink({ drill }: { drill: string }) {
   return (
     <Link
-      to={`/classroom?drill=${encodeURIComponent(drill)}`}
+      to={`/training?drill=${encodeURIComponent(drill)}`}
       className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
     >
       <Swords className="h-3 w-3" /> Practice this
