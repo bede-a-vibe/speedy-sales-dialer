@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 
 /**
  * The manager playbook: how to run the ongoing training rhythm for certified
- * reps. Admin/coach-facing — the counterpart of the reps' 14-day program.
+ * reps. Admin/coach-facing — the counterpart of what reps see on Training.
  */
 export function ManagerPlaybook() {
   return (

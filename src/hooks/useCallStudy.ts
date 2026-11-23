@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { bucketFor, SHOWED_BUCKETS, type LibraryBucket } from "@/hooks/useCallLibrary";
+import { bucketFor, isWinningMeeting, SHOWED_BUCKETS, type LibraryBucket } from "@/hooks/useCallLibrary";
 import { fetchStudyMeetingLinks } from "@/lib/studyMeetings";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
@@ -26,6 +26,8 @@ export interface StudyCall {
   /** How the booked meeting ended, where there was one. */
   bucket: LibraryBucket | null;
   meetingUrl: string | null;
+  /** The meeting it set closed, or a qualified prospect sat. */
+  winning: boolean;
 }
 
 const PAGE = 1000;
@@ -72,6 +74,21 @@ export function useStudySources() {
   });
 }
 
+/**
+ * Whether a person is a manager. A rep studies everything a manager gives them,
+ * but only the winning calls of another rep. Unknown counts as a rep.
+ */
+export function useIsManagerUser(userId: string) {
+  return useQuery({
+    queryKey: ["is-manager-user", userId],
+    staleTime: 300_000,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await db.rpc("is_admin_or_coach", { _user_id: userId });
+      return !error && data === true;
+    },
+  });
+}
+
 export function useSetStudySource() {
   const qc = useQueryClient();
   return useMutation({
@@ -91,7 +108,7 @@ interface RawLog {
 }
 interface RawItem {
   id: string; contact_id: string; scheduled_for: string | null; status: string;
-  appointment_outcome: AppointmentOutcomeValue | null; recording_url: string | null;
+  appointment_outcome: AppointmentOutcomeValue | null; is_qualified: boolean | null; recording_url: string | null;
 }
 
 /**
@@ -128,7 +145,7 @@ export function useStudyCalls(sources: string[]) {
       // Ids go in the URL, so ask in batches.
       for (let i = 0; i < contactIds.length; i += 80) {
         const { data, error } = await db.from("pipeline_items")
-          .select("id, contact_id, scheduled_for, status, appointment_outcome, recording_url")
+          .select("id, contact_id, scheduled_for, status, appointment_outcome, is_qualified, recording_url")
           .eq("pipeline_type", "booked").in("contact_id", contactIds.slice(i, i + 80));
         if (error) throw error;
         items.push(...((data ?? []) as unknown as RawItem[]));
@@ -148,11 +165,12 @@ export function useStudyCalls(sources: string[]) {
           ? (byContact.get(l.contact_id) ?? []).filter((m) => m.scheduled_for && m.scheduled_for >= l.created_at)
           : [];
         const bucket = bestBucket(meetings.map((m) => bucketFor(m.appointment_outcome, m.status, m.scheduled_for)));
+        const winning = meetings.some((m) => isWinningMeeting(bucketFor(m.appointment_outcome, m.status, m.scheduled_for), m.is_qualified));
         const recorded = meetings.find((m) => fathom.has(m.id) || m.recording_url);
         return {
           id: l.id, calledAt: l.created_at, outcome: l.outcome, talk: l.dialpad_talk_time_seconds,
           dialpadCallId: l.dialpad_call_id, business: l.contacts?.business_name ?? null,
-          bucket, result: studyResult(l.outcome, bucket),
+          bucket, result: studyResult(l.outcome, bucket), winning,
           meetingUrl: recorded ? fathom.get(recorded.id) ?? recorded.recording_url : null,
         };
       });

@@ -8,6 +8,7 @@ describe("trainingTabFor", () => {
     ["", "reviews"],
     ["tab=library", "library"],
     ["tab=nonsense", "reviews"],
+    ["tab=start", "reviews"], // removed 23 Nov 2026
     ["course=open-the-call&lesson=abc", "classroom"],
     ["loom=r1", "reviews"],
     ["module=coach", "practice"],

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminAccess } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { useWinningCalls, type WinningCallResult } from "@/hooks/useWinningCalls";
 import { ListenButton } from "@/components/calls/ListenButton";
@@ -96,7 +98,14 @@ const FILTERS: { value: WinningCallResult | "all"; label: string }[] = [
  * The "Showed & Closed" ones are the gold-standard calls to study.
  */
 export function WinningCallsLibrary() {
-  const { data: calls = [], isLoading } = useWinningCalls();
+  const { user } = useAuth();
+  const { canViewAdmin } = useAdminAccess();
+  const { data: allCalls = [], isLoading } = useWinningCalls();
+  // A rep sees all of their own booked calls, and only the ones that won from anyone else.
+  const calls = useMemo(
+    () => allCalls.filter((c) => canViewAdmin || c.repUserId === user?.id || c.winning),
+    [allCalls, canViewAdmin, user?.id],
+  );
   const { data: meetings = [] } = useClientMeetings();
   const { data: reps = [] } = useSalesReps();
   const [filter, setFilter] = useState<WinningCallResult | "all">("all");

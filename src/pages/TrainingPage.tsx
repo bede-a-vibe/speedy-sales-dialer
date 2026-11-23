@@ -7,10 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallLibrary } from "@/components/playbook/CallLibrary";
 import { Classroom } from "@/components/playbook/Classroom";
 import { CallsToReview } from "@/components/training/CallsToReview";
-import { CommissionPanel } from "@/components/training/CommissionPanel";
 import { MyCallReviews } from "@/components/training/MyCallReviews";
 import { MyLoomReviews } from "@/components/training/MyLoomReviews";
-import { OnboardingPath } from "@/components/training/OnboardingPath";
 import { PracticeTab } from "@/components/training/PracticeTab";
 import { RoleplayTrainer } from "@/components/training/RoleplayTrainer";
 import { trainingTabFor, type TrainingTab } from "@/lib/trainingTabs";
@@ -26,7 +24,6 @@ const TABS: Array<{ value: TrainingTab; label: string }> = [
   { value: "classroom", label: "Classroom" },
   { value: "library", label: "Call library" },
   { value: "practice", label: "Practice" },
-  { value: "start", label: "First 14 days & pay" },
 ];
 
 export default function TrainingPage() {
@@ -71,10 +68,6 @@ export default function TrainingPage() {
           <TabsContent value="library"><CallLibrary /></TabsContent>
           <TabsContent value="practice">
             <PracticeTab onRoleplay={(q) => { setScenario(q); setRoleplayOpen(true); }} />
-          </TabsContent>
-          <TabsContent value="start" className="space-y-6">
-            <OnboardingPath />
-            <CommissionPanel />
           </TabsContent>
         </Tabs>
       </div>

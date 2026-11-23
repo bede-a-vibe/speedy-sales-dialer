@@ -26,12 +26,14 @@ export interface UnsuccessfulCall {
 
 const MIN_SECONDS = 120;
 
-export function useUnsuccessfulCalls() {
+/** `onlyUserId` null = everyone's (managers). A rep only gets their own. */
+export function useUnsuccessfulCalls(onlyUserId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ["unsuccessful-calls", MIN_SECONDS],
+    queryKey: ["unsuccessful-calls", MIN_SECONDS, onlyUserId],
+    enabled,
     staleTime: 120_000,
     queryFn: async (): Promise<UnsuccessfulCall[]> => {
-      const { data: logs, error } = await supabase
+      let query = supabase
         .from("call_logs")
         .select(
           "id, user_id, outcome, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, " +
@@ -40,7 +42,9 @@ export function useUnsuccessfulCalls() {
         )
         .neq("outcome", "booked")
         .not("dialpad_transcript", "is", null)
-        .gte("dialpad_talk_time_seconds", MIN_SECONDS)
+        .gte("dialpad_talk_time_seconds", MIN_SECONDS);
+      if (onlyUserId) query = query.eq("user_id", onlyUserId);
+      const { data: logs, error } = await query
         .order("dialpad_talk_time_seconds", { ascending: false })
         .limit(150);
       if (error) throw error;

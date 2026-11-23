@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchStudyMeetingLinks } from "@/lib/studyMeetings";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 /** How a booked slot ended, collapsed to what a rep wants to compare. */
@@ -51,9 +50,6 @@ export interface LibraryCall {
   } | null;
   /** Days from the booking call to this slot. */
   daysOut: number | null;
-  /** The meeting itself. Fathom share link, or the older recording_url column. */
-  meetingRecordingUrl: string | null;
-  meetingRecordingSource: "fathom" | "link" | null;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -95,13 +91,37 @@ export const hasSetAudio = (call: Pick<LibraryCall, "setting">): boolean =>
   Boolean(call.setting?.dialpadCallId && call.setting.hasAudio);
 
 /**
- * Has something to listen to: the booking call's Dialpad audio or the meeting
- * recording. The Classroom's call library only lists these (Bede, 31 Oct 2026:
- * a slot with neither has nothing to learn from in a listening library). A
- * transcript on its own does not count; the library is for hearing the call.
+ * The outcome we want from a set (Bede, 23 Nov 2026): the meeting closed, or a
+ * qualified prospect sat and didn't close. A no-show, a cancellation, a DQ, an
+ * unqualified sitting and a slot with no outcome are not wins.
  */
-export const hasRecording = (call: Pick<LibraryCall, "setting" | "meetingRecordingUrl">): boolean =>
-  hasSetAudio(call) || Boolean(call.meetingRecordingUrl);
+export function isWinningMeeting(bucket: LibraryBucket | null, isQualified: boolean | null): boolean {
+  if (bucket === "closed") return true;
+  return bucket !== null && bucket !== "dq" && SHOWED_BUCKETS.has(bucket) && isQualified === true;
+}
+
+export interface WinningSet extends LibraryCall { setting: NonNullable<LibraryCall["setting"]> }
+
+/**
+ * The setting calls behind winning meetings, one row per call. A lead who sat
+ * twice has two slots from one cold call; a close wins over the earlier sitting,
+ * otherwise the latest one stands. Calls with no audio are counted, not listed.
+ */
+export function winningSets(calls: LibraryCall[]): { sets: WinningSet[]; noAudio: number } {
+  const best = new Map<string, WinningSet>();
+  const silent = new Set<string>();
+  for (const c of calls) {
+    if (!isWinningMeeting(c.bucket, c.isQualified)) continue;
+    if (!c.setting || !hasSetAudio(c)) { silent.add(c.setting?.callLogId ?? c.contactId); continue; }
+    const set = c as WinningSet;
+    const held = best.get(set.setting.callLogId);
+    const beats = !held
+      || (set.bucket === "closed" && held.bucket !== "closed")
+      || ((set.bucket === "closed") === (held.bucket === "closed") && set.metAt > held.metAt);
+    if (beats) best.set(set.setting.callLogId, set);
+  }
+  return { sets: [...best.values()].sort((a, b) => (a.metAt < b.metAt ? 1 : -1)), noAudio: silent.size };
+}
 
 /** Dialpad's view of a call: did it connect, or does it carry a recording? */
 export function dialpadCallHasAudio(row: {
@@ -118,10 +138,8 @@ export function dialpadCallHasAudio(row: {
 }
 
 /**
- * Every booked slot since the given date, with the two recordings that explain it:
- * the cold call that booked the meeting and the meeting itself. The hook returns
- * every slot; the library hides the ones with nothing to hear (see `hasRecording`)
- * and says how many it hid, so the survivorship bias stays visible.
+ * Every booked slot since the given date with the cold call that set it. The
+ * library narrows this to winning sets (see `winningSets`).
  */
 export function useCallLibrary(sinceIso: string) {
   return useQuery({
@@ -131,7 +149,7 @@ export function useCallLibrary(sinceIso: string) {
       const { data: items, error } = await supabase
         .from("pipeline_items")
         .select(
-          "id, contact_id, scheduled_for, status, appointment_outcome, outcome_reason, is_qualified, reschedule_count, monthly_recurring_value, deal_value, recording_url, created_by, assigned_user_id, contacts:contacts!pipeline_items_contact_id_fkey(business_name, contact_person, dm_name, state, industry)",
+          "id, contact_id, scheduled_for, status, appointment_outcome, outcome_reason, is_qualified, reschedule_count, monthly_recurring_value, deal_value, created_by, assigned_user_id, contacts:contacts!pipeline_items_contact_id_fkey(business_name, contact_person, dm_name, state, industry)",
         )
         .eq("pipeline_type", "booked")
         .gte("scheduled_for", sinceIso)
@@ -149,7 +167,6 @@ export function useCallLibrary(sinceIso: string) {
         reschedule_count: number | null;
         monthly_recurring_value: number | null;
         deal_value: number | null;
-        recording_url: string | null;
         created_by: string;
         assigned_user_id: string;
         contacts: { business_name: string | null; contact_person: string | null; dm_name: string | null; state: string | null; industry: string | null } | null;
@@ -157,28 +174,23 @@ export function useCallLibrary(sinceIso: string) {
       if (rows.length === 0) return [];
 
       const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
-      const itemIds = rows.map((r) => r.id);
-      const userIds = [...new Set(rows.flatMap((r) => [r.created_by, r.assigned_user_id]).filter(Boolean))];
 
-      const [callsRes, fathomRes, historyRes, profilesRes, studyLinks] = await Promise.all([
+      const [callsRes, historyRes, profilesRes] = await Promise.all([
         supabase
           .from("call_logs")
-          .select("id, contact_id, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, dialpad_summary")
+          .select("id, contact_id, user_id, created_at, dialpad_call_id, dialpad_talk_time_seconds, dialpad_transcript, dialpad_summary")
           .in("contact_id", contactIds)
           .eq("outcome", "booked")
           .order("created_at", { ascending: true }),
-        supabase.from("fathom_meetings").select("pipeline_item_id, share_url").in("pipeline_item_id", itemIds),
         // Every showed slot per contact, to tell a first meeting from a follow-up.
         supabase
           .from("pipeline_items")
           .select("contact_id, scheduled_for, appointment_outcome")
           .eq("pipeline_type", "booked")
           .in("contact_id", contactIds),
-        supabase.from("profiles").select("user_id, display_name, email").in("user_id", userIds),
-        fetchStudyMeetingLinks(),
+        supabase.from("profiles").select("user_id, display_name, email"),
       ]);
       if (callsRes.error) throw callsRes.error;
-      if (fathomRes.error) throw fathomRes.error;
       if (historyRes.error) throw historyRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
@@ -196,10 +208,6 @@ export function useCallLibrary(sinceIso: string) {
       const dialpadById = new Map((dialpadRows.error ? [] : dialpadRows.data ?? []).map((d) => [d.dialpad_call_id, d]));
 
       const nameByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.display_name || p.email?.split("@")[0] || null]));
-      const fathomByItem = new Map<string, string | null>([
-        ...studyLinks,
-        ...(fathomRes.data ?? []).map((f) => [f.pipeline_item_id as string, f.share_url as string | null] as const),
-      ]);
 
       // The booking call is the last "booked" call before the slot; fall back to the earliest.
       const callsByContact = new Map<string, NonNullable<typeof callsRes.data>>();
@@ -225,7 +233,6 @@ export function useCallLibrary(sinceIso: string) {
           const calls = callsByContact.get(r.contact_id) ?? [];
           const before = calls.filter((c) => new Date(c.created_at).getTime() <= metMs);
           const call = before[before.length - 1] ?? calls[0] ?? null;
-          const fathom = fathomByItem.get(r.id) ?? null;
           const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" });
           const isFollowUp = (showedDaysByContact.get(r.contact_id) ?? []).some(
             (t) => new Date(t).getTime() < metMs && dayKey(t) !== dayKey(metAt),
@@ -246,7 +253,8 @@ export function useCallLibrary(sinceIso: string) {
             rescheduleCount: r.reschedule_count ?? 0,
             mrr: r.monthly_recurring_value,
             dealValue: r.deal_value,
-            setterName: nameByUser.get(r.created_by) ?? null,
+            // Who made the call. A second meeting's slot is created by the closer.
+            setterName: nameByUser.get(call?.user_id ?? r.created_by) ?? null,
             closerName: nameByUser.get(r.assigned_user_id) ?? null,
             setting: call
               ? {
@@ -260,8 +268,6 @@ export function useCallLibrary(sinceIso: string) {
                 }
               : null,
             daysOut: call ? Math.round((metMs - new Date(call.created_at).getTime()) / MS_PER_DAY) : null,
-            meetingRecordingUrl: fathom ?? r.recording_url ?? null,
-            meetingRecordingSource: fathom ? "fathom" : r.recording_url ? "link" : null,
           };
         });
     },

@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useUnsuccessfulCalls, type UnsuccessfulCall } from "@/hooks/useUnsuccessfulCalls";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminAccess } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
 import { STAGE_LABELS, SKILL_TAG_LABELS } from "@/hooks/useCallCoaching";
 import { EXIT_STAGE_LABELS, getExitReasonLabel } from "@/lib/funnelMetrics";
@@ -138,7 +140,11 @@ function Row({ call, repName }: { call: UnsuccessfulCall; repName: string }) {
 }
 
 export function LearningCallsLibrary() {
-  const { data: calls = [], isLoading } = useUnsuccessfulCalls();
+  const { user } = useAuth();
+  const { canViewAdmin, isLoading: roleLoading } = useAdminAccess();
+  // A rep learns from their own calls that fell over, not from a teammate's.
+  const { data: calls = [], isLoading: callsLoading } = useUnsuccessfulCalls(canViewAdmin ? null : user?.id ?? null, !!user && !roleLoading);
+  const isLoading = roleLoading || callsLoading;
   const { data: reps = [] } = useSalesReps();
   const [stage, setStage] = useState<StageFilter>("all");
   const [minMinutes, setMinMinutes] = useState<2 | 5 | 10>(2);
@@ -173,7 +179,7 @@ export function LearningCallsLibrary() {
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-        <h3 className="font-medium text-foreground">The calls that didn't book</h3>
+        <h3 className="font-medium text-foreground">{canViewAdmin ? "The calls that didn't book" : "Your calls that didn't book"}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Real conversations, two minutes or longer, that got somewhere and then fell over. The winning library shows
           the destination — this shows the wrong turns, and that is where most of the learning is. Each one carries the
