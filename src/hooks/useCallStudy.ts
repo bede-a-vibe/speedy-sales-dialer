@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { bucketFor, SHOWED_BUCKETS, type LibraryBucket } from "@/hooks/useCallLibrary";
+import { fetchStudyMeetingLinks } from "@/lib/studyMeetings";
 import type { AppointmentOutcomeValue } from "@/lib/appointments";
 
 // The generated types don't carry these tables until Lovable next regenerates them.
@@ -123,7 +124,7 @@ export function useStudyCalls(sources: string[]) {
 
       const contactIds = [...new Set(logs.filter((l) => l.outcome === "booked").map((l) => l.contact_id).filter((x): x is string => !!x))];
       const items: RawItem[] = [];
-      const fathom = new Map<string, string>();
+      const fathom = await fetchStudyMeetingLinks();
       // Ids go in the URL, so ask in batches.
       for (let i = 0; i < contactIds.length; i += 80) {
         const { data, error } = await db.from("pipeline_items")
