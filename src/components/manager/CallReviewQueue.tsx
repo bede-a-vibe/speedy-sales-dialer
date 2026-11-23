@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Star, CheckCircle2, UserCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Star, CheckCircle2, UserCheck, Video } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -219,6 +220,9 @@ function ReviewDialog({ call, repName, existing, onClose }: {
               <p className="mb-1.5 text-xs font-medium">One thing to fix next call</p>
               <Textarea value={improve} onChange={(e) => setImprove(e.target.value)} rows={4} />
             </div>
+            <Button type="button" variant="outline" className="w-full" asChild>
+              <Link to={`/admin/manager?tab=loom&call=${call.id}`}><Video className="mr-2 h-4 w-4" /> Send a Loom on this call</Link>
+            </Button>
             <Button className="w-full" disabled={score === 0 || save.isPending} onClick={submit}>
               <CheckCircle2 className="mr-2 h-4 w-4" /> {existing ? "Update review" : "Mark reviewed"}
             </Button>

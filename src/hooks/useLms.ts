@@ -16,6 +16,8 @@ export interface LmsLesson {
   video_url: string | null; body: string | null; resources: LmsResource[]; published: boolean;
   /** Key of a built-in panel to render as the lesson body (see COMPONENTS in Classroom). */
   component: string | null;
+  /** Set when the lesson is a published Loom review; its calls render under the notes. */
+  loom_review_id?: string | null;
 }
 
 // Courses and lessons are edited outside the app too (SQL updates, the

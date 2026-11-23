@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DQ_REASONS, AGENCY_SERVICES } from "@/data/constants";
 import { WinningCallsLibrary } from "@/components/playbook/WinningCallsLibrary";
+import { MyLoomReviews } from "@/components/training/MyLoomReviews";
 import { MyCallReviews } from "@/components/training/MyCallReviews";
 import { SelfReviewPanel } from "@/components/training/SelfReviewPanel";
 import { OnboardingPath } from "@/components/training/OnboardingPath";
@@ -49,6 +50,7 @@ export default function TrainingPage() {
   return (
     <AppLayout title="Training">
       <div className="mx-auto max-w-6xl space-y-6">
+        <MyLoomReviews />
         <MyCallReviews />
         <SelfReviewPanel />
         <OnboardingPath />

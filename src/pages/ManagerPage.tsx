@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CallReviewQueue } from "@/components/manager/CallReviewQueue";
+import { LoomReviews } from "@/components/manager/LoomReviews";
 import { PlaybookLocks } from "@/components/manager/PlaybookLocks";
 import { OneOnOnePanel } from "@/components/manager/OneOnOnePanel";
 import { RoleplayResults } from "@/components/manager/RoleplayResults";
@@ -18,6 +19,7 @@ import { FathomTeamStatus } from "@/components/fathom/FathomConnect";
 
 const TABS = [
   { value: "review", label: "Call review" },
+  { value: "loom", label: "Loom reviews" },
   { value: "eod", label: "EOD reports" },
   { value: "kpis", label: "KPIs & targets" },
   { value: "revenue", label: "Meetings → revenue" },
@@ -33,6 +35,7 @@ type ManagerTab = (typeof TABS)[number]["value"];
 
 const TITLES: Record<ManagerTab, string> = {
   review: "Manager · Call review",
+  loom: "Manager · Loom reviews",
   eod: "Manager · EOD reports",
   kpis: "Manager · KPIs & targets",
   revenue: "Manager · Meetings → revenue",
@@ -80,6 +83,7 @@ export default function ManagerPage() {
           </TabsList>
 
           <TabsContent value="review"><CallReviewQueue /></TabsContent>
+          <TabsContent value="loom"><LoomReviews /></TabsContent>
           <TabsContent value="eod">{user ? <TeamReview managerId={user.id} /> : null}</TabsContent>
           <TabsContent value="kpis" className="space-y-4"><FathomTeamStatus /><TeamKpis /></TabsContent>
           <TabsContent value="revenue"><MeetingRevenuePipeline /></TabsContent>
