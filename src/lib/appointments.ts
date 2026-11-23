@@ -32,6 +32,7 @@ export const NO_CLOSE_REASONS = [
   { value: "think_partner", label: "Needs to think / partner" },
   { value: "timing", label: "Timing" },
   { value: "agency_trust", label: "Has an agency / trust" },
+  { value: "fear", label: "Fear / risk" },
   { value: "other", label: "Other" },
 ] as const;
 
