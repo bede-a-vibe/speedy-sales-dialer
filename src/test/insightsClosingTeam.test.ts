@@ -333,6 +333,6 @@ describe("Closing tracker: why they didn't close", () => {
       new Map(),
     );
     expect(s.didntClose).toBe(5);
-    expect(s.why).toEqual({ price_budget: 1, think_partner: 1, timing: 1, dq_too_small: 1, unrecorded: 1 });
+    expect(s.why).toEqual({ price_budget: 1, think_partner: 1, timing: 1, not_qualified: 1, unrecorded: 1 });
   });
 });

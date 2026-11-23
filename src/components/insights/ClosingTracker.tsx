@@ -160,7 +160,7 @@ interface Stats {
   obj: Record<string, number>;
   /** Every sitting that didn't close (no close, follow-up, second meeting booked), pitched or not. */
   didntClose: number;
-  /** didntClose by objection: OBJ_LABEL and DQ_LABEL keys, "unrecorded", or UNMAPPED. */
+  /** didntClose by objection: OBJ_LABEL keys, "not_qualified" (a DQ reason on a no-close), or UNMAPPED. */
   why: Record<string, number>;
   dq: number;
   dqReasons: Record<string, number>;
@@ -288,7 +288,9 @@ export function computeStats(
     if (bucket === "showed" && DIDNT_CLOSE.has(outcome)) {
       s.didntClose += 1;
       const r = i.outcome_reason || "unrecorded";
-      const k = hasLabel(OBJ_LABEL, r) || hasLabel(DQ_LABEL, r) ? r : UNMAPPED;
+      // A DQ reason on a no-close is one "Not qualified" line here; the DQ detail
+      // lives once, under Live calls and offers.
+      const k = hasLabel(OBJ_LABEL, r) ? r : r.startsWith("dq_") ? "not_qualified" : UNMAPPED;
       s.why[k] = (s.why[k] ?? 0) + 1;
     }
     if (outcome === "disqualified") {
@@ -364,10 +366,7 @@ const WHY_ROWS: [string, string][] = [
   ["agency_trust", "Has an agency / trust"],
   ["fear", "Fear / risk"],
   ["other", "Other (incl. never pitched)"],
-  ["dq_too_small", "Not qualified: too small"],
-  ["dq_wrong_fit", "Not qualified: wrong fit"],
-  ["dq_not_dm", "Not qualified: not decision maker"],
-  ["dq_no_capacity", "Not qualified: no capacity"],
+  ["not_qualified", "Not qualified (follow-up kept)"],
   ["unrecorded", "No objection recorded"],
   [UNMAPPED, "Unmapped reason"],
 ];
@@ -451,7 +450,7 @@ function buildSections(repFiltered = false): SectionDef[] {
         {
           label: "Didn't close",
           fmt: "n",
-          hint: "sat and didn't close on the day: no close, no close follow-up, second meeting booked. Verbal yeses and DQs are counted separately",
+          hint: "sat and didn't close on the day: no close, no close follow-up, second meeting booked. Verbal yeses are under Closes, DQs under Live calls and offers",
           value: (s) => s.didntClose,
           emphasis: true,
         },
@@ -459,7 +458,6 @@ function buildSections(repFiltered = false): SectionDef[] {
           { label: `  ${label}`, fmt: "n", value: (s) => s.why[k] ?? 0 },
           { label: `  ${label} %`, fmt: "pct", hint: "÷ didn't close", value: (s) => pct(s.why[k] ?? 0, s.didntClose) },
         ]),
-        { label: "Verbal yes, not signed yet", fmt: "n", hint: "said yes on the call; not an objection", value: (s) => s.verbal },
       ],
     },
     {
