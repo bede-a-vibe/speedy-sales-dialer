@@ -6,6 +6,8 @@ import { PipelineItemCard } from "@/components/pipelines/PipelineItemCard";
 import { BookedAppointmentsTable } from "@/components/pipelines/BookedAppointmentsTable";
 import { BookedPipelineBoard } from "@/components/pipelines/BookedPipelineBoard";
 import { TodoPanel } from "@/components/todo/TodoPanel";
+import { ContactCallDock } from "@/components/contacts/ContactCallDock";
+import { usePipelineCall } from "@/hooks/usePipelineCall";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
 import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
 import { Button } from "@/components/ui/button";
@@ -928,11 +930,30 @@ export default function PipelinesPage() {
     );
   };
 
+  const pipelineCall = usePipelineCall();
+  // The phone loads the first time To do opens, then stays: it lives above the
+  // tabs so moving between them never drops a call.
+  const [phoneOn, setPhoneOn] = useState(activeTab === "todo");
+  useEffect(() => {
+    if (activeTab === "todo") setPhoneOn(true);
+  }, [activeTab]);
+
   const moreTab = MORE_TABS.find((t) => t.value === activeTab);
 
   return (
     <AppLayout title="Pipelines">
       <div className="mx-auto max-w-6xl space-y-6">
+        {phoneOn ? (
+          <ContactCallDock
+            ref={pipelineCall.dockRef}
+            contactId={null}
+            businessName={null}
+            dialpadUserId={pipelineCall.dialpadUserId}
+            onServerPlace={pipelineCall.placeViaServer}
+            onStateChange={pipelineCall.onStateChange}
+            className="sticky -top-6 z-30 pt-2 [&>div]:shadow-lg"
+          />
+        ) : null}
         {canViewAdmin && activeTab !== "todo" ? (
         <Collapsible open={statusOpen} onOpenChange={setStatusOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-4 py-2.5 text-left transition-colors hover:bg-muted/40">
@@ -1035,7 +1056,7 @@ export default function PipelinesPage() {
             </DropdownMenu>
           </div>
           <TabsContent value="todo" className="mt-4">
-            <TodoPanel reps={reps} repMap={repMap} initialFilter={tabParam === "followups" ? "follow_up" : "all"} />
+            <TodoPanel reps={reps} repMap={repMap} call={pipelineCall} initialFilter={tabParam === "followups" ? "follow_up" : "all"} />
           </TabsContent>
           <TabsContent value="ghltasks" className="mt-4">
             <Suspense fallback={<ListRowsSkeleton rows={6} />}>
