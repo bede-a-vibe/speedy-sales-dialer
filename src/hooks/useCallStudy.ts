@@ -39,6 +39,17 @@ export function bestBucket(buckets: LibraryBucket[]): LibraryBucket | null {
   return BUCKET_RANK.find((b) => buckets.includes(b)) ?? null;
 }
 
+/**
+ * The meetings a call can have set: those after it. A call logged late can sit
+ * after its own meeting, so a lead's first booked call falls back to all of them,
+ * as the call library does.
+ */
+export function meetingsFromCall<T extends { scheduled_for: string | null }>(meetings: T[], calledAt: string, isFirstCall: boolean): T[] {
+  const dated = meetings.filter((m) => m.scheduled_for);
+  const after = dated.filter((m) => new Date(m.scheduled_for!).getTime() >= new Date(calledAt).getTime());
+  return after.length > 0 || !isFirstCall ? after : dated;
+}
+
 export function studyResult(outcome: string, bucket: LibraryBucket | null): StudyResult {
   if (outcome !== "booked") return "not_booked";
   if (bucket === "closed") return "closed";
@@ -74,21 +85,6 @@ export function useStudySources() {
   });
 }
 
-/**
- * Whether a person is a manager. A rep studies everything a manager gives them,
- * but only the winning calls of another rep. Unknown counts as a rep.
- */
-export function useIsManagerUser(userId: string) {
-  return useQuery({
-    queryKey: ["is-manager-user", userId],
-    staleTime: 300_000,
-    queryFn: async (): Promise<boolean> => {
-      const { data, error } = await db.rpc("is_admin_or_coach", { _user_id: userId });
-      return !error && data === true;
-    },
-  });
-}
-
 export function useSetStudySource() {
   const qc = useQueryClient();
   return useMutation({
@@ -112,10 +108,9 @@ interface RawItem {
 }
 
 /**
- * Every recorded call these people made that is worth hearing: booked, or a
- * conversation of a minute or more. The same bar as a rep's own reviews, over
- * the whole history instead of a fortnight. Read in pages because PostgREST
- * caps a select at 1,000 rows.
+ * Every booked call these people made that has audio, with how its meeting went.
+ * The list shows the winning ones. Read in pages because PostgREST caps a select
+ * at 1,000 rows.
  */
 export function useStudyCalls(sources: string[]) {
   const key = [...sources].sort().join(",");
@@ -131,7 +126,7 @@ export function useStudyCalls(sources: string[]) {
           .in("user_id", sources)
           .not("dialpad_call_id", "is", null)
           .gt("dialpad_talk_time_seconds", 0)
-          .or("outcome.eq.booked,dialpad_talk_time_seconds.gte.60")
+          .eq("outcome", "booked")
           .order("created_at", { ascending: false }).order("id")
           .range(from, from + PAGE - 1);
         if (error) throw error;
@@ -159,11 +154,13 @@ export function useStudyCalls(sources: string[]) {
       const byContact = new Map<string, RawItem[]>();
       for (const it of items) byContact.set(it.contact_id, [...(byContact.get(it.contact_id) ?? []), it]);
 
+      // Logs are newest first, so the last one written per lead is the earliest.
+      const firstCall = new Map<string, string>();
+      for (const l of logs) if (l.contact_id) firstCall.set(l.contact_id, l.id);
+
       return logs.map((l) => {
-        const meetings = l.outcome === "booked" && l.contact_id
-          // A meeting before this call can't be the one it booked.
-          ? (byContact.get(l.contact_id) ?? []).filter((m) => m.scheduled_for && m.scheduled_for >= l.created_at)
-          : [];
+        const all = l.contact_id ? byContact.get(l.contact_id) ?? [] : [];
+        const meetings = meetingsFromCall(all, l.created_at, !l.contact_id || firstCall.get(l.contact_id) === l.id);
         const bucket = bestBucket(meetings.map((m) => bucketFor(m.appointment_outcome, m.status, m.scheduled_for)));
         const winning = meetings.some((m) => isWinningMeeting(bucketFor(m.appointment_outcome, m.status, m.scheduled_for), m.is_qualified));
         const recorded = meetings.find((m) => fathom.has(m.id) || m.recording_url);

@@ -26,7 +26,7 @@ export function StudyReviews() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Whose calls each rep reviews</CardTitle>
-          <CardDescription>Every recorded call that person makes shows on the rep's Training page: booked calls, and conversations over a minute. From another rep, only the calls that won. New calls join as they happen. The rep can also open the recordings of that person's booked sales meetings.</CardDescription>
+          <CardDescription>That person's winning setting calls show on the rep's Training page: the meeting closed, or a qualified prospect sat. New ones join as they happen. The rep can also open the recordings of that person's booked sales meetings.</CardDescription>
         </CardHeader>
         <CardContent className="divide-y divide-border">
           {reps.map((r) => (
