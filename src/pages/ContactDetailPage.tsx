@@ -24,6 +24,8 @@ import { useContactPipelineItems, useCreatePipelineItem, useSalesReps } from "@/
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline";
 import { useUpdateContact } from "@/hooks/useContacts";
 import { useDialpadCall } from "@/hooks/useDialpad";
+import { LeadSourceSelect } from "@/components/LeadSourceSelect";
+import { changeLeadSource, leadSourceOf } from "@/lib/leadSources";
 import { ContactCallDock, type ContactCallDockHandle, type ServerPlacement } from "@/components/contacts/ContactCallDock";
 import type { NativeCallState } from "@/components/dialer/NativeCallBar";
 import { useMyDialpadSettings } from "@/hooks/useDialpadSettings";
@@ -545,6 +547,17 @@ export default function ContactDetailPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-foreground truncate">{contact.business_name}</h1>
                 <Badge variant="secondary" className="font-mono text-xs">{contact.industry}</Badge>
+                <LeadSourceSelect
+                  className="h-7 w-auto gap-1 border-border bg-card px-2 text-xs"
+                  value={leadSourceOf(contact)}
+                  disabled={updateContact.isPending}
+                  onChange={(source) => {
+                    updateContact.mutate(
+                      { id: contact.id, ...changeLeadSource(contact, source) },
+                      { onSuccess: () => toast.success(`Lead source set to ${source}.`), onError: () => toast.error("Could not save the lead source.") },
+                    );
+                  }}
+                />
                 <Badge variant={currentStatusValue === "uncalled" ? "outline" : "default"} className="text-xs capitalize">
                   {currentStatusValue}
                 </Badge>

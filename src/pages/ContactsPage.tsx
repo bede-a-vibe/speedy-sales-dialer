@@ -8,6 +8,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { GhlMirrorDetails } from "@/components/ghl/GhlMirrorDetails";
 import { GhlMirrorStatusBadge, getGhlMirrorCue } from "@/components/ghl/GhlMirrorStatusBadge";
+import { LeadSourceSelect } from "@/components/LeadSourceSelect";
+import { DEFAULT_LEAD_SOURCE, leadSourceFields } from "@/lib/leadSources";
 import { useUpdateContact, useCreateContact, usePaginatedContacts, useBulkUpdateContacts, fetchAllMatchingContactIds, type ContactsSortOption } from "@/hooks/useContacts";
 import { useCreatePipelineItem, useContactPipelineItems, useSalesReps } from "@/hooks/usePipelineItems";
 import { useAuth } from "@/hooks/useAuth";
@@ -805,6 +807,8 @@ export default function ContactsPage() {
     gmb_link: string;
     city: string;
     state: string;
+    source: string;
+    sourceDetail: string;
   }>({
     business_name: "",
     contact_person: "",
@@ -815,6 +819,8 @@ export default function ContactsPage() {
     gmb_link: "",
     city: "",
     state: "",
+    source: DEFAULT_LEAD_SOURCE,
+    sourceDetail: "",
   });
 
   // Debounce search input
@@ -1094,6 +1100,8 @@ export default function ContactsPage() {
       gmb_link: "",
       city: "",
       state: "",
+      source: DEFAULT_LEAD_SOURCE,
+      sourceDetail: "",
     });
   };
 
@@ -1113,6 +1121,7 @@ export default function ContactsPage() {
         gmb_link: createForm.gmb_link.trim() || null,
         city: createForm.city.trim() || null,
         state: createForm.state.trim() || null,
+        ...leadSourceFields(createForm.source, createForm.sourceDetail),
       });
       toast.success("Contact created.");
       setShowCreateDialog(false);
@@ -2012,6 +2021,8 @@ export default function ContactsPage() {
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">GMB Link</Label><Input value={createForm.gmb_link} onChange={(e) => setCreateForm({ ...createForm, gmb_link: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} className="border-border bg-card" /></div>
               <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} className="border-border bg-card" /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Lead source *</Label><LeadSourceSelect value={createForm.source} onChange={(v) => setCreateForm({ ...createForm, source: v })} /></div>
+              <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{createForm.source === "Referral" ? "Referred by" : "Source detail"}</Label><Input value={createForm.sourceDetail} onChange={(e) => setCreateForm({ ...createForm, sourceDetail: e.target.value })} className="border-border bg-card" /></div>
               <div className="col-span-2"><Button onClick={saveNewContact} disabled={createContact.isPending} className="w-full font-semibold">{createContact.isPending ? "Creating…" : "Create Contact"}</Button></div>
             </div>
           </DialogContent>

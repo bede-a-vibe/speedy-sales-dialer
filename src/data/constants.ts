@@ -319,6 +319,9 @@ export const LEAD_TYPES = [
 
 export const LEAD_CHANNELS = [
   "Ads",
+  "Meta Ads",
+  "Google Ads",
+  "SEO",
   "Cold Email",
   "Student",
   "Website",
