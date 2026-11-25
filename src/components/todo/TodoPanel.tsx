@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { CalendarPlus, Check, ChevronDown, Clock3, MoreHorizontal, Phone, PhoneOff, Plus, Search, ThumbsDown, UserRoundCheck } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { CalendarPlus, Check, ChevronDown, Clock3, ExternalLink, Globe, MoreHorizontal, NotebookPen, Phone, PhoneOff, Plus, Search, ThumbsDown, UserRound, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,12 +15,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QuickBookDialog } from "@/components/QuickBookDialog";
 import { ListRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { useGHLContactSync } from "@/hooks/ghl/useGHLContactSync";
 import { useAuth } from "@/hooks/useAuth";
+import { useAddContactNote } from "@/hooks/useContactNotes";
 import type { Contact } from "@/hooks/useContacts";
 import type { PipelineCall } from "@/hooks/usePipelineCall";
 import type { SalesRepOption } from "@/hooks/usePipelineItems";
@@ -28,6 +31,7 @@ import { useAdminAccess } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
 import { describeWindowReason, evaluateCallingWindow } from "@/lib/callingCompliance";
+import { getGhlContactUrl } from "@/lib/ghlUrls";
 import { resolveDialTarget } from "@/lib/dialTarget";
 import { TODO_OLD_DAYS, workingMorning, type TodoItem, type TodoKind } from "@/lib/todoList";
 import { cn } from "@/lib/utils";
@@ -111,7 +115,7 @@ function Details({ item, reps, onReassign, canReassign }: {
   );
 }
 
-function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, openInNewTab, canReassign, onCall, onBook, onLater, onPickDate, onDone, onNotInterested, onDoNotCall, onReassign }: {
+function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, openInNewTab, canReassign, onCall, onBook, onNote, onLater, onPickDate, onDone, onNotInterested, onDoNotCall, onReassign }: {
   item: TodoItem;
   lastCall: string | undefined;
   ownerName: string | null;
@@ -125,6 +129,7 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, 
   canReassign: boolean;
   onCall: () => void;
   onBook: () => void;
+  onNote: () => void;
   onLater: (at: Date) => void;
   onPickDate: () => void;
   onDone: () => void;
@@ -140,11 +145,16 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, 
   const number = resolveDialTarget(c).number;
   const context = c.key_quote || usefulNote(item.followUp?.notes);
   const calledSince = Boolean(lastCall && item.at && lastCall > item.at);
+  const ghlUrl = getGhlContactUrl(c.ghl_contact_id);
+  const website = c.website ? (/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`) : null;
+  const newTab = openInNewTab ? { target: "_blank", rel: "noopener" } : {};
+  const linkCls = "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
   return (
     <li className={cn("rounded-lg border bg-card p-3", onThisCall ? "border-primary ring-1 ring-primary" : "border-border")} data-testid="todo-row">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <button type="button" className="min-w-0 flex-1 basis-64 text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <div className="min-w-0 flex-1 basis-64">
+        <button type="button" className="w-full text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={cn("text-[10px]", KIND[item.kind].cls)}>{KIND[item.kind].label}</Badge>
             <span className="truncate text-sm font-semibold text-foreground">{c.business_name || "Unknown business"}</span>
@@ -164,6 +174,17 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, 
           </p>
           {context && !open ? <p className="mt-0.5 line-clamp-1 text-xs italic text-muted-foreground">{context}</p> : null}
         </button>
+        <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-1">
+          <Link to={`/contacts/${c.id}`} {...newTab} className={linkCls}><UserRound className="h-3.5 w-3.5" />Profile</Link>
+          {ghlUrl ? (
+            <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>GHL<ExternalLink className="h-3 w-3 opacity-60" /></a>
+          ) : null}
+          {website ? (
+            <a href={website} target="_blank" rel="noopener noreferrer" className={linkCls}><Globe className="h-3.5 w-3.5" />Website</a>
+          ) : null}
+          <button type="button" onClick={onNote} disabled={busy} className={cn(linkCls, "disabled:opacity-50")}><NotebookPen className="h-3.5 w-3.5" />Add note</button>
+        </div>
+        </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
           <Button size="sm" onClick={onCall} disabled={!number || busy || callBusy} title={number ?? "No phone number"}>
@@ -199,7 +220,6 @@ function TodoRow({ item, lastCall, ownerName, reps, busy, callBusy, onThisCall, 
               <Button size="icon" variant="ghost" className="h-9 w-9" aria-label="More"><MoreHorizontal className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild><Link to={`/contacts/${c.id}`} target={openInNewTab ? "_blank" : undefined} rel={openInNewTab ? "noopener" : undefined}>Open contact</Link></DropdownMenuItem>
               {item.kind !== "moved" ? (
                 <>
                   <DropdownMenuItem onClick={onNotInterested} disabled={busy}>
@@ -262,6 +282,10 @@ export function TodoPanel({ reps, repMap, call: pipelineCall, initialFilter = "a
   const [dnc, setDnc] = useState<TodoItem | null>(null);
   const { pushDNC } = useGHLContactSync();
   const [dating, setDating] = useState<TodoItem | null>(null);
+  const [noting, setNoting] = useState<TodoItem | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const addNote = useAddContactNote();
+  const queryClient = useQueryClient();
 
   const ownerId = rep === "all" ? null : rep === "me" ? user?.id : rep;
   const { data: items = [], isLoading, isError, refetch } = useTodoList(ownerId);
@@ -345,6 +369,7 @@ export function TodoPanel({ reps, repMap, call: pipelineCall, initialFilter = "a
       canReassign={canViewAdmin && canWrite}
       onCall={() => void call(item)}
       onBook={() => void book(item)}
+      onNote={() => { setNoteText(""); setNoting(item); }}
       onLater={(at) => void pushLater(item, at)}
       onPickDate={() => setDating(item)}
       onDone={() => void run(`${name(item)} done.`, () => actions.done.mutateAsync({ item }))}
@@ -438,6 +463,43 @@ export function TodoPanel({ reps, repMap, call: pipelineCall, initialFilter = "a
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={noting !== null} onOpenChange={(open) => { if (!open) setNoting(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Note on {noting ? name(noting) : "this lead"}</DialogTitle></DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const content = noteText.trim();
+              if (!noting || !content || !user?.id) return;
+              const contactId = noting.contact.id;
+              const label = name(noting);
+              addNote.mutate({ contactId, content, createdBy: user.id }, {
+                onSuccess: () => {
+                  toast.success(`Note saved on ${label}.`);
+                  void queryClient.invalidateQueries({ queryKey: ["todo-detail", contactId] });
+                  setNoting(null);
+                },
+                onError: () => toast.error("That note did not save. Try again."),
+              });
+            }}
+          >
+            <Textarea
+              autoFocus
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="e.g. Send him an email with the SEO pricing"
+              rows={4}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit(); }}
+            />
+            <p className="text-xs text-muted-foreground">Saved on the contact. Copied to GHL when they are linked.</p>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setNoting(null)}>Cancel</Button>
+              <Button type="submit" size="sm" disabled={!noteText.trim() || addNote.isPending}>Save note</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={dating !== null} onOpenChange={(open) => { if (!open) setDating(null); }}>
         <DialogContent className="w-auto">
           <DialogHeader><DialogTitle>Back on the list</DialogTitle></DialogHeader>
