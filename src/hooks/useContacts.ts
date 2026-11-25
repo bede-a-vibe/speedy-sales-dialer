@@ -962,6 +962,9 @@ export function useCreateContact() {
       gmb_link?: string | null;
       city?: string | null;
       state?: string | null;
+      lead_channel?: string | null;
+      lead_type?: string;
+      lead_source?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("contacts")

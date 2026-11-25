@@ -31,6 +31,8 @@ import {
   useGHLPipelines,
 } from "@/hooks/useGHLConfig";
 import { INDUSTRIES } from "@/data/mockData";
+import { LeadSourceSelect } from "@/components/LeadSourceSelect";
+import { DEFAULT_LEAD_SOURCE, leadSourceFields } from "@/lib/leadSources";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -142,6 +144,8 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
     industry: "",
     city: "",
     state: "",
+    source: DEFAULT_LEAD_SOURCE as string,
+    sourceDetail: "",
   });
 
   const [pipelineType, setPipelineType] = useState<PipelineType>(initialPipelineType ?? "booked");
@@ -240,7 +244,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
       setResults([]);
       setSelectedContact(null);
       setShowCreateForm(false);
-      setNewContact({ business_name: "", contact_person: "", phone: "", email: "", industry: "", city: "", state: "" });
+      setNewContact({ business_name: "", contact_person: "", phone: "", email: "", industry: "", city: "", state: "", source: DEFAULT_LEAD_SOURCE, sourceDetail: "" });
       setPipelineType(initialPipelineType ?? "booked");
       setFollowUpMethod("call");
       setScheduledDate(undefined);
@@ -323,6 +327,7 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
         email: newContact.email.trim() || null,
         city: newContact.city.trim() || null,
         state: newContact.state.trim() || null,
+        ...leadSourceFields(newContact.source, newContact.sourceDetail),
       });
       toast.success("Contact created.");
       setSelectedContact(created as Contact);
@@ -760,6 +765,8 @@ export function QuickBookDialog({ open, onOpenChange, initialContact = null, ini
                 <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Industry *</Label><Select value={newContact.industry} onValueChange={(v) => setNewContact({ ...newContact, industry: v })}><SelectTrigger className="border-border bg-card"><SelectValue placeholder="Select industry" /></SelectTrigger><SelectContent>{INDUSTRIES.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">City</Label><Input value={newContact.city} onChange={(e) => setNewContact({ ...newContact, city: e.target.value })} className="border-border bg-card" /></div>
                 <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">State</Label><Input value={newContact.state} onChange={(e) => setNewContact({ ...newContact, state: e.target.value })} className="border-border bg-card" /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Lead source *</Label><LeadSourceSelect value={newContact.source} onChange={(v) => setNewContact({ ...newContact, source: v })} /></div>
+                <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{newContact.source === "Referral" ? "Referred by" : "Source detail"}</Label><Input value={newContact.sourceDetail} onChange={(e) => setNewContact({ ...newContact, sourceDetail: e.target.value })} className="border-border bg-card" /></div>
               </div>
               <Button onClick={handleCreateContact} disabled={createContactMutation.isPending} className="w-full font-semibold">
                 {createContactMutation.isPending ? "Creating…" : "Create Contact & Continue"}

@@ -125,7 +125,7 @@ const FILTER_META: Record<string, { kind: DetailFieldKind; label?: string; optio
   lifecycle_stage: { kind: "text", options: ["New", "Attempting", "Connected", "Qualified", "Booked", "Won", "Lost"] },
   lifecycle_reason: { kind: "text" },
   lead_type: { kind: "text", options: ["Cold", "Warm", "Inbound", "Outbound"] },
-  lead_channel: { kind: "text", options: ["Ads", "Meta ads", "Cold Call", "Cold Email", "Student", "Website", "Referral", "Partnership", "LinkedIn", "Booked session", "Legacy/Import", "Other"] },
+  lead_channel: { kind: "text", options: ["Ads", "Meta ads", "Google Ads", "SEO", "Cold Call", "Cold Email", "Student", "Website", "Referral", "Partnership", "LinkedIn", "Booked session", "Legacy/Import", "Other"] },
   last_outcome: { kind: "text", options: ["No answer", "Voicemail", "Not interested", "Gatekeeper", "Follow up", "Booked", "Disqualified", "DNC", "Wrong number"] },
   meeting_booked_date: { kind: "date" },
   setter_name: { kind: "text", optionsFrom: "reps" },

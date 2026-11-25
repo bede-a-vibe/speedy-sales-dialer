@@ -11,6 +11,7 @@ import { usePipelineCall } from "@/hooks/usePipelineCall";
 import { GhlPipelineBoard } from "@/components/pipelines/GhlPipelineBoard";
 import { BookedOutcomePanel, type OutcomeExtras } from "@/components/pipelines/BookedOutcomePanel";
 import { Button } from "@/components/ui/button";
+import { LogMeetingDialog } from "@/components/pipelines/LogMeetingDialog";
 import { CloseTrackingPanel } from "@/components/pipelines/CloseTrackingPanel";
 import { MeetingsPanel } from "@/pages/MeetingsPage";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,7 +48,7 @@ import { findDefaultBookedPipeline, findDefaultBookedStage, findDefaultFollowUpP
 import { TwoPipelineGuide } from "@/components/ghl/TwoPipelineGuide";
 import { PipelineMirrorCards } from "@/components/ghl/PipelineMirrorCards";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, PencilLine } from "lucide-react";
+import { ChevronDown, PencilLine, Plus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -376,7 +377,8 @@ export default function PipelinesPage() {
   const updatePipelineItem = useUpdatePipelineItem();
   const createPipelineItem = useCreatePipelineItem();
   const { user } = useAuth();
-  const { canViewAdmin } = useAdminAccess();
+  const { canViewAdmin, isAdmin } = useAdminAccess();
+  const [logOpen, setLogOpen] = useState(false);
   const { data: todoCount = 0 } = useTodoCount(user?.id);
   const { pushCallNote } = useGHLContactSync();
   const { pushFollowUp } = useGHLFollowUpSync();
@@ -1054,6 +1056,11 @@ export default function PipelinesPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {isAdmin ? (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setLogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />Log a meeting
+              </Button>
+            ) : null}
           </div>
           <TabsContent value="todo" className="mt-4">
             <TodoPanel reps={reps} repMap={repMap} call={pipelineCall} initialFilter={tabParam === "followups" ? "follow_up" : "all"} />
@@ -1107,6 +1114,7 @@ export default function PipelinesPage() {
             {renderHistory()}
           </TabsContent>
         </Tabs>
+        <LogMeetingDialog open={logOpen} onOpenChange={setLogOpen} reps={reps} onLogged={() => setSearchParams({ tab: "booked" })} />
       </div>
     </AppLayout>
   );
