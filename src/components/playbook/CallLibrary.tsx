@@ -8,6 +8,7 @@ import { ListenButton } from "@/components/calls/ListenButton";
 import { getOutcomeReasonLabel } from "@/lib/appointments";
 import { useCallLibrary, winningSets, type LibraryBucket, type WinningSet } from "@/hooks/useCallLibrary";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 
 /**
  * From Bede's first cold-call bookings in March, so his own setting calls and
@@ -99,7 +100,7 @@ function CallRow({ call }: { call: WinningSet }) {
           {summary ? <p className="whitespace-pre-line text-xs text-foreground">{summary}</p> : null}
           {transcript ? (
             <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs leading-relaxed text-foreground">
-              {transcript}
+              {readableTranscript(transcript)}
             </pre>
           ) : null}
         </div>

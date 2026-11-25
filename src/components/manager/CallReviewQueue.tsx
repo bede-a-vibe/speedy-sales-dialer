@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 import { useRepProfiles, useReviewQueue, useSaveReview, type ReviewableCall, type CallReview } from "@/hooks/useManager";
 import { ListenButton } from "@/components/calls/ListenButton";
 import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
@@ -168,7 +169,7 @@ function ReviewDialog({ call, repName, existing, onClose }: {
             )}
             {call.summary && <p><span className="font-medium">Summary: </span>{call.summary}</p>}
             {call.notes && <p><span className="font-medium">Rep notes: </span>{call.notes}</p>}
-            <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground">{call.transcript ?? "No transcript for this call yet."}</p>
+            <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground">{readableTranscript(call.transcript) ?? "No transcript for this call yet."}</p>
           </div>
           <div className="space-y-3">
             <div>

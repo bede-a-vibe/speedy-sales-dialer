@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySelfReviewableCalls, useSaveSelfReview, type SelfReviewableCall } from "@/hooks/useManager";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
+import { useCallTranscript } from "@/hooks/useLoomReviews";
 import { PILLAR_ORDER, PILLAR_LABELS } from "@/hooks/useCallCoaching";
 import { ListenButton } from "@/components/calls/ListenButton";
 
@@ -53,6 +55,8 @@ function CallRow({ call }: { call: SelfReviewableCall }) {
   const locked = status === "submitted" || status === "reviewed";
 
   const [open, setOpen] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const transcript = useCallTranscript(call.id, open && showTranscript);
   const [score, setScore] = useState(review?.self_score ?? 0);
   const [wentWell, setWentWell] = useState(review?.self_went_well ?? "");
   const [improve, setImprove] = useState(review?.self_improve ?? "");
@@ -116,11 +120,13 @@ function CallRow({ call }: { call: SelfReviewableCall }) {
           ) : (
             <p className="text-xs text-muted-foreground">No recording linked to this call.</p>
           )}
-          {call.transcript && (
-            <details className="rounded-md border border-border bg-muted/30 p-2">
-              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Read the transcript</summary>
-              <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed">{call.transcript}</pre>
-            </details>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setShowTranscript((v) => !v)} aria-expanded={showTranscript}>
+            {showTranscript ? "Hide transcript" : "Read the transcript"}
+          </Button>
+          {showTranscript && (
+            <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 font-sans text-sm leading-relaxed">
+              {transcript.isLoading ? "Loading…" : transcript.isError ? "Couldn't load the transcript." : readableTranscript(transcript.data) ?? "No transcript for this call yet."}
+            </pre>
           )}
           {locked ? (
             <div className="space-y-2">
