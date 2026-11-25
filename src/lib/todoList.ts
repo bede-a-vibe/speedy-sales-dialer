@@ -27,6 +27,8 @@ export interface TodoContact {
   industry?: string | null;
   city?: string | null;
   state?: string | null;
+  ghl_contact_id?: string | null;
+  website?: string | null;
   status?: string | null;
   is_dnc?: boolean | null;
   lifecycle_stage?: string | null;
