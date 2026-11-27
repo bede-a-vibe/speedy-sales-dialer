@@ -206,6 +206,48 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_meetings_20261126: {
+        Row: {
+          at: string | null
+          data: Json | null
+          kind: string | null
+          row_id: string | null
+        }
+        Insert: {
+          at?: string | null
+          data?: Json | null
+          kind?: string | null
+          row_id?: string | null
+        }
+        Update: {
+          at?: string | null
+          data?: Json | null
+          kind?: string | null
+          row_id?: string | null
+        }
+        Relationships: []
+      }
+      backup_noshow_fix_20261126: {
+        Row: {
+          at: string | null
+          data: Json | null
+          kind: string | null
+          row_id: string | null
+        }
+        Insert: {
+          at?: string | null
+          data?: Json | null
+          kind?: string | null
+          row_id?: string | null
+        }
+        Update: {
+          at?: string | null
+          data?: Json | null
+          kind?: string | null
+          row_id?: string | null
+        }
+        Relationships: []
+      }
       backup_outcome_reason_20261123: {
         Row: {
           appointment_outcome:
@@ -4378,6 +4420,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_contact_push_log_20261126: {
+        Row: {
+          attempts: number | null
+          contact_id: string | null
+          detail: string | null
+          done_at: string | null
+          enqueued_at: string | null
+          ghl_contact_id: string | null
+          kind: string | null
+          new_number: string | null
+          old_numbers: string[] | null
+          status: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       ghl_contact_push_queue: {
         Row: {
           attempts: number
@@ -5336,6 +5417,57 @@ export type Database = {
         Relationships: []
       }
       lms_lessons_backup_20261123: {
+        Row: {
+          body: string | null
+          component: string | null
+          course_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          loom_review_id: string | null
+          published: boolean | null
+          resources: Json | null
+          section: string | null
+          sort: number | null
+          title: string | null
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          loom_review_id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          body?: string | null
+          component?: string | null
+          course_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          loom_review_id?: string | null
+          published?: boolean | null
+          resources?: Json | null
+          section?: string | null
+          sort?: number | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: []
+      }
+      lms_lessons_backup_20261124_tiedown: {
         Row: {
           body: string | null
           component: string | null
@@ -9083,6 +9215,36 @@ export type Database = {
         }
         Relationships: []
       }
+      solar_reclass_plan_20261126: {
+        Row: {
+          business_name: string | null
+          id: string | null
+          lifecycle_stage: string | null
+          old_industry: string | null
+          old_trade_type: string | null
+          reason: string | null
+          status: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          old_industry?: string | null
+          old_trade_type?: string | null
+          reason?: string | null
+          status?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          id?: string | null
+          lifecycle_stage?: string | null
+          old_industry?: string | null
+          old_trade_type?: string | null
+          reason?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       state_backfill_backup: {
         Row: {
           backed_up_at: string | null
@@ -9766,6 +9928,7 @@ export type Database = {
         Returns: number
       }
       count_state_backfill_pending: { Args: never; Returns: number }
+      dialer_closed_states: { Args: { _at?: string }; Returns: string[] }
       dialer_detail_fields: {
         Args: never
         Returns: {
@@ -10103,6 +10266,21 @@ export type Database = {
           updated_at: string
           user_agent: string
         }[]
+      }
+      log_outside_meeting: {
+        Args: {
+          _at: string
+          _business: string
+          _closer: string
+          _detail: string
+          _email: string
+          _format: string
+          _industry: string
+          _person: string
+          _phone: string
+          _source: string
+        }
+        Returns: Json
       }
       mark_my_reviews_seen: { Args: never; Returns: number }
       meeting_channel: {
