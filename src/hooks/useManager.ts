@@ -179,7 +179,6 @@ export interface SelfReviewableCall {
   outcome: string;
   talk: number | null;
   dialpadCallId: string | null;
-  transcript: string | null;
   business: string | null;
   review: CallReview | null;
 }
@@ -199,7 +198,7 @@ export function useMySelfReviewableCalls(userId?: string) {
       const [calls, reviews] = await Promise.all([
         supabase
           .from("call_logs")
-          .select("id, created_at, outcome, dialpad_call_id, dialpad_transcript, dialpad_talk_time_seconds, contacts(business_name)")
+          .select("id, created_at, outcome, dialpad_call_id, dialpad_talk_time_seconds, contacts(business_name)")
           .eq("user_id", userId!)
           .gte("created_at", since)
           .or("outcome.eq.booked,dialpad_talk_time_seconds.gte.60")
@@ -218,7 +217,6 @@ export function useMySelfReviewableCalls(userId?: string) {
         outcome: c.outcome,
         talk: c.dialpad_talk_time_seconds,
         dialpadCallId: (c as any).dialpad_call_id ?? null,
-        transcript: (c as any).dialpad_transcript ?? null,
         business: (c.contacts as { business_name?: string } | null)?.business_name ?? null,
         review: byCall.get(c.id) ?? null,
       }));

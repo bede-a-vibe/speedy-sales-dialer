@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
 import { useSalesReps } from "@/hooks/usePipelineItems";
@@ -192,7 +193,7 @@ export function WinningCallsLibrary() {
                     </p>
                   )}
                   <pre className="max-h-[420px] overflow-y-auto whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
-                    {c.transcript}
+                    {readableTranscript(c.transcript)}
                   </pre>
                 </div>
               )}

@@ -1,28 +1,72 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { noteListen, reportClientError } from "@/lib/errorReporter";
 
+/** How long a streamed recording gets to show it is playable before the full download takes over. */
+const STREAM_GRACE_MS = 8000;
+
+type Source = { url: string; kind: "stream" | "file"; resumeAt: number; play: boolean };
+
 /**
- * Fetches the Dialpad recording share link on demand and plays it inline.
- * Shared by the winning-calls library and the manager's review dialog — one
- * path to audio, so a broken recording link fails the same way everywhere.
+ * Plays a Dialpad recording inline. It streams, so a long call starts as fast
+ * as a short one. If the stream stalls or fails, the whole recording is pulled
+ * through our backend instead and playback carries on from the same second.
+ * Every Listen button in the app is this one.
  */
 export function ListenButton({ dialpadCallId, autoPlay = true, className }: { dialpadCallId: string; autoPlay?: boolean; className?: string }) {
   const [loading, setLoading] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [source, setSource] = useState<Source | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const fellBack = useRef(false);
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   // Free the downloaded recording when the player goes away.
-  useEffect(() => () => {
-    if (audioUrl?.startsWith("blob:")) URL.revokeObjectURL(audioUrl);
-  }, [audioUrl]);
+  useEffect(() => {
+    const url = source?.url;
+    return () => { if (url?.startsWith("blob:")) URL.revokeObjectURL(url); };
+  }, [source?.url]);
+
+  /** The whole recording, through our backend, as a local file. */
+  const playFile = async (accessLink: string, resumeAt: number, play: boolean) => {
+    try {
+      const { data: bytes, error: proxyErr } = await supabase.functions.invoke("dialpad", {
+        body: { action: "proxy_recording_audio", access_link: accessLink },
+      });
+      if (proxyErr || !bytes) throw proxyErr ?? new Error("empty");
+      if (!alive.current) return;
+      const blob = bytes instanceof Blob ? bytes : new Blob([bytes as ArrayBuffer]);
+      setSource({ url: URL.createObjectURL(new Blob([blob], { type: "audio/mpeg" })), kind: "file", resumeAt, play });
+    } catch (proxyFailure) {
+      reportClientError("recording_proxy_failed", String((proxyFailure as Error)?.message ?? proxyFailure), { dialpadCallId });
+      if (alive.current) setSource({ url: accessLink, kind: "file", resumeAt, play });
+    }
+  };
+
+  const fallBack = async (why: string) => {
+    if (fellBack.current || !shareUrl) return;
+    fellBack.current = true;
+    const el = audioRef.current;
+    reportClientError("recording_stream_failed", why, { dialpadCallId });
+    const at = el?.currentTime ?? 0;
+    setLoading(true);
+    // A player that died mid-call keeps going; one that never started follows autoPlay.
+    await playFile(shareUrl, at, at > 0 || autoPlay || el?.paused === false);
+    if (alive.current) setLoading(false);
+  };
 
   const load = async () => {
     setLoading(true);
     setError(null);
+    fellBack.current = false;
     noteListen(`load ${dialpadCallId}`);
     try {
       const { data, error: fnError } = await supabase.functions.invoke("dialpad", {
@@ -30,37 +74,42 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
       });
       if (fnError) throw fnError;
       if (!data?.access_link) throw new Error(data?.error ?? "No recording available");
+      if (!alive.current) return;
       setShareUrl(data.access_link as string);
-      // Pull the audio through our backend and play it as a local file — Dialpad's
-      // redirecting share link stalls in some browsers (stuck at 0:00).
-      try {
-        const { data: bytes, error: proxyErr } = await supabase.functions.invoke("dialpad", {
-          body: { action: "proxy_recording_audio", access_link: data.access_link },
-        });
-        if (proxyErr || !bytes) throw proxyErr ?? new Error("empty");
-        const blob = bytes instanceof Blob ? bytes : new Blob([bytes as ArrayBuffer]);
-        setAudioUrl(URL.createObjectURL(new Blob([blob], { type: "audio/mpeg" })));
-      } catch (proxyFailure) {
-        reportClientError("recording_proxy_failed", String((proxyFailure as Error)?.message ?? proxyFailure), { dialpadCallId });
-        setAudioUrl(data.access_link as string);
-      }
+      if (data.stream_url) setSource({ url: data.stream_url as string, kind: "stream", resumeAt: 0, play: autoPlay });
+      else await playFile(data.access_link as string, 0, autoPlay);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't load the recording.";
       reportClientError("recording_load_failed", msg, { dialpadCallId });
-      setError(msg);
+      if (alive.current) setError(msg);
     } finally {
-      setLoading(false);
+      if (alive.current) setLoading(false);
     }
   };
 
-  if (audioUrl) {
+  // A stream that shows nothing playable in time is stuck, not slow.
+  const streaming = source?.kind === "stream" ? source.url : null;
+  useEffect(() => {
+    if (!streaming) return;
+    const t = window.setTimeout(() => {
+      if ((audioRef.current?.readyState ?? 0) < 1) void fallBack("stalled");
+    }, STREAM_GRACE_MS);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streaming]);
+
+  if (source) {
     return (
       <div className={className ?? "mb-3 flex flex-wrap items-center gap-2"}>
         <audio
+          key={source.url}
+          ref={audioRef}
           controls
-          autoPlay={autoPlay}
-          src={audioUrl}
+          autoPlay={source.play}
+          preload="metadata"
+          src={source.url}
           className="h-9 w-full min-w-[260px] max-w-md"
+          onLoadedMetadata={(e) => { if (source.resumeAt > 0) e.currentTarget.currentTime = source.resumeAt; }}
           // One recording at a time: starting this one pauses any other player on the page.
           onPlay={(e) => {
             noteListen(`play ${dialpadCallId}`);
@@ -68,14 +117,14 @@ export function ListenButton({ dialpadCallId, autoPlay = true, className }: { di
               if (a !== e.currentTarget && !a.paused) a.pause();
             });
           }}
-          onError={(e) =>
-            reportClientError("recording_playback_failed", `audio error ${e.currentTarget.error?.code ?? "?"}`, {
-              dialpadCallId,
-              blob: audioUrl.startsWith("blob:"),
-            })
-          }
+          onError={(e) => {
+            const why = `audio error ${e.currentTarget.error?.code ?? "?"}`;
+            if (source.kind === "stream") void fallBack(why);
+            else reportClientError("recording_playback_failed", why, { dialpadCallId, blob: source.url.startsWith("blob:") });
+          }}
         />
-        <a href={shareUrl ?? audioUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+        {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Loading the recording" />}
+        <a href={shareUrl ?? source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
           Open recording <ExternalLink className="h-3 w-3" />
         </a>
       </div>

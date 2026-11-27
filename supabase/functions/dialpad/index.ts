@@ -4062,6 +4062,25 @@ async function createDialpadRecordingShareLink(params: {
   }
 }
 
+// The share link redirects to a signed audio file that plays as it downloads and
+// supports seeking. Some browsers stall on that cross-site redirect, so follow it
+// here and hand the page the file's own address. Null means "use the proxy".
+async function resolveRecordingStreamUrl(accessLink: string): Promise<string | null> {
+  const onDialpad = (u: URL) => u.protocol === "https:" && /(^|\.)dialpad\.com$/.test(u.hostname);
+  try {
+    const link = new URL(accessLink);
+    if (!onDialpad(link)) return null;
+    const res = await fetch(link.toString(), { redirect: "manual", signal: AbortSignal.timeout(6000) });
+    await res.body?.cancel();
+    const location = res.headers.get("location");
+    if (res.status < 300 || res.status >= 400 || !location) return null;
+    const target = new URL(location, link);
+    return onDialpad(target) && target.pathname.startsWith("/blob-server/") ? target.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Backfills recording_id/recording_type/recording_url on existing dialpad_calls
 // rows by re-fetching the Dialpad /call/{id} payload. NO AI is invoked.
 async function backfillDialpadRecordings(params: {
@@ -6387,7 +6406,8 @@ Deno.serve(async (req) => {
         const cachedAt = row.recording_share_created_at ? Date.parse(row.recording_share_created_at as string) : NaN;
         const cacheFresh = Number.isFinite(cachedAt) && Date.now() - cachedAt < 6 * 24 * 60 * 60 * 1000;
         if (row.recording_share_link && cacheFresh) {
-          return jsonResponse({ ok: true, access_link: row.recording_share_link, cached: true }, 200);
+          const stream_url = await resolveRecordingStreamUrl(row.recording_share_link as string);
+          return jsonResponse({ ok: true, access_link: row.recording_share_link, stream_url, cached: true }, 200);
         }
 
         // Resolve recording id — refetch call detail if we don't have one yet.
@@ -6426,7 +6446,8 @@ Deno.serve(async (req) => {
             recording_share_created_at: new Date().toISOString(),
           })
           .eq("id", row.id);
-        return jsonResponse({ ok: true, access_link: share.access_link, cached: false, recording_url: recordingUrl }, 200);
+        const stream_url = await resolveRecordingStreamUrl(share.access_link);
+        return jsonResponse({ ok: true, access_link: share.access_link, stream_url, cached: false, recording_url: recordingUrl }, 200);
       }
 
       case "register_dialpad_webhook": {

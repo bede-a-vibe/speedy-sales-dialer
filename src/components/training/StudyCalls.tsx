@@ -13,6 +13,7 @@ import { useMyStudyNotes, useSaveStudyNote, useStudyCalls, type StudyCall, type 
 import { useCallTranscript } from "@/hooks/useLoomReviews";
 import { fmtTalk } from "@/lib/loom";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 
 type Filter = "winning" | "closed" | "showed";
 const FILTERS: Array<{ key: Filter; label: string; hint: string }> = [
@@ -75,7 +76,7 @@ function StudyRow({ call, note, name }: { call: StudyCall; note: StudyNote | und
           </div>
           {showTranscript && (
             <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 font-sans text-xs leading-relaxed">
-              {isLoading ? "Loading…" : isError ? "Couldn't load the transcript." : transcript ?? "No transcript for this call."}
+              {isLoading ? "Loading…" : isError ? "Couldn't load the transcript." : readableTranscript(transcript) ?? "No transcript for this call."}
             </pre>
           )}
           <div className="grid gap-3 md:grid-cols-2">

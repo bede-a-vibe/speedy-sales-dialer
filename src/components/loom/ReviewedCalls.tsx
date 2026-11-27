@@ -6,6 +6,7 @@ import { useRepProfiles } from "@/hooks/useManager";
 import { useCallTranscript, type LoomReviewCall } from "@/hooks/useLoomReviews";
 import { fmtDay, fmtTalk } from "@/lib/loom";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 
 function ReviewedCall({ call, repName }: { call: LoomReviewCall; repName: string | null }) {
   const [open, setOpen] = useState(false);
@@ -43,7 +44,7 @@ function ReviewedCall({ call, repName }: { call: LoomReviewCall; repName: string
       </div>
       {open && (
         <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs leading-relaxed text-foreground">
-          {isLoading ? "Loading…" : isError ? "Couldn't load the transcript." : transcript ?? "No transcript for this call yet."}
+          {isLoading ? "Loading…" : isError ? "Couldn't load the transcript." : readableTranscript(transcript) ?? "No transcript for this call yet."}
         </pre>
       )}
     </div>

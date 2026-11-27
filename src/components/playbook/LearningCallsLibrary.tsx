@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { readableTranscript } from "@/lib/transcript";
 import { useUnsuccessfulCalls, type UnsuccessfulCall } from "@/hooks/useUnsuccessfulCalls";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAccess } from "@/hooks/useUserRole";
@@ -129,7 +130,7 @@ function Row({ call, repName }: { call: UnsuccessfulCall; repName: string }) {
             </Button>
             {showTranscript && (
               <pre className="mt-2 max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 font-sans text-xs leading-relaxed text-muted-foreground">
-                {call.transcript.replace(/^Dialpad Transcript\n?/, "")}
+                {readableTranscript(call.transcript)}
               </pre>
             )}
           </div>
