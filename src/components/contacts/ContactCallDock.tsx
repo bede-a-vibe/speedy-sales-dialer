@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Headphones } from "lucide-react";
 import { DialpadCTI, type CallRingingPayload, type DialpadCTIHandle } from "@/components/dialer/DialpadCTI";
 import { NativeCallBar, type NativeCallState } from "@/components/dialer/NativeCallBar";
-import { useCancelDialpadCall, useDialpadCallStatus, useForceHangupCall, useResolveDialpadCall } from "@/hooks/useDialpad";
+import { DialpadActionError, useCancelDialpadCall, useDialpadCallStatus, useForceHangupCall, useResolveDialpadCall } from "@/hooks/useDialpad";
 import { eventForDialpadState, isTerminalResult, nextCallState, ringBelongsToCall, type CallDockEvent } from "@/lib/callDockState";
 import { cn } from "@/lib/utils";
 
@@ -255,7 +255,7 @@ export const ContactCallDock = forwardRef<ContactCallDockHandle, ContactCallDock
         if (event) dispatch(event);
       } catch (e) {
         const message = e instanceof Error ? e.message.toLowerCase() : "";
-        if (message.includes("rate limit") || message.includes("429")) delay = Math.min(delay * 2, STATUS_POLL_MAX_MS);
+        if ((e instanceof DialpadActionError && e.status === 429) || message.includes("rate limit") || message.includes("429")) delay = Math.min(delay * 2, STATUS_POLL_MAX_MS);
       } finally {
         inFlight = false;
         schedule();
