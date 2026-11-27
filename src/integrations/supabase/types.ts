@@ -4459,6 +4459,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_contact_push_log_20261127: {
+        Row: {
+          attempts: number | null
+          contact_id: string | null
+          detail: string | null
+          done_at: string | null
+          enqueued_at: string | null
+          ghl_contact_id: string | null
+          kind: string | null
+          new_number: string | null
+          old_numbers: string[] | null
+          status: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          contact_id?: string | null
+          detail?: string | null
+          done_at?: string | null
+          enqueued_at?: string | null
+          ghl_contact_id?: string | null
+          kind?: string | null
+          new_number?: string | null
+          old_numbers?: string[] | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       ghl_contact_push_queue: {
         Row: {
           attempts: number
@@ -9512,6 +9551,33 @@ export type Database = {
           next_followup_date?: string | null
           prospect_tier?: string | null
           status?: string | null
+        }
+        Relationships: []
+      }
+      westdistrict_fix_backup_20261127: {
+        Row: {
+          city: string | null
+          dm_email: string | null
+          follow_up_note: string | null
+          id: string | null
+          state: string | null
+          website: string | null
+        }
+        Insert: {
+          city?: string | null
+          dm_email?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          state?: string | null
+          website?: string | null
+        }
+        Update: {
+          city?: string | null
+          dm_email?: string | null
+          follow_up_note?: string | null
+          id?: string | null
+          state?: string | null
+          website?: string | null
         }
         Relationships: []
       }
