@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DialpadActionError,
   useDialpadCall,
   useDialpadCallStatus,
   useCancelDialpadCall,
@@ -337,8 +338,9 @@ export function useDialerDialpad({
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to place Dialpad call.";
         const normalized = message.toLowerCase();
-        const is409 = message.includes("409") || normalized.includes("already being created") || normalized.includes("still active");
-        const is429 = message.includes("429") || normalized.includes("rate_limit") || normalized.includes("rate limit");
+        const status = error instanceof DialpadActionError ? error.status : null;
+        const is409 = status === 409 || message.includes("409") || normalized.includes("already being created") || normalized.includes("still active");
+        const is429 = status === 429 || message.includes("429") || normalized.includes("rate_limit") || normalized.includes("rate limit");
         const isAlreadyOnCall = normalized.includes("currently on a call");
 
         if (isStaleAttempt()) return;

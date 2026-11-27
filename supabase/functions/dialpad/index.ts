@@ -304,13 +304,17 @@ async function resolveAuthorizedDialpadUserId(params: {
   };
 }
 
-async function toggleDialpadDoNotDisturb(apiKey: string, dialpadUserId: string) {
+// Dialpad's endpoint is PATCH with an explicit target state. A bare POST answers
+// 404 "No endpoint found", which blocked every dial while a rep was on DND.
+async function toggleDialpadDoNotDisturb(apiKey: string, dialpadUserId: string, enabled: boolean) {
   const response = await fetch(`${DIALPAD_BASE}/users/${dialpadUserId}/togglednd`, {
-    method: "POST",
+    method: "PATCH",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ do_not_disturb: enabled }),
   });
 
   const body = await response.text().catch(() => null);
@@ -358,7 +362,7 @@ function scheduleDialpadDndRestore(params: {
     await sleep(params.delayMs ?? 1500);
     console.log(`[initiate_call] Restoring DND for user ${params.dialpadUserId}`);
 
-    const restoreResult = await toggleDialpadDoNotDisturb(params.apiKey, params.dialpadUserId);
+    const restoreResult = await toggleDialpadDoNotDisturb(params.apiKey, params.dialpadUserId, true);
     if (!restoreResult.ok) {
       console.warn(`[initiate_call] Failed to restore DND: status=${restoreResult.status}`);
       return;
@@ -6547,13 +6551,15 @@ Deno.serve(async (req) => {
 
           if (wasDnd) {
             console.log(`[initiate_call] User ${dialpadUserId} is in DND — temporarily disabling`);
-            const toggleOff = await toggleDialpadDoNotDisturb(DIALPAD_API_KEY, dialpadUserId);
+            const toggleOff = await toggleDialpadDoNotDisturb(DIALPAD_API_KEY, dialpadUserId, false);
             if (!toggleOff.ok) {
+              console.warn(`[initiate_call] DND toggle failed status=${toggleOff.status} body=${toggleOff.body}`);
               return jsonResponse({
                 ok: false,
-                error: "Unable to disable Dialpad DND before placing the call.",
-                message: toggleOff.body,
+                error: "Do Not Disturb is on in Dialpad.",
+                message: "Turn it off in Dialpad, then dial again.",
                 status_code: 502,
+                details: { dialpad_status: toggleOff.status, dialpad_body: toggleOff.body },
               }, 502);
             }
 
@@ -6568,8 +6574,8 @@ Deno.serve(async (req) => {
             if (!disabled) {
               return jsonResponse({
                 ok: false,
-                error: "Dialpad DND did not switch off in time.",
-                message: "Please try again in a second.",
+                error: "Do Not Disturb is still switching off in Dialpad.",
+                message: "Dial again in a second.",
                 status_code: 409,
               }, 409);
             }

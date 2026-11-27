@@ -60,25 +60,45 @@ function normalizeDialpadResponse(data: unknown): DialpadActionResponse {
 // The dialpad function always answers with { error, message, status_code, details }, and
 // that body is the only thing that says WHY (Dialpad 429, DND stuck, bad number, 5xx).
 // Without it the toast is useless and the 409/429 retry matching below never fires.
-async function readFunctionErrorBody(error: unknown): Promise<string | null> {
+// Carries the HTTP status so retry logic can match 409/429 without the code
+// being printed in the toast the rep sees.
+export class DialpadActionError extends Error {
+  status: number | null;
+  constructor(message: string, status: number | null) {
+    super(message);
+    this.name = "DialpadActionError";
+    this.status = status;
+  }
+}
+
+// Raw Dialpad payloads (JSON, HTML) are logged, never shown to the rep.
+function isReadableDetail(text: string) {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && trimmed.length <= 200 && !/^[{[<]/.test(trimmed);
+}
+
+async function readFunctionErrorBody(error: unknown): Promise<DialpadActionError | null> {
   if (!(error instanceof FunctionsHttpError)) return null;
   const response = error.context as Response | undefined;
   if (!response || typeof response.text !== "function") return null;
+  const fallback = "Dialpad couldn't complete that. Try again in a moment.";
   try {
     const raw = await response.text();
-    if (!raw.trim()) return `Dialpad function returned ${response.status}`;
     let body: Record<string, unknown> | null = null;
-    try { body = JSON.parse(raw) as Record<string, unknown>; } catch { body = null; }
-    if (!body) return `Dialpad function returned ${response.status}: ${raw.slice(0, 200)}`;
+    try { body = raw.trim() ? JSON.parse(raw) as Record<string, unknown> : null; } catch { body = null; }
+    const status = typeof body?.status_code === "number" ? body.status_code : response.status;
+    if (!body) {
+      console.warn(`[dialpad] function returned ${status}`, raw.slice(0, 500));
+      return new DialpadActionError(fallback, status);
+    }
     const headline = typeof body.error === "string" && body.error.trim() ? body.error.trim() : null;
-    const detail = typeof body.message === "string" && body.message.trim() ? body.message.trim() : null;
-    const status = typeof body.status_code === "number" ? body.status_code : response.status;
-    const parts = [headline ?? `Dialpad function returned ${status}`];
-    if (!headline?.includes(`[${status}]`) && !String(headline).includes(String(status))) parts[0] += ` [${status}]`;
-    if (detail && detail !== headline) parts.push(detail);
-    return parts.join(": ");
+    const detail = typeof body.message === "string" ? body.message.trim() : "";
+    if (detail && !isReadableDetail(detail)) console.warn(`[dialpad] ${headline ?? status}`, detail);
+    const parts = [headline ?? fallback];
+    if (detail && detail !== headline && isReadableDetail(detail)) parts.push(detail);
+    return new DialpadActionError(parts.join(" "), status);
   } catch {
-    return `Dialpad function returned ${response.status}`;
+    return new DialpadActionError(fallback, response.status);
   }
 }
 
@@ -102,7 +122,7 @@ async function invokeDialpadAction(body: Record<string, unknown>, fallbackMessag
 
   if (error) {
     const detailed = await readFunctionErrorBody(error);
-    throw new Error(detailed ?? getDialpadErrorMessage(error, fallbackMessage));
+    throw detailed ?? new Error(getDialpadErrorMessage(error, fallbackMessage));
   }
 
   const response = normalizeDialpadResponse(data);
